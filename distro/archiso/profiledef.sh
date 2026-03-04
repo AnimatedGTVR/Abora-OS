@@ -8,10 +8,8 @@ iso_version="$(date +%Y.%m.%d)"
 install_dir="abora"
 buildmodes=("iso")
 bootmodes=(
-  "bios.syslinux.mbr"
-  "bios.syslinux.eltorito"
-  "uefi-x64.systemd-boot.esp"
-  "uefi-x64.systemd-boot.eltorito"
+  "bios.syslinux"
+  "uefi.systemd-boot"
 )
 arch="x86_64"
 pacman_conf="pacman.conf"
