@@ -1,0 +1,5 @@
+Abora OS branding assets staged into the live filesystem.
+
+The current live image uses KDE Plasma with a default wallpaper stored in:
+
+/usr/share/wallpapers/Abora/default.png

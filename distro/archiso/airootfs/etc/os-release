@@ -1,0 +1,11 @@
+NAME="Abora OS"
+PRETTY_NAME="Abora OS"
+ID=abora
+ID_LIKE=arch
+BUILD_ID=rolling
+ANSI_COLOR="38;2;96;145;172"
+HOME_URL="https://abora.os"
+DOCUMENTATION_URL="https://abora.os/docs"
+SUPPORT_URL="https://abora.os/support"
+BUG_REPORT_URL="https://abora.os/issues"
+LOGO=archlinux-logo

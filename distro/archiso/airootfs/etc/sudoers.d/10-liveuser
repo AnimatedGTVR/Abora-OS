@@ -1,0 +1,2 @@
+Defaults:liveuser !requiretty
+liveuser ALL=(ALL) NOPASSWD: ALL

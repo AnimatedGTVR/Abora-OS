@@ -1,0 +1,15 @@
+[General]
+ColorScheme=BreezeDark
+Name=Abora
+TerminalApplication=konsole
+TerminalService=konsole.desktop
+
+[KDE]
+LookAndFeelPackage=org.kde.breezedark.desktop
+SingleClick=false
+
+[WM]
+activeBackground=61,89,110
+activeForeground=252,252,252
+inactiveBackground=36,40,45
+inactiveForeground=189,195,199
