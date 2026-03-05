@@ -1,0 +1,37 @@
+{
+  "additional-repositories": [
+    "multilib"
+  ],
+  "archinstall-language": "English",
+  "audio_config": "pipewire",
+  "hostname": "abora",
+  "kernels": [
+    "linux"
+  ],
+  "locale_config": {
+    "kb_layout": "us",
+    "sys_enc": "UTF-8",
+    "sys_lang": "en_US"
+  },
+  "ntp": true,
+  "packages": [
+    "abora-defaults",
+    "tinypm-abora",
+    "plasma-meta",
+    "kde-applications-meta",
+    "sddm",
+    "networkmanager",
+    "plasma-nm",
+    "konsole",
+    "dolphin"
+  ],
+  "parallel downloads": 5,
+  "script": "guided",
+  "services": [
+    "NetworkManager",
+    "sddm"
+  ],
+  "silent": false,
+  "swap": true,
+  "timezone": "UTC"
+}

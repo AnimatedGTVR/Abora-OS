@@ -32,13 +32,15 @@ vulkan-tools
 wayland
 wayland-protocols
 plasma-meta
-kde-applications-meta
 sddm
 konsole
 dolphin
 plasma-nm
 xdg-desktop-portal-kde
 packagekit-qt6
+ark
+gwenview
+okular
 
 pipewire
 pipewire-alsa
@@ -54,5 +56,6 @@ htop
 fastfetch
 bash-completion
 syslinux
+abora-defaults
 abora-installer
 tinypm-abora

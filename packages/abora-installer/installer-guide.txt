@@ -1,14 +1,21 @@
 Abora Installer
 
-This launcher opens archinstall with Abora's recommended path:
+This launcher opens archinstall with an Abora preloaded configuration.
 
-1. Select your disk and partitioning layout carefully.
-2. Choose Desktop profile -> KDE Plasma.
-3. Enable NetworkManager.
-4. Keep PipeWire for audio.
-5. Create your user account.
-6. Review the summary before writing changes.
+Preloaded defaults:
+- hostname: abora
+- audio: PipeWire
+- kernel: linux
+- locale: en_US.UTF-8 with US keyboard
+- packages: plasma-meta, kde-applications-meta, sddm, networkmanager, plasma-nm, konsole, dolphin
+
+You should still review and confirm:
+1. Disk layout and partitioning.
+2. Bootloader choice.
+3. User account and passwords.
+4. Timezone.
+5. Final package summary before install.
 
 Notes:
-- TinyPM is currently part of the live image integration. Future installed-system packaging can be added once the Abora package repo is hosted persistently.
+- TinyPM is currently guaranteed in the live image. Installed-system packaging can be made fully persistent once the Abora package repo is hosted outside the ISO build.
 - If archinstall fails, inspect /var/log/archinstall inside the live environment.

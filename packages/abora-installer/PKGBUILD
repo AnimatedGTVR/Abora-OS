@@ -11,12 +11,14 @@ source=(
   'abora-installer-launcher'
   'abora-installer.desktop'
   'installer-guide.txt'
+  'user_configuration.json'
 )
 sha256sums=(
-  'e0eebe52d90d21c0b8b91e1724bc55258f661c1e612b0a336004d15b383b6c8c'
+  'af909a69534f720e44039571b90d13496f4a3683b34ac4b1b66a959ed2bff793'
   '2e02b79f2659acfa51a5845736a576d0dd6e34b7da45e7e6e064598c86a01e46'
   'd8b10593a85bebff15421f31d15583ee411d2e37058c2ed0d612781158c9789f'
-  'ccdce436892adc9aa99d36206dec3649deee78ef22036573a510bd78d13862a8'
+  'b1be4e7e9fe417209df11eac4cde81ff2820dbe7475058ebab05106358ebb755'
+  '8eee195975423fde7d6ef2c2668f243018cfbd41193bed9667ff178a3f5f1089'
 )
 
 package() {
@@ -24,4 +26,5 @@ package() {
   install -Dm755 "$srcdir/abora-installer-launcher" "$pkgdir/usr/bin/abora-installer-launcher"
   install -Dm644 "$srcdir/abora-installer.desktop" "$pkgdir/usr/share/applications/abora-installer.desktop"
   install -Dm644 "$srcdir/installer-guide.txt" "$pkgdir/usr/share/abora-installer/installer-guide.txt"
+  install -Dm644 "$srcdir/user_configuration.json" "$pkgdir/usr/share/abora-installer/user_configuration.json"
 }

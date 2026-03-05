@@ -21,6 +21,6 @@
 ## Immediate next tasks
 
 - validate the new archinstall-based installer flow end to end
+- confirm installed systems receive Abora defaults and TinyPM correctly
 - decide whether to stay with archinstall or replace it with a Calamares-based GUI later
-- add installed-system integration for Abora local packages such as TinyPM
 - decide how much of KDE Gear ships in the first ISO

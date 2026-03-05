@@ -36,4 +36,5 @@ export ABORA_PACMAN_CONF="$generated_pacman_conf"
 "$repo_dir/scripts/build-local-repo.sh"
 sed "s#@ABORA_LOCAL_REPO@#$local_repo_dir#g" "$profile_dir/pacman.conf" > "$generated_pacman_conf"
 
-exec mkarchiso -v -w "$work_dir" -o "$out_dir" "$profile_dir"
+mkarchiso -v -w "$work_dir" -o "$out_dir" "$profile_dir"
+"$repo_dir/scripts/release-metadata.sh" >/dev/null

@@ -6,6 +6,8 @@ if [[ "${1:-}" == "--print-guide" ]]; then
     exit 0
 fi
 
+config_file="/usr/share/abora-installer/user_configuration.json"
+
 if [[ "$(id -u)" -ne 0 ]]; then
     echo "Abora Installer must run as root." >&2
     echo "Use the desktop launcher or run: pkexec /usr/bin/abora-installer-launcher" >&2
@@ -17,16 +19,23 @@ cat <<'EOF'
 Abora Installer
 ===============
 
-This starts the guided Arch installer used by Abora.
+This starts the guided Arch installer used by Abora with Abora defaults preloaded.
 
-Recommended choices inside archinstall:
-  - Profile: Desktop -> KDE Plasma
-  - Network: NetworkManager
+Preloaded defaults:
+  - Hostname: abora
   - Audio: PipeWire
-  - Bootloader: systemd-boot on UEFI, GRUB on BIOS
+  - Kernel: linux
+  - Locale: en_US UTF-8 / us keyboard
+  - Packages: KDE Plasma, SDDM, NetworkManager, Konsole, Dolphin, plasma-nm
+
+You still need to choose:
+  - Disk layout and filesystem
+  - Bootloader details if needed
+  - User account and passwords
+  - Timezone and any optional changes
 
 Press Enter to continue into archinstall.
 EOF
 read -r
 
-exec archinstall --advanced
+exec archinstall --advanced --config "$config_file"

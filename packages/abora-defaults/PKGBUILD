@@ -1,0 +1,39 @@
+pkgname=abora-defaults
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Default configuration and first-boot experience for Abora OS"
+arch=('any')
+url="https://github.com/AnimatedGTVR/abora-os"
+license=('MIT')
+depends=('bash' 'sddm' 'networkmanager' 'plasma-meta' 'konsole')
+source=(
+  'abora-welcome'
+  'abora-doctor'
+  'abora-firstboot.desktop'
+  'sddm-autologin.conf'
+  'kdeglobals'
+  'kwinrc'
+  'plasma-org.kde.plasma.desktop-appletsrc'
+  '90-abora.preset'
+)
+sha256sums=(
+  '4d0009a1cb6a0363e2e2533b67962fb3d47cf024419e6fcad3969c81a0c023cf'
+  '0de74d646042bade8d40feb761d809b61617404c4192db7720228c22d042c20f'
+  '5d260e9421aba4fdb78ca3be4eeb768d6916121d337dcf9dac8a703c52372ac6'
+  'bd0d4c70c990cd915c6b55f1d5e0163285354285803a4330b7ac2470a56479a3'
+  '257891cb24c33e949ca6dd3db98da51ca677511b0a934a6c5774172ad8b3fff6'
+  '2455eea8a123282b56d05568661568f478ac1e8fa71d5ea39a902789511f984f'
+  '03d05ffb542e10f0908e73312fdda47d28d23173e4f22a3a869c8d8063809cd6'
+  '844f729a940b6b6f0e8a748fba80d8ce1c0d266d35c84873b85bbd84e4dc511e'
+)
+
+package() {
+  install -Dm755 "$srcdir/abora-welcome" "$pkgdir/usr/bin/abora-welcome"
+  install -Dm755 "$srcdir/abora-doctor" "$pkgdir/usr/bin/abora-doctor"
+  install -Dm644 "$srcdir/abora-firstboot.desktop" "$pkgdir/etc/skel/Desktop/Welcome to Abora.desktop"
+  install -Dm644 "$srcdir/sddm-autologin.conf" "$pkgdir/etc/sddm.conf.d/autologin.conf"
+  install -Dm644 "$srcdir/kdeglobals" "$pkgdir/etc/skel/.config/kdeglobals"
+  install -Dm644 "$srcdir/kwinrc" "$pkgdir/etc/skel/.config/kwinrc"
+  install -Dm644 "$srcdir/plasma-org.kde.plasma.desktop-appletsrc" "$pkgdir/etc/skel/.config/plasma-org.kde.plasma.desktop-appletsrc"
+  install -Dm644 "$srcdir/90-abora.preset" "$pkgdir/usr/lib/systemd/system-preset/90-abora.preset"
+}
