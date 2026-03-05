@@ -23,7 +23,7 @@ sha256sums=(
 
 pkgver() {
   cd TinyPM
-  git describe --tags --long --abbrev=7 | sed 's/^v//; s/-/.r/; s/-/./'
+  git describe --tags --long --abbrev=7 | sed 's/^v//; s/-/./g'
 }
 
 package() {
