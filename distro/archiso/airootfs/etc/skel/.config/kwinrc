@@ -1,9 +1,0 @@
-[Desktops]
-Number=1
-Rows=1
-
-[NightColor]
-Active=false
-
-[Windows]
-BorderlessMaximizedWindows=true
