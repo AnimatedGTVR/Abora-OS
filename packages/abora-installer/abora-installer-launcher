@@ -2,6 +2,28 @@
 set -euo pipefail
 
 installer_cmd="/usr/bin/abora-installer"
+guide_file="/usr/share/abora-installer/installer-guide.txt"
+welcome_text=$'Abora Installer\n\nThis is the graphical launcher for the Abora installer.\n\nThe install backend is currently archinstall, but Abora defaults are preloaded for:\n- KDE Plasma\n- PipeWire\n- NetworkManager\n- TinyPM and Abora defaults packages\n\nYou will still choose disk layout, bootloader details, timezone, and user credentials.'
+
+if ! command -v kdialog >/dev/null 2>&1; then
+    printf 'Abora Installer requires kdialog.\n' >&2
+    exit 1
+fi
+
+if kdialog --title "Abora Installer" --yes-label "Start Installer" --no-label "Read Guide" --cancel-label "Cancel" --yesno "$welcome_text"; then
+    :
+else
+    status=$?
+    if [[ "$status" -eq 1 ]]; then
+        kdialog --title "Abora Installer Guide" --textbox "$guide_file" 700 500
+        exec "$0"
+    fi
+    exit 0
+fi
+
+kdialog --title "Abora Installer" --warningyesno "This will open the installer in a terminal window with administrator privileges.\n\nOnly continue if you are ready to install Abora to disk." \
+    --yes-label "Continue" \
+    --no-label "Cancel"
 
 if [[ "$(id -u)" -eq 0 ]]; then
     exec konsole --hold -e "$installer_cmd"

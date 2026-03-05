@@ -8,7 +8,7 @@ It currently provides:
 
 - an Arch-based live ISO
 - KDE Plasma live environment defaults
-- an Abora installer launcher based on `archinstall`
+- a GUI-first Abora installer launcher backed by `archinstall`
 - TinyPM packaged into the ISO through an Abora package wrapper
 - Abora defaults and first-boot helper tooling
 
@@ -16,13 +16,14 @@ It currently provides:
 
 - Abora-branded wallpaper and Plasma defaults
 - `Install Abora OS` desktop launcher
+- graphical installer entry flow through KDialog
 - `tinypm`, `syspm`, and `seed` in the live environment
 - `abora-doctor` and `abora-welcome` for early validation
 - GitHub Actions ISO builds with checksum output
 
 ## Known limitations
 
-- installer flow is based on `archinstall`, not a custom GUI installer
+- installer backend is still `archinstall`, not a full native GUI installer stack like Calamares
 - installed-system behavior still needs one full end-to-end validation pass
 - package selection is intentionally lean for the first release
 - Abora local packages are currently built into the ISO process rather than hosted in a public package repository
