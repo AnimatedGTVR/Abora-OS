@@ -34,6 +34,7 @@ wayland
 wayland-protocols
 plasma-meta
 sddm
+polkit-kde-agent
 konsole
 dolphin
 plasma-nm
