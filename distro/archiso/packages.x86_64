@@ -14,7 +14,6 @@ memtest86+-efi
 archlinux-keyring
 arch-install-scripts
 archinstall
-calamares
 pacman
 
 networkmanager
@@ -58,6 +57,5 @@ fastfetch
 bash-completion
 syslinux
 abora-defaults
-abora-calamares-config
 abora-installer
 tinypm-abora

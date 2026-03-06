@@ -58,5 +58,18 @@ if [[ -x "$calamares_cmd" ]]; then
         "$calamares_cmd"
 fi
 
-kdialog --title "Abora Installer" --error "The graphical installer is not available in this image.\n\nInstall the Abora image that includes Calamares, or run the advanced terminal fallback manually with:\n\npkexec /usr/bin/abora-installer"
-exit 1
+kdialog --title "Abora Installer" --warningyesno "The full graphical installer is not available in this image yet.\n\nAbora can still use the current advanced installer backend, which opens inside Konsole.\n\nContinue with that fallback?" \
+    --yes-label "Use fallback" \
+    --no-label "Cancel"
+
+if [[ "$(id -u)" -eq 0 ]]; then
+    exec konsole --hold -e "$installer_cmd"
+fi
+
+exec pkexec env \
+    DISPLAY="${DISPLAY:-}" \
+    WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
+    XAUTHORITY="${XAUTHORITY:-}" \
+    DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-}" \
+    XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
+    konsole --hold -e "$installer_cmd"

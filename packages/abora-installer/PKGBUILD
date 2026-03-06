@@ -5,7 +5,7 @@ pkgdesc="Abora OS graphical installer launcher backed by archinstall"
 arch=('any')
 url="https://github.com/AnimatedGTVR/abora-os"
 license=('MIT')
-depends=('archinstall' 'bash' 'calamares' 'kdialog' 'polkit')
+depends=('archinstall' 'bash' 'kdialog' 'konsole' 'polkit')
 source=(
   'abora-installer'
   'abora-installer-launcher'
@@ -15,7 +15,7 @@ source=(
 )
 sha256sums=(
   '2ec11681157a04f79baac5a507c58a08b8c81ea2b4fd53e6d9e2aa8e946b11a8'
-  'a086b5bbe5a53ef37571a1e38153f1255806769d64e533481d6323f75a200527'
+  'cf0ef3d204c77f89872681b67263c0f912241b8f6964722afbd6743eb7ebad47'
   'd8b10593a85bebff15421f31d15583ee411d2e37058c2ed0d612781158c9789f'
   'b50680774f96bf2559ee1765b568b1bffdb6467dc08e02a3984fb2cb54f362be'
   'b21a13af83986c599f0c8707dd43255250ba07504497c11017e4d509f4f21c57'
