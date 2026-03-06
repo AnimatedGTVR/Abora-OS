@@ -1,9 +1,9 @@
 {
-  "additional-repositories": [
-    "multilib"
-  ],
   "archinstall-language": "English",
-  "audio_config": "pipewire",
+  "audio_config": {
+    "audio": "pipewire"
+  },
+  "bootloader": "Systemd-boot",
   "hostname": "abora",
   "kernels": [
     "linux"
@@ -11,26 +11,43 @@
   "locale_config": {
     "kb_layout": "us",
     "sys_enc": "UTF-8",
-    "sys_lang": "en_US"
+    "sys_lang": "en_US.UTF-8"
+  },
+  "mirror_config": {
+    "custom_repositories": [],
+    "custom_servers": [],
+    "optional_repositories": [
+      "multilib"
+    ]
+  },
+  "network_config": {
+    "type": "nm"
   },
   "ntp": true,
   "packages": [
     "abora-defaults",
     "tinypm-abora",
-    "plasma-meta",
-    "kde-applications-meta",
     "sddm",
-    "networkmanager",
     "plasma-nm",
     "konsole",
-    "dolphin"
+    "dolphin",
+    "ark",
+    "gwenview",
+    "okular"
   ],
-  "parallel downloads": 5,
+  "parallel_downloads": 5,
+  "profile_config": {
+    "gfx_driver": "All open-source",
+    "greeter": "sddm",
+    "profile": {
+      "custom_settings": {},
+      "details": [
+        "KDE Plasma"
+      ],
+      "main": "Desktop"
+    }
+  },
   "script": "guided",
-  "services": [
-    "NetworkManager",
-    "sddm"
-  ],
   "silent": false,
   "swap": true,
   "timezone": "UTC"

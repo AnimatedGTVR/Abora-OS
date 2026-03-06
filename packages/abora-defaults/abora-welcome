@@ -1,23 +1,53 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cat <<'EOF'
-Welcome to Abora OS
-===================
-
-First things to check:
-  1. NetworkManager is connected
-  2. Run system updates
-  3. Verify audio works
-  4. Try TinyPM: tinypm doctor
-  5. Run abora-doctor for a quick system check
-
-Useful commands:
-  tinypm doctor
-  syspm update
-  abora-doctor
-EOF
-
-if command -v konsole >/dev/null 2>&1; then
-    exec konsole --hold -e bash -lc 'abora-doctor; printf "\nPress Enter to close..."; read -r'
+if ! command -v kdialog >/dev/null 2>&1; then
+    printf 'Abora Welcome requires kdialog.\n' >&2
+    exit 1
 fi
+
+guide_text=$'Welcome to Abora OS\n\nFirst things to check:\n- NetworkManager is connected\n- Run updates\n- Verify audio works\n- Confirm TinyPM is present\n\nUseful commands:\n- tinypm doctor\n- syspm update\n- abora-doctor'
+
+show_doctor_report() {
+    local report_file
+    report_file="$(mktemp)"
+    trap 'rm -f "$report_file"' RETURN
+
+    {
+        printf 'Abora Doctor Report\n'
+        printf '===================\n\n'
+        abora-doctor --report || true
+    } >"$report_file"
+
+    kdialog --title "Abora Doctor" --textbox "$report_file" 900 700
+}
+
+while true; do
+    selection="$(
+        kdialog \
+            --title "Welcome to Abora" \
+            --menu "$guide_text" \
+            doctor "Run system check" \
+            installer "Open installer" \
+            guide "Read release notes"
+    )" || exit 0
+
+    case "$selection" in
+        doctor)
+            show_doctor_report
+            ;;
+        installer)
+            exec abora-installer-launcher
+            ;;
+        guide)
+            if [[ -f /usr/share/doc/abora/RELEASE_NOTES.md ]]; then
+                kdialog --title "Abora Release Notes" --textbox /usr/share/doc/abora/RELEASE_NOTES.md 900 700
+            else
+                kdialog --title "Abora Release Notes" --msgbox "Release notes are not installed in this image yet."
+            fi
+            ;;
+        *)
+            exit 0
+            ;;
+    esac
+done

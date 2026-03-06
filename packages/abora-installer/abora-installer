@@ -26,7 +26,8 @@ Preloaded defaults:
   - Audio: PipeWire
   - Kernel: linux
   - Locale: en_US UTF-8 / us keyboard
-  - Packages: KDE Plasma, SDDM, NetworkManager, Konsole, Dolphin, plasma-nm
+  - Desktop: KDE Plasma with SDDM
+  - Packages: Abora defaults, TinyPM, plasma-nm, Konsole, Dolphin, Ark, Gwenview, Okular
 
 You still need to choose:
   - Disk layout and filesystem

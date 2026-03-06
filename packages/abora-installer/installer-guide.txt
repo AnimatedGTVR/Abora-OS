@@ -1,13 +1,17 @@
 Abora Installer
 
-This launcher opens archinstall with an Abora preloaded configuration.
+This launcher opens the Abora installer.
+
+It prefers the Calamares graphical installer when it is present in the image.
+If Calamares is unavailable, it can still fall back to the current archinstall backend.
 
 Preloaded defaults:
 - hostname: abora
 - audio: PipeWire
 - kernel: linux
 - locale: en_US.UTF-8 with US keyboard
-- packages: plasma-meta, kde-applications-meta, sddm, networkmanager, plasma-nm, konsole, dolphin
+- desktop profile: KDE Plasma with SDDM
+- packages: abora-defaults, tinypm-abora, plasma-nm, konsole, dolphin, ark, gwenview, okular
 
 You should still review and confirm:
 1. Disk layout and partitioning.
@@ -17,5 +21,5 @@ You should still review and confirm:
 5. Final package summary before install.
 
 Notes:
-- TinyPM is currently guaranteed in the live image. Installed-system packaging can be made fully persistent once the Abora package repo is hosted outside the ISO build.
+- Abora defaults and TinyPM are preselected for the installed system through the Abora package set.
 - If archinstall fails, inspect /var/log/archinstall inside the live environment.

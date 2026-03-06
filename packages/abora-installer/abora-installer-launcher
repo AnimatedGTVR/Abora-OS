@@ -3,36 +3,60 @@ set -euo pipefail
 
 installer_cmd="/usr/bin/abora-installer"
 guide_file="/usr/share/abora-installer/installer-guide.txt"
+calamares_cmd="/usr/bin/calamares"
 welcome_text=$'Abora Installer\n\nThis is the graphical launcher for the Abora installer.\n\nThe install backend is currently archinstall, but Abora defaults are preloaded for:\n- KDE Plasma\n- PipeWire\n- NetworkManager\n- TinyPM and Abora defaults packages\n\nYou will still choose disk layout, bootloader details, timezone, and user credentials.'
+doctor_cmd="abora-doctor --report"
 
 if ! command -v kdialog >/dev/null 2>&1; then
     printf 'Abora Installer requires kdialog.\n' >&2
     exit 1
 fi
 
-if kdialog --title "Abora Installer" --yes-label "Start Installer" --no-label "Read Guide" --cancel-label "Cancel" --yesno "$welcome_text"; then
-    :
-else
-    status=$?
-    if [[ "$status" -eq 1 ]]; then
+selection="$(
+    kdialog \
+        --title "Abora Installer" \
+        --menu "$welcome_text" \
+        start "Start installer" \
+        doctor "Run system check" \
+        guide "Read install guide"
+)" || exit 0
+
+case "$selection" in
+    doctor)
+        report_file="$(mktemp)"
+        trap 'rm -f "$report_file"' EXIT
+        bash -lc "$doctor_cmd" >"$report_file" 2>&1 || true
+        kdialog --title "Abora Doctor" --textbox "$report_file" 900 700
+        exit 0
+        ;;
+    guide)
         kdialog --title "Abora Installer Guide" --textbox "$guide_file" 700 500
         exec "$0"
+        ;;
+    start)
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+
+if [[ -x "$calamares_cmd" ]]; then
+    kdialog --title "Abora Installer" --warningyesno "This will open the graphical Abora installer with administrator privileges.\n\nOnly continue if you are ready to install Abora to disk." \
+        --yes-label "Continue" \
+        --no-label "Cancel"
+
+    if [[ "$(id -u)" -eq 0 ]]; then
+        exec "$calamares_cmd"
     fi
-    exit 0
+
+    exec pkexec env \
+        DISPLAY="${DISPLAY:-}" \
+        WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
+        XAUTHORITY="${XAUTHORITY:-}" \
+        DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-}" \
+        XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
+        "$calamares_cmd"
 fi
 
-kdialog --title "Abora Installer" --warningyesno "This will open the installer in a terminal window with administrator privileges.\n\nOnly continue if you are ready to install Abora to disk." \
-    --yes-label "Continue" \
-    --no-label "Cancel"
-
-if [[ "$(id -u)" -eq 0 ]]; then
-    exec konsole --hold -e "$installer_cmd"
-fi
-
-exec pkexec env \
-    DISPLAY="${DISPLAY:-}" \
-    WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
-    XAUTHORITY="${XAUTHORITY:-}" \
-    DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-}" \
-    XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
-    konsole --hold -e "$installer_cmd"
+kdialog --title "Abora Installer" --error "The graphical installer is not available in this image.\n\nInstall the Abora image that includes Calamares, or run the advanced terminal fallback manually with:\n\npkexec /usr/bin/abora-installer"
+exit 1

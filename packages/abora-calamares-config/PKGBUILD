@@ -1,0 +1,24 @@
+pkgname=abora-calamares-config
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Calamares branding and settings for Abora OS"
+arch=('any')
+url="https://github.com/AnimatedGTVR/abora-os"
+license=('MIT')
+depends=('calamares')
+source=(
+  'branding.desc'
+  'settings.conf'
+  'show.qml'
+)
+sha256sums=(
+  '3d4452d5b8b02bb0118d55b55784da9a0d07beac5f87e3d5a731c24b641e3652'
+  '3010f464ca7e5f7b2c387fd211fc53c208b41ab8f58c420dd75395bad194f482'
+  '43d9604c7f93a4018572b2ccec01891ebe6e4b72d066db45fd498168f5086750'
+)
+
+package() {
+  install -Dm644 "$srcdir/settings.conf" "$pkgdir/etc/calamares/settings.conf"
+  install -Dm644 "$srcdir/branding.desc" "$pkgdir/etc/calamares/branding/abora/branding.desc"
+  install -Dm644 "$srcdir/show.qml" "$pkgdir/etc/calamares/branding/abora/show.qml"
+}

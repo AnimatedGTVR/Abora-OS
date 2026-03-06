@@ -25,7 +25,7 @@ check 'NetworkManager enabled' systemctl is-enabled NetworkManager.service
 check 'SDDM enabled' systemctl is-enabled sddm.service
 check 'Abora wallpaper present' test -f /usr/share/wallpapers/Abora/default.png
 check 'TinyPM installed' command -v tinypm
-check 'Konsole installed' command -v konsole
+check 'KDialog installed' command -v kdialog
 check 'Dolphin installed' command -v dolphin
 
 printf '\n'

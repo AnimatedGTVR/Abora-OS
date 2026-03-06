@@ -1,0 +1,21 @@
+---
+componentName: abora
+welcomeStyleCalamares: true
+welcomeExpandingLogo: true
+productName: Abora OS
+shortProductName: Abora
+version: 0.1.0
+shortVersion: 0.1
+versionedName: Abora OS 0.1.0
+shortVersionedName: Abora 0.1
+bootloaderEntryName: Abora
+productUrl: https://github.com/AnimatedGTVR/abora-os
+supportUrl: https://github.com/AnimatedGTVR/abora-os/issues
+knownIssuesUrl: https://github.com/AnimatedGTVR/abora-os/issues
+releaseNotesUrl: https://github.com/AnimatedGTVR/abora-os
+slideshow: "show.qml"
+style:
+  sidebarBackground: "#243034"
+  sidebarText: "#f7f8f9"
+  sidebarTextSelect: "#ffffff"
+  sidebarBackgroundSelect: "#3d596e"
