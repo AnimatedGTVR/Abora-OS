@@ -40,7 +40,7 @@ build() {
     services-openrc
   )
 
-  cmake -B build -S "$pkgname-$pkgver" -G Ninja \
+  cmake -B build -S "$pkgname" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_INSTALL_LIBDIR=lib \
