@@ -5,15 +5,15 @@ calamares_cmd="/usr/bin/calamares"
 
 if [[ -x "$calamares_cmd" ]]; then
     if [[ "$(id -u)" -eq 0 ]]; then
-        exec "$calamares_cmd"
+        exec env QT_QPA_PLATFORM=xcb "$calamares_cmd"
     fi
 
     exec pkexec env \
         DISPLAY="${DISPLAY:-}" \
-        WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
         XAUTHORITY="${XAUTHORITY:-}" \
         DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-}" \
         XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
+        QT_QPA_PLATFORM=xcb \
         "$calamares_cmd"
 fi
 
