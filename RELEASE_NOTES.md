@@ -18,7 +18,7 @@ It currently provides:
 - `Install Abora OS` desktop launcher
 - graphical installer entry flow through KDialog
 - `tinypm`, `syspm`, and `seed` in the live environment
-- `abora-doctor` and `abora-welcome` for early validation
+- `abora-doctor` for early validation
 - GitHub Actions ISO builds with checksum output
 
 ## Known limitations
