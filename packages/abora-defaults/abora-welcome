@@ -37,7 +37,7 @@ while true; do
             show_doctor_report
             ;;
         installer)
-            exec abora-installer-launcher
+            exec pkexec calamares
             ;;
         guide)
             if [[ -f /usr/share/doc/abora/RELEASE_NOTES.md ]]; then
