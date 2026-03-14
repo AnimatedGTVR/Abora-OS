@@ -12,6 +12,10 @@ if [[ "$(id -u)" -eq 0 ]]; then
     exec env QT_QPA_PLATFORM=xcb "$calamares_cmd"
 fi
 
+if [[ "${USER:-}" = "liveuser" ]]; then
+    exec sudo -E env QT_QPA_PLATFORM=xcb "$calamares_cmd"
+fi
+
 exec pkexec env \
     DISPLAY="${DISPLAY:-}" \
     XAUTHORITY="${XAUTHORITY:-}" \
