@@ -2,10 +2,16 @@
 set -euo pipefail
 
 calamares_cmd="/usr/bin/calamares"
-xauth="${XAUTHORITY:-$HOME/.Xauthority}"
+log_file="/tmp/abora-calamares-launcher.log"
+
+printf 'launcher start %s user=%s uid=%s\n' \
+    "$(date -Is)" \
+    "${USER:-unknown}" \
+    "$(id -u)" >>"$log_file"
 
 if [[ ! -x "$calamares_cmd" ]]; then
     printf 'Calamares is missing from this image.\n' >&2
+    printf 'calamares binary missing at %s\n' "$calamares_cmd" >>"$log_file"
     exit 1
 fi
 
@@ -14,20 +20,7 @@ if [[ "$(id -u)" -eq 0 ]]; then
 fi
 
 if [[ "${USER:-}" = "liveuser" ]]; then
-    exec sudo --preserve-env=DISPLAY,XAUTHORITY,DBUS_SESSION_BUS_ADDRESS,XDG_RUNTIME_DIR,WAYLAND_DISPLAY \
-        env \
-        DISPLAY="${DISPLAY:-}" \
-        XAUTHORITY="$xauth" \
-        DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-}" \
-        XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
-        WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
-        "$calamares_cmd"
+    exec sudo -E "$calamares_cmd"
 fi
 
-exec pkexec env \
-    DISPLAY="${DISPLAY:-}" \
-    XAUTHORITY="$xauth" \
-    DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-}" \
-    XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
-    WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
-    "$calamares_cmd"
+exec pkexec "$calamares_cmd"
