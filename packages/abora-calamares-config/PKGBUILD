@@ -1,6 +1,6 @@
 pkgname=abora-calamares-config
 pkgver=0.1.0
-pkgrel=1
+pkgrel=2
 pkgdesc="Calamares branding and settings for Abora OS"
 arch=('any')
 url="https://github.com/AnimatedGTVR/abora-os"
@@ -13,7 +13,7 @@ source=(
 )
 sha256sums=(
   'fe733934fabfd6df5f507f9f74586c806de7aa74df0ce4c3ac1c51c17464bbc0'
-  '972a474f23f42792421546c32a88892089ab42d8caea84f0ae79de31da613706'
+  'ec9cd3450e8de4c2afacf5b6f76323986f7dfb0b84b2a71d3e1cd71cb861634b'
   '43d9604c7f93a4018572b2ccec01891ebe6e4b72d066db45fd498168f5086750'
 )
 
