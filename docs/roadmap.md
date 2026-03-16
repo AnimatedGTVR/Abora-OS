@@ -21,6 +21,6 @@
 ## Immediate next tasks
 
 - validate the new Calamares installer flow end to end
-- confirm installed systems receive Abora defaults and TinyPM correctly
+- confirm installed systems receive Abora defaults correctly
 - harden Calamares branding and module configuration after the first successful install test
 - decide how much of KDE Gear ships in the first ISO

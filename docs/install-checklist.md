@@ -8,7 +8,7 @@ Use this after building a release candidate ISO and after running one real insta
 - `Install Abora OS` appears on the desktop
 - Plasma session loads
 - wallpaper is the Abora default wallpaper
-- `tinypm`, `syspm`, and `abora-doctor` exist in the live session
+- `abora-doctor` exists in the live session
 - networking works in the live session
 
 ## Installer
@@ -24,7 +24,6 @@ Use this after building a release candidate ISO and after running one real insta
 - SDDM starts
 - Plasma session launches successfully
 - NetworkManager is enabled and functional
-- TinyPM is installed and runnable
 - `abora-doctor` reports the expected services and wallpaper
 - wallpaper and Plasma defaults match the live session
 

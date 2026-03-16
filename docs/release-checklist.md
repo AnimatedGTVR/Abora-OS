@@ -20,7 +20,7 @@ Use this after the GitHub ISO workflow succeeds.
 - launch `Install Abora OS`
 - complete one full install onto a blank virtual disk
 - remove the ISO and reboot the installed system
-- confirm Plasma, SDDM, networking, TinyPM, and wallpaper all work
+- confirm Plasma, SDDM, networking, and wallpaper all work
 
 ## Release gate
 
