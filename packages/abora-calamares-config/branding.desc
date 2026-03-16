@@ -1,21 +1,40 @@
 ---
 componentName: abora
+
 welcomeStyleCalamares: true
 welcomeExpandingLogo: true
-productName: Abora OS
-shortProductName: Abora
-version: 0.1.1
-shortVersion: 0.1.1
-versionedName: Abora OS 0.1.1
-shortVersionedName: Abora 0.1.1
-bootloaderEntryName: Abora
-productUrl: https://github.com/AnimatedGTVR/abora-os
-supportUrl: https://github.com/AnimatedGTVR/abora-os/issues
-knownIssuesUrl: https://github.com/AnimatedGTVR/abora-os/issues
-releaseNotesUrl: https://github.com/AnimatedGTVR/abora-os
-slideshow: "show.qml"
+
+windowExpanding: normal
+windowSize: 800px,520px
+windowPlacement: center
+
+sidebar: widget
+navigation: widget
+
+strings:
+    productName: "Abora OS"
+    shortProductName: "Abora"
+    version: "0.1.1"
+    shortVersion: "0.1.1"
+    versionedName: "Abora OS 0.1.1"
+    shortVersionedName: "Abora 0.1.1"
+    bootloaderEntryName: "Abora"
+    productUrl: "https://github.com/AnimatedGTVR/abora-os"
+    supportUrl: "https://github.com/AnimatedGTVR/abora-os/issues"
+    knownIssuesUrl: "https://github.com/AnimatedGTVR/abora-os/issues"
+    releaseNotesUrl: "https://github.com/AnimatedGTVR/abora-os"
+    donateUrl: ""
+
+images:
+    productIcon: "abora-logo.png"
+    productLogo: "abora-logo.png"
+    productWelcome: "abora-logo.png"
+
 style:
-  sidebarBackground: "#243034"
-  sidebarText: "#f7f8f9"
-  sidebarTextSelect: "#ffffff"
-  sidebarBackgroundSelect: "#3d596e"
+   SidebarBackground: "#243034"
+   SidebarText: "#FFFFFF"
+   SidebarTextCurrent: "#243034"
+   SidebarBackgroundCurrent: "#F08C2B"
+
+slideshow: "show.qml"
+slideshowAPI: 2
