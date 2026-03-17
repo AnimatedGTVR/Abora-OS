@@ -1,6 +1,6 @@
 pkgname=abora-defaults
 pkgver=0.1.0
-pkgrel=3
+pkgrel=4
 pkgdesc="Default configuration and first-boot experience for Abora OS"
 arch=('any')
 url="https://github.com/AnimatedGTVR/abora-os"
@@ -24,7 +24,7 @@ sha256sums=(
   '257891cb24c33e949ca6dd3db98da51ca677511b0a934a6c5774172ad8b3fff6'
   '2455eea8a123282b56d05568661568f478ac1e8fa71d5ea39a902789511f984f'
   '03d05ffb542e10f0908e73312fdda47d28d23173e4f22a3a869c8d8063809cd6'
-  '844f729a940b6b6f0e8a748fba80d8ce1c0d266d35c84873b85bbd84e4dc511e'
+  '0201cbe2635d123e4b876b04d3586d628bd432320b4efddc5da7af409263eb89'
 )
 
 package() {
@@ -37,4 +37,6 @@ package() {
   install -Dm644 "$srcdir/kwinrc" "$pkgdir/etc/skel/.config/kwinrc"
   install -Dm644 "$srcdir/plasma-org.kde.plasma.desktop-appletsrc" "$pkgdir/etc/skel/.config/plasma-org.kde.plasma.desktop-appletsrc"
   install -Dm644 "$srcdir/90-abora.preset" "$pkgdir/usr/lib/systemd/system-preset/90-abora.preset"
+  install -d "$pkgdir/etc/systemd/system"
+  ln -sf /dev/null "$pkgdir/etc/systemd/system/systemd-firstboot.service"
 }
