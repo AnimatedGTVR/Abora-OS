@@ -31,10 +31,10 @@ images:
     productWelcome: "abora-logo.png"
 
 style:
-   SidebarBackground: "#243034"
-   SidebarText: "#FFFFFF"
-   SidebarTextCurrent: "#243034"
-   SidebarBackgroundCurrent: "#F08C2B"
+   SidebarBackground: "#0E2A47"
+   SidebarText: "#EAF4FF"
+   SidebarTextCurrent: "#0E2A47"
+   SidebarBackgroundCurrent: "#5AA8FF"
 
 slideshow: "show.qml"
 slideshowAPI: 2
