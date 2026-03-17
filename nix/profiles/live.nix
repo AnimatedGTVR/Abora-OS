@@ -6,21 +6,8 @@
 
   networking.hostName = "abora";
   system.nixos.tags = [ "abora" "nixos-base" ];
-  system.stateVersion = "24.11";
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
-
-  users.users.nixos = {
-    initialPassword = "nixos";
-    extraGroups = [ "wheel" "networkmanager" ];
-  };
-
-  users.users.root.initialPassword = "root";
-  security.sudo.wheelNeedsPassword = false;
-
-  services.xserver.enable = true;
-  services.displayManager.autoLogin.enable = true;
-  services.displayManager.autoLogin.user = "nixos";
 
   environment.systemPackages = with pkgs; [
     fastfetch
