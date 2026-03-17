@@ -28,10 +28,16 @@ jobs:
         run: echo "value=$(tr -d '\n' < VERSION)" >> "$GITHUB_OUTPUT"
 
       - name: Install Nix
-        uses: cachix/install-nix-action@v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
+        uses: DeterminateSystems/nix-installer-action@v21
+
+      - name: Verify Nix + Flake
+        env:
+          NIX_CONFIG: experimental-features = nix-command flakes
+        run: |
+          set -euxo pipefail
+          which nix
+          nix --version
+          nix flake show --no-write-lock-file .
 
       - name: Build ISO
         env:
