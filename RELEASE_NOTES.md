@@ -1,36 +1,25 @@
-# Abora OS 0.1.0
+# Abora OS 0.2.0
 
 ## Summary
 
-Abora OS 0.1.0 is the first release track of the distro scaffold.
+Abora OS 0.2.0 migrates the distro base from Arch to NixOS.
 
-It currently provides:
+## Highlights
 
-- an Arch-based live ISO
-- KDE Plasma live environment defaults
-- a GUI-first Abora installer launcher targeting Calamares
-- Abora defaults and first-boot helper tooling
-
-## Included highlights
-
-- Abora-branded wallpaper and Plasma defaults
-- `Install Abora OS` desktop launcher
-- graphical installer entry flow through KDialog
-- `abora-doctor` for early validation
-- GitHub Actions ISO builds with checksum output
+- Nix flake based ISO build pipeline (`flake.nix`)
+- NixOS live image profile under `nix/profiles/live.nix`
+- pre-desktop extension prompt module (`nix/modules/live-extensions.nix`)
+- simplified ISO build scripts targeting Nix
+- GitHub Actions updated to build via Nix
 
 ## Known limitations
 
-- Calamares integration is newly packaged and still needs a real boot/install validation pass
-- installed-system behavior still needs one full end-to-end validation pass
-- package selection is intentionally lean for the first release
-- Abora local packages are currently built into the ISO process rather than hosted in a public package repository
+- TinyPM extension install path depends on network availability and source compatibility
+- installer behavior should still be validated end-to-end on multiple VM targets
 
-## Recommended release validation
+## Validation focus
 
-Before calling 0.1.0 usable, confirm:
-
-1. live boot works
-2. installer completes successfully
-3. installed system reboots into Plasma
-4. `abora-doctor --report` looks clean on the installed system
+1. live ISO boots consistently
+2. pre-desktop extension prompt behaves correctly (install/skip/timeout)
+3. installer completes and bootable system is produced
+4. release checksum artifact matches published ISO

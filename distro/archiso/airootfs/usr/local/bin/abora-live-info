@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-
-cat <<'EOF'
-Abora OS live image
-
-Base: Arch Linux
-Desktop direction: KDE Plasma
-Current live-session target: Plasma on Wayland
-EOF

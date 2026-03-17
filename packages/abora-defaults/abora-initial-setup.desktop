@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Abora Initial Setup
-Comment=Install optional software bundles on first login
-Exec=/usr/bin/abora-initial-setup
-OnlyShowIn=KDE;
-NoDisplay=true
-X-KDE-autostart-after=panel
-X-KDE-StartupNotify=false

@@ -5,20 +5,16 @@ repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$repo_dir"
 
 bash_scripts=(
-  "distro/archiso/airootfs/root/customize_airootfs.sh"
-  "distro/archiso/airootfs/usr/local/bin/abora-live-extensions"
-  "distro/archiso/airootfs/usr/local/bin/abora-live-info"
-  "packages/abora-defaults/abora-doctor"
-  "packages/abora-defaults/abora-initial-setup"
-  "packages/abora-defaults/abora-installer-launcher"
-  "packages/abora-defaults/optional-software-install"
-  "scripts/build-local-repo.sh"
-  "scripts/release-metadata.sh"
-)
-
-sh_scripts=(
   "scripts/build-iso.sh"
   "scripts/rebuild-vm.sh"
+  "scripts/release-metadata.sh"
+  "scripts/check-scripts.sh"
+)
+
+nix_files=(
+  "flake.nix"
+  "nix/profiles/live.nix"
+  "nix/modules/live-extensions.nix"
 )
 
 failed=0
@@ -32,78 +28,41 @@ fail() {
   failed=1
 }
 
-check_syntax() {
-  local file="$1"
-  local shell_name="$2"
-
+for file in "${bash_scripts[@]}"; do
   if [[ ! -f "$file" ]]; then
     fail "Missing file: $file"
-    return
+    continue
   fi
 
-  if [[ "$shell_name" == "bash" ]]; then
-    if bash -n "$file"; then
-      pass "syntax ($shell_name): $file"
-    else
-      fail "syntax ($shell_name): $file"
-    fi
+  if bash -n "$file"; then
+    pass "syntax (bash): $file"
   else
-    if sh -n "$file"; then
-      pass "syntax ($shell_name): $file"
-    else
-      fail "syntax ($shell_name): $file"
-    fi
+    fail "syntax (bash): $file"
   fi
-}
 
-check_executable() {
-  local file="$1"
   if [[ -x "$file" ]]; then
     pass "executable: $file"
   else
     fail "not executable: $file"
   fi
-}
-
-printf 'Abora Script Checks\n'
-printf '===================\n'
-
-for file in "${bash_scripts[@]}"; do
-  check_syntax "$file" "bash"
 done
 
-for file in "${sh_scripts[@]}"; do
-  check_syntax "$file" "sh"
+for file in "${nix_files[@]}"; do
+  if [[ -f "$file" ]]; then
+    pass "exists: $file"
+  else
+    fail "Missing file: $file"
+  fi
 done
 
-for file in "${bash_scripts[@]}" "${sh_scripts[@]}"; do
-  check_executable "$file"
-done
-
-if bash -n "distro/archiso/airootfs/etc/skel/.bash_profile"; then
-  pass "syntax (bash): distro/archiso/airootfs/etc/skel/.bash_profile"
+if command -v nix >/dev/null 2>&1; then
+  if nix flake show --no-write-lock-file "$repo_dir" >/dev/null 2>&1; then
+    pass "nix flake evaluation"
+  else
+    fail "nix flake evaluation"
+  fi
 else
-  fail "syntax (bash): distro/archiso/airootfs/etc/skel/.bash_profile"
-fi
-
-live_info_output="$(distro/archiso/airootfs/usr/local/bin/abora-live-info)"
-if printf '%s' "$live_info_output" | grep -q "Abora OS live image"; then
-  pass "runtime: abora-live-info output"
-else
-  fail "runtime: abora-live-info output"
-fi
-
-if distro/archiso/airootfs/usr/local/bin/abora-live-extensions >/dev/null 2>&1; then
-  pass "runtime: abora-live-extensions non-live exit"
-else
-  fail "runtime: abora-live-extensions non-live exit"
-fi
-
-optional_output="$(bash packages/abora-defaults/optional-software-install 2>&1 || true)"
-if printf '%s' "$optional_output" | grep -qi "must run as root"; then
-  pass "runtime: optional-software-install root guard"
-else
-  fail "runtime: optional-software-install root guard"
+  pass "nix command unavailable (flake eval skipped)"
 fi
 
 tmp_ok="$(mktemp -d)"
@@ -129,7 +88,7 @@ else
 fi
 
 if [[ "$failed" -ne 0 ]]; then
-  printf '\nOne or more script checks failed.\n' >&2
+  printf '\nOne or more checks failed.\n' >&2
   exit 1
 fi
 

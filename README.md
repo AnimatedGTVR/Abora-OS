@@ -1,82 +1,49 @@
 # Abora OS
 
-Abora OS is an Arch Linux based distribution project built around KDE Plasma. The current work in this repository is focused on the distro track: an `archiso` profile, package selection, branding, and the path toward a bootable live ISO.
+Abora OS now uses a **NixOS base** for live ISO builds.
 
 ## Repository layout
 
 - `assets/`: branding and visual assets
-- `distro/archiso/`: first Abora OS `archiso` profile
-- `packages/`: local Arch packages built into the Abora ISO
-- `scripts/build-iso.sh`: wrapper around `mkarchiso`
-- `scripts/rebuild-vm.sh`: one-command rebuild flow for the Arch build VM
-- `docs/roadmap.md`: short-term distro roadmap
-- `docs/install-checklist.md`: live/install validation checklist
-- `docs/release-checklist.md`: release gate checklist
-- `docs/calamares-plan.md`: Calamares installer notes
-- `RELEASE_NOTES.md`: current release notes
-
-## Current Abora OS direction
-
-- base distro: Arch Linux
-- image builder: `archiso`
-- desktop target: KDE Plasma
-- display stack: Plasma on Wayland by default
-- initial live environment strategy: ship a usable Plasma-based image first
-- package policy: keep the default system lean, graphical, and developer-friendly
-
-## What exists now
-
-- an `archiso` profile with Abora branding files
-- a local Calamares package path for the live ISO
-- an `Install Abora OS` launcher that opens Calamares
-- an `abora-defaults` package for installed-system branding and first-boot checks
-- a first-pass Plasma-based package manifest for a live image
-- a build script that calls `mkarchiso`
-- planning docs for the next distro milestones
-
-## Release version
-
-Current release track:
-
-- `VERSION`: Abora distro version string
-- GitHub ISO build uploads the ISO plus `SHA256SUMS-<version>.txt`
-- `RELEASE_NOTES.md`: release summary and known limitations
+- `nix/`: NixOS profile and modules for Abora live image
+- `flake.nix`: Nix flake entrypoint for ISO builds
+- `scripts/build-iso.sh`: builds the ISO via `nix build`
+- `scripts/rebuild-vm.sh`: pull + rebuild helper for a build VM
+- `scripts/check-scripts.sh`: script sanity checks
+- `docs/`: roadmap and release validation docs
 
 ## Build prerequisites
 
-For the ISO:
-
-- Arch Linux host or compatible environment
-- `archiso`
-- root privileges for `mkarchiso`
+- Nix with flakes (`nix-command` + `flakes`)
 
 ## Local commands
 
-Build the ISO:
+Build ISO:
 
 ```sh
-sudo ./scripts/build-iso.sh
+./scripts/build-iso.sh
 ```
 
-Run script sanity checks:
+Run script checks:
 
 ```sh
 ./scripts/check-scripts.sh
 ```
 
-In the Arch build VM, use the one-command rebuild helper:
+Rebuild in VM workspace:
 
 ```sh
 ./scripts/rebuild-vm.sh
 ```
 
-`rebuild-vm.sh` handles build-disk mount, pacman cache bind-mount, repo update, and ISO build in one run.
+## CI builds
 
-No local Arch VM:
+GitHub Actions workflow `Build Abora ISO` builds the ISO and uploads:
 
-Use the GitHub Actions workflow `Build Abora ISO` from the Actions tab. It builds the ISO in an Arch container and uploads `out/*.iso` as a downloadable artifact.
+- `out/*.iso`
+- `out/SHA256SUMS-*.txt`
 
 ## Release validation
 
-Use [docs/install-checklist.md](docs/install-checklist.md) before calling a build releasable.
-Use [docs/release-checklist.md](docs/release-checklist.md) before publishing 0.1.0.
+- [docs/install-checklist.md](docs/install-checklist.md)
+- [docs/release-checklist.md](docs/release-checklist.md)

@@ -5,39 +5,30 @@ Use this after building a release candidate ISO and after running one real insta
 ## Live Session
 
 - ISO reaches the boot menu without dropping to an emergency shell
-- `Install Abora OS` appears on the desktop
-- Plasma session loads
-- wallpaper is the Abora default wallpaper
-- `abora-doctor` exists in the live session
+- live desktop starts successfully
 - networking works in the live session
+- `/etc/abora/default-wallpaper.png` exists
+- pre-desktop extension prompt appears before display manager starts
 
 ## Installer
 
-- `Install Abora OS` opens Calamares
-- Abora branding appears inside the installer
+- installer opens from the live desktop
 - disk selection and user creation remain interactive
 - install completes without fatal errors
 
 ## Installed System
 
 - installed system boots without the ISO attached
-- SDDM starts
-- Plasma session launches successfully
-- NetworkManager is enabled and functional
-- `abora-doctor` reports the expected services and wallpaper
-- wallpaper and Plasma defaults match the live session
-- first-login "Abora Initial Setup" prompt appears and optional package install path works
+- login manager starts
+- desktop session launches successfully
+- networking is enabled and functional
 
 ## Bug Report
 
-If the install or first boot fails, capture:
-
-```sh
-abora-doctor --report
-```
-
-and collect anything relevant from:
+Collect:
 
 ```sh
 journalctl -b --no-pager
 ```
+
+and attach installer logs if available.

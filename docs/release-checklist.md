@@ -1,4 +1,4 @@
-# Abora 0.1.0 Release Checklist
+# Abora Release Checklist
 
 Use this after the GitHub ISO workflow succeeds.
 
@@ -6,23 +6,21 @@ Use this after the GitHub ISO workflow succeeds.
 
 - download the ISO artifact
 - verify the checksum in `SHA256SUMS-<version>.txt`
-- confirm the artifact name and ISO name match the intended release
+- confirm the artifact name and ISO filename match the intended release
 
 ## Live boot
 
 - boot the ISO in a VM
-- confirm it reaches Plasma
-- confirm `Install Abora OS` appears on the desktop
-- run `abora-doctor`
+- confirm the live desktop launches
+- confirm pre-desktop extension prompt appears and can skip safely
 
 ## Install test
 
-- launch `Install Abora OS`
 - complete one full install onto a blank virtual disk
 - remove the ISO and reboot the installed system
-- confirm Plasma, SDDM, networking, and wallpaper all work
+- confirm desktop and networking work
 
 ## Release gate
 
-- if the install test passes, publish the ISO, checksum file, and `RELEASE_NOTES.md`
-- if the install test fails, do not publish 0.1.0; fix the blocker first
+- if install test passes, publish ISO + checksums + `RELEASE_NOTES.md`
+- if install test fails, do not publish; fix blocker first

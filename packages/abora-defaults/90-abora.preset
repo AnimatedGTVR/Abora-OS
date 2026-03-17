@@ -1,3 +1,0 @@
-enable NetworkManager.service
-enable sddm.service
-disable systemd-firstboot.service

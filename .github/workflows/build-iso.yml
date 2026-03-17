@@ -6,11 +6,11 @@ on:
     branches:
       - main
     paths:
-      - "distro/**"
-      - "packages/**"
+      - "nix/**"
       - "scripts/**"
       - "VERSION"
       - "assets/wallpaper.png"
+      - "flake.nix"
       - ".github/workflows/build-iso.yml"
 
 jobs:
@@ -24,17 +24,16 @@ jobs:
         id: version
         run: echo "value=$(tr -d '\n' < VERSION)" >> "$GITHUB_OUTPUT"
 
-      - name: Build ISO in Arch container
-        run: |
-          docker run --rm --privileged \
-            -v "$GITHUB_WORKSPACE:/workspace" \
-            -w /workspace \
-            archlinux:latest \
-            bash -lc '
-              set -euo pipefail
-              pacman -Syu --noconfirm archiso git base-devel
-              ./scripts/build-iso.sh
-            '
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v16
+
+      - name: Configure Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v8
+
+      - name: Build ISO
+        env:
+          NIX_CONFIG: experimental-features = nix-command flakes
+        run: ./scripts/build-iso.sh
 
       - name: Show output files
         run: ls -lah out
