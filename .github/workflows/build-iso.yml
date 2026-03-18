@@ -80,4 +80,11 @@ jobs:
         if: steps.build_iso.outcome != 'success'
         run: |
           echo "ISO build failed; see abora-build-log artifact."
+          if [ -f /tmp/abora-build-iso.log ]; then
+            tail_txt="$(tail -n 40 /tmp/abora-build-iso.log)"
+            esc_tail="$(printf '%s' "$tail_txt" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e ':a;N;$!ba;s/\n/%0A/g')"
+            echo "::error title=ISO build failure tail::$esc_tail"
+          else
+            echo "::error title=ISO build failure::No /tmp/abora-build-iso.log file found."
+          fi
           exit 1
