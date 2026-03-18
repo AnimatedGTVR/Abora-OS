@@ -1,0 +1,40 @@
+---
+componentName: abora
+
+welcomeStyleCalamares: false
+welcomeExpandingLogo: true
+
+windowExpanding: normal
+windowSize: 800px,520px
+windowPlacement: center
+
+sidebar: widget
+navigation: widget
+
+strings:
+    productName: "Abora OS"
+    shortProductName: "Abora"
+    version: "${VERSION_ID}"
+    shortVersion: "${VERSION_ID}"
+    versionedName: "Abora OS ${VERSION_ID}"
+    shortVersionedName: "Abora ${VERSION_ID}"
+    bootloaderEntryName: "Abora OS"
+    productUrl: "https://github.com/AnimatedGTVR/abora-os"
+    supportUrl: "https://github.com/AnimatedGTVR/abora-os/issues"
+    knownIssuesUrl: "https://github.com/AnimatedGTVR/abora-os/issues"
+    releaseNotesUrl: "https://github.com/AnimatedGTVR/abora-os/releases"
+    donateUrl: ""
+
+images:
+    productIcon: "abora-logo.png"
+    productLogo: "abora-logo.png"
+    productWelcome: "abora-logo.png"
+
+style:
+   SidebarBackground: "#0E3A64"
+   SidebarText: "#FFFFFF"
+   SidebarTextCurrent: "#0E3A64"
+   SidebarBackgroundCurrent: "#66B2FF"
+
+slideshow: "show.qml"
+slideshowAPI: 2

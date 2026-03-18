@@ -13,6 +13,7 @@ Use this after building a release candidate ISO and after running one real insta
 ## Installer
 
 - installer opens from the live desktop
+- installer shows Abora logo branding
 - disk selection and user creation remain interactive
 - install completes without fatal errors
 

@@ -27,6 +27,13 @@
   '';
 
   environment.etc."abora/default-wallpaper.png".source = ../../assets/wallpaper.png;
+  environment.etc."calamares/settings.conf".source = pkgs.runCommand "abora-calamares-settings.conf" {} ''
+    sed 's/^branding: nixos$/branding: abora/' \
+      ${pkgs.calamares-nixos-extensions}/share/calamares/settings.conf > "$out"
+  '';
+  environment.etc."calamares/branding/abora/branding.desc".source = ../calamares/branding/branding.desc;
+  environment.etc."calamares/branding/abora/show.qml".source = ../calamares/branding/show.qml;
+  environment.etc."calamares/branding/abora/abora-logo.png".source = ../../assets/abora-logo.png;
 
   isoImage.isoName = lib.mkForce "abora-${version}-x86_64.iso";
 }
