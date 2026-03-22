@@ -4,6 +4,10 @@
   system.nixos.tags = [ "abora" "nixos-base" ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  nix.nixPath = [
+    "nixpkgs=${pkgs.path}"
+    "nixos-config=/etc/nixos/configuration.nix"
+  ];
 
   environment.systemPackages = with pkgs; [
     bashInteractive
@@ -24,6 +28,7 @@
 
   environment.variables = {
     ABORA_VERSION = version;
+    ABORA_NIXPKGS_PATH = pkgs.path;
   };
 
   environment.etc."abora/README".text = ''

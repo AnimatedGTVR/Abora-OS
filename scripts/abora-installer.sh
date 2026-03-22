@@ -155,6 +155,25 @@ require_root() {
     fi
 }
 
+resolve_nixpkgs_path() {
+    local candidate=""
+
+    for candidate in \
+        "${ABORA_NIXPKGS_PATH:-}" \
+        /etc/nix/path/nixpkgs \
+        /run/current-system/nixpkgs/nixpkgs \
+        /nix/var/nix/profiles/per-user/root/channels/nixos \
+        /nix/var/nix/profiles/per-user/root/channels
+    do
+        if [[ -n "$candidate" && -e "$candidate" ]]; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 load_keyboard_layout() {
     if command -v loadkeys >/dev/null 2>&1; then
         loadkeys "$keyboard_value" >/dev/null 2>&1 || true
@@ -515,8 +534,20 @@ EOF
 }
 
 install_system() {
+    local nixpkgs_path=""
+
     info "Installing Abora OS"
-    if ! nixos-install --root /mnt --no-root-passwd; then
+    nixpkgs_path="$(resolve_nixpkgs_path)" || {
+        error_msg "Could not locate nixpkgs for nixos-install."
+        return 1
+    }
+
+    if ! nixos-install \
+        --root /mnt \
+        --no-root-passwd \
+        -I "nixpkgs=${nixpkgs_path}" \
+        -I "nixos-config=/mnt/etc/nixos/configuration.nix"
+    then
         error_msg "Installation failed. Review the output above."
         return 1
     fi
