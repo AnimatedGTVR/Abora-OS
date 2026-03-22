@@ -30,6 +30,7 @@ RED='\033[38;5;203m'
 NC='\033[0m'
 menu_result=""
 prompt_result=""
+step_action="next"
 
 clear_screen() {
     clear || printf '\033c'
@@ -195,10 +196,14 @@ menu_choose() {
         fi
 
         printf '\n'
-        printf '%b<↑↓> navigate • enter submit%b\n' "$DIM" "$NC"
+        printf '%b<↑↓> navigate • enter submit • esc back%b\n' "$DIM" "$NC"
 
         key="$(read_key)"
         case "$key" in
+            $'\033')
+                menu_result="__back__"
+                return 0
+                ;;
             $'\033[A')
                 if [[ "$selected" -gt 0 ]]; then
                     selected=$((selected - 1))
@@ -224,10 +229,11 @@ menu_choose() {
 prompt_input() {
     local prompt="$1"
     local default_value="${2:-}"
+    local subtitle="${3:-Type a value and press Enter. Type /back to return.}"
     local input=""
 
     while true; do
-        show_header "$prompt" "Type a value and press Enter."
+        show_header "$prompt" "$subtitle"
         if [[ -n "$default_value" ]]; then
             read -r -p "> [${default_value}] " input
             prompt_result="${input:-$default_value}"
@@ -235,8 +241,31 @@ prompt_input() {
             read -r -p "> " input
             prompt_result="$input"
         fi
+        if [[ "$prompt_result" == "/back" ]]; then
+            prompt_result="__back__"
+        fi
         return 0
     done
+}
+
+set_step_next() {
+    step_action="next"
+}
+
+set_step_back() {
+    step_action="back"
+}
+
+set_step_cancel() {
+    step_action="cancel"
+}
+
+set_step_install() {
+    step_action="install"
+}
+
+set_step_stay() {
+    step_action="stay"
 }
 
 require_root() {
@@ -383,14 +412,19 @@ pick_keyboard_layout() {
         "German"
         "French"
         "Spanish"
+        "Back"
     )
     local values=( "us" "uk" "de" "fr" "es" )
-    local choice=""
 
     menu_choose "Select keyboard layout" "${labels[@]}"
+    if [[ "$menu_result" == "__back__" || "$menu_result" == "${#values[@]}" ]]; then
+        set_step_back
+        return 0
+    fi
     keyboard_value="${values[$menu_result]}"
     sync_xkb_layout
     load_keyboard_layout
+    set_step_next
 }
 
 pick_desktop_environment() {
@@ -407,6 +441,7 @@ pick_desktop_environment() {
         "Enlightenment - flashy and lightweight"
         "i3 - keyboard-driven tiling session"
         "Openbox - very minimal floating session"
+        "Back"
     )
     local values=(
         "gnome"
@@ -424,6 +459,10 @@ pick_desktop_environment() {
     )
 
     menu_choose "Select desktop environment" "${labels[@]}"
+    if [[ "$menu_result" == "__back__" || "$menu_result" == "${#values[@]}" ]]; then
+        set_step_back
+        return 0
+    fi
     desktop_profile="${values[$menu_result]}"
     lonis_enabled="false"
     if [[ "$desktop_profile" == "hyprland" ]]; then
@@ -431,13 +470,20 @@ pick_desktop_environment() {
         return 0
     fi
     sync_desktop_label
+    set_step_next
 }
 
 prompt_hyprland_variant() {
     menu_choose \
         "Choose Hyprland flavor" \
         "Standard Hyprland" \
-        "Abora Lonis - a styled Hyprland setup"
+        "Abora Lonis - a styled Hyprland setup" \
+        "Back"
+
+    if [[ "$menu_result" == "__back__" || "$menu_result" == "2" ]]; then
+        set_step_back
+        return 0
+    fi
 
     if [[ "$menu_result" == "1" ]]; then
         show_header "About Abora Lonis" "A prettier Hyprland setup from Abora."
@@ -455,7 +501,13 @@ prompt_hyprland_variant() {
         menu_choose \
             "Do you agree and want to use Lonis?" \
             "Yes - install Abora Lonis" \
-            "No - keep standard Hyprland"
+            "No - keep standard Hyprland" \
+            "Back"
+
+        if [[ "$menu_result" == "__back__" || "$menu_result" == "2" ]]; then
+            set_step_back
+            return 0
+        fi
 
         if [[ "$menu_result" == "0" ]]; then
             lonis_enabled="true"
@@ -463,6 +515,7 @@ prompt_hyprland_variant() {
     fi
 
     sync_desktop_label
+    set_step_next
 }
 
 collect_disks() {
@@ -492,8 +545,16 @@ prompt_disk() {
 
     mapfile -t entries < <(collect_disks)
     if [[ "${#entries[@]}" -eq 0 ]]; then
-        error_msg "No installable disks were found."
-        return 1
+        show_header "Select install target" "No installable disks were found."
+        printf '%bNo disks are visible to the installer right now.%b\n' "$RED" "$NC"
+        printf '\n'
+        menu_choose "Choose what to do next" "Rescan disks" "Back"
+        if [[ "$menu_result" == "__back__" || "$menu_result" == "1" ]]; then
+            set_step_back
+            return 0
+        fi
+        set_step_stay
+        return 0
     fi
 
     for entry in "${entries[@]}"; do
@@ -501,9 +562,15 @@ prompt_disk() {
         labels+=( "/dev/${name}  ${size}  ${model}" )
         paths+=( "/dev/${name}" )
     done
+    labels+=( "Back" )
 
     menu_choose "Select install target" "${labels[@]}"
+    if [[ "$menu_result" == "__back__" || "$menu_result" == "${#paths[@]}" ]]; then
+        set_step_back
+        return 0
+    fi
     disk="${paths[$menu_result]}"
+    set_step_next
 }
 
 prompt_hostname() {
@@ -512,8 +579,13 @@ prompt_hostname() {
     while true; do
         prompt_input "Choose a hostname" "$hostname_value"
         input="$prompt_result"
+        if [[ "$input" == "__back__" ]]; then
+            set_step_back
+            return 0
+        fi
         if [[ "$input" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]]; then
             hostname_value="$input"
+            set_step_next
             return
         fi
 
@@ -528,8 +600,13 @@ prompt_username() {
     while true; do
         prompt_input "Choose a username" "$username_value"
         input="$prompt_result"
+        if [[ "$input" == "__back__" ]]; then
+            set_step_back
+            return 0
+        fi
         if [[ "$input" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
             username_value="$input"
+            set_step_next
             return
         fi
 
@@ -546,12 +623,22 @@ prompt_timezone() {
     menu_choose \
         "Choose timezone method" \
         "Search for a timezone" \
-        "Enter timezone directly"
+        "Enter timezone directly" \
+        "Back"
+
+    if [[ "$menu_result" == "__back__" || "$menu_result" == "2" ]]; then
+        set_step_back
+        return 0
+    fi
 
     if [[ "$menu_result" == "0" ]]; then
         while true; do
             prompt_input "Search timezone" "$timezone_value"
             query="$prompt_result"
+            if [[ "$query" == "__back__" ]]; then
+                set_step_back
+                return 0
+            fi
             mapfile -t zoneinfo_matches < <(collect_timezones | grep -Fi -- "${query:-UTC}" | head -n 30)
 
             if [[ "${#zoneinfo_matches[@]}" -eq 0 ]]; then
@@ -560,8 +647,13 @@ prompt_timezone() {
                 continue
             fi
 
+            zoneinfo_matches+=( "Back" )
             menu_choose "Select timezone" "${zoneinfo_matches[@]}"
+            if [[ "$menu_result" == "__back__" || "$menu_result" == "$((${#zoneinfo_matches[@]} - 1))" ]]; then
+                continue
+            fi
             timezone_value="${zoneinfo_matches[$menu_result]}"
+            set_step_next
             return 0
         done
     fi
@@ -569,9 +661,14 @@ prompt_timezone() {
     while true; do
         prompt_input "Enter timezone directly" "$timezone_value"
         input="${prompt_result:-$timezone_value}"
+        if [[ "$input" == "__back__" ]]; then
+            set_step_back
+            return 0
+        fi
 
         if timezone_exists "$input"; then
             timezone_value="$input"
+            set_step_next
             return 0
         fi
 
@@ -585,10 +682,14 @@ prompt_password() {
     local second=""
 
     while true; do
-        show_header "Set password" "Choose a password for ${username_value}."
+        show_header "Set password" "Choose a password for ${username_value}. Type /back to return."
 
         read -r -s -p "Password: " first
         printf '\n'
+        if [[ "$first" == "/back" ]]; then
+            set_step_back
+            return 0
+        fi
         read -r -s -p "Confirm password: " second
         printf '\n'
 
@@ -615,6 +716,7 @@ prompt_password() {
         fi
 
         unset first second
+        set_step_next
         return
     done
 }
@@ -634,8 +736,18 @@ confirm_install() {
     printf '  - ext4 root partition using the rest of the disk\n'
     printf '\n'
 
-    menu_choose "Continue with installation?" "Install now" "Cancel"
-    [[ "$menu_result" == "0" ]]
+    menu_choose "Continue with installation?" "Install now" "Back" "Cancel"
+    case "$menu_result" in
+        "__back__"|1)
+            set_step_back
+            ;;
+        2)
+            set_step_cancel
+            ;;
+        *)
+            set_step_install
+            ;;
+    esac
 }
 
 disk_part_suffix() {
@@ -1114,41 +1226,102 @@ finish_screen() {
     printf '  1. Remove the ISO from the VM or USB boot order.\n'
     printf '  2. Reboot the machine.\n'
     printf '\n'
-    read -r -p "Press ENTER to return to the boot menu..."
+    menu_choose "What would you like to do now?" "Reboot into Abora OS" "Power off" "Return to live boot menu"
+
+    case "$menu_result" in
+        0)
+            sync
+            reboot
+            ;;
+        1)
+            sync
+            poweroff
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+}
+
+cleanup_target() {
+    sync
+    umount -R /mnt 2>/dev/null || true
 }
 
 main() {
+    local step=0
+
     require_root
     if ! command -v mkpasswd >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then
         error_msg "Password hashing is unavailable. Install mkpasswd or openssl."
         exit 1
     fi
 
-    pick_keyboard_layout
-    pick_desktop_environment
-    prompt_disk || return 1
-    prompt_hostname
-    prompt_username
-    prompt_timezone
-    prompt_password
+    while true; do
+        set_step_next
 
-    if ! confirm_install; then
-        info "Install cancelled."
-        return 0
-    fi
+        case "$step" in
+            0)
+                pick_keyboard_layout
+                ;;
+            1)
+                pick_desktop_environment
+                ;;
+            2)
+                prompt_disk || return 1
+                ;;
+            3)
+                prompt_hostname
+                ;;
+            4)
+                prompt_username
+                ;;
+            5)
+                prompt_timezone
+                ;;
+            6)
+                prompt_password
+                ;;
+            7)
+                confirm_install
+                ;;
+        esac
 
-    show_header "Installing Abora OS" "Applying partitions and writing the system."
-    partition_disk
-    mount_target
-    generate_config || {
-        pause_prompt
-        return 1
-    }
-    install_system || {
-        pause_prompt
-        return 1
-    }
-    finish_screen
+        case "$step_action" in
+            back)
+                if [[ "$step" -gt 0 ]]; then
+                    step=$((step - 1))
+                fi
+                ;;
+            cancel)
+                info "Install cancelled."
+                return 0
+                ;;
+            stay)
+                ;;
+            install)
+                show_header "Installing Abora OS" "Applying partitions and writing the system."
+                partition_disk
+                mount_target
+                generate_config || {
+                    pause_prompt
+                    return 1
+                }
+                install_system || {
+                    pause_prompt
+                    return 1
+                }
+                cleanup_target
+                finish_screen
+                return 0
+                ;;
+            *)
+                if [[ "$step" -lt 7 ]]; then
+                    step=$((step + 1))
+                fi
+                ;;
+        esac
+    done
 }
 
 main "$@"
