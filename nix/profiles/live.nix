@@ -31,12 +31,12 @@
   '';
 
   environment.etc."abora/default-wallpaper.png".source = ../../assets/wallpaper.png;
-  environment.etc."abora/fastfetch-logo.txt".source = ../../assets/fastfetch-logo.txt;
+  environment.etc."abora/title.txt".source = ../../assets/abora-title.txt;
 
   services.xserver.enable = false;
   services.getty.autologinUser = "root";
 
-  environment.shellAliases.fastfetch = "fastfetch --logo-type file-raw --logo /etc/abora/fastfetch-logo.txt";
+  environment.shellAliases.fastfetch = "fastfetch --logo-type file-raw --logo /etc/abora/title.txt";
 
   environment.etc."profile.d/abora-live.sh".text = ''
     if [ "$USER" = "root" ] && [ "$(tty 2>/dev/null)" = "/dev/tty1" ] && [ -z "''${ABORA_BOOT_MENU:-}" ]; then

@@ -10,7 +10,7 @@ user_password_hash=""
 efi_part=""
 root_part=""
 
-logo_file="/etc/abora/fastfetch-logo.txt"
+title_file="/etc/abora/title.txt"
 
 BLUE='\033[38;5;33m'
 MAGENTA='\033[38;5;207m'
@@ -29,9 +29,9 @@ clear_screen() {
 show_header() {
     clear_screen
 
-    if [[ -f "$logo_file" ]]; then
+    if [[ -f "$title_file" ]]; then
         printf '%b' "$WHITE"
-        cat "$logo_file"
+        cat "$title_file"
         printf '%b' "$NC"
     fi
 
@@ -166,7 +166,18 @@ pick_keyboard_layout() {
 }
 
 collect_disks() {
-    lsblk -d -e 7,11 -o NAME,SIZE,MODEL,TYPE | awk '$4 == "disk" { print $1 "|" $2 "|" substr($0, index($0, $3)) }'
+    lsblk -dn -e 7,11 -o NAME,SIZE,MODEL,TYPE | awk '
+        $NF == "disk" {
+            model = ""
+            for (i = 3; i < NF; i++) {
+                model = model (model ? " " : "") $i
+            }
+            if (model == "") {
+                model = "Unknown model"
+            }
+            print $1 "|" $2 "|" model
+        }
+    '
 }
 
 prompt_disk() {
@@ -182,7 +193,7 @@ prompt_disk() {
     mapfile -t entries < <(collect_disks)
     if [[ "${#entries[@]}" -eq 0 ]]; then
         error_msg "No installable disks were found."
-        exit 1
+        return 1
     fi
 
     for entry in "${entries[@]}"; do
@@ -407,7 +418,7 @@ main() {
     }
 
     pick_keyboard_layout
-    prompt_disk
+    prompt_disk || return 1
     prompt_hostname
     prompt_username
     prompt_timezone

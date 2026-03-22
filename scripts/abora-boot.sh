@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-logo_file="/etc/abora/fastfetch-logo.txt"
+title_file="/etc/abora/title.txt"
 
 BLUE='\033[38;5;33m'
 MAGENTA='\033[38;5;207m'
@@ -17,9 +17,9 @@ clear_screen() {
 show_header() {
     clear_screen
 
-    if [[ -f "$logo_file" ]]; then
+    if [[ -f "$title_file" ]]; then
         printf '%b' "$WHITE"
-        cat "$logo_file"
+        cat "$title_file"
         printf '%b' "$NC"
     fi
 
@@ -93,6 +93,19 @@ pause_prompt() {
     read -r -p "Press ENTER to continue..."
 }
 
+autoboot_installer() {
+    local key=""
+
+    show_header
+    printf '%bAuto-starting installer in 3 seconds...%b\n' "$DIM" "$NC"
+    printf '%bPress any key to open the boot menu instead.%b\n' "$DIM" "$NC"
+
+    IFS= read -rsn1 -t 3 key || true
+    if [[ -z "$key" ]]; then
+        /etc/abora/installer.sh || pause_prompt
+    fi
+}
+
 open_shell() {
     clear_screen
     printf '%bOpening live shell%b\n' "$WHITE" "$NC"
@@ -102,6 +115,8 @@ open_shell() {
 
 boot_menu() {
     local choice=""
+
+    autoboot_installer
 
     while true; do
         menu_choose \
