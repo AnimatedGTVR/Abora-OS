@@ -5,6 +5,8 @@ repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$repo_dir"
 
 bash_scripts=(
+  "scripts/abora-boot.sh"
+  "scripts/abora-installer.sh"
   "scripts/build-iso.sh"
   "scripts/rebuild-vm.sh"
   "scripts/release-metadata.sh"

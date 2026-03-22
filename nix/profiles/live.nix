@@ -1,21 +1,23 @@
 { lib, pkgs, version, ... }:
 {
-  imports = [
-    ../modules/live-extensions.nix
-  ];
-
   networking.hostName = "abora";
   system.nixos.tags = [ "abora" "nixos-base" ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
   environment.systemPackages = with pkgs; [
+    bashInteractive
+    dosfstools
+    e2fsprogs
     fastfetch
     git
     curl
     wget
     htop
-    dialog  # For TUI installer
+    iproute2
+    parted
+    util-linux
+    whois
   ];
 
   environment.variables = {
@@ -24,40 +26,29 @@
 
   environment.etc."abora/README".text = ''
     Abora OS live image
-    Base: NixOS
+    Base: Abora OS
   '';
 
   environment.etc."abora/default-wallpaper.png".source = ../../assets/wallpaper.png;
+  environment.etc."abora/fastfetch-logo.txt".source = ../../assets/fastfetch-logo.txt;
 
-  # Boot to console, not desktop
   services.xserver.enable = false;
+  services.getty.autologinUser = "root";
 
-  # Auto-login to installer user
-  services.getty.autologinUser = "installer";
+  environment.shellAliases.fastfetch = "fastfetch --logo-type file-raw --logo /etc/abora/fastfetch-logo.txt";
 
-  users.users.installer = {
-    isNormalUser = true;
-    password = "";  # No password for auto-login
-    extraGroups = [ "wheel" ];
-  };
+  environment.etc."profile.d/abora-live.sh".text = ''
+    if [ "$USER" = "root" ] && [ "$(tty 2>/dev/null)" = "/dev/tty1" ] && [ -z "${ABORA_BOOT_MENU:-}" ]; then
+      export ABORA_BOOT_MENU=1
+      exec /etc/abora/boot.sh
+    fi
+  '';
 
-  # Run installer on boot
-  systemd.services.abora-installer = {
-    description = "Abora Custom Installer";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "network.target" ];
-    serviceConfig = {
-      Type = "oneshot";
-      User = "installer";
-      ExecStart = "${pkgs.bash}/bin/bash /etc/abora/installer.sh";
-      RemainAfterExit = true;
-    };
-  };
-
-  # Copy installer script
+  environment.etc."abora/boot.sh".source = ../../scripts/abora-boot.sh;
+  environment.etc."abora/boot.sh".mode = "0755";
   environment.etc."abora/installer.sh".source = ../../scripts/abora-installer.sh;
   environment.etc."abora/installer.sh".mode = "0755";
 
   isoImage.isoName = lib.mkForce "abora-${version}-x86_64.iso";
-  isoImage.appendToMenuLabel = " Installer";
+  isoImage.appendToMenuLabel = " Live";
 }

@@ -11,14 +11,14 @@ Use this after the GitHub ISO workflow succeeds.
 ## Live boot
 
 - boot the ISO in a VM
-- confirm the live desktop launches
-- confirm pre-desktop extension prompt appears and can skip safely
+- confirm the boot menu launches on `tty1`
+- confirm Fastfetch shows the Abora ASCII logo
 
 ## Install test
 
 - complete one full install onto a blank virtual disk
 - remove the ISO and reboot the installed system
-- confirm desktop and networking work
+- confirm login prompt and networking work
 
 ## Release gate
 

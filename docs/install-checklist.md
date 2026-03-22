@@ -5,23 +5,22 @@ Use this after building a release candidate ISO and after running one real insta
 ## Live Session
 
 - ISO reaches the boot menu without dropping to an emergency shell
-- live desktop starts successfully
+- boot menu opens on `tty1`
 - networking works in the live session
 - `/etc/abora/default-wallpaper.png` exists
-- pre-desktop extension prompt appears before display manager starts
+- Fastfetch shows the Abora ASCII logo
 
 ## Installer
 
-- installer opens from the live desktop
-- installer shows Abora logo branding
+- installer opens from the boot menu
 - disk selection and user creation remain interactive
 - install completes without fatal errors
 
 ## Installed System
 
 - installed system boots without the ISO attached
-- login manager starts
-- desktop session launches successfully
+- bootloader starts without manual repair
+- login prompt starts
 - networking is enabled and functional
 
 ## Bug Report
