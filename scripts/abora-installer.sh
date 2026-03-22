@@ -738,18 +738,6 @@ EOF
   services.gnome.gnome-keyring.enable = true;
   xdg.portal.enable = true;
   xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
-  environment.systemPackages = with pkgs; [
-    brightnessctl
-    dunst
-    grim
-    kitty
-    networkmanagerapplet
-    pavucontrol
-    rofi-wayland
-    slurp
-    waybar
-    wl-clipboard
-  ];
   environment.etc."skel/.config/hypr/hyprland.conf".source = ./abora/lonis/hyprland.conf;
   environment.etc."skel/.config/waybar/config.jsonc".source = ./abora/lonis/waybar-config.jsonc;
   environment.etc."skel/.config/waybar/style.css".source = ./abora/lonis/waybar-style.css;
@@ -920,6 +908,23 @@ EOF
     esac
 }
 
+extra_system_packages_block() {
+    if [[ "$desktop_profile" == "hyprland" && "$lonis_enabled" == "true" ]]; then
+        cat <<EOF
+    brightnessctl
+    dunst
+    grim
+    kitty
+    networkmanagerapplet
+    pavucontrol
+    rofi-wayland
+    slurp
+    waybar
+    wl-clipboard
+EOF
+    fi
+}
+
 write_branding_assets() {
     mkdir -p /mnt/etc/nixos/abora
     cp "$title_file" /mnt/etc/nixos/abora/title.txt
@@ -946,6 +951,7 @@ write_install_assets() {
 
 generate_config() {
     local desktop_block=""
+    local extra_packages_block=""
 
     info "Generating NixOS configuration"
     info "Writing configuration log to ${config_log}"
@@ -960,6 +966,7 @@ generate_config() {
 
     write_install_assets
     desktop_block="$(desktop_config_block)"
+    extra_packages_block="$(extra_system_packages_block)"
 
     cat > /mnt/etc/nixos/configuration.nix <<EOF
 { config, pkgs, ... }:
@@ -1026,6 +1033,7 @@ ${desktop_block}
     git
     htop
     wget
+${extra_packages_block}
   ];
 
   services.openssh.enable = true;
