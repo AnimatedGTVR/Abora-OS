@@ -16,6 +16,8 @@ lonis_enabled="false"
 user_password_hash=""
 efi_part=""
 root_part=""
+config_log="/tmp/abora-generate-config.log"
+install_log="/tmp/abora-install.log"
 
 title_file="/etc/abora/title.txt"
 
@@ -73,6 +75,66 @@ error_msg() {
 pause_prompt() {
     printf '\n'
     read -r -p "Press ENTER to continue..."
+}
+
+terminal_cols() {
+    local cols=""
+    cols="$(tput cols 2>/dev/null || printf '80')"
+    printf '%s' "${cols:-80}"
+}
+
+terminal_rows() {
+    local rows=""
+    rows="$(tput lines 2>/dev/null || printf '24')"
+    printf '%s' "${rows:-24}"
+}
+
+print_log_tail() {
+    local logfile="$1"
+    local cols=""
+    local rows=""
+    local max_lines=0
+    local width=0
+    local line=""
+
+    cols="$(terminal_cols)"
+    rows="$(terminal_rows)"
+    width=$((cols - 4))
+    max_lines=$((rows - 16))
+
+    if [[ "$width" -lt 20 ]]; then
+        width=20
+    fi
+
+    if [[ "$max_lines" -lt 6 ]]; then
+        max_lines=6
+    fi
+
+    if [[ ! -s "$logfile" ]]; then
+        printf '%bNo log output was captured.%b\n' "$DIM" "$NC"
+        return 0
+    fi
+
+    while IFS= read -r line; do
+        if [[ "${#line}" -gt "$width" ]]; then
+            printf '%s...\n' "${line:0:$((width - 3))}"
+        else
+            printf '%s\n' "$line"
+        fi
+    done < <(tail -n "$max_lines" "$logfile")
+}
+
+show_failure_screen() {
+    local title="$1"
+    local subtitle="$2"
+    local logfile="$3"
+
+    show_header "$title" "$subtitle"
+    printf '%bRecent log lines%b\n' "$WHITE" "$NC"
+    draw_rule
+    print_log_tail "$logfile"
+    printf '\n'
+    printf '%bFull log:%b %s\n' "$DIM" "$NC" "$logfile"
 }
 
 read_key() {
@@ -673,7 +735,6 @@ EOF
     xwayland.enable = true;
   };
   programs.dconf.enable = true;
-  security.polkit.enable = true;
   services.gnome.gnome-keyring.enable = true;
   xdg.portal.enable = true;
   xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
@@ -887,7 +948,14 @@ generate_config() {
     local desktop_block=""
 
     info "Generating NixOS configuration"
-    nixos-generate-config --root /mnt >/dev/null
+    info "Writing configuration log to ${config_log}"
+    if ! nixos-generate-config --root /mnt >"$config_log" 2>&1; then
+        show_failure_screen \
+            "Configuration failed" \
+            "Abora could not generate the base NixOS hardware config." \
+            "$config_log"
+        return 1
+    fi
 
     write_install_assets
     desktop_block="$(desktop_config_block)"
@@ -972,19 +1040,26 @@ install_system() {
     local nix_path=""
 
     info "Installing Abora OS"
+    info "This can take a few minutes."
     nixpkgs_path="$(resolve_nixpkgs_path)" || {
         error_msg "Could not locate nixpkgs for nixos-install."
         return 1
     }
     nix_path="nixpkgs=${nixpkgs_path}:nixos-config=/mnt/etc/nixos/configuration.nix"
+    : > "$install_log"
+    info "Writing install log to ${install_log}"
 
     if ! NIX_PATH="$nix_path" nixos-install \
         --root /mnt \
         --no-root-passwd \
         -I "nixpkgs=${nixpkgs_path}" \
         -I "nixos-config=/mnt/etc/nixos/configuration.nix"
+        >"$install_log" 2>&1
     then
-        error_msg "Installation failed. Review the output above."
+        show_failure_screen \
+            "Installation failed" \
+            "Abora could not finish writing the system." \
+            "$install_log"
         return 1
     fi
     success "Installation complete"
@@ -1024,7 +1099,10 @@ main() {
     show_header "Installing Abora OS" "Applying partitions and writing the system."
     partition_disk
     mount_target
-    generate_config
+    generate_config || {
+        pause_prompt
+        return 1
+    }
     install_system || {
         pause_prompt
         return 1
