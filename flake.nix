@@ -2,7 +2,7 @@
   description = "Abora OS (NixOS base)";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/812b3986fd1568f7a858f97fcf425ad996ba7d25";
   };
 
   outputs = { self, nixpkgs, ... }:

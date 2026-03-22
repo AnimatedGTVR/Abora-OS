@@ -1040,7 +1040,7 @@ ${extra_packages_block}
 
   services.openssh.enable = true;
 
-  system.stateVersion = "24.11";
+  system.stateVersion = "25.11";
 }
 EOF
     success "Configuration written"
