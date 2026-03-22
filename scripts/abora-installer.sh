@@ -6,6 +6,7 @@ hostname_value="abora"
 username_value="abora"
 timezone_value="UTC"
 keyboard_value="us"
+xkb_layout_value="us"
 user_password_hash=""
 efi_part=""
 root_part=""
@@ -26,7 +27,16 @@ clear_screen() {
     clear || printf '\033c'
 }
 
+draw_rule() {
+    printf '%b' "$DIM"
+    printf '────────────────────────────────────────────────────────────\n'
+    printf '%b' "$NC"
+}
+
 show_header() {
+    local title="${1:-Abora OS installer}"
+    local subtitle="${2:-Lets set up your machine...}"
+
     clear_screen
 
     if [[ -f "$title_file" ]]; then
@@ -36,8 +46,9 @@ show_header() {
     fi
 
     printf '\n'
-    printf '%bAbora OS installer%b\n' "$WHITE" "$NC"
-    printf '%bLet'\''s set up your machine...%b\n' "$DIM" "$NC"
+    printf '%b%s%b\n' "$WHITE" "$title" "$NC"
+    printf '%b%s%b\n' "$DIM" "$subtitle" "$NC"
+    draw_rule
     printf '\n'
 }
 
@@ -78,9 +89,7 @@ menu_choose() {
     local i=""
 
     while true; do
-        show_header
-        printf '%b%s%b\n' "$BLUE" "$prompt" "$NC"
-        printf '\n'
+        show_header "$prompt" "Use the arrow keys, then press Enter."
 
         for i in "${!options[@]}"; do
             if [[ "$i" -eq "$selected" ]]; then
@@ -123,8 +132,7 @@ prompt_input() {
     local input=""
 
     while true; do
-        show_header
-        printf '%b%s%b\n\n' "$BLUE" "$prompt" "$NC"
+        show_header "$prompt" "Type a value and press Enter."
         if [[ -n "$default_value" ]]; then
             read -r -p "> [${default_value}] " input
             prompt_result="${input:-$default_value}"
@@ -149,6 +157,17 @@ load_keyboard_layout() {
     fi
 }
 
+sync_xkb_layout() {
+    case "$keyboard_value" in
+        uk)
+            xkb_layout_value="gb"
+            ;;
+        *)
+            xkb_layout_value="$keyboard_value"
+            ;;
+    esac
+}
+
 pick_keyboard_layout() {
     local labels=(
         "English (US)"
@@ -162,6 +181,7 @@ pick_keyboard_layout() {
 
     menu_choose "Select keyboard layout" "${labels[@]}"
     keyboard_value="${values[$menu_result]}"
+    sync_xkb_layout
     load_keyboard_layout
 }
 
@@ -250,8 +270,7 @@ prompt_password() {
     local second=""
 
     while true; do
-        show_header
-        printf '%bSet password for %s%b\n\n' "$BLUE" "$username_value" "$NC"
+        show_header "Set password" "Choose a password for ${username_value}."
 
         read -r -s -p "Password: " first
         printf '\n'
@@ -277,10 +296,7 @@ prompt_password() {
 }
 
 confirm_install() {
-    local choice=""
-
-    show_header
-    printf '%bInstall summary%b\n\n' "$BLUE" "$NC"
+    show_header "Ready to install" "Review your choices before the disk is wiped."
     printf '  Disk:      %s\n' "$disk"
     printf '  Keyboard:  %s\n' "$keyboard_value"
     printf '  Hostname:  %s\n' "$hostname_value"
@@ -364,11 +380,27 @@ generate_config() {
   time.timeZone = "${timezone_value}";
   i18n.defaultLocale = "en_US.UTF-8";
   console.keyMap = "${keyboard_value}";
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    displayManager.gdm.enable = true;
+    desktopManager.gnome.enable = true;
+  };
+  services.displayManager.autoLogin.enable = true;
+  services.displayManager.autoLogin.user = "${username_value}";
+  services.gnome.gnome-keyring.enable = true;
+  security.rtkit.enable = true;
+  services.pipewire = {
+    enable = true;
+    alsa.enable = true;
+    alsa.support32Bit = true;
+    pulse.enable = true;
+  };
 
   users.users."${username_value}" = {
     isNormalUser = true;
     description = "Abora User";
-    extraGroups = [ "wheel" "networkmanager" ];
+    extraGroups = [ "wheel" "networkmanager" "audio" "video" ];
     hashedPassword = "${user_password_hash}";
   };
 
@@ -400,7 +432,7 @@ install_system() {
 }
 
 finish_screen() {
-    show_header
+    show_header "Install complete" "Your machine is ready for first boot."
     success "Abora OS is installed."
     printf '\n'
     printf 'Next:\n'
@@ -429,7 +461,7 @@ main() {
         return 0
     fi
 
-    show_header
+    show_header "Installing Abora OS" "Applying partitions and writing the system."
     partition_disk
     mount_target
     generate_config

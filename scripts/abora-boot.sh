@@ -14,7 +14,16 @@ clear_screen() {
     clear || printf '\033c'
 }
 
+draw_rule() {
+    printf '%b' "$DIM"
+    printf '────────────────────────────────────────────────────────────\n'
+    printf '%b' "$NC"
+}
+
 show_header() {
+    local title="${1:-Abora live boot}"
+    local subtitle="${2:-Lets set up your machine...}"
+
     clear_screen
 
     if [[ -f "$title_file" ]]; then
@@ -24,8 +33,9 @@ show_header() {
     fi
 
     printf '\n'
-    printf '%bAbora live boot%b\n' "$WHITE" "$NC"
-    printf '%bLet'\''s set up your machine...%b\n' "$DIM" "$NC"
+    printf '%b%s%b\n' "$WHITE" "$title" "$NC"
+    printf '%b%s%b\n' "$DIM" "$subtitle" "$NC"
+    draw_rule
     printf '\n'
 }
 
@@ -49,9 +59,7 @@ menu_choose() {
     local i=""
 
     while true; do
-        show_header
-        printf '%b%s%b\n' "$BLUE" "$prompt" "$NC"
-        printf '\n'
+        show_header "$prompt" "Use the arrow keys, then press Enter."
 
         for i in "${!options[@]}"; do
             if [[ "$i" -eq "$selected" ]]; then
@@ -96,7 +104,7 @@ pause_prompt() {
 autoboot_installer() {
     local key=""
 
-    show_header
+    show_header "Abora live boot" "Installer-first startup."
     printf '%bAuto-starting installer in 3 seconds...%b\n' "$DIM" "$NC"
     printf '%bPress any key to open the boot menu instead.%b\n' "$DIM" "$NC"
 
