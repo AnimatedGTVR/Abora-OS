@@ -11,6 +11,8 @@ keyboard_value="us"
 xkb_layout_value="us"
 desktop_profile="gnome"
 desktop_label="GNOME"
+desktop_variant_id="gnome"
+lonis_enabled="false"
 user_password_hash=""
 efi_part=""
 root_part=""
@@ -219,37 +221,95 @@ sync_xkb_layout() {
     esac
 }
 
+find_zoneinfo_dir() {
+    local candidate=""
+
+    for candidate in \
+        "${ABORA_ZONEINFO_PATH:-}" \
+        /usr/share/zoneinfo \
+        /run/current-system/sw/share/zoneinfo \
+        /etc/zoneinfo
+    do
+        if [[ -n "$candidate" && -d "$candidate" ]]; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+collect_timezones() {
+    local zoneinfo_dir=""
+
+    zoneinfo_dir="$(find_zoneinfo_dir)" || return 1
+
+    find "$zoneinfo_dir" -type f | sed "s#^${zoneinfo_dir}/##" | grep -Ev \
+        '^(posix/|right/|SystemV/|localtime$|posixrules$|leap-seconds.list$|leapseconds$|tzdata.zi$|zone.tab$|zone1970.tab$|iso3166.tab$)' \
+        | sort -u
+}
+
+timezone_exists() {
+    local value="${1:-}"
+
+    [[ -n "$value" ]] || return 1
+    collect_timezones | grep -Fxq "$value"
+}
+
 sync_desktop_label() {
     case "$desktop_profile" in
         gnome)
             desktop_label="GNOME"
+            desktop_variant_id="gnome"
             ;;
         plasma)
             desktop_label="KDE Plasma"
+            desktop_variant_id="plasma"
             ;;
         hyprland)
-            desktop_label="Hyprland"
+            if [[ "$lonis_enabled" == "true" ]]; then
+                desktop_label="Abora Lonis"
+                desktop_variant_id="lonis"
+            else
+                desktop_label="Hyprland"
+                desktop_variant_id="hyprland"
+            fi
             ;;
         xfce)
             desktop_label="XFCE"
+            desktop_variant_id="xfce"
             ;;
         cinnamon)
             desktop_label="Cinnamon"
+            desktop_variant_id="cinnamon"
             ;;
         mate)
             desktop_label="MATE"
+            desktop_variant_id="mate"
             ;;
         budgie)
             desktop_label="Budgie"
+            desktop_variant_id="budgie"
             ;;
         lxqt)
             desktop_label="LXQt"
+            desktop_variant_id="lxqt"
             ;;
         pantheon)
             desktop_label="Pantheon"
+            desktop_variant_id="pantheon"
             ;;
         enlightenment)
             desktop_label="Enlightenment"
+            desktop_variant_id="enlightenment"
+            ;;
+        i3)
+            desktop_label="i3"
+            desktop_variant_id="i3"
+            ;;
+        openbox)
+            desktop_label="Openbox"
+            desktop_variant_id="openbox"
             ;;
     esac
 }
@@ -283,6 +343,8 @@ pick_desktop_environment() {
         "LXQt - extra lightweight desktop"
         "Pantheon - minimal and elegant"
         "Enlightenment - flashy and lightweight"
+        "i3 - keyboard-driven tiling session"
+        "Openbox - very minimal floating session"
     )
     local values=(
         "gnome"
@@ -295,10 +357,49 @@ pick_desktop_environment() {
         "lxqt"
         "pantheon"
         "enlightenment"
+        "i3"
+        "openbox"
     )
 
     menu_choose "Select desktop environment" "${labels[@]}"
     desktop_profile="${values[$menu_result]}"
+    lonis_enabled="false"
+    if [[ "$desktop_profile" == "hyprland" ]]; then
+        prompt_hyprland_variant
+        return 0
+    fi
+    sync_desktop_label
+}
+
+prompt_hyprland_variant() {
+    menu_choose \
+        "Choose Hyprland flavor" \
+        "Standard Hyprland" \
+        "Abora Lonis - a styled Hyprland setup"
+
+    if [[ "$menu_result" == "1" ]]; then
+        show_header "About Abora Lonis" "A prettier Hyprland setup from Abora."
+        printf 'Lonis is still Hyprland at its core.\n'
+        printf 'It adds a calmer Abora look with:\n'
+        printf '  - a styled Waybar top bar\n'
+        printf '  - themed Kitty, Rofi, and notifications\n'
+        printf '  - cleaner defaults for a more polished first boot\n'
+        printf '\n'
+        printf 'You are agreeing to use the Abora-themed Hyprland variant.\n'
+        printf 'If you would rather keep things plain, choose standard Hyprland.\n'
+        printf '\n'
+        pause_prompt
+
+        menu_choose \
+            "Do you agree and want to use Lonis?" \
+            "Yes - install Abora Lonis" \
+            "No - keep standard Hyprland"
+
+        if [[ "$menu_result" == "0" ]]; then
+            lonis_enabled="true"
+        fi
+    fi
+
     sync_desktop_label
 }
 
@@ -377,9 +478,44 @@ prompt_username() {
 
 prompt_timezone() {
     local input=""
-    prompt_input "Choose a timezone" "$timezone_value"
-    input="$prompt_result"
-    timezone_value="${input:-$timezone_value}"
+    local query=""
+    local zoneinfo_matches=()
+
+    menu_choose \
+        "Choose timezone method" \
+        "Search for a timezone" \
+        "Enter timezone directly"
+
+    if [[ "$menu_result" == "0" ]]; then
+        while true; do
+            prompt_input "Search timezone" "$timezone_value"
+            query="$prompt_result"
+            mapfile -t zoneinfo_matches < <(collect_timezones | grep -Fi -- "${query:-UTC}" | head -n 30)
+
+            if [[ "${#zoneinfo_matches[@]}" -eq 0 ]]; then
+                error_msg "No timezones matched. Try UTC, America, Europe, or Etc."
+                pause_prompt
+                continue
+            fi
+
+            menu_choose "Select timezone" "${zoneinfo_matches[@]}"
+            timezone_value="${zoneinfo_matches[$menu_result]}"
+            return 0
+        done
+    fi
+
+    while true; do
+        prompt_input "Enter timezone directly" "$timezone_value"
+        input="${prompt_result:-$timezone_value}"
+
+        if timezone_exists "$input"; then
+            timezone_value="$input"
+            return 0
+        fi
+
+        error_msg "Timezone not found. Try UTC, Etc/UTC, or use search."
+        pause_prompt
+    done
 }
 
 prompt_password() {
@@ -516,7 +652,52 @@ EOF
 EOF
             ;;
         hyprland)
-            cat <<EOF
+            if [[ "$lonis_enabled" == "true" ]]; then
+                cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+  };
+  services.displayManager = {
+    defaultSession = "hyprland";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.displayManager.sddm = {
+    enable = true;
+    wayland.enable = true;
+  };
+  programs.hyprland = {
+    enable = true;
+    withUWSM = true;
+    xwayland.enable = true;
+  };
+  programs.dconf.enable = true;
+  security.polkit.enable = true;
+  services.gnome.gnome-keyring.enable = true;
+  xdg.portal.enable = true;
+  xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+  environment.systemPackages = with pkgs; [
+    brightnessctl
+    dunst
+    grim
+    kitty
+    networkmanagerapplet
+    pavucontrol
+    rofi-wayland
+    slurp
+    waybar
+    wl-clipboard
+  ];
+  environment.etc."skel/.config/hypr/hyprland.conf".source = ./abora/lonis/hyprland.conf;
+  environment.etc."skel/.config/waybar/config.jsonc".source = ./abora/lonis/waybar-config.jsonc;
+  environment.etc."skel/.config/waybar/style.css".source = ./abora/lonis/waybar-style.css;
+  environment.etc."skel/.config/kitty/kitty.conf".source = ./abora/lonis/kitty.conf;
+  environment.etc."skel/.config/rofi/config.rasi".source = ./abora/lonis/rofi.rasi;
+  environment.etc."skel/.config/dunst/dunstrc".source = ./abora/lonis/dunstrc;
+EOF
+            else
+                cat <<EOF
   services.xserver = {
     enable = true;
     xkb.layout = "${xkb_layout_value}";
@@ -538,6 +719,7 @@ EOF
   xdg.portal.enable = true;
   xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
 EOF
+            fi
             ;;
         xfce)
             cat <<EOF
@@ -644,7 +826,61 @@ EOF
   services.xserver.displayManager.lightdm.enable = true;
 EOF
             ;;
+        i3)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    windowManager.i3.enable = true;
+  };
+  services.displayManager = {
+    defaultSession = "none+i3";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
+        openbox)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    windowManager.openbox.enable = true;
+  };
+  services.displayManager = {
+    defaultSession = "none+openbox";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
     esac
+}
+
+write_branding_assets() {
+    mkdir -p /mnt/etc/nixos/abora
+    cp "$title_file" /mnt/etc/nixos/abora/title.txt
+    cp /etc/abora/fastfetch-config.jsonc /mnt/etc/nixos/abora/fastfetch-config.jsonc
+}
+
+write_lonis_assets() {
+    mkdir -p /mnt/etc/nixos/abora/lonis
+    sed "s/__ABORA_KB_LAYOUT__/${xkb_layout_value}/g" /etc/abora/lonis/hyprland.conf > /mnt/etc/nixos/abora/lonis/hyprland.conf
+    cp /etc/abora/lonis/waybar-config.jsonc /mnt/etc/nixos/abora/lonis/waybar-config.jsonc
+    cp /etc/abora/lonis/waybar-style.css /mnt/etc/nixos/abora/lonis/waybar-style.css
+    cp /etc/abora/lonis/kitty.conf /mnt/etc/nixos/abora/lonis/kitty.conf
+    cp /etc/abora/lonis/rofi.rasi /mnt/etc/nixos/abora/lonis/rofi.rasi
+    cp /etc/abora/lonis/dunstrc /mnt/etc/nixos/abora/lonis/dunstrc
+}
+
+write_install_assets() {
+    write_branding_assets
+
+    if [[ "$lonis_enabled" == "true" ]]; then
+        write_lonis_assets
+    fi
 }
 
 generate_config() {
@@ -653,12 +889,22 @@ generate_config() {
     info "Generating NixOS configuration"
     nixos-generate-config --root /mnt >/dev/null
 
+    write_install_assets
     desktop_block="$(desktop_config_block)"
 
     cat > /mnt/etc/nixos/configuration.nix <<EOF
 { config, pkgs, ... }:
 {
   imports = [ ./hardware-configuration.nix ];
+
+  system.nixos = {
+    distroId = "abora";
+    distroName = "Abora OS";
+    vendorId = "abora";
+    vendorName = "Abora OS";
+    variantName = "${desktop_label} Edition";
+    variant_id = "${desktop_variant_id}";
+  };
 
   boot.loader.grub = {
     enable = true;
@@ -674,6 +920,18 @@ generate_config() {
   time.timeZone = "${timezone_value}";
   i18n.defaultLocale = "en_US.UTF-8";
   console.keyMap = "${keyboard_value}";
+  security.polkit.enable = true;
+  services.udisks2.enable = true;
+  environment.etc."abora/title.txt".source = ./abora/title.txt;
+  environment.etc."xdg/fastfetch/config.jsonc".source = ./abora/fastfetch-config.jsonc;
+  environment.etc."skel/.config/fastfetch/config.jsonc".source = ./abora/fastfetch-config.jsonc;
+  environment.etc."issue".text = ''
+    Abora OS
+  '';
+  environment.etc."issue.net".text = ''
+    Abora OS
+  '';
+  environment.shellAliases.fastfetch = "fastfetch -c /etc/xdg/fastfetch/config.jsonc";
 ${desktop_block}
   security.rtkit.enable = true;
   services.pipewire = {
@@ -686,6 +944,7 @@ ${desktop_block}
   users.users."${username_value}" = {
     isNormalUser = true;
     description = "Abora User";
+    createHome = true;
     extraGroups = [ "wheel" "networkmanager" "audio" "video" ];
     hashedPassword = "${user_password_hash}";
   };
