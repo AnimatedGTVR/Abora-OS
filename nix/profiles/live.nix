@@ -38,6 +38,7 @@
 
   environment.etc."abora/default-wallpaper.png".source = ../../assets/wallpaper.png;
   environment.etc."abora/title.txt".source = ../../assets/abora-title.txt;
+  environment.etc."abora/nixpkgs".source = pkgs.path;
 
   services.xserver.enable = false;
   environment.shellAliases.fastfetch = "fastfetch --logo-type file-raw --logo /etc/abora/title.txt";
@@ -54,6 +55,9 @@
     after = [ "systemd-user-sessions.service" ];
     conflicts = [ "getty@tty1.service" ];
     before = [ "getty@tty1.service" ];
+    environment = {
+      ABORA_NIXPKGS_PATH = "/etc/abora/nixpkgs";
+    };
 
     serviceConfig = {
       Type = "simple";

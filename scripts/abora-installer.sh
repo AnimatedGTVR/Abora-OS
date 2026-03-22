@@ -91,17 +91,44 @@ menu_choose() {
     local selected=0
     local key=""
     local i=""
+    local max_visible=8
+    local start=0
+    local end=0
 
     while true; do
         show_header "$prompt" "Use the arrow keys, then press Enter."
 
-        for i in "${!options[@]}"; do
+        if [[ "${#options[@]}" -le "$max_visible" ]]; then
+            start=0
+            end=$((${#options[@]} - 1))
+        else
+            start=$((selected - (max_visible / 2)))
+            if [[ "$start" -lt 0 ]]; then
+                start=0
+            fi
+
+            end=$((start + max_visible - 1))
+            if [[ "$end" -ge "${#options[@]}" ]]; then
+                end=$((${#options[@]} - 1))
+                start=$((end - max_visible + 1))
+            fi
+        fi
+
+        if [[ "$start" -gt 0 ]]; then
+            printf '%b  ↑ more choices above%b\n' "$DIM" "$NC"
+        fi
+
+        for ((i = start; i <= end; i++)); do
             if [[ "$i" -eq "$selected" ]]; then
                 printf '%b› %s%b\n' "$MAGENTA" "${options[$i]}" "$NC"
             else
                 printf '  %s\n' "${options[$i]}"
             fi
         done
+
+        if [[ "$end" -lt $((${#options[@]} - 1)) ]]; then
+            printf '%b  ↓ more choices below%b\n' "$DIM" "$NC"
+        fi
 
         printf '\n'
         printf '%b<↑↓> navigate • enter submit%b\n' "$DIM" "$NC"
@@ -160,6 +187,7 @@ resolve_nixpkgs_path() {
 
     for candidate in \
         "${ABORA_NIXPKGS_PATH:-}" \
+        /etc/abora/nixpkgs \
         /etc/nix/path/nixpkgs \
         /run/current-system/nixpkgs/nixpkgs \
         /nix/var/nix/profiles/per-user/root/channels/nixos \
@@ -202,6 +230,27 @@ sync_desktop_label() {
         hyprland)
             desktop_label="Hyprland"
             ;;
+        xfce)
+            desktop_label="XFCE"
+            ;;
+        cinnamon)
+            desktop_label="Cinnamon"
+            ;;
+        mate)
+            desktop_label="MATE"
+            ;;
+        budgie)
+            desktop_label="Budgie"
+            ;;
+        lxqt)
+            desktop_label="LXQt"
+            ;;
+        pantheon)
+            desktop_label="Pantheon"
+            ;;
+        enlightenment)
+            desktop_label="Enlightenment"
+            ;;
     esac
 }
 
@@ -227,8 +276,26 @@ pick_desktop_environment() {
         "GNOME - polished and simple"
         "KDE Plasma - flexible and full featured"
         "Hyprland - tiling Wayland desktop"
+        "XFCE - light and familiar"
+        "Cinnamon - traditional with modern polish"
+        "MATE - classic desktop feel"
+        "Budgie - clean and focused"
+        "LXQt - extra lightweight desktop"
+        "Pantheon - minimal and elegant"
+        "Enlightenment - flashy and lightweight"
     )
-    local values=( "gnome" "plasma" "hyprland" )
+    local values=(
+        "gnome"
+        "plasma"
+        "hyprland"
+        "xfce"
+        "cinnamon"
+        "mate"
+        "budgie"
+        "lxqt"
+        "pantheon"
+        "enlightenment"
+    )
 
     menu_choose "Select desktop environment" "${labels[@]}"
     desktop_profile="${values[$menu_result]}"
@@ -429,6 +496,7 @@ desktop_config_block() {
   };
   services.displayManager.autoLogin.enable = true;
   services.displayManager.autoLogin.user = "${username_value}";
+  services.displayManager.defaultSession = "gnome";
   services.gnome.gnome-keyring.enable = true;
 EOF
             ;;
@@ -471,10 +539,117 @@ EOF
   xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
 EOF
             ;;
+        xfce)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    desktopManager.xfce.enable = true;
+  };
+  services.displayManager = {
+    defaultSession = "xfce";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
+        cinnamon)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    desktopManager.cinnamon.enable = true;
+  };
+  services.displayManager = {
+    defaultSession = "cinnamon";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
+        mate)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    desktopManager.mate.enable = true;
+  };
+  services.displayManager = {
+    defaultSession = "mate";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
+        budgie)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    desktopManager.budgie.enable = true;
+  };
+  services.displayManager = {
+    defaultSession = "budgie-desktop";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
+        lxqt)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    desktopManager.lxqt.enable = true;
+  };
+  services.displayManager = {
+    defaultSession = "lxqt";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.displayManager.sddm.enable = true;
+EOF
+            ;;
+        pantheon)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+  };
+  services.displayManager = {
+    defaultSession = "pantheon";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+  services.xserver.desktopManager.pantheon.enable = true;
+EOF
+            ;;
+        enlightenment)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    desktopManager.enlightenment.enable = true;
+  };
+  services.displayManager = {
+    defaultSession = "enlightenment";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
     esac
 }
 
 generate_config() {
+    local desktop_block=""
+
     info "Generating NixOS configuration"
     nixos-generate-config --root /mnt >/dev/null
 
@@ -535,14 +710,16 @@ EOF
 
 install_system() {
     local nixpkgs_path=""
+    local nix_path=""
 
     info "Installing Abora OS"
     nixpkgs_path="$(resolve_nixpkgs_path)" || {
         error_msg "Could not locate nixpkgs for nixos-install."
         return 1
     }
+    nix_path="nixpkgs=${nixpkgs_path}:nixos-config=/mnt/etc/nixos/configuration.nix"
 
-    if ! nixos-install \
+    if ! NIX_PATH="$nix_path" nixos-install \
         --root /mnt \
         --no-root-passwd \
         -I "nixpkgs=${nixpkgs_path}" \
