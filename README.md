@@ -1,8 +1,16 @@
 # Abora OS
 
 ## Update
-Thank you all for over 500 clones!
+Thank you all for over 700 clones!
 Abora also has a website: [aboraos.org](https://www.aboraos.org/).
+
+
+ **Download the latest build:**
+https://github.com/AnimatedGTVR/abora-os/releases/tag/v0.1.0-pre
+
+- Prebuilt ISO included
+- Ready for VM or real hardware
+- No setup required
 
 Abora OS now uses a **NixOS base** for live ISO builds.
 
