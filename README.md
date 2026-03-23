@@ -2,8 +2,7 @@
 
 ## Update
 Thank you all for over 500 clones!
-Abora also has a website: [aboraos.org](https://www.aboraos.org/)
-Note: The website may be slightly outdated and is currently being updated.
+Abora also has a website: [aboraos.org](https://www.aboraos.org/).
 
 Abora OS now uses a **NixOS base** for live ISO builds.
 
