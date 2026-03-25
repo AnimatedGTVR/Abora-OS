@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Usage:
+#   _spinner "Message"
+#   _spinner "Message" -- command arg1 arg2
+msg="${1:-Working...}"
+shift || true
+
+if [[ "${1:-}" != "--" ]]; then
+    printf "%s " "$msg"
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        printf "#"
+        sleep 0.1
+    done
+    printf " done.\n"
+    exit 0
+fi
+
+shift
+stdout_file="$(mktemp)"
+stderr_file="$(mktemp)"
+cleanup() {
+    rm -f "$stdout_file" "$stderr_file"
+}
+trap cleanup EXIT
+
+"$@" >"$stdout_file" 2>"$stderr_file" &
+pid=$!
+frames='|/-\'
+index=0
+
+while kill -0 "$pid" 2>/dev/null; do
+    frame="${frames:index:1}"
+    printf "\r[%s] %s" "$frame" "$msg"
+    index=$(((index + 1) % 4))
+    sleep 0.1
+done
+
+if wait "$pid"; then
+    printf "\r[done] %s\n" "$msg"
+    cat "$stdout_file"
+    cat "$stderr_file" >&2
+    exit 0
+fi
+
+status=$?
+printf "\r[fail] %s\n" "$msg" >&2
+cat "$stdout_file"
+cat "$stderr_file" >&2
+exit "$status"

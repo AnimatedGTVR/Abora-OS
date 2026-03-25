@@ -1,0 +1,124 @@
+name: Release Abora ISO
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release-iso:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Read version
+        id: version
+        run: |
+          set -euo pipefail
+          value="$(tr -d '\n' < VERSION | tr -cd '[:alnum:]._-')"
+          case "$value" in
+            [Vv]*) tag="$value" ;;
+            *) tag="v$value" ;;
+          esac
+
+          if [ "$tag" != "$GITHUB_REF_NAME" ]; then
+            echo "VERSION ($tag) does not match pushed tag ($GITHUB_REF_NAME)." >&2
+            exit 1
+          fi
+
+          echo "value=$value" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Install Nix (official installer, no FlakeHub)
+        run: |
+          set -euxo pipefail
+          curl -fsSL https://nixos.org/nix/install -o /tmp/install-nix.sh
+          sh /tmp/install-nix.sh --no-daemon
+          echo "$HOME/.nix-profile/bin" >> "$GITHUB_PATH"
+          "$HOME/.nix-profile/bin/nix" --version
+
+      - name: Build ISO
+        id: build_iso
+        continue-on-error: true
+        env:
+          NIX_CONFIG: |
+            experimental-features = nix-command flakes
+            access-tokens = github.com=${{ github.token }}
+        run: |
+          set -euxo pipefail
+          export PATH="$HOME/.nix-profile/bin:$PATH"
+          nix --version
+          ./scripts/build-iso.sh 2>&1 | tee /tmp/abora-build-iso.log
+
+      - name: Show Build Log Tail
+        if: always()
+        run: |
+          echo "=== build log tail ==="
+          tail -n 200 /tmp/abora-build-iso.log || true
+
+      - name: Show output files
+        if: steps.build_iso.outcome == 'success'
+        run: ls -lah out
+
+      - name: Upload Build Log Artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: abora-release-log-${{ github.run_number }}
+          path: /tmp/abora-build-iso.log
+          if-no-files-found: warn
+
+      - name: Upload Release Bundle
+        if: steps.build_iso.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: abora-${{ steps.version.outputs.tag }}-release-${{ github.run_number }}
+          path: |
+            out/*-${{ steps.version.outputs.tag }}.iso
+            out/SHA256SUMS-${{ steps.version.outputs.tag }}.txt
+            out/RELEASE_MANIFEST-${{ steps.version.outputs.tag }}.txt
+            out/RELEASE_NOTES-${{ steps.version.outputs.tag }}.md
+          if-no-files-found: error
+
+      - name: Create Draft GitHub Release
+        if: steps.build_iso.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          tag="${{ steps.version.outputs.tag }}"
+          title="Abora OS ${tag}"
+          notes_file="out/RELEASE_NOTES-${tag}.md"
+          shopt -s nullglob
+          assets=(
+            out/*-"$tag".iso
+            out/SHA256SUMS-"$tag".txt
+            out/RELEASE_MANIFEST-"$tag".txt
+          )
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release edit "$tag" --title "$title" --notes-file "$notes_file" --draft
+            gh release upload "$tag" "${assets[@]}" --clobber
+          else
+            gh release create "$tag" "${assets[@]}" --title "$title" --notes-file "$notes_file" --draft
+          fi
+
+      - name: Fail Release If ISO Step Failed
+        if: steps.build_iso.outcome != 'success'
+        run: |
+          echo "ISO build failed; see abora-release-log artifact."
+          if [ -f /tmp/abora-build-iso.log ]; then
+            tail_txt="$(tail -n 40 /tmp/abora-build-iso.log)"
+            esc_tail="$(printf '%s' "$tail_txt" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e ':a;N;$!ba;s/\n/%0A/g')"
+            echo "::error title=ISO build failure tail::$esc_tail"
+          else
+            echo "::error title=ISO build failure::No /tmp/abora-build-iso.log file found."
+          fi
+          exit 1

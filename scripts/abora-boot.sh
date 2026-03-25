@@ -4,6 +4,8 @@ set -euo pipefail
 export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 title_file="/etc/abora/title.txt"
+gui_launcher="/etc/abora/launch-gui.sh"
+version="${ABORA_VERSION:-v1.0.0}"
 
 BLUE='\033[38;5;33m'
 MAGENTA='\033[38;5;207m'
@@ -38,8 +40,8 @@ draw_rule() {
 }
 
 show_header() {
-    local title="${1:-Abora live boot}"
-    local subtitle="${2:-Lets set up your machine...}"
+    local title="${1:-Abora OS ${version} live boot}"
+    local subtitle="${2:-Choose how you want to start.}"
 
     clear_screen
 
@@ -121,7 +123,7 @@ pause_prompt() {
 autoboot_installer() {
     local key=""
 
-    show_header "Abora live boot" "Installer-first startup."
+    show_header "Abora OS ${version} live boot" "Installer-first startup."
     printf '%bAuto-starting installer in 3 seconds...%b\n' "$DIM" "$NC"
     printf '%bPress any key to open the boot menu instead.%b\n' "$DIM" "$NC"
 
@@ -131,10 +133,39 @@ autoboot_installer() {
     fi
 }
 
+launch_gui_tool() {
+    local app_id="$1"
+    local label="$2"
+
+    clear_screen
+    printf '%bStarting %s on tty2%b\n' "$WHITE" "$label" "$NC"
+    printf '%bClose the app window to return to the live boot menu.%b\n\n' "$DIM" "$NC"
+
+    if [[ ! -x "$gui_launcher" ]]; then
+        printf '%bThe GUI launcher is not available in this build.%b\n' "$MAGENTA" "$NC"
+        pause_prompt
+        return 1
+    fi
+
+    if command -v openvt >/dev/null 2>&1; then
+        openvt -c 2 -f -s -w -- env ABORA_RETURN_VT=1 "$gui_launcher" "$app_id"
+        return 0
+    fi
+
+    env ABORA_RETURN_VT=1 "$gui_launcher" "$app_id"
+}
+
 open_shell() {
     clear_screen
-    printf '%bOpening live shell%b\n' "$WHITE" "$NC"
-    printf '%bType `exit` to return to the boot menu.%b\n\n' "$DIM" "$NC"
+    printf '%bOpening live shell on tty2%b\n' "$WHITE" "$NC"
+    printf '%bType `exit` there to return, then press Alt+F1 for the boot menu if needed.%b\n\n' "$DIM" "$NC"
+
+    if command -v openvt >/dev/null 2>&1; then
+        openvt -c 2 -f -s -w -- env ABORA_BOOT_MENU=1 "$BASH_BIN" --login
+        return 0
+    fi
+
+    printf '%bTTY switching tools were unavailable, falling back to tty1.%b\n\n' "$DIM" "$NC"
     ABORA_BOOT_MENU=1 "$BASH_BIN" --login
 }
 
@@ -147,6 +178,8 @@ boot_menu() {
         menu_choose \
             "Select an action" \
             "Install Abora OS" \
+            "Open Abora Welcome" \
+            "Open Abora Center" \
             "Open live shell" \
             "Reboot" \
             "Power off"
@@ -157,12 +190,18 @@ boot_menu() {
                 "$BASH_BIN" /etc/abora/installer.sh || pause_prompt
                 ;;
             1)
-                open_shell
+                launch_gui_tool "abora-welcome" "Abora Welcome"
                 ;;
             2)
-                reboot
+                launch_gui_tool "abora-center" "Abora Center"
                 ;;
             3)
+                open_shell
+                ;;
+            4)
+                reboot
+                ;;
+            5)
                 poweroff
                 ;;
         esac

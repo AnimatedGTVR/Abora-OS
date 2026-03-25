@@ -4,25 +4,28 @@
 Thank you all for over 700 clones!
 Abora also has a website: [aboraos.org](https://www.aboraos.org/).
 
+Abora OS is a little distro project built around a NixOS live image.
 
- **Download the latest build:**
-https://github.com/AnimatedGTVR/abora-os/releases/tag/v0.1.0-pre
+`v1.0.0` is the first proper public release.
 
-- Prebuilt ISO included
-- Ready for VM or real hardware
-- No setup required
+The goal was not to make something huge on day one. The goal was to make something real: a live image that boots, an installer that works, a release you can actually publish, and a system that already feels like Abora instead of a pile of placeholders.
 
-Abora OS now uses a **NixOS base** for live ISO builds.
+Website: [aboraos.org](https://www.aboraos.org/)
 
-## Repository layout
+## Why Abora
 
-- `assets/`: branding and visual assets
-- `nix/`: NixOS profile and modules for Abora live image
-- `flake.nix`: Nix flake entrypoint for ISO builds
-- `scripts/build-iso.sh`: builds the ISO via `nix build`
-- `scripts/rebuild-vm.sh`: pull + rebuild helper for a build VM
-- `scripts/check-scripts.sh`: script sanity checks
-- `docs/`: roadmap and release validation docs
+- terminal-first live boot and installer
+- Abora Welcome and Abora Center right in the boot menu
+- reproducible ISO builds with Nix flakes
+- custom Abora branding across the bootloader, wallpaper, and fastfetch setup
+
+## Project docs
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) for the day-to-day workflow
+- [docs/project-layout.md](docs/project-layout.md) for the repo map
+- [docs/install-checklist.md](docs/install-checklist.md) for install testing
+- [docs/release-checklist.md](docs/release-checklist.md) for release validation
+- [docs/roadmap.md](docs/roadmap.md) for the current direction
 
 ## Build prerequisites
 
@@ -30,11 +33,48 @@ Abora OS now uses a **NixOS base** for live ISO builds.
 
 ## Local commands
 
-Build ISO:
+Build the ISO, then throw it into QEMU:
 
 ```sh
-./scripts/build-iso.sh
+cd /home/animated/abora-os
+
+make iso
+make qemc
 ```
+
+## Release flow
+
+When you want the full release bundle locally:
+
+```sh
+cd /home/animated/abora-os
+
+make release
+```
+
+That drops the ISO, checksum file, release manifest, and GitHub-ready release notes into `out/`.
+
+When it is time to push the big button on GitHub:
+
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+That triggers the release workflow, builds the current `v1.0.0` ISO, and opens a draft GitHub release with the matching files attached.
+
+If you just want to refresh the release notes, checksums, and manifest without rebuilding the ISO:
+
+```sh
+make metadata
+```
+
+Inside the live image:
+
+- the installer starts from the terminal-first boot flow
+- `Abora Welcome` and `Abora Center` can be opened from the boot menu
+- running `abora-welcome` or `abora-center` from the live shell launches a temporary GUI app session when needed
+- TinyPM is still a separate Abora tool and is not part of the `v1.0.0` boot or installer flow
 
 Run script checks:
 
@@ -50,7 +90,7 @@ Rebuild in VM workspace:
 
 ## CI builds
 
-GitHub Actions workflow `Build Abora ISO` builds the ISO and uploads:
+The `Build Abora ISO` workflow builds the ISO and uploads:
 
 - `out/*.iso`
 - `out/SHA256SUMS-*.txt`
@@ -59,3 +99,7 @@ GitHub Actions workflow `Build Abora ISO` builds the ISO and uploads:
 
 - [docs/install-checklist.md](docs/install-checklist.md)
 - [docs/release-checklist.md](docs/release-checklist.md)
+
+## License
+
+Abora OS is licensed under the GNU General Public License v3.0 or later. See [LICENSE](LICENSE).

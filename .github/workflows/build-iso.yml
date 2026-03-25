@@ -1,5 +1,8 @@
 name: Build Abora ISO
 
+permissions:
+  contents: read
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
@@ -9,12 +12,17 @@ on:
     branches:
       - main
     paths:
+      - ".github/workflows/build-iso.yml"
+      - "assets/**"
+      - "docs/**"
       - "nix/**"
       - "scripts/**"
+      - "vendor/**"
       - "VERSION"
-      - "assets/wallpaper.png"
       - "flake.nix"
-      - ".github/workflows/build-iso.yml"
+      - "flake.lock"
+      - "README.md"
+      - "RELEASE_NOTES.md"
 
 jobs:
   build-iso:
@@ -25,7 +33,15 @@ jobs:
 
       - name: Read version
         id: version
-        run: echo "value=$(tr -d '\n' < VERSION)" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          value="$(tr -d '\n' < VERSION | tr -cd '[:alnum:]._-')"
+          case "$value" in
+            [Vv]*) tag="$value" ;;
+            *) tag="v$value" ;;
+          esac
+          echo "value=$value" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Install Nix (official installer, no FlakeHub)
         run: |
@@ -70,10 +86,12 @@ jobs:
         if: steps.build_iso.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
-          name: abora-${{ steps.version.outputs.value }}-${{ github.run_number }}
+          name: abora-${{ steps.version.outputs.tag }}-${{ github.run_number }}
           path: |
-            out/*.iso
-            out/SHA256SUMS-*.txt
+            out/*-${{ steps.version.outputs.tag }}.iso
+            out/SHA256SUMS-${{ steps.version.outputs.tag }}.txt
+            out/RELEASE_MANIFEST-${{ steps.version.outputs.tag }}.txt
+            out/RELEASE_NOTES-${{ steps.version.outputs.tag }}.md
           if-no-files-found: error
 
       - name: Fail Build If ISO Step Failed

@@ -22,7 +22,7 @@ if ! command -v qemu-img >/dev/null 2>&1; then
 fi
 
 if [[ -z "$iso_path" ]]; then
-    latest_iso="$(find "$out_dir" -maxdepth 1 -type f -name '*.iso' | sort | tail -n 1)"
+    latest_iso="$(find "$out_dir" -maxdepth 1 -type f -name '*.iso' -printf '%T@ %p\n' | sort -n | tail -n 1 | cut -d' ' -f2-)"
     if [[ -z "${latest_iso:-}" ]]; then
         echo "No ISO found in $out_dir. Build one first with \`make iso\` or set ABORA_ISO_PATH." >&2
         exit 1
@@ -52,7 +52,7 @@ fi
 qemu_args=(
     -m "$memory_mb"
     -smp "$cpu_count"
-    -boot d
+    -boot "order=c,once=d,menu=on"
     -cdrom "$iso_path"
     -drive "file=$disk_path,format=qcow2,if=virtio"
     -netdev user,id=n1

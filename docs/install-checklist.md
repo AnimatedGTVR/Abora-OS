@@ -6,6 +6,8 @@ Use this after building a release candidate ISO and after running one real insta
 
 - ISO reaches the boot menu without dropping to an emergency shell
 - boot menu opens on `tty1`
+- `Abora Welcome` opens from the boot menu
+- `Abora Center` opens from the boot menu
 - networking works in the live session
 - `/etc/abora/default-wallpaper.png` exists
 - Fastfetch shows the Abora ASCII logo

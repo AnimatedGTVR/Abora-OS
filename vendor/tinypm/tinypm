@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2034,SC2154
+set -euo pipefail
+
+script_path="${BASH_SOURCE[0]}"
+while [[ -L "$script_path" ]]; do
+    script_parent="$(cd -P "$(dirname "$script_path")" && pwd)"
+    script_target="$(readlink "$script_path")"
+    if [[ "$script_target" == /* ]]; then
+        script_path="$script_target"
+    else
+        script_path="$script_parent/$script_target"
+    fi
+done
+
+script_dir="$(cd -P "$(dirname "$script_path")" && pwd)"
+prog_name="${TINYPM_ENTRYPOINT:-$(basename "$0")}"
+
+for module in \
+    "$script_dir/lib/core/config.sh" \
+    "$script_dir/lib/core/common.sh" \
+    "$script_dir/lib/core/state.sh" \
+    "$script_dir/lib/core/ui.sh" \
+    "$script_dir/lib/core/apps.sh" \
+    "$script_dir/lib/providers/flatpak.sh" \
+    "$script_dir/lib/providers/snap.sh" \
+    "$script_dir/lib/providers/apt.sh" \
+    "$script_dir/lib/core/actions.sh" \
+    "$script_dir/lib/core/doctor.sh" \
+    "$script_dir/lib/core/args.sh"
+do
+    [[ -r "$module" ]] || {
+        echo "Parcel: missing module $module" >&2
+        exit 1
+    }
+    . "$module"
+done
+
+init_cli_context "$@"
+
+case "$action" in
+    install)
+        [[ -n "$package" ]] || die "install requires a package name"
+        install_pkg "$package" "$provider"
+        ;;
+    search)
+        [[ -n "$package" ]] || die "search requires a query"
+        search_pkg "$package" "$provider"
+        ;;
+    info)
+        [[ -n "$package" ]] || die "info requires a package name"
+        info_pkg "$package"
+        ;;
+    remove|uninstall)
+        [[ -n "$package" ]] || die "remove requires a package name"
+        remove_pkg "$package" "$provider"
+        ;;
+    list)
+        list_pkgs "$provider"
+        ;;
+    managed)
+        managed_pkgs
+        ;;
+    apps)
+        installed_apps
+        ;;
+    discover)
+        discover_apps "${package:-}"
+        ;;
+    run|start)
+        [[ -n "$package" ]] || die "run requires an app id or snap/flatpak target"
+        run_pkg "$package" "$provider"
+        ;;
+    update)
+        update_pkgs "$provider"
+        ;;
+    doctor)
+        doctor
+        ;;
+    selftest)
+        selftest
+        ;;
+    export-state)
+        state_export "${package:-}"
+        ;;
+    import-state)
+        state_import "$package"
+        ;;
+    help|"")
+        usage
+        ;;
+    version|-v|--version)
+        exec "$version_cmd"
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+esac
