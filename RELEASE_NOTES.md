@@ -13,6 +13,7 @@ Abora OS v1.0.0 is the first full Abora release built on a NixOS base.
 - NixOS live image profile under `nix/profiles/live.nix`
 - simplified ISO build scripts targeting Nix
 - GitHub Actions updated to build via Nix
+- TinyPM V3 can now be published as a GitHub Packages container through GHCR
 
 ## Release assets
 

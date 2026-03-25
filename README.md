@@ -10,8 +10,6 @@ Abora OS is a little distro project built around a NixOS live image.
 
 The goal was not to make something huge on day one. The goal was to make something real: a live image that boots, an installer that works, a release you can actually publish, and a system that already feels like Abora instead of a pile of placeholders.
 
-Website: [aboraos.org](https://www.aboraos.org/)
-
 ## Why Abora
 
 - terminal-first live boot and installer
@@ -53,6 +51,18 @@ make release
 ```
 
 That drops the ISO, TinyPM V3 package, checksum file, release manifest, and GitHub-ready release notes into `out/`.
+
+If you want to build the TinyPM V3 container package locally too:
+
+```sh
+make tinypm-image
+```
+
+The GitHub Packages workflow publishes that image to:
+
+```text
+ghcr.io/<your-github-owner>/abora-tinypm
+```
 
 When it is time to push the big button on GitHub:
 
@@ -101,6 +111,8 @@ The `Build Abora ISO` workflow builds the release bundle and uploads:
 - `out/*.iso`
 - `out/tinypm-*.tar.gz`
 - `out/SHA256SUMS-*.txt`
+
+The `Publish TinyPM Package` workflow pushes the TinyPM V3 container package to GitHub Packages through GHCR.
 
 ## Release validation
 

@@ -18,6 +18,7 @@ bash_scripts=(
   "scripts/abora-welcome.sh"
   "scripts/build-iso.sh"
   "scripts/build-iso-local.sh"
+  "scripts/build-tinypm-image.sh"
   "scripts/package-tinypm.sh"
   "scripts/rebuild-vm.sh"
   "scripts/release-metadata.sh"
