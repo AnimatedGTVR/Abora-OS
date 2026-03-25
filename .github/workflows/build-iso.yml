@@ -51,7 +51,7 @@ jobs:
           echo "$HOME/.nix-profile/bin" >> "$GITHUB_PATH"
           "$HOME/.nix-profile/bin/nix" --version
 
-      - name: Build ISO
+      - name: Build Release Bundle
         id: build_iso
         continue-on-error: true
         env:
@@ -62,7 +62,7 @@ jobs:
           set -euxo pipefail
           export PATH="$HOME/.nix-profile/bin:$PATH"
           nix --version
-          ./scripts/build-iso.sh 2>&1 | tee /tmp/abora-build-iso.log
+          make release 2>&1 | tee /tmp/abora-build-iso.log
 
       - name: Show Build Log Tail
         if: always()
@@ -89,6 +89,7 @@ jobs:
           name: abora-${{ steps.version.outputs.tag }}-${{ github.run_number }}
           path: |
             out/*-${{ steps.version.outputs.tag }}.iso
+            out/tinypm-*-abora-${{ steps.version.outputs.tag }}.tar.gz
             out/SHA256SUMS-${{ steps.version.outputs.tag }}.txt
             out/RELEASE_MANIFEST-${{ steps.version.outputs.tag }}.txt
             out/RELEASE_NOTES-${{ steps.version.outputs.tag }}.md

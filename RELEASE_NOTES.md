@@ -23,7 +23,7 @@ Abora OS v1.0.0 is the first full Abora release built on a NixOS base.
 ## Known limitations
 
 - wider bare-metal validation is still recommended after VM testing
-- TinyPM remains a separate Abora tool and is not part of the `v1.0.0` NixOS boot or installer path
+- TinyPM V3 remains a separate Abora tool and is not part of the `v1.0.0` NixOS boot or installer path
 
 ## Validation focus
 

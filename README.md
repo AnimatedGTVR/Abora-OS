@@ -52,7 +52,7 @@ cd /home/animated/abora-os
 make release
 ```
 
-That drops the ISO, checksum file, release manifest, and GitHub-ready release notes into `out/`.
+That drops the ISO, TinyPM V3 package, checksum file, release manifest, and GitHub-ready release notes into `out/`.
 
 When it is time to push the big button on GitHub:
 
@@ -69,12 +69,18 @@ If you just want to refresh the release notes, checksums, and manifest without r
 make metadata
 ```
 
+If you want the TinyPM V3 release package by itself:
+
+```sh
+make tinypm-package
+```
+
 Inside the live image:
 
 - the installer starts from the terminal-first boot flow
 - `Abora Welcome` and `Abora Center` can be opened from the boot menu
 - running `abora-welcome` or `abora-center` from the live shell launches a temporary GUI app session when needed
-- TinyPM is still a separate Abora tool and is not part of the `v1.0.0` boot or installer flow
+- TinyPM V3 is still a separate Abora tool and is not part of the `v1.0.0` boot or installer flow
 
 Run script checks:
 
@@ -90,9 +96,10 @@ Rebuild in VM workspace:
 
 ## CI builds
 
-The `Build Abora ISO` workflow builds the ISO and uploads:
+The `Build Abora ISO` workflow builds the release bundle and uploads:
 
 - `out/*.iso`
+- `out/tinypm-*.tar.gz`
 - `out/SHA256SUMS-*.txt`
 
 ## Release validation

@@ -1,4 +1,4 @@
-.PHONY: help iso iso-local qemu qmec qemc check metadata release
+.PHONY: help iso iso-local qemu qmec qemc check metadata release tinypm-package
 
 help:
 	@echo "Usage: make <target>"
@@ -6,7 +6,8 @@ help:
 	@echo "  iso       - Build the real Nix ISO"
 	@echo "  iso-local - Build a minimal local ISO without Nix"
 	@echo "  metadata  - Generate release notes, manifest, and checksums for the current version"
-	@echo "  release   - Build the ISO and refresh the release bundle"
+	@echo "  tinypm-package - Build the TinyPM release tarball"
+	@echo "  release   - Build the ISO, TinyPM package, and refresh the release bundle"
 	@echo "  qemu      - Boot the latest ISO in QEMU"
 	@echo "  qmec      - Alias for qemu"
 	@echo "  qemc      - Alias for qemu"
@@ -21,8 +22,14 @@ iso-local:
 metadata:
 	./scripts/release-metadata.sh
 
+tinypm-package:
+	./scripts/package-tinypm.sh
+
 release:
 	./scripts/build-iso.sh
+	./scripts/package-tinypm.sh
+	./scripts/release-metadata.sh
+
 
 qemu:
 	./scripts/run-qemu.sh

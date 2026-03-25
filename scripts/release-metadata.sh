@@ -21,29 +21,36 @@ mkdir -p "$out_dir"
     cd "$out_dir"
     shopt -s nullglob
     iso_files=(./*-"$version_tag".iso)
+    package_files=(./tinypm-*-abora-"$version_tag".tar.gz)
+    asset_files=("${iso_files[@]}")
+
     if [ "${#iso_files[@]}" -eq 0 ]; then
         echo "No ISO files found for version ${version_tag} in: $out_dir" >&2
         exit 1
+    fi
+
+    if [ "${#package_files[@]}" -gt 0 ]; then
+        asset_files+=("${package_files[@]}")
     fi
 
     checksum_file="SHA256SUMS-${version_tag}.txt"
     manifest_file="RELEASE_MANIFEST-${version_tag}.txt"
     notes_file="RELEASE_NOTES-${version_tag}.md"
 
-    sha256sum "${iso_files[@]}" | sed 's# \./# #' > "$checksum_file"
+    sha256sum "${asset_files[@]}" | sed 's# \./# #' > "$checksum_file"
 
     {
         printf 'Abora OS %s release manifest\n' "$version_tag"
         printf 'Generated: %s\n' "$generated_at"
         printf '\nAssets\n'
 
-        for iso_file in "${iso_files[@]}"; do
-            iso_name="${iso_file#./}"
-            size_bytes="$(stat -c '%s' "$iso_name")"
+        for asset_file in "${asset_files[@]}"; do
+            asset_name="${asset_file#./}"
+            size_bytes="$(stat -c '%s' "$asset_name")"
             size_human="$(numfmt --to=iec-i --suffix=B "$size_bytes" 2>/dev/null || printf '%s bytes' "$size_bytes")"
-            checksum="$(sha256sum "$iso_name" | awk '{print $1}')"
+            checksum="$(sha256sum "$asset_name" | awk '{print $1}')"
 
-            printf -- '- %s\n' "$iso_name"
+            printf -- '- %s\n' "$asset_name"
             printf '  size: %s (%s bytes)\n' "$size_human" "$size_bytes"
             printf '  sha256: %s\n' "$checksum"
         done
@@ -57,8 +64,8 @@ mkdir -p "$out_dir"
         printf '_Release date: %s UTC_\n\n' "$release_date"
         printf '## Downloads\n\n'
 
-        for iso_file in "${iso_files[@]}"; do
-            printf -- '- `%s`\n' "${iso_file#./}"
+        for asset_file in "${asset_files[@]}"; do
+            printf -- '- `%s`\n' "${asset_file#./}"
         done
 
         printf -- '- `%s`\n' "$checksum_file"

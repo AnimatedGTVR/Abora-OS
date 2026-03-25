@@ -18,6 +18,7 @@ bash_scripts=(
   "scripts/abora-welcome.sh"
   "scripts/build-iso.sh"
   "scripts/build-iso-local.sh"
+  "scripts/package-tinypm.sh"
   "scripts/rebuild-vm.sh"
   "scripts/release-metadata.sh"
   "scripts/run-qemu.sh"
@@ -82,10 +83,12 @@ tmp_empty="$(mktemp -d)"
 trap 'rm -rf "$tmp_ok" "$tmp_empty"' EXIT
 
 touch "$tmp_ok/abora-test-x86_64-${release_tag}.iso"
+touch "$tmp_ok/tinypm-v0.0.0-abora-${release_tag}.tar.gz"
 if ABORA_OUT_DIR="$tmp_ok" scripts/release-metadata.sh >/dev/null; then
   if [[ -f "$tmp_ok/SHA256SUMS-${release_tag}.txt" ]] \
     && [[ -f "$tmp_ok/RELEASE_MANIFEST-${release_tag}.txt" ]] \
-    && [[ -f "$tmp_ok/RELEASE_NOTES-${release_tag}.md" ]]; then
+    && [[ -f "$tmp_ok/RELEASE_NOTES-${release_tag}.md" ]] \
+    && grep -q "tinypm-v0.0.0-abora-${release_tag}.tar.gz" "$tmp_ok/SHA256SUMS-${release_tag}.txt"; then
     pass "runtime: release-metadata checksum generation"
   else
     fail "runtime: release-metadata checksum generation"

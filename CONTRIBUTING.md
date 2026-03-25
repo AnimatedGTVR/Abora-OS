@@ -31,7 +31,7 @@ If you are new to the repo, start here:
 - `docs/` for release notes, install validation, and roadmap docs
 - `nix/` for the live image configuration
 - `scripts/` for the boot flow, installer, build helpers, and release tooling
-- `vendor/tinypm/` for the vendored TinyPM project
+- `vendor/tinypm/` for the vendored TinyPM V3 project
 
 There is also a more detailed layout guide in [docs/project-layout.md](docs/project-layout.md).
 
