@@ -1,5 +1,30 @@
 { lib, pkgs, version, ... }:
+let
+  aboraCenter = pkgs.writeShellScriptBin "abora-center" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/center.sh "$@"
+  '';
+  aboraWelcome = pkgs.writeShellScriptBin "abora-welcome" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/welcome.sh "$@"
+  '';
+  aboraCenterDesktop = pkgs.makeDesktopItem {
+    name = "abora-center";
+    desktopName = "Abora Center";
+    comment = "Abora live tools and installer hub";
+    exec = "abora-center";
+    terminal = false;
+    categories = [ "System" "Settings" "Utility" ];
+  };
+  aboraWelcomeDesktop = pkgs.makeDesktopItem {
+    name = "abora-welcome";
+    desktopName = "Abora Welcome";
+    comment = "Abora live session welcome screen";
+    exec = "abora-welcome";
+    terminal = false;
+    categories = [ "System" "Utility" ];
+  };
+in
 {
+  system.stateVersion = "25.11";
   networking.hostName = "abora";
   system.nixos.tags = [ "abora" "nixos-base" ];
   system.nixos = {
@@ -8,7 +33,8 @@
     vendorId = "abora";
     vendorName = "Abora OS";
     variant_id = "live";
-    variantName = "Live Image";
+    variantName = "Abora OS ${version} Live Image";
+    label = version;
   };
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
@@ -16,8 +42,22 @@
     "nixpkgs=${pkgs.path}"
     "nixos-config=/etc/nixos/configuration.nix"
   ];
+  boot.initrd.verbose = false;
+  boot.consoleLogLevel = 3;
+  boot.kernelParams = [
+    "quiet"
+    "loglevel=3"
+    "udev.log_level=3"
+    "systemd.show_status=false"
+    "rd.systemd.show_status=false"
+    "vt.global_cursor_default=0"
+  ];
 
   environment.systemPackages = with pkgs; [
+    aboraCenter
+    aboraCenterDesktop
+    aboraWelcome
+    aboraWelcomeDesktop
     bashInteractive
     dosfstools
     e2fsprogs
@@ -32,6 +72,13 @@
     parted
     util-linux
     whois
+    openbox
+    xorg.xauth
+    xorg.xinit
+    xorg.xorgserver
+    xorg.xsetroot
+    xterm
+    zenity
   ];
 
   environment.variables = {
@@ -40,39 +87,59 @@
     ABORA_ZONEINFO_PATH = "${pkgs.tzdata}/share/zoneinfo";
   };
 
-  environment.etc."abora/README".text = ''
-    Abora OS live image
-    Base: Abora OS
-  '';
-
-  environment.etc."abora/default-wallpaper.png".source = ../../assets/wallpaper.png;
-  environment.etc."abora/title.txt".source = ../../assets/abora-title.txt;
-  environment.etc."abora/fastfetch-logo.txt".source = ../../assets/fastfetch-logo.txt;
-  environment.etc."abora/fastfetch-config.jsonc".source = ../../assets/fastfetch-config.jsonc;
-  environment.etc."abora/plymouth/abora.plymouth".source = ../../assets/plymouth/abora.plymouth;
-  environment.etc."abora/plymouth/abora.script".source = ../../assets/plymouth/abora.script;
-  environment.etc."abora/nixpkgs".source = pkgs.path;
-  environment.etc."abora/lonis/hyprland.conf".source = ../../assets/lonis/hyprland.conf;
-  environment.etc."abora/lonis/waybar-config.jsonc".source = ../../assets/lonis/waybar-config.jsonc;
-  environment.etc."abora/lonis/waybar-style.css".source = ../../assets/lonis/waybar-style.css;
-  environment.etc."abora/lonis/kitty.conf".source = ../../assets/lonis/kitty.conf;
-  environment.etc."abora/lonis/rofi.rasi".source = ../../assets/lonis/rofi.rasi;
-  environment.etc."abora/lonis/dunstrc".source = ../../assets/lonis/dunstrc;
-  environment.etc."xdg/fastfetch/config.jsonc".source = ../../assets/fastfetch-config.jsonc;
-  environment.etc."issue".text = ''
-    Abora OS
-  '';
-  environment.etc."issue.net".text = ''
-    Abora OS
-  '';
+  environment.etc =
+    {
+      "abora/README".text = ''
+        Abora OS ${version} live image
+        Base: Abora OS
+      '';
+      "abora/default-wallpaper.png".source = ../../assets/wallpaper.png;
+      "abora/title.txt".source = ../../assets/abora-title.txt;
+      "abora/fastfetch-logo.txt".source = ../../assets/fastfetch-logo.txt;
+      "abora/fastfetch-config.jsonc".source = ../../assets/fastfetch-config.jsonc;
+      "abora/plymouth/abora.plymouth".source = ../../assets/plymouth/abora.plymouth;
+      "abora/plymouth/abora.script".source = ../../assets/plymouth/abora.script;
+      "abora/nixpkgs".source = pkgs.path;
+      "xdg/fastfetch/config.jsonc".source = ../../assets/fastfetch-config.jsonc;
+      "issue".text = ''
+        Abora OS ${version}
+      '';
+      "issue.net".text = ''
+        Abora OS ${version}
+      '';
+      "abora/boot.sh" = {
+        source = ../../scripts/abora-boot.sh;
+        mode = "0755";
+      };
+      "abora/launch-gui.sh" = {
+        source = ../../scripts/abora-launch-gui.sh;
+        mode = "0755";
+      };
+      "abora/center.sh" = {
+        source = ../../scripts/abora-center.sh;
+        mode = "0755";
+      };
+      "abora/installer.sh" = {
+        source = ../../scripts/abora-installer.sh;
+        mode = "0755";
+      };
+      "abora/welcome.sh" = {
+        source = ../../scripts/abora-welcome.sh;
+        mode = "0755";
+      };
+    }
+    // builtins.listToAttrs (
+      map (name: {
+        name = "abora/bootloader/${name}";
+        value.source = ../../assets/bootloader + "/${name}";
+      }) (builtins.attrNames (builtins.readDir ../../assets/bootloader))
+    );
 
   services.xserver.enable = false;
+  systemd.settings.Manager = {
+    ReserveVT = 2;
+  };
   environment.shellAliases.fastfetch = "fastfetch -c /etc/xdg/fastfetch/config.jsonc";
-
-  environment.etc."abora/boot.sh".source = ../../scripts/abora-boot.sh;
-  environment.etc."abora/boot.sh".mode = "0755";
-  environment.etc."abora/installer.sh".source = ../../scripts/abora-installer.sh;
-  environment.etc."abora/installer.sh".mode = "0755";
 
   systemd.services."getty@tty1".enable = lib.mkForce false;
   systemd.services.abora-boot = {
@@ -101,6 +168,35 @@
     };
   };
 
-  isoImage.isoName = lib.mkForce "abora-${version}-x86_64.iso";
-  isoImage.appendToMenuLabel = " Live";
+  image.fileName = lib.mkForce "abora-${version}-x86_64.iso";
+  isoImage.prependToMenuLabel = "Boot ";
+  isoImage.appendToMenuLabel = "";
+  isoImage.configurationName = "Live";
+  isoImage.splashImage = ../../assets/bootloader/background.png;
+  isoImage.grubTheme = null;
+  isoImage.syslinuxTheme = ''
+    MENU RESOLUTION 800 600
+    MENU CLEAR
+    MENU WIDTH 76
+    MENU MARGIN 0
+    MENU ROWS 6
+    MENU VSHIFT 10
+    MENU HSHIFT 0
+    MENU TABMSGROW 18
+    MENU CMDLINEROW 19
+    MENU TIMEOUTROW 21
+    MENU HELPMSGROW 22
+    MENU HELPMSGENDROW 22
+
+    MENU COLOR BORDER       30;40      #00000000    #00000000   none
+    MENU COLOR SCREEN       37;40      #00000000    #00000000   none
+    MENU COLOR TABMSG       30;40      #CC0A1426    #00000000   none
+    MENU COLOR TIMEOUT      1;30;40    #FF0A1426    #00000000   none
+    MENU COLOR TIMEOUT_MSG  30;40      #FF0A1426    #00000000   none
+    MENU COLOR CMDMARK      1;30;40    #FF0A1426    #00000000   none
+    MENU COLOR CMDLINE      30;40      #FF0A1426    #00000000   none
+    MENU COLOR TITLE        1;37;40    #00000000    #00000000   none
+    MENU COLOR UNSEL        30;40      #FF0A1426    #00000000   none
+    MENU COLOR SEL          7;30;40    #FF0A1426    #992A4F86   std
+  '';
 }

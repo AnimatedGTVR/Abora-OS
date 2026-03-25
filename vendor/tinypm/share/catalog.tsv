@@ -1,0 +1,42 @@
+Firefox	Internet	flatpak	org.mozilla.firefox	Web browser
+Firefox	Internet	snap	firefox	Web browser
+Thunderbird	Communication	flatpak	org.mozilla.Thunderbird	Email client
+Telegram	Communication	flatpak	org.telegram.desktop	Messaging app
+Signal	Communication	flatpak	org.signal.Signal	Private messenger
+Element	Communication	flatpak	im.riot.Riot	Matrix chat client
+Discord	Communication	flatpak	com.discordapp.Discord	Chat for communities
+Spotify	Media	flatpak	com.spotify.Client	Music streaming
+Spotify	Media	snap	spotify	Music streaming
+VLC	Media	flatpak	org.videolan.VLC	Media player
+MPV	Media	flatpak	io.mpv.Mpv	Lightweight video player
+OBS Studio	Creative	flatpak	com.obsproject.Studio	Recording and streaming
+Audacity	Creative	flatpak	org.audacityteam.Audacity	Audio editor
+Kdenlive	Creative	flatpak	org.kde.kdenlive	Video editor
+GIMP	Creative	flatpak	org.gimp.GIMP	Image editor
+Inkscape	Creative	flatpak	org.inkscape.Inkscape	Vector graphics editor
+Krita	Creative	flatpak	org.kde.krita	Digital painting app
+Blender	Creative	flatpak	org.blender.Blender	3D creation suite
+Musescore	Creative	flatpak	org.musescore.MuseScore	Sheet music editor
+Godot	Development	flatpak	org.godotengine.Godot	Game engine
+Visual Studio Code	Development	flatpak	com.visualstudio.code	Code editor
+Visual Studio Code	Development	snap	code	Code editor
+Postman	Development	snap	postman	API platform
+Insomnia	Development	snap	insomnia	API client
+Obsidian	Productivity	flatpak	md.obsidian.Obsidian	Knowledge base app
+LibreOffice	Productivity	flatpak	org.libreoffice.LibreOffice	Office suite
+OnlyOffice	Productivity	flatpak	org.onlyoffice.desktopeditors	Office editors
+Bitwarden	Security	flatpak	com.bitwarden.desktop	Password manager
+KeePassXC	Security	flatpak	org.keepassxc.KeePassXC	Password manager
+Steam	Gaming	flatpak	com.valvesoftware.Steam	Game launcher
+Lutris	Gaming	flatpak	net.lutris.Lutris	Game launcher
+Bottles	Gaming	flatpak	com.usebottles.bottles	Wine manager
+htop	System	apt	htop	Process viewer
+git	System	apt	git	Version control
+curl	System	apt	curl	Transfer tool
+wget	System	apt	wget	Download tool
+jq	System	apt	jq	JSON processor
+ripgrep	System	apt	ripgrep	Fast text search
+neovim	System	apt	neovim	Terminal editor
+ffmpeg	Media	apt	ffmpeg	Media toolkit
+python3	Development	apt	python3	Python runtime
+nodejs	Development	apt	nodejs	Node.js runtime

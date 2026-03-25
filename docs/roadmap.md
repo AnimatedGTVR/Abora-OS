@@ -1,26 +1,25 @@
 # Abora OS Roadmap
 
-## Phase 1
+## v1.0.0 Delivered
 
-- establish NixOS-based live ISO baseline
-- keep image reproducible with flakes
-- maintain a stable desktop live environment
+- NixOS-based live ISO baseline
+- reproducible flake-based builds
+- branded live boot and installer flow
+- optional ecosystem tooling can land after `v1.0.0` when NixOS package mapping is ready
 
-## Phase 2
+## Post-v1 Focus
 
-- harden installer flow on the NixOS base
-- refine first-boot and optional extension experience
-- improve Abora branding consistency across live/install paths
+- validate installer success across more BIOS and UEFI targets
+- add automated VM smoke tests after ISO build
+- improve installed-system polish after first boot
 
-## Phase 3
+## Longer Term
 
 - split Abora functionality into reusable NixOS modules
 - add release-channel strategy and binary cache direction
 - optimize CI build time and artifact publishing
 
-## Immediate next tasks
+## Release direction
 
-- validate installer success rate across BIOS and UEFI VMs
-- refine optional extension prompt behavior
-- add automated VM smoke tests after ISO build
-- document user-facing install flow for first release
+- keep GitHub releases as the primary public ISO distribution path
+- attach ISO, checksums, manifest, and release notes to each tagged release

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_path="${BASH_SOURCE[0]}"
+while [[ -L "$script_path" ]]; do
+    script_parent="$(cd -P "$(dirname "$script_path")" && pwd)"
+    script_target="$(readlink "$script_path")"
+    if [[ "$script_target" == /* ]]; then
+        script_path="$script_target"
+    else
+        script_path="$script_parent/$script_target"
+    fi
+done
+
+script_dir="$(cd -P "$(dirname "$script_path")" && pwd)"
+export TINYPM_ENTRYPOINT="grab"
+exec "$script_dir/tinypm" "$@"

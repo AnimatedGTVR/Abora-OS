@@ -12,7 +12,6 @@ xkb_layout_value="us"
 desktop_profile="gnome"
 desktop_label="GNOME"
 desktop_variant_id="gnome"
-lonis_enabled="false"
 user_password_hash=""
 efi_part=""
 root_part=""
@@ -20,6 +19,7 @@ config_log="/tmp/abora-generate-config.log"
 install_log="/tmp/abora-install.log"
 
 title_file="/etc/abora/title.txt"
+version="${ABORA_VERSION:-v1.0.0}"
 
 BLUE='\033[38;5;33m'
 MAGENTA='\033[38;5;207m'
@@ -43,8 +43,8 @@ draw_rule() {
 }
 
 show_header() {
-    local title="${1:-Abora OS installer}"
-    local subtitle="${2:-Lets set up your machine...}"
+    local title="${1:-Abora OS ${version} installer}"
+    local subtitle="${2:-Set up your machine.}"
 
     clear_screen
 
@@ -358,13 +358,8 @@ sync_desktop_label() {
             desktop_variant_id="plasma"
             ;;
         hyprland)
-            if [[ "$lonis_enabled" == "true" ]]; then
-                desktop_label="Abora Lonis"
-                desktop_variant_id="lonis"
-            else
-                desktop_label="Hyprland"
-                desktop_variant_id="hyprland"
-            fi
+            desktop_label="Hyprland"
+            desktop_variant_id="hyprland"
             ;;
         xfce)
             desktop_label="XFCE"
@@ -389,10 +384,6 @@ sync_desktop_label() {
         pantheon)
             desktop_label="Pantheon"
             desktop_variant_id="pantheon"
-            ;;
-        enlightenment)
-            desktop_label="Enlightenment"
-            desktop_variant_id="enlightenment"
             ;;
         i3)
             desktop_label="i3"
@@ -438,7 +429,6 @@ pick_desktop_environment() {
         "Budgie - clean and focused"
         "LXQt - extra lightweight desktop"
         "Pantheon - minimal and elegant"
-        "Enlightenment - flashy and lightweight"
         "i3 - keyboard-driven tiling session"
         "Openbox - very minimal floating session"
         "Back"
@@ -453,7 +443,6 @@ pick_desktop_environment() {
         "budgie"
         "lxqt"
         "pantheon"
-        "enlightenment"
         "i3"
         "openbox"
     )
@@ -464,56 +453,6 @@ pick_desktop_environment() {
         return 0
     fi
     desktop_profile="${values[$menu_result]}"
-    lonis_enabled="false"
-    if [[ "$desktop_profile" == "hyprland" ]]; then
-        prompt_hyprland_variant
-        return 0
-    fi
-    sync_desktop_label
-    set_step_next
-}
-
-prompt_hyprland_variant() {
-    menu_choose \
-        "Choose Hyprland flavor" \
-        "Standard Hyprland" \
-        "Abora Lonis - a styled Hyprland setup" \
-        "Back"
-
-    if [[ "$menu_result" == "__back__" || "$menu_result" == "2" ]]; then
-        set_step_back
-        return 0
-    fi
-
-    if [[ "$menu_result" == "1" ]]; then
-        show_header "About Abora Lonis" "A prettier Hyprland setup from Abora."
-        printf 'Lonis is still Hyprland at its core.\n'
-        printf 'It adds a calmer Abora look with:\n'
-        printf '  - a styled Waybar top bar\n'
-        printf '  - themed Kitty, Rofi, and notifications\n'
-        printf '  - cleaner defaults for a more polished first boot\n'
-        printf '\n'
-        printf 'You are agreeing to use the Abora-themed Hyprland variant.\n'
-        printf 'If you would rather keep things plain, choose standard Hyprland.\n'
-        printf '\n'
-        pause_prompt
-
-        menu_choose \
-            "Do you agree and want to use Lonis?" \
-            "Yes - install Abora Lonis" \
-            "No - keep standard Hyprland" \
-            "Back"
-
-        if [[ "$menu_result" == "__back__" || "$menu_result" == "2" ]]; then
-            set_step_back
-            return 0
-        fi
-
-        if [[ "$menu_result" == "0" ]]; then
-            lonis_enabled="true"
-        fi
-    fi
-
     sync_desktop_label
     set_step_next
 }
@@ -521,6 +460,9 @@ prompt_hyprland_variant() {
 collect_disks() {
     lsblk -dn -e 7,11 -o NAME,SIZE,MODEL,TYPE | awk '
         $NF == "disk" {
+            if ($1 ~ /^(fd|loop|ram|sr|zram)/) {
+                next
+            }
             model = ""
             for (i = 3; i < NF; i++) {
                 model = model (model ? " " : "") $i
@@ -826,39 +768,7 @@ EOF
 EOF
             ;;
         hyprland)
-            if [[ "$lonis_enabled" == "true" ]]; then
-                cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-  };
-  services.displayManager = {
-    defaultSession = "hyprland-uwsm";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.displayManager.sddm = {
-    enable = true;
-    wayland.enable = true;
-  };
-  programs.hyprland = {
-    enable = true;
-    withUWSM = true;
-    xwayland.enable = true;
-  };
-  programs.dconf.enable = true;
-  services.gnome.gnome-keyring.enable = true;
-  xdg.portal.enable = true;
-  xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
-  environment.etc."skel/.config/hypr/hyprland.conf".source = ./abora/lonis/hyprland.conf;
-  environment.etc."skel/.config/waybar/config.jsonc".source = ./abora/lonis/waybar-config.jsonc;
-  environment.etc."skel/.config/waybar/style.css".source = ./abora/lonis/waybar-style.css;
-  environment.etc."skel/.config/kitty/kitty.conf".source = ./abora/lonis/kitty.conf;
-  environment.etc."skel/.config/rofi/config.rasi".source = ./abora/lonis/rofi.rasi;
-  environment.etc."skel/.config/dunst/dunstrc".source = ./abora/lonis/dunstrc;
-EOF
-            else
-                cat <<EOF
+            cat <<EOF
   services.xserver = {
     enable = true;
     xkb.layout = "${xkb_layout_value}";
@@ -880,7 +790,6 @@ EOF
   xdg.portal.enable = true;
   xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
 EOF
-            fi
             ;;
         xfce)
             cat <<EOF
@@ -972,21 +881,6 @@ EOF
   services.xserver.desktopManager.pantheon.enable = true;
 EOF
             ;;
-        enlightenment)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    desktopManager.enlightenment.enable = true;
-  };
-  services.displayManager = {
-    defaultSession = "enlightenment";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-EOF
-            ;;
         i3)
             cat <<EOF
   services.xserver = {
@@ -1020,53 +914,22 @@ EOF
     esac
 }
 
-extra_system_packages_block() {
-    if [[ "$desktop_profile" == "hyprland" && "$lonis_enabled" == "true" ]]; then
-        cat <<EOF
-    brightnessctl
-    dunst
-    grim
-    kitty
-    networkmanagerapplet
-    pavucontrol
-    rofi-wayland
-    slurp
-    waybar
-    wl-clipboard
-EOF
-    fi
-}
-
 write_branding_assets() {
-    mkdir -p /mnt/etc/nixos/abora/plymouth
+    mkdir -p /mnt/etc/nixos/abora/plymouth /mnt/etc/nixos/abora/bootloader
     cp "$title_file" /mnt/etc/nixos/abora/title.txt
     cp /etc/abora/fastfetch-logo.txt /mnt/etc/nixos/abora/fastfetch-logo.txt
     cp /etc/abora/fastfetch-config.jsonc /mnt/etc/nixos/abora/fastfetch-config.jsonc
     cp /etc/abora/plymouth/abora.plymouth /mnt/etc/nixos/abora/plymouth/abora.plymouth
     cp /etc/abora/plymouth/abora.script /mnt/etc/nixos/abora/plymouth/abora.script
-}
-
-write_lonis_assets() {
-    mkdir -p /mnt/etc/nixos/abora/lonis
-    sed "s/__ABORA_KB_LAYOUT__/${xkb_layout_value}/g" /etc/abora/lonis/hyprland.conf > /mnt/etc/nixos/abora/lonis/hyprland.conf
-    cp /etc/abora/lonis/waybar-config.jsonc /mnt/etc/nixos/abora/lonis/waybar-config.jsonc
-    cp /etc/abora/lonis/waybar-style.css /mnt/etc/nixos/abora/lonis/waybar-style.css
-    cp /etc/abora/lonis/kitty.conf /mnt/etc/nixos/abora/lonis/kitty.conf
-    cp /etc/abora/lonis/rofi.rasi /mnt/etc/nixos/abora/lonis/rofi.rasi
-    cp /etc/abora/lonis/dunstrc /mnt/etc/nixos/abora/lonis/dunstrc
+    cp /etc/abora/bootloader/* /mnt/etc/nixos/abora/bootloader/
 }
 
 write_install_assets() {
     write_branding_assets
-
-    if [[ "$lonis_enabled" == "true" ]]; then
-        write_lonis_assets
-    fi
 }
 
 generate_config() {
     local desktop_block=""
-    local extra_packages_block=""
 
     info "Generating NixOS configuration"
     info "Writing configuration log to ${config_log}"
@@ -1081,7 +944,6 @@ generate_config() {
 
     write_install_assets
     desktop_block="$(desktop_config_block)"
-    extra_packages_block="$(extra_system_packages_block)"
 
     cat > /mnt/etc/nixos/configuration.nix <<EOF
 { config, pkgs, ... }:
@@ -1099,7 +961,7 @@ in
     distroName = "Abora OS";
     vendorId = "abora";
     vendorName = "Abora OS";
-    variantName = "${desktop_label} Edition";
+    variantName = "Abora ${version} ${desktop_label} Edition";
     variant_id = "${desktop_variant_id}";
   };
 
@@ -1108,6 +970,7 @@ in
     devices = [ "${disk}" ];
     efiSupport = true;
     efiInstallAsRemovable = true;
+    splashImage = ./abora/bootloader/background.png;
   };
   boot.loader.efi.canTouchEfiVariables = false;
   boot.initrd.systemd.enable = true;
@@ -1137,6 +1000,8 @@ in
   environment.etc."abora/fastfetch-logo.txt".source = ./abora/fastfetch-logo.txt;
   environment.etc."abora/plymouth/abora.plymouth".source = ./abora/plymouth/abora.plymouth;
   environment.etc."abora/plymouth/abora.script".source = ./abora/plymouth/abora.script;
+  environment.etc."abora/bootloader/background.png".source = ./abora/bootloader/background.png;
+  environment.etc."abora/bootloader/theme.txt".source = ./abora/bootloader/theme.txt;
   environment.etc."xdg/fastfetch/config.jsonc".source = ./abora/fastfetch-config.jsonc;
   environment.etc."skel/.config/fastfetch/config.jsonc".source = ./abora/fastfetch-config.jsonc;
   environment.etc."issue".text = ''
@@ -1171,7 +1036,6 @@ ${desktop_block}
     git
     htop
     wget
-${extra_packages_block}
   ];
 
   services.openssh.enable = true;
@@ -1220,25 +1084,22 @@ install_system() {
 
 finish_screen() {
     show_header "Install complete" "Your machine is ready for first boot."
-    success "Abora OS is installed."
+    success "Abora OS ${version} is installed."
     printf '\n'
     printf 'Next:\n'
     printf '  1. Remove the ISO from the VM or USB boot order.\n'
     printf '  2. Reboot the machine.\n'
     printf '\n'
-    menu_choose "What would you like to do now?" "Reboot into Abora OS" "Power off" "Return to live boot menu"
+    menu_choose "What would you like to do now?" "Reboot into Abora OS" "Power off"
 
     case "$menu_result" in
         0)
             sync
             reboot
             ;;
-        1)
+        *)
             sync
             poweroff
-            ;;
-        *)
-            return 0
             ;;
     esac
 }

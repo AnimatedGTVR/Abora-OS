@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_path="${BASH_SOURCE[0]}"
+while [[ -L "$script_path" ]]; do
+    script_parent="$(cd -P "$(dirname "$script_path")" && pwd)"
+    script_target="$(readlink "$script_path")"
+    if [[ "$script_target" == /* ]]; then
+        script_path="$script_target"
+    else
+        script_path="$script_parent/$script_target"
+    fi
+done
+
+script_dir="$(cd -P "$(dirname "$script_path")" && pwd)"
+. "$script_dir/lib/core/config.sh"
+. "$script_dir/lib/core/common.sh"
+. "$script_dir/lib/core/state.sh"
+. "$script_dir/lib/core/apps.sh"
+
+flavor_key="$(tinypm_active_flavor)"
+logo_file="$(tinypm_logo_file)"
+
+flatpak_status="missing"
+snap_status="missing"
+native_status="missing"
+os_name="$(backend_os_name)"
+kernel_name="$(backend_run uname -r 2>/dev/null || echo unknown)"
+host_name="$(backend_run hostname 2>/dev/null || echo unknown)"
+# shellcheck disable=SC2016
+desktop_name="$(backend_run sh -lc 'printf "%s" "${XDG_CURRENT_DESKTOP:-unknown}"' 2>/dev/null || echo unknown)"
+# shellcheck disable=SC2016
+session_name="$(backend_run sh -lc 'printf "%s" "${XDG_SESSION_TYPE:-unknown}"' 2>/dev/null || echo unknown)"
+uptime_text="$(backend_run sh -lc 'uptime -p 2>/dev/null || printf "unknown"' 2>/dev/null || echo unknown)"
+arch_name="$(backend_run uname -m 2>/dev/null || uname -m)"
+command_count="$(find "$script_dir" -maxdepth 1 \( -type f -o -type l \) | wc -l | tr -d ' ')"
+tracked_count="$(tracked_package_count 2>/dev/null || echo 0)"
+catalog_total="$(catalog_count 2>/dev/null || echo 0)"
+app_total="$(installed_app_count 2>/dev/null || echo 0)"
+backend_mode="$([[ "$use_host_backend" -eq 1 ]] && echo host || echo local)"
+auth_mode="$(backend_auth_mode)"
+native_pm="$(detect_native_pm 2>/dev/null || echo none)"
+
+if backend_has_cmd flatpak; then
+    flatpak_status="available"
+fi
+
+if backend_has_cmd snap; then
+    snap_status="available"
+fi
+
+if [[ "$native_pm" != "none" ]]; then
+    native_status="$(native_pm_label "$native_pm")"
+fi
+
+cat "$logo_file"
+printf '\n'
+printf '%s\n' "$(tinypm_version_label)"
+printf '%s\n' '------------------------------------------------------------'
+printf '  %-16s %s\n' 'System' "$tinypm_system_name"
+printf '  %-16s %s\n' 'Engine' "$tinypm_engine_name"
+if [[ -n "$tinypm_tagline" ]]; then
+    printf '  %-16s %s\n' 'Tagline' "$tinypm_tagline"
+fi
+printf '  %-16s %s\n' 'Host' "$host_name"
+printf '  %-16s %s\n' 'OS' "$os_name"
+printf '  %-16s %s\n' 'Kernel' "$kernel_name"
+printf '  %-16s %s\n' 'Arch' "$arch_name"
+printf '  %-16s %s\n' 'Desktop' "$desktop_name"
+printf '  %-16s %s\n' 'Session' "$session_name"
+printf '  %-16s %s\n' 'Uptime' "$uptime_text"
+printf '  %-16s %s\n' 'Backend Mode' "$backend_mode"
+printf '  %-16s %s\n' 'Auth Mode' "$auth_mode"
+printf '  %-16s %s\n' 'Native PM' "$native_pm"
+printf '  %-16s %s\n' 'Backends' "native=$native_status flatpak=$flatpak_status snap=$snap_status"
+printf '  %-16s %s\n' 'Commands' "$command_count"
+printf '  %-16s %s\n' 'Desktop Apps' "$app_total"
+printf '  %-16s %s\n' 'Tracked' "$tracked_count"
+printf '  %-16s %s\n' 'Catalog' "$catalog_total"
+printf '  %-16s %s\n' 'Flavor' "$flavor_key"
+printf '  %-16s %s\n' 'State DB' "$(active_state_db)"
+printf '  %-16s %s\n' 'Config' "$tinypm_config_file"
+printf '  %-16s %s\n' 'Date' "$(date)"

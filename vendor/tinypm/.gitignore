@@ -1,0 +1,25 @@
+<<<<<<< HEAD
+# Never commit runtime install folders
+.atiny/
+logs/
+cache/
+state/
+tmp/
+registry/
+config/
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor junk
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+=======
+__pycache__/
+*.pyc
+>>>>>>> f281edf (Initial TinyPM release)
