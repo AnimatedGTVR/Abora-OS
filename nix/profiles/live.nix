@@ -24,7 +24,7 @@ let
   };
 in
 {
-  system.stateVersion = "25.11";
+  system.stateVersion = "26.05";
   networking.hostName = "abora";
   system.nixos.tags = [ "abora" "nixos-base" ];
   system.nixos = {
@@ -129,10 +129,12 @@ in
       };
     }
     // builtins.listToAttrs (
-      map (name: {
-        name = "abora/bootloader/${name}";
-        value.source = ../../assets/bootloader + "/${name}";
-      }) (builtins.attrNames (builtins.readDir ../../assets/bootloader))
+      map
+        (name: {
+          name = "abora/bootloader/${name}";
+          value.source = ../../assets/bootloader + "/${name}";
+        })
+        (builtins.attrNames (builtins.readDir ../../assets/bootloader))
     );
 
   services.xserver.enable = false;
