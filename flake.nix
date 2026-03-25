@@ -2,14 +2,15 @@
   description = "Abora OS (NixOS base)";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/812b3986fd1568f7a858f97fcf425ad996ba7d25";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
   outputs = { self, nixpkgs, ... }:
     let
       system = "x86_64-linux";
-      version = builtins.replaceStrings ["\n"] [""] (builtins.readFile ./VERSION);
-    in {
+      version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile ./VERSION);
+    in
+    {
       nixosConfigurations.abora-live = nixpkgs.lib.nixosSystem {
         inherit system;
         specialArgs = { inherit version; };

@@ -4,7 +4,6 @@ help:
 	@echo "Usage: make <target>"
 	@echo "Targets:"
 	@echo "  iso       - Build the real Nix ISO"
-	@echo "  iso-local - Build a minimal local ISO without Nix"
 	@echo "  qemu      - Boot the latest ISO in QEMU"
 	@echo "  qmec      - Alias for qemu"
 	@echo "  qemc      - Alias for qemu"
@@ -12,9 +11,6 @@ help:
 
 iso:
 	./scripts/build-iso.sh
-
-iso-local:
-	./scripts/build-iso-local.sh
 
 qemu:
 	./scripts/run-qemu.sh
