@@ -1,4 +1,3 @@
-
 <p align="center">
   <img src="assets/Github/ReadME%20background.png" alt="Abora OS banner" width="100%">
 </p>
@@ -6,7 +5,7 @@
 <h1 align="center">Abora OS</h1>
 
 <p align="center">
-  NixOS made simpler for everyday users.
+  A friendlier take on NixOS.
 </p>
 
 <p align="center">
@@ -31,13 +30,22 @@
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
-Abora OS is our attempt to make NixOS feel a lot less intimidating.
-It keeps the NixOS base, but gives it a cleaner live image, a simpler install flow,
-and Abora's own look across the bootloader, wallpapers, and fastfetch setup.
+Abora OS is for people who like the idea of NixOS, but do not want their first experience with it to feel cold, confusing, or overly technical.
+
+It keeps the NixOS base, then wraps it in something more welcoming: a cleaner live image, a simpler install flow, and an identity that feels like an actual operating system instead of just a config project.
 
 Current public release: `v1.0.1`
 
-## What Abora Includes
+## Why Abora Exists
+
+Abora is trying to make NixOS easier to approach without stripping away what makes NixOS special.
+
+- a boot flow that feels more human than hostile
+- a simpler path from live image to installed system
+- updates that still respect the NixOS way of doing things
+- a project with its own look, tone, and identity
+
+## What You Get
 
 - a terminal-first live boot and installer
 - Abora Welcome and Abora Center from the boot menu
