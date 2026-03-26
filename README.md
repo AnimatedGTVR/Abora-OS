@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/Github/ReadME%20background.png" alt="Abora OS banner" width="100%">
+  <img src="assets/Github/ReadME%20background.png" alt="Abora OS banner" width="94%">
 </p>
 
 <h1 align="center">Abora OS</h1>
@@ -9,11 +9,14 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/AnimatedGTVR/abora-os/releases/latest">
-    <img src="https://img.shields.io/github/v/release/AnimatedGTVR/abora-os?style=for-the-badge&label=release" alt="Latest release">
-  </a>
   <a href="https://github.com/AnimatedGTVR/abora-os/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/AnimatedGTVR/abora-os?style=for-the-badge" alt="License">
+  </a>
+  <a href="https://github.com/AnimatedGTVR/abora-os/graphs/contributors">
+    <img src="https://img.shields.io/github/contributors/AnimatedGTVR/abora-os?style=for-the-badge" alt="Contributors">
+  </a>
+  <a href="https://github.com/AnimatedGTVR/abora-os/releases/latest">
+    <img src="https://img.shields.io/github/v/release/AnimatedGTVR/abora-os?style=for-the-badge&label=release" alt="Latest release">
   </a>
   <a href="https://github.com/AnimatedGTVR/abora-os/actions/workflows/build-iso.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/AnimatedGTVR/abora-os/build-iso.yml?style=for-the-badge&label=iso%20build" alt="ISO build status">
@@ -30,20 +33,46 @@
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
-Abora OS is for people who like the idea of NixOS, but do not want their first experience with it to feel cold, confusing, or overly technical.
+<p align="center">
+  Current public release: <code>v1.0.1</code>
+</p>
 
-It keeps the NixOS base, then wraps it in something more welcoming: a cleaner live image, a simpler install flow, and an identity that feels like an actual operating system instead of just a config project.
+Abora OS is a distro project built for people who like what NixOS can do, but want the first experience to feel more welcoming.
 
-Current public release: `v1.0.1`
+It keeps the NixOS base, then gives it a cleaner live image, a simpler path to installation, and a stronger identity across the whole boot-to-desktop experience.
 
-## Why Abora Exists
+## Important Documentation
 
-Abora is trying to make NixOS easier to approach without stripping away what makes NixOS special.
+- [Release notes](RELEASE_NOTES.md)
+- [Contributing guide](CONTRIBUTING.md)
+- [Project layout](docs/project-layout.md)
+- [Install checklist](docs/install-checklist.md)
+- [Release checklist](docs/release-checklist.md)
+- [Roadmap](docs/roadmap.md)
 
-- a boot flow that feels more human than hostile
-- a simpler path from live image to installed system
-- updates that still respect the NixOS way of doing things
-- a project with its own look, tone, and identity
+## What Is Abora?
+
+Abora is an attempt to make NixOS feel less distant.
+
+Instead of dropping people straight into a system that feels like it was only made for people who already know the rules, Abora tries to smooth out the first steps. The goal is not to hide NixOS. The goal is to make it easier to approach, easier to install, and easier to live with.
+
+## Why Abora?
+
+### A Softer First Step
+
+Abora is built around the idea that an operating system should invite people in. The live image, installer flow, and update path are meant to feel understandable instead of hostile.
+
+### NixOS, Without the Cold Start
+
+Under the hood, Abora still rides on NixOS. You still get reproducible builds, flake-based workflows, and a system that can be rebuilt cleanly. Abora just tries to package that power in a way that feels more like a real distro and less like homework.
+
+### A Real Identity
+
+Abora is not trying to be a blank shell. It has its own bootloader styling, wallpapers, fastfetch setup, and project voice so it feels like a complete operating system rather than a thin wrapper.
+
+### Built to Keep Growing
+
+Abora `v1.0.1` is the current public release, but the point is bigger than one ISO. The project is meant to keep evolving into a cleaner, more welcoming NixOS experience over time.
 
 ## What You Get
 
@@ -125,14 +154,6 @@ When it is time to publish a release on GitHub:
 git tag v1.0.1
 git push origin v1.0.1
 ```
-
-## Repo Docs
-
-- [CONTRIBUTING.md](CONTRIBUTING.md) for the day-to-day workflow
-- [docs/project-layout.md](docs/project-layout.md) for the repo map
-- [docs/install-checklist.md](docs/install-checklist.md) for install testing
-- [docs/release-checklist.md](docs/release-checklist.md) for release validation
-- [docs/roadmap.md](docs/roadmap.md) for the current direction
 
 ## Live Image Notes
 
