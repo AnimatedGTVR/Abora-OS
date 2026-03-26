@@ -3,6 +3,10 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+normalize_version_output() {
+  sed '/^[[:space:]]*Date[[:space:]]/d' "$1"
+}
+
 printf '[e2e] syntax checks...\n'
 bash -n \
   "$repo_root/Parcel" \
@@ -18,16 +22,19 @@ bash -n \
   "$repo_root/lib/providers/"*.sh
 
 printf '[e2e] local command smoke...\n'
-"$repo_root/Parcel" --version >/dev/null
+parcel_output="$(mktemp)"
+tinypm_output="$(mktemp)"
+TINYPM_FLAVOR=abora "$repo_root/Parcel" --version >"$parcel_output"
+TINYPM_FLAVOR=abora "$repo_root/tinypm" --version >"$tinypm_output"
+cmp -s <(normalize_version_output "$parcel_output") <(normalize_version_output "$tinypm_output")
+grep -q 'Abora TinyPM V3 / Parcel v3.0.0' "$parcel_output"
+grep -q '\[Runtime\]' "$parcel_output"
+rm -f "$parcel_output" "$tinypm_output"
 "$repo_root/tinypm" help >/dev/null
 "$repo_root/tinypm" doctor >/dev/null
 "$repo_root/grab" --version >/dev/null
-"$repo_root/tinypm" search yq >/dev/null
+"$repo_root/tinypm" search -n yq >/dev/null
 "$repo_root/version" >/dev/null
-version_output="$(mktemp)"
-TINYPM_FLAVOR=abora "$repo_root/version" >"$version_output"
-grep -q 'Abora TinyPM V3 / Parcel v3.0.0' "$version_output"
-rm -f "$version_output"
 "$repo_root/syspm.sh" help >/dev/null
 
 printf '[e2e] fresh install smoke...\n'
@@ -47,7 +54,12 @@ mkdir -p "$HOME"
 
 "$repo_root/install.sh" >/dev/null
 
-"$HOME/.local/bin/Parcel" --version >/dev/null
+parcel_output="$(mktemp)"
+tinypm_output="$(mktemp)"
+"$HOME/.local/bin/Parcel" --version >"$parcel_output"
+"$HOME/.local/bin/tinypm" --version >"$tinypm_output"
+cmp -s <(normalize_version_output "$parcel_output") <(normalize_version_output "$tinypm_output")
+rm -f "$parcel_output" "$tinypm_output"
 "$HOME/.local/bin/tinypm" help >/dev/null
 "$HOME/.local/bin/tiny" --version >/dev/null
 "$HOME/.local/bin/grab" help >/dev/null
@@ -58,11 +70,15 @@ printf '[e2e] flavored install smoke...\n'
 rm -rf "$HOME/.tinypm" "$HOME/.local/bin" "$HOME/.local/share/applications" "$HOME/.config/tinypm"
 mkdir -p "$HOME/.local/bin"
 TINYPM_FLAVOR=abora "$repo_root/install.sh" >/dev/null
-installed_version_output="$(mktemp)"
-"$HOME/.local/bin/Parcel" --version >/dev/null
-"$HOME/.local/bin/tiny" --version >"$installed_version_output"
-grep -q 'Abora TinyPM V3 / Parcel v3.0.0' "$installed_version_output"
-rm -f "$installed_version_output"
+parcel_output="$(mktemp)"
+tinypm_output="$(mktemp)"
+"$HOME/.local/bin/Parcel" --version >"$parcel_output"
+"$HOME/.local/bin/tinypm" --version >"$tinypm_output"
+cmp -s <(normalize_version_output "$parcel_output") <(normalize_version_output "$tinypm_output")
+grep -q 'Abora TinyPM V3 / Parcel v3.0.0' "$parcel_output"
+grep -q '\[Project\]' "$parcel_output"
+rm -f "$parcel_output" "$tinypm_output"
+"$HOME/.local/bin/tiny" --version >/dev/null
 "$HOME/.local/bin/grab" --version >/dev/null
 
 printf '[e2e] PASS\n'

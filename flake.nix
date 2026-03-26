@@ -9,8 +9,9 @@
     let
       system = "x86_64-linux";
       version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile ./VERSION);
-    in
-    {
+    in {
+      nixosModules.installed-base = import ./nix/modules/installed-base.nix;
+
       nixosConfigurations.abora-live = nixpkgs.lib.nixosSystem {
         inherit system;
         specialArgs = { inherit version; };

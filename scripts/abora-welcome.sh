@@ -3,7 +3,7 @@ set -euo pipefail
 
 export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
-version="${ABORA_VERSION:-v1.0.0}"
+version="${ABORA_VERSION:-v1.0.1}"
 APP_TITLE="Abora Welcome ${version}"
 APP_WIDTH="${ABORA_WELCOME_WIDTH:-900}"
 APP_HEIGHT="${ABORA_WELCOME_HEIGHT:-560}"

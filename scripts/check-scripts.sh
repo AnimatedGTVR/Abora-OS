@@ -15,9 +15,9 @@ bash_scripts=(
   "scripts/abora-center.sh"
   "scripts/abora-installer.sh"
   "scripts/abora-launch-gui.sh"
+  "scripts/abora-update.sh"
   "scripts/abora-welcome.sh"
   "scripts/build-iso.sh"
-  "scripts/build-iso-local.sh"
   "scripts/build-tinypm-image.sh"
   "scripts/package-tinypm.sh"
   "scripts/rebuild-vm.sh"
@@ -28,6 +28,7 @@ bash_scripts=(
 
 nix_files=(
   "flake.nix"
+  "nix/modules/installed-base.nix"
   "nix/profiles/live.nix"
 )
 

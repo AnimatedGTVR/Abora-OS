@@ -25,3 +25,4 @@ docker build \
 
 printf 'Built TinyPM image: %s\n' "$image_name"
 printf 'Try it with: docker run --rm %s Parcel --version\n' "$image_name"
+printf 'The full TinyPM project lives at: /opt/tinypm/project\n'

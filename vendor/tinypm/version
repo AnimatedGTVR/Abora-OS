@@ -18,6 +18,196 @@ script_dir="$(cd -P "$(dirname "$script_path")" && pwd)"
 . "$script_dir/lib/core/state.sh"
 . "$script_dir/lib/core/apps.sh"
 
+color_enabled=0
+color_reset=''
+color_title=''
+color_subtitle=''
+color_section=''
+color_dim=''
+
+init_colors() {
+    if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+        color_enabled=1
+        color_reset=$'\033[0m'
+        color_title=$'\033[1;36m'
+        color_subtitle=$'\033[0;37m'
+        color_section=$'\033[1;34m'
+        color_dim=$'\033[2m'
+    fi
+}
+
+print_info_line() {
+    local line_type="$1"
+    local text="$2"
+
+    case "$line_type" in
+        title)
+            printf '%s%s%s\n' "$color_title" "$text" "$color_reset"
+            ;;
+        subtitle)
+            printf '%s%s%s\n' "$color_subtitle" "$text" "$color_reset"
+            ;;
+        section)
+            printf '%s%s%s\n' "$color_section" "$text" "$color_reset"
+            ;;
+        divider)
+            printf '%s%s%s\n' "$color_dim" "$text" "$color_reset"
+            ;;
+        blank)
+            printf '\n'
+            ;;
+        *)
+            printf '%s\n' "$text"
+            ;;
+    esac
+}
+
+add_info_line() {
+    info_types+=("$1")
+    info_lines+=("$2")
+}
+
+build_info_lines() {
+    info_types=()
+    info_lines=()
+
+    add_info_line title "$(tinypm_version_label)"
+    if [[ -n "$tinypm_tagline" ]]; then
+        add_info_line subtitle "$tinypm_tagline"
+    fi
+    add_info_line divider '------------------------------------------------------------'
+    add_info_line blank ''
+
+    add_info_line section '[Overview]'
+    add_info_line kv "  System        $tinypm_system_name"
+    add_info_line kv "  Engine        $tinypm_engine_name"
+    add_info_line kv "  Flavor        $flavor_key"
+    add_info_line kv "  Host          $host_name"
+    add_info_line blank ''
+
+    add_info_line section '[Platform]'
+    add_info_line kv "  OS            $os_name"
+    add_info_line kv "  Kernel        $kernel_name"
+    add_info_line kv "  Arch          $arch_name"
+    add_info_line kv "  Desktop       $desktop_name"
+    add_info_line kv "  Session       $session_name"
+    add_info_line kv "  Uptime        $uptime_text"
+    add_info_line blank ''
+
+    add_info_line section '[Runtime]'
+    add_info_line kv "  Native PM     $native_pm"
+    add_info_line kv "  Backends      native=$native_status flatpak=$flatpak_status snap=$snap_status"
+    add_info_line kv "  Backend Mode  $backend_mode"
+    add_info_line kv "  Auth Mode     $auth_mode"
+    add_info_line blank ''
+
+    add_info_line section '[Project]'
+    add_info_line kv "  Commands      $command_count"
+    add_info_line kv "  Desktop Apps  $app_total"
+    add_info_line kv "  Tracked       $tracked_count"
+    add_info_line kv "  Catalog       $catalog_total"
+    add_info_line blank ''
+
+    add_info_line section '[Paths]'
+    add_info_line kv "  State DB      $(active_state_db)"
+    add_info_line kv "  Config        $tinypm_config_file"
+    add_info_line kv "  Date          $(date)"
+}
+
+trim_logo_lines() {
+    while ((${#logo_lines[@]} > 0)) && [[ -z "${logo_lines[0]//[[:space:]]/}" ]]; do
+        logo_lines=("${logo_lines[@]:1}")
+    done
+
+    while ((${#logo_lines[@]} > 0)); do
+        local last_index=$(( ${#logo_lines[@]} - 1 ))
+        if [[ -n "${logo_lines[$last_index]//[[:space:]]/}" ]]; then
+            break
+        fi
+        unset 'logo_lines[$last_index]'
+    done
+}
+
+max_info_line_width() {
+    local max_width=0
+    local line
+
+    for line in "${info_lines[@]}"; do
+        if ((${#line} > max_width)); then
+            max_width=${#line}
+        fi
+    done
+
+    printf '%s\n' "$max_width"
+}
+
+render_side_by_side() {
+    local gap='    '
+    local logo_width=0
+    local total_lines=0
+    local i
+    local logo_text=''
+    local info_text=''
+
+    for line in "${logo_lines[@]}"; do
+        if ((${#line} > logo_width)); then
+            logo_width=${#line}
+        fi
+    done
+
+    total_lines=${#logo_lines[@]}
+    if ((${#info_lines[@]} > total_lines)); then
+        total_lines=${#info_lines[@]}
+    fi
+
+    for ((i = 0; i < total_lines; i++)); do
+        logo_text=''
+        if ((i < ${#logo_lines[@]})); then
+            logo_text="${logo_lines[i]}"
+        fi
+
+        printf '%-*s%s' "$logo_width" "$logo_text" "$gap"
+
+        if ((i < ${#info_lines[@]})); then
+            info_text="${info_lines[i]}"
+            case "${info_types[i]}" in
+                title)
+                    printf '%s%s%s' "$color_title" "$info_text" "$color_reset"
+                    ;;
+                subtitle)
+                    printf '%s%s%s' "$color_subtitle" "$info_text" "$color_reset"
+                    ;;
+                section)
+                    printf '%s%s%s' "$color_section" "$info_text" "$color_reset"
+                    ;;
+                divider)
+                    printf '%s%s%s' "$color_dim" "$info_text" "$color_reset"
+                    ;;
+                *)
+                    printf '%s' "$info_text"
+                    ;;
+            esac
+        fi
+
+        printf '\n'
+    done
+}
+
+render_stacked() {
+    local line
+    local i
+
+    for line in "${logo_lines[@]}"; do
+        printf '%s\n' "$line"
+    done
+
+    printf '\n'
+
+    for ((i = 0; i < ${#info_lines[@]}; i++)); do
+        print_info_line "${info_types[i]}" "${info_lines[i]}"
+    done
+}
+
 flavor_key="$(tinypm_active_flavor)"
 logo_file="$(tinypm_logo_file)"
 
@@ -53,31 +243,29 @@ if [[ "$native_pm" != "none" ]]; then
     native_status="$(native_pm_label "$native_pm")"
 fi
 
-cat "$logo_file"
-printf '\n'
-printf '%s\n' "$(tinypm_version_label)"
-printf '%s\n' '------------------------------------------------------------'
-printf '  %-16s %s\n' 'System' "$tinypm_system_name"
-printf '  %-16s %s\n' 'Engine' "$tinypm_engine_name"
-if [[ -n "$tinypm_tagline" ]]; then
-    printf '  %-16s %s\n' 'Tagline' "$tinypm_tagline"
+mapfile -t logo_lines < "$logo_file"
+trim_logo_lines
+init_colors
+build_info_lines
+
+logo_width=0
+for line in "${logo_lines[@]}"; do
+    if ((${#line} > logo_width)); then
+        logo_width=${#line}
+    fi
+done
+
+terminal_width="${COLUMNS:-}"
+if [[ -z "$terminal_width" ]] && [[ -t 1 ]] && command -v tput >/dev/null 2>&1; then
+    terminal_width="$(tput cols 2>/dev/null || true)"
 fi
-printf '  %-16s %s\n' 'Host' "$host_name"
-printf '  %-16s %s\n' 'OS' "$os_name"
-printf '  %-16s %s\n' 'Kernel' "$kernel_name"
-printf '  %-16s %s\n' 'Arch' "$arch_name"
-printf '  %-16s %s\n' 'Desktop' "$desktop_name"
-printf '  %-16s %s\n' 'Session' "$session_name"
-printf '  %-16s %s\n' 'Uptime' "$uptime_text"
-printf '  %-16s %s\n' 'Backend Mode' "$backend_mode"
-printf '  %-16s %s\n' 'Auth Mode' "$auth_mode"
-printf '  %-16s %s\n' 'Native PM' "$native_pm"
-printf '  %-16s %s\n' 'Backends' "native=$native_status flatpak=$flatpak_status snap=$snap_status"
-printf '  %-16s %s\n' 'Commands' "$command_count"
-printf '  %-16s %s\n' 'Desktop Apps' "$app_total"
-printf '  %-16s %s\n' 'Tracked' "$tracked_count"
-printf '  %-16s %s\n' 'Catalog' "$catalog_total"
-printf '  %-16s %s\n' 'Flavor' "$flavor_key"
-printf '  %-16s %s\n' 'State DB' "$(active_state_db)"
-printf '  %-16s %s\n' 'Config' "$tinypm_config_file"
-printf '  %-16s %s\n' 'Date' "$(date)"
+if [[ ! "$terminal_width" =~ ^[0-9]+$ ]]; then
+    terminal_width=120
+fi
+
+required_width=$(( logo_width + 4 + $(max_info_line_width) ))
+if ((terminal_width >= required_width)); then
+    render_side_by_side
+else
+    render_stacked
+fi

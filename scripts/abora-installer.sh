@@ -19,7 +19,7 @@ config_log="/tmp/abora-generate-config.log"
 install_log="/tmp/abora-install.log"
 
 title_file="/etc/abora/title.txt"
-version="${ABORA_VERSION:-v1.0.0}"
+version="${ABORA_VERSION:-v1.0.1}"
 
 BLUE='\033[38;5;33m'
 MAGENTA='\033[38;5;207m'
@@ -381,10 +381,6 @@ sync_desktop_label() {
             desktop_label="LXQt"
             desktop_variant_id="lxqt"
             ;;
-        pantheon)
-            desktop_label="Pantheon"
-            desktop_variant_id="pantheon"
-            ;;
         i3)
             desktop_label="i3"
             desktop_variant_id="i3"
@@ -428,7 +424,6 @@ pick_desktop_environment() {
         "MATE - classic desktop feel"
         "Budgie - clean and focused"
         "LXQt - extra lightweight desktop"
-        "Pantheon - minimal and elegant"
         "i3 - keyboard-driven tiling session"
         "Openbox - very minimal floating session"
         "Back"
@@ -442,7 +437,6 @@ pick_desktop_environment() {
         "mate"
         "budgie"
         "lxqt"
-        "pantheon"
         "i3"
         "openbox"
     )
@@ -743,9 +737,9 @@ desktop_config_block() {
   services.xserver = {
     enable = true;
     xkb.layout = "${xkb_layout_value}";
-    displayManager.gdm.enable = true;
-    desktopManager.gnome.enable = true;
   };
+  services.displayManager.gdm.enable = true;
+  services.desktopManager.gnome.enable = true;
   services.displayManager.autoLogin.enable = true;
   services.displayManager.autoLogin.user = "${username_value}";
   services.displayManager.defaultSession = "gnome";
@@ -873,7 +867,7 @@ EOF
     xkb.layout = "${xkb_layout_value}";
   };
   services.displayManager = {
-    defaultSession = "pantheon";
+    defaultSession = "pantheon-wayland";
     autoLogin.enable = true;
     autoLogin.user = "${username_value}";
   };
@@ -914,11 +908,24 @@ EOF
     esac
 }
 
+desktop_package_block() {
+    case "$desktop_profile" in
+        hyprland)
+            cat <<EOF
+    kitty
+EOF
+            ;;
+    esac
+}
+
 write_branding_assets() {
     mkdir -p /mnt/etc/nixos/abora/plymouth /mnt/etc/nixos/abora/bootloader
     cp "$title_file" /mnt/etc/nixos/abora/title.txt
+    cp /etc/abora/VERSION /mnt/etc/nixos/abora/VERSION
     cp /etc/abora/fastfetch-logo.txt /mnt/etc/nixos/abora/fastfetch-logo.txt
     cp /etc/abora/fastfetch-config.jsonc /mnt/etc/nixos/abora/fastfetch-config.jsonc
+    cp /etc/abora/installed-base.nix /mnt/etc/nixos/abora/installed-base.nix
+    cp /etc/abora/update.sh /mnt/etc/nixos/abora/update.sh
     cp /etc/abora/plymouth/abora.plymouth /mnt/etc/nixos/abora/plymouth/abora.plymouth
     cp /etc/abora/plymouth/abora.script /mnt/etc/nixos/abora/plymouth/abora.script
     cp /etc/abora/bootloader/* /mnt/etc/nixos/abora/bootloader/
@@ -930,6 +937,7 @@ write_install_assets() {
 
 generate_config() {
     local desktop_block=""
+    local desktop_packages=""
 
     info "Generating NixOS configuration"
     info "Writing configuration log to ${config_log}"
@@ -944,82 +952,37 @@ generate_config() {
 
     write_install_assets
     desktop_block="$(desktop_config_block)"
+    desktop_packages="$(desktop_package_block)"
 
     cat > /mnt/etc/nixos/configuration.nix <<EOF
-{ config, pkgs, ... }:
-let
-  aboraPlymouthTheme = pkgs.runCommandLocal "abora-plymouth-theme" {} ''
-    install -Dm0644 \${./abora/plymouth/abora.plymouth} \$out/share/plymouth/themes/abora/abora.plymouth
-    install -Dm0644 \${./abora/plymouth/abora.script} \$out/share/plymouth/themes/abora/abora.script
-  '';
-in
+{ ... }:
 {
-  imports = [ ./hardware-configuration.nix ];
+  imports = [
+    ./hardware-configuration.nix
+    ./abora/installed-base.nix
+    ./abora-local.nix
+  ];
+}
+EOF
 
-  system.nixos = {
-    distroId = "abora";
-    distroName = "Abora OS";
-    vendorId = "abora";
-    vendorName = "Abora OS";
-    variantName = "Abora ${version} ${desktop_label} Edition";
-    variant_id = "${desktop_variant_id}";
-  };
+    cat > /mnt/etc/nixos/abora-local.nix <<EOF
+{ pkgs, ... }:
+{
+  system.nixos.variantName = "Abora ${version} ${desktop_label} Edition";
+  system.nixos.variant_id = "${desktop_variant_id}";
 
   boot.loader.grub = {
     enable = true;
     devices = [ "${disk}" ];
     efiSupport = true;
     efiInstallAsRemovable = true;
-    splashImage = ./abora/bootloader/background.png;
-  };
-  boot.loader.efi.canTouchEfiVariables = false;
-  boot.initrd.systemd.enable = true;
-  boot.initrd.verbose = false;
-  boot.kernelParams = [
-    "quiet"
-    "splash"
-    "udev.log_level=3"
-    "systemd.show_status=auto"
-  ];
-  boot.consoleLogLevel = 3;
-  boot.plymouth = {
-    enable = true;
-    theme = "abora";
-    themePackages = [ aboraPlymouthTheme ];
   };
 
   networking.hostName = "${hostname_value}";
-  networking.networkmanager.enable = true;
-
   time.timeZone = "${timezone_value}";
-  i18n.defaultLocale = "en_US.UTF-8";
   console.keyMap = "${keyboard_value}";
-  security.polkit.enable = true;
-  services.udisks2.enable = true;
-  environment.etc."abora/title.txt".source = ./abora/title.txt;
-  environment.etc."abora/fastfetch-logo.txt".source = ./abora/fastfetch-logo.txt;
-  environment.etc."abora/plymouth/abora.plymouth".source = ./abora/plymouth/abora.plymouth;
-  environment.etc."abora/plymouth/abora.script".source = ./abora/plymouth/abora.script;
-  environment.etc."abora/bootloader/background.png".source = ./abora/bootloader/background.png;
-  environment.etc."abora/bootloader/theme.txt".source = ./abora/bootloader/theme.txt;
-  environment.etc."xdg/fastfetch/config.jsonc".source = ./abora/fastfetch-config.jsonc;
-  environment.etc."skel/.config/fastfetch/config.jsonc".source = ./abora/fastfetch-config.jsonc;
-  environment.etc."issue".text = ''
-    Abora OS
-  '';
-  environment.etc."issue.net".text = ''
-    Abora OS
-  '';
-  environment.shellAliases.fastfetch = "fastfetch -c /etc/xdg/fastfetch/config.jsonc";
-${desktop_block}
-  security.rtkit.enable = true;
-  services.pipewire = {
-    enable = true;
-    alsa.enable = true;
-    alsa.support32Bit = true;
-    pulse.enable = true;
-  };
 
+${desktop_block}
   users.users."${username_value}" = {
     isNormalUser = true;
     description = "Abora User";
@@ -1031,16 +994,31 @@ ${desktop_block}
   security.sudo.wheelNeedsPassword = true;
 
   environment.systemPackages = with pkgs; [
-    curl
-    fastfetch
-    git
-    htop
-    wget
+${desktop_packages}
   ];
 
-  services.openssh.enable = true;
+  system.stateVersion = "26.05";
+}
+EOF
 
-  system.stateVersion = "25.11";
+    cat > /mnt/etc/nixos/flake.nix <<EOF
+{
+  description = "Abora installed system";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  };
+
+  outputs = { nixpkgs, ... }: {
+    nixosConfigurations.abora = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ./hardware-configuration.nix
+        ./abora/installed-base.nix
+        ./abora-local.nix
+      ];
+    };
+  };
 }
 EOF
     success "Configuration written"

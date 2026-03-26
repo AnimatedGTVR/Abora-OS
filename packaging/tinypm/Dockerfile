@@ -5,8 +5,9 @@ ARG ABORA_VERSION=unknown
 ARG IMAGE_SOURCE=https://github.com/AnimatedGTVR/abora-os
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV TINYPM_PREFIX=/opt/tinypm
-ENV PATH=/opt/tinypm/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV TINYPM_PROJECT_DIR=/opt/tinypm/project
+ENV TINYPM_FLAVOR=abora
+ENV PATH=/opt/tinypm/project:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 LABEL org.opencontainers.image.title="TinyPM V3" \
       org.opencontainers.image.description="TinyPM V3 CLI container published from the Abora OS repository." \
@@ -30,17 +31,17 @@ RUN apt-get update \
         xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /tmp/tinypm
-COPY . /tmp/tinypm
+WORKDIR /opt/tinypm/project
+COPY . /opt/tinypm/project
 
-RUN /tmp/tinypm/scripts/install.sh --yes --native apt --flavor abora \
-    && ln -s /opt/tinypm/bin/tinypm /usr/local/bin/tinypm \
-    && ln -s /opt/tinypm/bin/tinypm /usr/local/bin/tiny \
-    && ln -s /opt/tinypm/bin/tinypm /usr/local/bin/grab \
-    && ln -s /opt/tinypm/bin/Parcel /usr/local/bin/Parcel \
-    && ln -s /opt/tinypm/bin/syspm /usr/local/bin/syspm \
-    && ln -s /opt/tinypm/bin/version /usr/local/bin/version \
-    && rm -rf /tmp/tinypm
+RUN mkdir -p /root/.config/tinypm /root/.local/state/tinypm \
+    && printf 'tinypm_flavor=abora\n' > /root/.config/tinypm/config \
+    && ln -s /opt/tinypm/project/tinypm /usr/local/bin/tinypm \
+    && ln -s /opt/tinypm/project/tinypm /usr/local/bin/tiny \
+    && ln -s /opt/tinypm/project/grab /usr/local/bin/grab \
+    && ln -s /opt/tinypm/project/Parcel /usr/local/bin/Parcel \
+    && ln -s /opt/tinypm/project/syspm.sh /usr/local/bin/syspm \
+    && ln -s /opt/tinypm/project/version /usr/local/bin/version
 
-WORKDIR /root
+WORKDIR /opt/tinypm/project
 CMD ["tinypm", "help"]

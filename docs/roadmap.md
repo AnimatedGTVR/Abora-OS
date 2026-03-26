@@ -1,11 +1,12 @@
 # Abora OS Roadmap
 
-## v1.0.0 Delivered
+## v1.0.1 Delivered
 
 - NixOS-based live ISO baseline
+- live and installer configs moved to the 26.05 state version baseline
 - reproducible flake-based builds
 - branded live boot and installer flow
-- optional ecosystem tooling can land after `v1.0.0` when NixOS package mapping is ready
+- optional ecosystem tooling can land after `v1.0.1` when NixOS package mapping is ready
 
 ## Post-v1 Focus
 

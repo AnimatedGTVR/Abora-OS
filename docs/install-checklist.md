@@ -12,6 +12,13 @@ Use this after building a release candidate ISO and after running one real insta
 - `/etc/abora/default-wallpaper.png` exists
 - Fastfetch shows the Abora ASCII logo
 
+## VM Coverage
+
+- QEMU install works end to end
+- at least one Windows-host VM run is checked in VMware or Hyper-V
+- if testing Hyper-V Generation 2, secure boot is disabled
+- if testing VirtualBox, boot is checked with the default graphics controller first
+
 ## Installer
 
 - installer opens from the boot menu

@@ -5,7 +5,7 @@ export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/l
 
 title_file="/etc/abora/title.txt"
 gui_launcher="/etc/abora/launch-gui.sh"
-version="${ABORA_VERSION:-v1.0.0}"
+version="${ABORA_VERSION:-v1.0.1}"
 
 BLUE='\033[38;5;33m'
 MAGENTA='\033[38;5;207m'

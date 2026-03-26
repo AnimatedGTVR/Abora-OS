@@ -1,17 +1,15 @@
 # Abora OS
 
-## Update
-Thank you all for over 700 clones!
-Abora also has a website: [aboraos.org](https://www.aboraos.org/).
+Abora OS is a distro project built around a NixOS live image.
+The goal is simple: make NixOS feel easier to approach without sanding off what makes it powerful.
 
-Abora OS is a little distro project built around a NixOS live image.
+Current public release: `v1.0.1`
 
-`v1.0.0` is the first proper public release.
-
-The goal was not to make something huge on day one. The goal was to make something real: a live image that boots, an installer that works, a release you can actually publish, and a system that already feels like Abora instead of a pile of placeholders.
+Website: [aboraos.org](https://www.aboraos.org/)
 
 ## Why Abora
 
+- NixOS made simpler for everyday users
 - terminal-first live boot and installer
 - Abora Welcome and Abora Center right in the boot menu
 - reproducible ISO builds with Nix flakes
@@ -29,9 +27,9 @@ The goal was not to make something huge on day one. The goal was to make somethi
 
 - Nix with flakes (`nix-command` + `flakes`)
 
-## Local commands
+## Build and test
 
-Build the ISO, then throw it into QEMU:
+Build the ISO, then boot it in QEMU:
 
 ```sh
 cd /home/animated/abora-os
@@ -39,6 +37,26 @@ cd /home/animated/abora-os
 make iso
 make qemc
 ```
+
+## Installed system
+
+For the normal distro-style update command, use:
+
+```sh
+sudo nixos update
+```
+
+If you want the short Abora aliases, these work too:
+
+```sh
+update
+upgrade
+```
+
+All of these commands do the Abora/NixOS thing for you:
+- they sync the latest Abora project files into `/etc/nixos/abora/`
+- they update the local flake and rebuild the system
+- older installer-generated Abora installs get migrated into that layout automatically
 
 ## Release flow
 
@@ -58,20 +76,22 @@ If you want to build the TinyPM V3 container package locally too:
 make tinypm-image
 ```
 
+That image keeps the full TinyPM project inside the container at `/opt/tinypm/project`.
+
 The GitHub Packages workflow publishes that image to:
 
 ```text
 ghcr.io/<your-github-owner>/abora-tinypm
 ```
 
-When it is time to push the big button on GitHub:
+When it is time to publish on GitHub:
 
 ```sh
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.1
+git push origin v1.0.1
 ```
 
-That triggers the release workflow, builds the current `v1.0.0` ISO, and opens a draft GitHub release with the matching files attached.
+That triggers the release workflow, builds the current `v1.0.1` ISO, and opens a draft GitHub release with the matching files attached.
 
 If you just want to refresh the release notes, checksums, and manifest without rebuilding the ISO:
 
@@ -90,7 +110,7 @@ Inside the live image:
 - the installer starts from the terminal-first boot flow
 - `Abora Welcome` and `Abora Center` can be opened from the boot menu
 - running `abora-welcome` or `abora-center` from the live shell launches a temporary GUI app session when needed
-- TinyPM V3 is still a separate Abora tool and is not part of the `v1.0.0` boot or installer flow
+- TinyPM V3 is still a separate Abora tool and is not part of the `v1.0.1` boot or installer flow
 
 Run script checks:
 

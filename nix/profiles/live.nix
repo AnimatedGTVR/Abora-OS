@@ -3,6 +3,18 @@ let
   aboraCenter = pkgs.writeShellScriptBin "abora-center" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/center.sh "$@"
   '';
+  aboraUpdate = pkgs.writeShellScriptBin "abora-update" ''
+    exec env ABORA_UPDATE_COMMAND=abora-update ${pkgs.bashInteractive}/bin/bash /etc/abora/update.sh "$@"
+  '';
+  nixosCommand = pkgs.writeShellScriptBin "nixos" ''
+    exec env ABORA_UPDATE_COMMAND=nixos ${pkgs.bashInteractive}/bin/bash /etc/abora/update.sh "$@"
+  '';
+  updateCommand = pkgs.writeShellScriptBin "update" ''
+    exec env ABORA_UPDATE_COMMAND=update ${pkgs.bashInteractive}/bin/bash /etc/abora/update.sh "$@"
+  '';
+  upgradeCommand = pkgs.writeShellScriptBin "upgrade" ''
+    exec env ABORA_UPDATE_COMMAND=upgrade ${pkgs.bashInteractive}/bin/bash /etc/abora/update.sh "$@"
+  '';
   aboraWelcome = pkgs.writeShellScriptBin "abora-welcome" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/welcome.sh "$@"
   '';
@@ -56,6 +68,7 @@ in
   environment.systemPackages = with pkgs; [
     aboraCenter
     aboraCenterDesktop
+    aboraUpdate
     aboraWelcome
     aboraWelcomeDesktop
     bashInteractive
@@ -68,15 +81,18 @@ in
     htop
     iproute2
     kbd
+    nixosCommand
     openssl
     parted
     util-linux
+    updateCommand
+    upgradeCommand
     whois
     openbox
-    xorg.xauth
-    xorg.xinit
-    xorg.xorgserver
-    xorg.xsetroot
+    xauth
+    xinit
+    xorg-server
+    xsetroot
     xterm
     zenity
   ];
@@ -95,6 +111,7 @@ in
       '';
       "abora/default-wallpaper.png".source = ../../assets/wallpaper.png;
       "abora/title.txt".source = ../../assets/abora-title.txt;
+      "abora/VERSION".source = ../../VERSION;
       "abora/fastfetch-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "abora/fastfetch-config.jsonc".source = ../../assets/fastfetch-config.jsonc;
       "abora/plymouth/abora.plymouth".source = ../../assets/plymouth/abora.plymouth;
@@ -123,6 +140,11 @@ in
         source = ../../scripts/abora-installer.sh;
         mode = "0755";
       };
+      "abora/installed-base.nix".source = ../../nix/modules/installed-base.nix;
+      "abora/update.sh" = {
+        source = ../../scripts/abora-update.sh;
+        mode = "0755";
+      };
       "abora/welcome.sh" = {
         source = ../../scripts/abora-welcome.sh;
         mode = "0755";
@@ -138,6 +160,10 @@ in
     );
 
   services.xserver.enable = false;
+  services.qemuGuest.enable = true;
+  virtualisation.vmware.guest.enable = pkgs.stdenv.hostPlatform.isx86;
+  virtualisation.hypervGuest.enable =
+    pkgs.stdenv.hostPlatform.isx86 || pkgs.stdenv.hostPlatform.isAarch64;
   systemd.settings.Manager = {
     ReserveVT = 2;
   };
