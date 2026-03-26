@@ -1,7 +1,7 @@
 # Abora OS
 
-Abora OS is a distro project built around a NixOS live image.
-The goal is simple: make NixOS feel easier to approach without sanding off what makes it powerful.
+Abora OS is a distro project built on top of a NixOS live image.
+The idea is simple: make NixOS easier to pick up without hiding the parts that make it great.
 
 Current public release: `v1.0.1`
 
@@ -11,9 +11,9 @@ Website: [aboraos.org](https://www.aboraos.org/)
 
 - NixOS made simpler for everyday users
 - terminal-first live boot and installer
-- Abora Welcome and Abora Center right in the boot menu
+- Abora Welcome and Abora Center available from the boot menu
 - reproducible ISO builds with Nix flakes
-- custom Abora branding across the bootloader, wallpaper, and fastfetch setup
+- Abora branding across the bootloader, wallpaper, and fastfetch setup
 
 ## Project docs
 
@@ -53,7 +53,7 @@ update
 upgrade
 ```
 
-All of these commands do the Abora/NixOS thing for you:
+All of these commands handle the normal Abora update flow:
 - they sync the latest Abora project files into `/etc/nixos/abora/`
 - they update the local flake and rebuild the system
 - older installer-generated Abora installs get migrated into that layout automatically
@@ -110,7 +110,7 @@ Inside the live image:
 - the installer starts from the terminal-first boot flow
 - `Abora Welcome` and `Abora Center` can be opened from the boot menu
 - running `abora-welcome` or `abora-center` from the live shell launches a temporary GUI app session when needed
-- TinyPM V3 is still a separate Abora tool and is not part of the `v1.0.1` boot or installer flow
+- TinyPM V3 is still a separate Abora tool, not part of the `v1.0.1` boot or installer flow
 
 Run script checks:
 
