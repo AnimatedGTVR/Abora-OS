@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="assets/Github/Abora-Logo.png" alt="Abora OS logo" width="120">
-</p>
 
 <p align="center">
   <img src="assets/Github/ReadME%20background.png" alt="Abora OS banner" width="100%">
