@@ -11,12 +11,17 @@ case "$version_value" in
 esac
 
 bash_scripts=(
+  "scripts/abora-app-catalog.sh"
+  "scripts/abora-apps.sh"
   "scripts/abora-boot.sh"
-  "scripts/abora-center.sh"
+  "scripts/abora-desktop-profiles.sh"
+  "scripts/abora-hardware-test.sh"
   "scripts/abora-installer.sh"
-  "scripts/abora-launch-gui.sh"
+  "scripts/abora-session-setup.sh"
+  "scripts/abora-support-report.sh"
+  "scripts/check-desktops.sh"
+  "scripts/abora-theme-sync.sh"
   "scripts/abora-update.sh"
-  "scripts/abora-welcome.sh"
   "scripts/build-iso.sh"
   "scripts/build-tinypm-image.sh"
   "scripts/package-tinypm.sh"

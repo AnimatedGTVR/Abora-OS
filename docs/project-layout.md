@@ -21,10 +21,11 @@ Important subfolders:
 
 - `assets/bootloader/`
 - `assets/plymouth/`
+- `assets/wallpapers/collection/`
+- `assets/wallpaper-themes/`
 
 Important files:
 
-- `assets/wallpaper.png`
 - `assets/abora-title.txt`
 - `assets/fastfetch-config.jsonc`
 - `assets/fastfetch-logo.txt`
@@ -34,6 +35,7 @@ Important files:
 Project docs that are useful during development and release work.
 
 - `docs/install-checklist.md`
+- `docs/hardware-testing.md`
 - `docs/release-checklist.md`
 - `docs/roadmap.md`
 
@@ -53,9 +55,11 @@ Shell scripts for the live environment, installer, ISO builds, release metadata,
 Important files:
 
 - `scripts/abora-boot.sh`
+- `scripts/abora-desktop-profiles.sh`
 - `scripts/abora-installer.sh`
-- `scripts/abora-center.sh`
-- `scripts/abora-welcome.sh`
+- `scripts/abora-session-setup.sh`
+- `scripts/abora-support-report.sh`
+- `scripts/check-desktops.sh`
 - `scripts/build-iso.sh`
 - `scripts/release-metadata.sh`
 - `scripts/run-qemu.sh`
