@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+desktop_profiles_lib="${ABORA_DESKTOP_PROFILES_LIB:-$script_dir/abora-desktop-profiles.sh}"
+
+if [[ ! -f "$desktop_profiles_lib" && -f /etc/abora/desktop-profiles.sh ]]; then
+    desktop_profiles_lib="/etc/abora/desktop-profiles.sh"
+fi
+
+# shellcheck source=/dev/null
+source "$desktop_profiles_lib"
+
 config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
 command_name="${ABORA_UPDATE_COMMAND:-$(basename "$0")}"
 repo_git_url="${ABORA_REPO_GIT_URL:-https://github.com/AnimatedGTVR/abora-os.git}"
@@ -36,8 +46,10 @@ usage() {
 Usage:
   nixos update
   nixos upgrade
+  nixos rollback
   update
   upgrade
+  rollback
   abora-update
 EOF
 }
@@ -50,277 +62,16 @@ system_string() {
     esac
 }
 
-sync_desktop_label() {
-    case "$1" in
-        gnome)
-            desktop_label="GNOME"
-            desktop_variant_id="gnome"
-            ;;
-        plasma)
-            desktop_label="Plasma"
-            desktop_variant_id="plasma"
-            ;;
-        hyprland)
-            desktop_label="Hyprland"
-            desktop_variant_id="hyprland"
-            ;;
-        xfce)
-            desktop_label="XFCE"
-            desktop_variant_id="xfce"
-            ;;
-        cinnamon)
-            desktop_label="Cinnamon"
-            desktop_variant_id="cinnamon"
-            ;;
-        mate)
-            desktop_label="MATE"
-            desktop_variant_id="mate"
-            ;;
-        budgie)
-            desktop_label="Budgie"
-            desktop_variant_id="budgie"
-            ;;
-        lxqt)
-            desktop_label="LXQt"
-            desktop_variant_id="lxqt"
-            ;;
-        pantheon)
-            desktop_label="Pantheon"
-            desktop_variant_id="pantheon"
-            ;;
-        i3)
-            desktop_label="i3"
-            desktop_variant_id="i3"
-            ;;
-        openbox)
-            desktop_label="Openbox"
-            desktop_variant_id="openbox"
-            ;;
-        *)
-            desktop_label="GNOME"
-            desktop_variant_id="gnome"
-            ;;
-    esac
-}
-
-detect_desktop_profile() {
-    local file="$1"
-
-    if grep -q 'programs\.hyprland = {' "$file" || grep -q 'defaultSession = "hyprland-uwsm";' "$file"; then
-        printf 'hyprland\n'
-    elif grep -q 'services\.desktopManager\.plasma6\.enable = true;' "$file"; then
-        printf 'plasma\n'
-    elif grep -q 'desktopManager\.xfce\.enable = true;' "$file"; then
-        printf 'xfce\n'
-    elif grep -q 'desktopManager\.cinnamon\.enable = true;' "$file"; then
-        printf 'cinnamon\n'
-    elif grep -q 'desktopManager\.mate\.enable = true;' "$file"; then
-        printf 'mate\n'
-    elif grep -q 'desktopManager\.budgie\.enable = true;' "$file"; then
-        printf 'budgie\n'
-    elif grep -q 'desktopManager\.lxqt\.enable = true;' "$file"; then
-        printf 'lxqt\n'
-    elif grep -q 'desktopManager\.pantheon\.enable = true;' "$file"; then
-        printf 'pantheon\n'
-    elif grep -q 'windowManager\.i3\.enable = true;' "$file"; then
-        printf 'i3\n'
-    elif grep -q 'windowManager\.openbox\.enable = true;' "$file"; then
-        printf 'openbox\n'
-    else
-        printf 'gnome\n'
-    fi
-}
-
 desktop_config_block() {
     local desktop_profile="$1"
     local xkb_layout_value="$2"
     local username_value="$3"
 
-    case "$desktop_profile" in
-        gnome)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-  };
-  services.displayManager.gdm.enable = true;
-  services.desktopManager.gnome.enable = true;
-  services.displayManager.autoLogin.enable = true;
-  services.displayManager.autoLogin.user = "${username_value}";
-  services.displayManager.defaultSession = "gnome";
-  services.gnome.gnome-keyring.enable = true;
-EOF
-            ;;
-        plasma)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-  };
-  services.displayManager = {
-    defaultSession = "plasma";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.displayManager.sddm.enable = true;
-  services.desktopManager.plasma6.enable = true;
-EOF
-            ;;
-        hyprland)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-  };
-  services.displayManager = {
-    defaultSession = "hyprland-uwsm";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.displayManager.sddm = {
-    enable = true;
-    wayland.enable = true;
-  };
-  programs.hyprland = {
-    enable = true;
-    withUWSM = true;
-    xwayland.enable = true;
-  };
-  xdg.portal.enable = true;
-  xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
-EOF
-            ;;
-        xfce)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    desktopManager.xfce.enable = true;
-  };
-  services.displayManager = {
-    defaultSession = "xfce";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-EOF
-            ;;
-        cinnamon)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    desktopManager.cinnamon.enable = true;
-  };
-  services.displayManager = {
-    defaultSession = "cinnamon";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-EOF
-            ;;
-        mate)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    desktopManager.mate.enable = true;
-  };
-  services.displayManager = {
-    defaultSession = "mate";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-EOF
-            ;;
-        budgie)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    desktopManager.budgie.enable = true;
-  };
-  services.displayManager = {
-    defaultSession = "budgie-desktop";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-EOF
-            ;;
-        lxqt)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    desktopManager.lxqt.enable = true;
-  };
-  services.displayManager = {
-    defaultSession = "lxqt";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.displayManager.sddm.enable = true;
-EOF
-            ;;
-        pantheon)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-  };
-  services.displayManager = {
-    defaultSession = "pantheon-wayland";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-  services.xserver.desktopManager.pantheon.enable = true;
-EOF
-            ;;
-        i3)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    windowManager.i3.enable = true;
-  };
-  services.displayManager = {
-    defaultSession = "none+i3";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-EOF
-            ;;
-        openbox)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    windowManager.openbox.enable = true;
-  };
-  services.displayManager = {
-    defaultSession = "none+openbox";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-EOF
-            ;;
-    esac
+    abora_desktop_config_block "$desktop_profile" "$xkb_layout_value" "$username_value"
 }
 
 desktop_package_block() {
-    case "$1" in
-        hyprland)
-            cat <<EOF
-    kitty
-EOF
-            ;;
-    esac
+    abora_desktop_package_block "$1"
 }
 
 write_flake_file() {
@@ -338,11 +89,15 @@ write_flake_file() {
   outputs = { nixpkgs, ... }: {
     nixosConfigurations.${flake_config_name} = nixpkgs.lib.nixosSystem {
       system = "${nix_system}";
-      modules = [
-        ./hardware-configuration.nix
-        ./abora/installed-base.nix
-        ./abora-local.nix
-      ];
+      modules =
+        let
+          appModule = ./abora/apps.nix;
+        in
+        [
+          ./hardware-configuration.nix
+          ./abora/installed-base.nix
+          ./abora-local.nix
+        ] ++ nixpkgs.lib.optional (builtins.pathExists appModule) appModule;
     };
   };
 }
@@ -365,19 +120,21 @@ write_local_module() {
     local desktop_label=""
     local desktop_variant_id=""
 
-    sync_desktop_label "$desktop_profile"
+    abora_sync_desktop_label "$desktop_profile"
     desktop_block="$(desktop_config_block "$desktop_profile" "$xkb_layout_value" "$username_value")"
     desktop_packages="$(desktop_package_block "$desktop_profile")"
 
     cat > "$target" <<EOF
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 {
   system.nixos.variantName = "Abora ${desktop_label} Edition";
   system.nixos.variant_id = "${desktop_variant_id}";
 
-  boot.loader.grub = {
+  boot.loader.grub.enable = lib.mkForce false;
+  boot.loader.limine = {
     enable = true;
-    devices = [ "${disk_value}" ];
+    biosSupport = true;
+    biosDevice = "${disk_value}";
     efiSupport = true;
     efiInstallAsRemovable = true;
   };
@@ -415,6 +172,10 @@ extract_setting() {
 
 sync_abora_files() {
     local abora_dir="$config_dir/abora"
+    local upstream_background="$upstream_dir/assets/bootloader/background.png"
+    local upstream_limine_background="$upstream_dir/assets/bootloader/limine-background.png"
+    local upstream_theme="$upstream_dir/assets/bootloader/theme.txt"
+    local limine_source=""
 
     if ! command -v git >/dev/null 2>&1; then
         error_msg "The git command is required to fetch the latest Abora files."
@@ -433,14 +194,51 @@ sync_abora_files() {
 
     mkdir -p "$abora_dir/plymouth" "$abora_dir/bootloader"
     cp "$upstream_dir/VERSION" "$abora_dir/VERSION"
+    cp "$upstream_dir/scripts/abora-app-catalog.sh" "$abora_dir/app-catalog.sh"
+    cp "$upstream_dir/scripts/abora-apps.sh" "$abora_dir/apps.sh"
+    cp "$upstream_dir/scripts/abora-support-report.sh" "$abora_dir/support-report.sh"
+    cp "$upstream_dir/scripts/abora-hardware-test.sh" "$abora_dir/hardware-test.sh"
+    cp "$upstream_dir/assets/wallpapers/collection/oceandusk.png" "$abora_dir/default-wallpaper.png"
+    cp "$upstream_dir/scripts/abora-desktop-profiles.sh" "$abora_dir/desktop-profiles.sh"
     cp "$upstream_dir/nix/modules/installed-base.nix" "$abora_dir/installed-base.nix"
+    cp "$upstream_dir/scripts/abora-session-setup.sh" "$abora_dir/session-setup.sh"
+    cp "$upstream_dir/scripts/abora-theme-sync.sh" "$abora_dir/theme-sync.sh"
     cp "$upstream_dir/scripts/abora-update.sh" "$abora_dir/update.sh"
     cp "$upstream_dir/assets/abora-title.txt" "$abora_dir/title.txt"
     cp "$upstream_dir/assets/fastfetch-logo.txt" "$abora_dir/fastfetch-logo.txt"
     cp "$upstream_dir/assets/fastfetch-config.jsonc" "$abora_dir/fastfetch-config.jsonc"
     cp "$upstream_dir/assets/plymouth/abora.plymouth" "$abora_dir/plymouth/abora.plymouth"
     cp "$upstream_dir/assets/plymouth/abora.script" "$abora_dir/plymouth/abora.script"
-    cp "$upstream_dir/assets/bootloader/"* "$abora_dir/bootloader/"
+    if [[ ! -f "$upstream_background" || ! -f "$upstream_theme" ]]; then
+        error_msg "The latest Abora bootloader assets are incomplete."
+        return 1
+    fi
+
+    limine_source="$upstream_background"
+    if [[ -f "$upstream_limine_background" ]]; then
+        limine_source="$upstream_limine_background"
+    fi
+
+    install -Dm0644 "$upstream_background" "$abora_dir/bootloader/background.png"
+    install -Dm0644 "$limine_source" "$abora_dir/bootloader/limine-background.png"
+    install -Dm0644 "$upstream_theme" "$abora_dir/bootloader/theme.txt"
+    mkdir -p "$abora_dir/wallpapers" "$abora_dir/themes"
+    cp "$upstream_dir/assets/wallpapers/collection/"* "$abora_dir/wallpapers/"
+    cp "$upstream_dir/assets/wallpaper-themes/"* "$abora_dir/themes/"
+
+    if [[ ! -f "$abora_dir/apps.list" ]]; then
+        : > "$abora_dir/apps.list"
+    fi
+
+    if [[ ! -f "$abora_dir/apps.nix" ]]; then
+        cat > "$abora_dir/apps.nix" <<'EOF'
+{ pkgs, ... }:
+{
+  environment.systemPackages = with pkgs; [
+  ];
+}
+EOF
+    fi
 }
 
 bootstrap_legacy_flake() {
@@ -471,7 +269,7 @@ bootstrap_legacy_flake() {
         user_password_hash="$(extract_setting "$legacy_config" 's/^[[:space:]]*hashedPassword = "([^"]+)";/\1/p')"
         disk_value="$(extract_setting "$legacy_config" 's/^[[:space:]]*devices = \[ "([^"]+)" \];/\1/p')"
         state_version="$(extract_setting "$legacy_config" 's/^[[:space:]]*system\.stateVersion = "([^"]+)";/\1/p')"
-        desktop_profile="$(detect_desktop_profile "$legacy_config")"
+        desktop_profile="$(abora_detect_desktop_profile "$legacy_config")"
 
         hostname_value="${hostname_value:-$(hostname)}"
         timezone_value="${timezone_value:-UTC}"
@@ -526,6 +324,10 @@ case "$command_name" in
             update | upgrade)
                 shift
                 ;;
+            rollback)
+                command_name="rollback"
+                shift
+                ;;
             "" | help | -h | --help)
                 usage
                 exit 0
@@ -554,6 +356,12 @@ if [[ "$(id -u)" -ne 0 ]]; then
         ABORA_UPSTREAM_DIR="$upstream_dir" \
         ABORA_FLAKE_CONFIG_NAME="$flake_config_name" \
         bash "$0" "$@"
+    exit 0
+fi
+
+if [[ "$command_name" == "rollback" ]]; then
+    info "Rolling Abora back to the previous system generation"
+    nixos-rebuild switch --rollback
     exit 0
 fi
 

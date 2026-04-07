@@ -3,6 +3,23 @@ set -euo pipefail
 
 export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
+script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+desktop_profiles_lib="${ABORA_DESKTOP_PROFILES_LIB:-$script_dir/abora-desktop-profiles.sh}"
+app_catalog_lib="${ABORA_APP_CATALOG_LIB:-$script_dir/abora-app-catalog.sh}"
+
+if [[ ! -f "$desktop_profiles_lib" && -f /etc/abora/desktop-profiles.sh ]]; then
+    desktop_profiles_lib="/etc/abora/desktop-profiles.sh"
+fi
+
+if [[ ! -f "$app_catalog_lib" && -f /etc/abora/app-catalog.sh ]]; then
+    app_catalog_lib="/etc/abora/app-catalog.sh"
+fi
+
+# shellcheck source=/dev/null
+source "$desktop_profiles_lib"
+# shellcheck source=/dev/null
+source "$app_catalog_lib"
+
 disk=""
 hostname_value="abora"
 username_value="abora"
@@ -12,14 +29,18 @@ xkb_layout_value="us"
 desktop_profile="gnome"
 desktop_label="GNOME"
 desktop_variant_id="gnome"
+starter_apps_bundle="favorites"
+starter_apps_label="Fan Favorites"
+github_identity="Skipped"
 user_password_hash=""
 efi_part=""
 root_part=""
 config_log="/tmp/abora-generate-config.log"
 install_log="/tmp/abora-install.log"
+support_report_output="/tmp/abora-last-support-report.txt"
 
 title_file="/etc/abora/title.txt"
-version="${ABORA_VERSION:-v1.0.1}"
+version="${ABORA_VERSION:-v2.0.0-dev}"
 
 BLUE='\033[38;5;33m'
 MAGENTA='\033[38;5;207m'
@@ -93,22 +114,15 @@ terminal_rows() {
 print_log_tail() {
     local logfile="$1"
     local cols=""
-    local rows=""
-    local max_lines=0
+    local max_lines=10
     local width=0
     local line=""
 
     cols="$(terminal_cols)"
-    rows="$(terminal_rows)"
     width=$((cols - 4))
-    max_lines=$((rows - 16))
 
     if [[ "$width" -lt 20 ]]; then
         width=20
-    fi
-
-    if [[ "$max_lines" -lt 6 ]]; then
-        max_lines=6
     fi
 
     if [[ ! -s "$logfile" ]]; then
@@ -129,6 +143,7 @@ show_failure_screen() {
     local title="$1"
     local subtitle="$2"
     local logfile="$3"
+    local report_path=""
 
     show_header "$title" "$subtitle"
     printf '%bRecent log lines%b\n' "$WHITE" "$NC"
@@ -136,6 +151,153 @@ show_failure_screen() {
     print_log_tail "$logfile"
     printf '\n'
     printf '%bFull log:%b %s\n' "$DIM" "$NC" "$logfile"
+
+    if [[ -f "$support_report_output" ]]; then
+        report_path="$(cat "$support_report_output" 2>/dev/null || true)"
+        if [[ -n "$report_path" ]]; then
+            printf '%bSupport report:%b %s\n' "$DIM" "$NC" "$report_path"
+        fi
+    fi
+}
+
+repeat_char() {
+    local char="$1"
+    local count="$2"
+    local output=""
+
+    while [[ "$count" -gt 0 ]]; do
+        output+="$char"
+        count=$((count - 1))
+    done
+
+    printf '%s' "$output"
+}
+
+draw_progress_bar() {
+    local percent="$1"
+    local width=""
+    local filled=0
+    local empty=0
+
+    if [[ "$percent" -lt 0 ]]; then
+        percent=0
+    elif [[ "$percent" -gt 100 ]]; then
+        percent=100
+    fi
+
+    width=$(( $(terminal_cols) - 24 ))
+    if [[ "$width" -lt 20 ]]; then
+        width=20
+    elif [[ "$width" -gt 42 ]]; then
+        width=42
+    fi
+
+    filled=$((percent * width / 100))
+    empty=$((width - filled))
+
+    printf '%b[' "$BLUE"
+    printf '%b' "$MAGENTA"
+    repeat_char "█" "$filled"
+    printf '%b' "$DIM"
+    repeat_char "░" "$empty"
+    printf '%b] %3d%%%b\n' "$NC" "$percent" "$NC"
+}
+
+format_elapsed() {
+    local seconds="$1"
+    local minutes=0
+    local hours=0
+
+    hours=$((seconds / 3600))
+    minutes=$(((seconds % 3600) / 60))
+    seconds=$((seconds % 60))
+
+    if [[ "$hours" -gt 0 ]]; then
+        printf '%02dh %02dm %02ds' "$hours" "$minutes" "$seconds"
+    else
+        printf '%02dm %02ds' "$minutes" "$seconds"
+    fi
+}
+
+install_status_summary() {
+    local logfile="$1"
+
+    if [[ ! -s "$logfile" ]]; then
+        printf 'Preparing the install environment'
+        return 0
+    fi
+
+    if grep -qi 'installing the boot loader' "$logfile"; then
+        printf 'Installing the bootloader'
+    elif grep -qi 'activating the configuration' "$logfile"; then
+        printf 'Activating the new system'
+    elif grep -qi 'building the configuration' "$logfile"; then
+        printf 'Building the system configuration'
+    elif grep -qi "copying path '/nix/store" "$logfile"; then
+        printf 'Copying system packages'
+    elif grep -qi 'writing the system profile' "$logfile"; then
+        printf 'Writing the installed system'
+    else
+        printf 'Writing the installed system'
+    fi
+}
+
+install_progress_percent() {
+    local logfile="$1"
+    local elapsed="$2"
+    local line_count=0
+    local progress=45
+
+    if [[ -f "$logfile" ]]; then
+        line_count="$(wc -l < "$logfile")"
+    fi
+
+    progress=$((45 + line_count / 6 + elapsed / 4))
+
+    if grep -qi 'building the configuration' "$logfile" 2>/dev/null; then
+        if [[ "$progress" -lt 60 ]]; then
+            progress=60
+        fi
+    fi
+
+    if grep -qi "copying path '/nix/store" "$logfile" 2>/dev/null; then
+        if [[ "$progress" -lt 72 ]]; then
+            progress=72
+        fi
+    fi
+
+    if grep -qi 'installing the boot loader' "$logfile" 2>/dev/null; then
+        if [[ "$progress" -lt 88 ]]; then
+            progress=88
+        fi
+    fi
+
+    if [[ "$progress" -gt 94 ]]; then
+        progress=94
+    fi
+
+    printf '%s' "$progress"
+}
+
+show_install_progress_screen() {
+    local percent="$1"
+    local status_text="$2"
+    local elapsed="$3"
+    local logfile="${4:-}"
+
+    show_header "Installing Abora OS" "Applying partitions and writing the system."
+    printf '%bProgress%b\n' "$WHITE" "$NC"
+    draw_progress_bar "$percent"
+    printf '\n'
+    printf '  Status:   %s\n' "$status_text"
+    printf '  Elapsed:  %s\n' "$(format_elapsed "$elapsed")"
+
+    if [[ -n "$logfile" ]]; then
+        printf '\n'
+        printf '%bRecent log lines%b\n' "$WHITE" "$NC"
+        draw_rule
+        print_log_tail "$logfile"
+    fi
 }
 
 read_key() {
@@ -268,6 +430,52 @@ set_step_stay() {
     step_action="stay"
 }
 
+sync_starter_apps_label() {
+    case "${starter_apps_bundle,,}" in
+        none)
+            starter_apps_label="No starter apps"
+            ;;
+        favorites)
+            starter_apps_label="Fan Favorites"
+            ;;
+        essentials)
+            starter_apps_label="Essentials"
+            ;;
+        social)
+            starter_apps_label="Social"
+            ;;
+        creator)
+            starter_apps_label="Creator"
+            ;;
+        developer)
+            starter_apps_label="Developer"
+            ;;
+        *)
+            starter_apps_label="Custom"
+            ;;
+    esac
+}
+
+refresh_github_identity() {
+    local login=""
+
+    if ! command -v gh >/dev/null 2>&1; then
+        github_identity="GitHub CLI unavailable"
+        return 0
+    fi
+
+    if gh auth status --hostname github.com >/dev/null 2>&1; then
+        login="$(gh api user --jq '.login' 2>/dev/null || true)"
+        if [[ -n "$login" ]]; then
+            github_identity="Signed in as ${login}"
+        else
+            github_identity="Signed in"
+        fi
+    else
+        github_identity="Skipped"
+    fi
+}
+
 require_root() {
     if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
         error_msg "This installer must run as root."
@@ -298,6 +506,101 @@ resolve_nixpkgs_path() {
 load_keyboard_layout() {
     if command -v loadkeys >/dev/null 2>&1; then
         loadkeys "$keyboard_value" >/dev/null 2>&1 || true
+    fi
+}
+
+detect_boot_mode() {
+    if [[ -d /sys/firmware/efi ]]; then
+        printf 'UEFI'
+    else
+        printf 'Legacy BIOS'
+    fi
+}
+
+system_memory_gib() {
+    local mem_kib="0"
+    mem_kib="$(awk '/MemTotal:/ { print $2 }' /proc/meminfo 2>/dev/null || printf '0')"
+    awk -v kib="$mem_kib" 'BEGIN { printf "%.1f GiB", kib / 1024 / 1024 }'
+}
+
+cpu_summary() {
+    lscpu 2>/dev/null | awk -F: '/Model name:/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' || printf 'Unknown CPU'
+}
+
+selected_disk_summary() {
+    [[ -n "$disk" ]] || {
+        printf 'No disk selected yet'
+        return 0
+    }
+
+    lsblk -dn -o NAME,SIZE,MODEL,TRAN,RM "$disk" 2>/dev/null | awk '
+        {
+            model = ($3 == "" ? "Unknown model" : $3)
+            tran = ($4 == "" ? "internal" : $4)
+            removable = ($5 == "1" ? "removable" : "fixed")
+            printf "/dev/%s  %s  %s  [%s, %s]\n", $1, $2, model, tran, removable
+        }
+    ' || printf '%s\n' "$disk"
+}
+
+hardware_summary_text() {
+    cat <<EOF
+Boot mode:   $(detect_boot_mode)
+Memory:      $(system_memory_gib)
+CPU:         $(cpu_summary)
+Disk target: $(selected_disk_summary)
+Desktop:     ${desktop_label}
+Apps:        ${starter_apps_label}
+GitHub:      ${github_identity}
+EOF
+}
+
+save_support_report() {
+    local report_path=""
+
+    if [[ ! -x /etc/abora/support-report.sh ]]; then
+        error_msg "The support report tool is not available in this build."
+        pause_prompt
+        return 1
+    fi
+
+    show_header "Saving support report" "Collecting hardware and log details."
+    printf 'Abora is gathering a support report now.\n'
+    printf '\n'
+    report_path="$(/etc/abora/support-report.sh 2>/dev/null || true)"
+    if [[ -n "$report_path" && -f "$report_path" ]]; then
+        printf '%s\n' "$report_path" > "$support_report_output"
+        success "Support report saved"
+        printf '\nReport archive:\n  %s\n' "$report_path"
+    else
+        error_msg "Support report generation failed."
+    fi
+    pause_prompt
+}
+
+show_hardware_summary() {
+    show_header "Hardware summary" "Useful before testing or filing a report."
+    hardware_summary_text
+    printf '\n'
+    printf 'Tip: use "Save support report" to capture hardware details and current logs.\n'
+    pause_prompt
+}
+
+preflight_warnings_text() {
+    local root_device=""
+    local root_parent=""
+
+    if root_device="$(findmnt -n -o SOURCE / 2>/dev/null)"; then
+        root_parent="$(lsblk -no PKNAME "$root_device" 2>/dev/null || true)"
+    fi
+
+    if [[ -n "$root_parent" && "$disk" == "/dev/${root_parent}" ]]; then
+        printf '%bWarning:%b the selected disk appears to back the current live system.\n' "$RED" "$NC"
+        printf 'Installing to the live USB disk will erase the media you booted from.\n\n'
+    fi
+
+    if [[ "$(awk '/MemTotal:/ { print $2 }' /proc/meminfo 2>/dev/null || printf '0')" -lt 4194304 ]]; then
+        printf '%bWarning:%b system memory is under 4 GiB. Expect slower installs and desktop startup.\n\n' "$RED" "$NC"
     fi
 }
 
@@ -347,71 +650,277 @@ timezone_exists() {
     collect_timezones | grep -Fxq "$value"
 }
 
-sync_desktop_label() {
-    case "$desktop_profile" in
-        gnome)
-            desktop_label="GNOME"
-            desktop_variant_id="gnome"
-            ;;
-        plasma)
-            desktop_label="KDE Plasma"
-            desktop_variant_id="plasma"
-            ;;
-        hyprland)
-            desktop_label="Hyprland"
-            desktop_variant_id="hyprland"
-            ;;
-        xfce)
-            desktop_label="XFCE"
-            desktop_variant_id="xfce"
-            ;;
-        cinnamon)
-            desktop_label="Cinnamon"
-            desktop_variant_id="cinnamon"
-            ;;
-        mate)
-            desktop_label="MATE"
-            desktop_variant_id="mate"
-            ;;
-        budgie)
-            desktop_label="Budgie"
-            desktop_variant_id="budgie"
-            ;;
-        lxqt)
-            desktop_label="LXQt"
-            desktop_variant_id="lxqt"
-            ;;
-        i3)
-            desktop_label="i3"
-            desktop_variant_id="i3"
-            ;;
-        openbox)
-            desktop_label="Openbox"
-            desktop_variant_id="openbox"
-            ;;
-    esac
+show_about_abora() {
+    show_header "Welcome to Abora OS" "A simpler path into NixOS."
+    printf 'Abora is trying to make NixOS feel more human from the start.\n'
+    printf '\n'
+    printf 'This installer keeps the advanced NixOS base, but gives you:\n'
+    printf '  - a cleaner first-run path\n'
+    printf '  - easier desktop selection\n'
+    printf '  - optional starter apps before first boot\n'
+    printf '  - a system that still updates the NixOS way\n'
+    printf '\n'
+    printf 'You are still in the live environment right now.\n'
+    printf 'Nothing is written to disk until you confirm the install.\n'
+    pause_prompt
 }
 
-pick_keyboard_layout() {
+open_live_shell_from_installer() {
+    local shell_bin="${SHELL:-/run/current-system/sw/bin/bash}"
+
+    show_header "Live shell" "Exit the shell to return to the installer."
+    printf '%bOpening a root shell in the live environment.%b\n' "$DIM" "$NC"
+    printf '%bType exit when you want to come back here.%b\n\n' "$DIM" "$NC"
+    "$shell_bin" --login || true
+}
+
+starter_apps_preview() {
+    local app_id=""
+    local app_name=""
+
+    if [[ "${starter_apps_bundle,,}" == "none" ]]; then
+        printf 'No extra starter apps are selected.\n'
+        return 0
+    fi
+
+    printf 'Bundle: %s\n' "$starter_apps_label"
+    printf '\n'
+
+    while IFS= read -r app_id; do
+        [[ -n "$app_id" ]] || continue
+        app_name="$(abora_catalog_name "$app_id" 2>/dev/null || printf '%s' "$app_id")"
+        printf '  - %s\n' "$app_name"
+    done < <(abora_catalog_bundle_ids "$starter_apps_bundle")
+}
+
+show_starter_apps_preview() {
+    show_header "Starter apps" "These apps will be preinstalled on the new system."
+    starter_apps_preview
+    pause_prompt
+}
+
+pick_starter_apps_bundle() {
     local labels=(
-        "English (US)"
-        "English (UK)"
-        "German"
-        "French"
-        "Spanish"
+        "No starter apps"
+        "Fan Favorites"
+        "Essentials"
+        "Social"
+        "Creator"
+        "Developer"
         "Back"
     )
-    local values=( "us" "uk" "de" "fr" "es" )
+    local values=(
+        "none"
+        "favorites"
+        "essentials"
+        "social"
+        "creator"
+        "developer"
+    )
 
-    menu_choose "Select keyboard layout" "${labels[@]}"
+    menu_choose "Choose starter apps" "${labels[@]}"
     if [[ "$menu_result" == "__back__" || "$menu_result" == "${#values[@]}" ]]; then
         set_step_back
         return 0
     fi
-    keyboard_value="${values[$menu_result]}"
-    sync_xkb_layout
-    load_keyboard_layout
+
+    starter_apps_bundle="${values[$menu_result]}"
+    sync_starter_apps_label
     set_step_next
+}
+
+show_installer_welcome() {
+    while true; do
+        menu_choose \
+            "Welcome to Abora OS ${version}" \
+            "Continue to installer setup" \
+            "View hardware summary" \
+            "Save support report" \
+            "Read about Abora" \
+            "Open live shell" \
+            "Reboot" \
+            "Power off" \
+            "Cancel"
+
+        case "$menu_result" in
+            "__back__"|7)
+                set_step_cancel
+                return 0
+                ;;
+            0)
+                set_step_next
+                return 0
+                ;;
+            1)
+                show_hardware_summary
+                ;;
+            2)
+                save_support_report
+                ;;
+            3)
+                show_about_abora
+                ;;
+            4)
+                open_live_shell_from_installer
+                ;;
+            5)
+                sync
+                reboot
+                ;;
+            6)
+                sync
+                poweroff
+                ;;
+        esac
+    done
+}
+
+show_extra_packages_setup() {
+    while true; do
+        menu_choose \
+            "Extra packages and setup" \
+            "Continue to install review" \
+            "Install target: ${disk:-Not selected}" \
+            "Desktop environment: ${desktop_label}" \
+            "Extra packages: ${starter_apps_label}" \
+            "View selected package bundle" \
+            "View hardware summary" \
+            "Save support report" \
+            "Open live shell" \
+            "Back" \
+            "Cancel"
+
+        case "$menu_result" in
+            "__back__"|8)
+                set_step_back
+                return 0
+                ;;
+            1)
+                prompt_disk || true
+                set_step_stay
+                ;;
+            2)
+                pick_desktop_environment
+                set_step_stay
+                ;;
+            3)
+                pick_starter_apps_bundle
+                set_step_stay
+                ;;
+            4)
+                show_starter_apps_preview
+                ;;
+            5)
+                show_hardware_summary
+                ;;
+            6)
+                save_support_report
+                ;;
+            7)
+                open_live_shell_from_installer
+                ;;
+            8)
+                set_step_back
+                return 0
+                ;;
+            9)
+                set_step_cancel
+                return 0
+                ;;
+            0)
+                if [[ -z "$disk" ]]; then
+                    error_msg "Choose an install target before continuing."
+                    pause_prompt
+                    set_step_stay
+                else
+                    set_step_next
+                    return 0
+                fi
+                ;;
+        esac
+    done
+}
+
+prompt_names() {
+    while true; do
+        prompt_hostname
+        if [[ "$step_action" == "back" ]]; then
+            set_step_back
+            return 0
+        fi
+
+        prompt_username
+        if [[ "$step_action" == "back" ]]; then
+            continue
+        fi
+
+        set_step_next
+        return 0
+    done
+}
+
+prompt_github_login() {
+    local continue_label=""
+
+    if ! command -v gh >/dev/null 2>&1; then
+        github_identity="GitHub CLI unavailable"
+        set_step_next
+        return 0
+    fi
+
+    while true; do
+        refresh_github_identity
+
+        if [[ "$github_identity" == "Skipped" ]]; then
+            continue_label="Skip GitHub for now"
+        else
+            continue_label="Use ${github_identity}"
+        fi
+
+        menu_choose \
+            "GitHub device login (optional)" \
+            "$continue_label" \
+            "Start device code login" \
+            "Back"
+
+        case "$menu_result" in
+            "__back__"|2)
+                set_step_back
+                return 0
+                ;;
+            0)
+                set_step_next
+                return 0
+                ;;
+            1)
+                show_header "GitHub device login" "This step is optional and can be skipped."
+                printf 'Abora will show a one-time device code in this installer.\n'
+                printf '\n'
+                printf 'Then you can finish the login from your phone or another computer at:\n'
+                printf '  github.com/login/device\n'
+                printf '\n'
+                printf 'If login succeeds, the GitHub auth config will be copied into the installed user account.\n'
+                printf 'If you do not want this, go back and skip the GitHub step.\n'
+                printf '\n'
+                pause_prompt
+                clear_screen
+                GH_ACCESSIBLE_PROMPTER=enabled \
+                GH_SPINNER_DISABLED=yes \
+                GH_BROWSER=/run/current-system/sw/bin/echo \
+                gh auth login --web --hostname github.com --git-protocol https || true
+                refresh_github_identity
+                if [[ "$github_identity" == "Skipped" ]]; then
+                    error_msg "GitHub device login did not complete. You can skip it or try again."
+                    pause_prompt
+                else
+                    success "$github_identity"
+                    pause_prompt
+                    set_step_next
+                    return 0
+                fi
+                ;;
+        esac
+    done
 }
 
 pick_desktop_environment() {
@@ -447,7 +956,7 @@ pick_desktop_environment() {
         return 0
     fi
     desktop_profile="${values[$menu_result]}"
-    sync_desktop_label
+    abora_sync_desktop_label "$desktop_profile"
     set_step_next
 }
 
@@ -660,12 +1169,14 @@ prompt_password() {
 confirm_install() {
     show_header "Ready to install" "Review your choices before the disk is wiped."
     printf '  Disk:      %s\n' "$disk"
-    printf '  Keyboard:  %s\n' "$keyboard_value"
     printf '  Desktop:   %s\n' "$desktop_label"
+    printf '  GitHub:    %s\n' "$github_identity"
+    printf '  Apps:      %s\n' "$starter_apps_label"
     printf '  Hostname:  %s\n' "$hostname_value"
     printf '  User:      %s\n' "$username_value"
-    printf '  Timezone:  %s\n' "$timezone_value"
+    printf '  Timezone:  %s (default)\n' "$timezone_value"
     printf '\n'
+    preflight_warnings_text
     printf 'The installer will wipe the selected disk and create:\n'
     printf '  - 1 MiB BIOS boot partition\n'
     printf '  - 512 MiB EFI system partition\n'
@@ -731,208 +1242,176 @@ mount_target() {
 }
 
 desktop_config_block() {
-    case "$desktop_profile" in
-        gnome)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-  };
-  services.displayManager.gdm.enable = true;
-  services.desktopManager.gnome.enable = true;
-  services.displayManager.autoLogin.enable = true;
-  services.displayManager.autoLogin.user = "${username_value}";
-  services.displayManager.defaultSession = "gnome";
-  services.gnome.gnome-keyring.enable = true;
-EOF
-            ;;
-        plasma)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-  };
-  services.displayManager = {
-    defaultSession = "plasma";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.displayManager.sddm.enable = true;
-  services.desktopManager.plasma6.enable = true;
-EOF
-            ;;
-        hyprland)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-  };
-  services.displayManager = {
-    defaultSession = "hyprland-uwsm";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.displayManager.sddm = {
-    enable = true;
-    wayland.enable = true;
-  };
-  programs.hyprland = {
-    enable = true;
-    withUWSM = true;
-    xwayland.enable = true;
-  };
-  xdg.portal.enable = true;
-  xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
-EOF
-            ;;
-        xfce)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    desktopManager.xfce.enable = true;
-  };
-  services.displayManager = {
-    defaultSession = "xfce";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-EOF
-            ;;
-        cinnamon)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    desktopManager.cinnamon.enable = true;
-  };
-  services.displayManager = {
-    defaultSession = "cinnamon";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-EOF
-            ;;
-        mate)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    desktopManager.mate.enable = true;
-  };
-  services.displayManager = {
-    defaultSession = "mate";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-EOF
-            ;;
-        budgie)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    desktopManager.budgie.enable = true;
-  };
-  services.displayManager = {
-    defaultSession = "budgie-desktop";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-EOF
-            ;;
-        lxqt)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    desktopManager.lxqt.enable = true;
-  };
-  services.displayManager = {
-    defaultSession = "lxqt";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.displayManager.sddm.enable = true;
-EOF
-            ;;
-        pantheon)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-  };
-  services.displayManager = {
-    defaultSession = "pantheon-wayland";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-  services.xserver.desktopManager.pantheon.enable = true;
-EOF
-            ;;
-        i3)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    windowManager.i3.enable = true;
-  };
-  services.displayManager = {
-    defaultSession = "none+i3";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-EOF
-            ;;
-        openbox)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    windowManager.openbox.enable = true;
-  };
-  services.displayManager = {
-    defaultSession = "none+openbox";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-EOF
-            ;;
-    esac
+    abora_desktop_config_block "$desktop_profile" "$xkb_layout_value" "$username_value"
 }
 
 desktop_package_block() {
-    case "$desktop_profile" in
-        hyprland)
-            cat <<EOF
-    kitty
-EOF
-            ;;
-    esac
+    abora_desktop_package_block "$desktop_profile"
 }
 
 write_branding_assets() {
-    mkdir -p /mnt/etc/nixos/abora/plymouth /mnt/etc/nixos/abora/bootloader
+    local live_background="/etc/abora/bootloader/background.png"
+    local live_limine_background="/etc/abora/bootloader/limine-background.png"
+    local live_theme="/etc/abora/bootloader/theme.txt"
+    local limine_source=""
+
+    mkdir -p /mnt/etc/nixos/abora/plymouth /mnt/etc/nixos/abora/bootloader /mnt/etc/nixos/abora/wallpapers /mnt/etc/nixos/abora/themes
     cp "$title_file" /mnt/etc/nixos/abora/title.txt
     cp /etc/abora/VERSION /mnt/etc/nixos/abora/VERSION
+    cp /etc/abora/app-catalog.sh /mnt/etc/nixos/abora/app-catalog.sh
+    cp /etc/abora/apps.sh /mnt/etc/nixos/abora/apps.sh
+    cp /etc/abora/support-report.sh /mnt/etc/nixos/abora/support-report.sh
+    cp /etc/abora/hardware-test.sh /mnt/etc/nixos/abora/hardware-test.sh
+    cp /etc/abora/default-wallpaper.png /mnt/etc/nixos/abora/default-wallpaper.png
     cp /etc/abora/fastfetch-logo.txt /mnt/etc/nixos/abora/fastfetch-logo.txt
     cp /etc/abora/fastfetch-config.jsonc /mnt/etc/nixos/abora/fastfetch-config.jsonc
+    cp /etc/abora/desktop-profiles.sh /mnt/etc/nixos/abora/desktop-profiles.sh
     cp /etc/abora/installed-base.nix /mnt/etc/nixos/abora/installed-base.nix
+    cp /etc/abora/session-setup.sh /mnt/etc/nixos/abora/session-setup.sh
+    cp /etc/abora/theme-sync.sh /mnt/etc/nixos/abora/theme-sync.sh
     cp /etc/abora/update.sh /mnt/etc/nixos/abora/update.sh
     cp /etc/abora/plymouth/abora.plymouth /mnt/etc/nixos/abora/plymouth/abora.plymouth
     cp /etc/abora/plymouth/abora.script /mnt/etc/nixos/abora/plymouth/abora.script
-    cp /etc/abora/bootloader/* /mnt/etc/nixos/abora/bootloader/
+    if [[ ! -f "$live_background" ]]; then
+        show_failure_screen \
+            "Missing boot assets" \
+            "The live image is missing the bootloader background needed for install." \
+            "$config_log"
+        return 1
+    fi
+    if [[ ! -f "$live_theme" ]]; then
+        show_failure_screen \
+            "Missing boot assets" \
+            "The live image is missing the GRUB theme file needed for install." \
+            "$config_log"
+        return 1
+    fi
+
+    limine_source="$live_background"
+    if [[ -f "$live_limine_background" ]]; then
+        limine_source="$live_limine_background"
+    fi
+
+    install -Dm0644 "$live_background" /mnt/etc/nixos/abora/bootloader/background.png
+    install -Dm0644 "$limine_source" /mnt/etc/nixos/abora/bootloader/limine-background.png
+    install -Dm0644 "$live_theme" /mnt/etc/nixos/abora/bootloader/theme.txt
+
+    if [[ ! -f /mnt/etc/nixos/abora/bootloader/background.png || ! -f /mnt/etc/nixos/abora/bootloader/limine-background.png || ! -f /mnt/etc/nixos/abora/bootloader/theme.txt ]]; then
+        show_failure_screen \
+            "Missing boot assets" \
+            "The installer could not write the bootloader assets onto the target system." \
+            "$config_log"
+        return 1
+    fi
+
+    cp /etc/abora/wallpapers/* /mnt/etc/nixos/abora/wallpapers/
+    cp /etc/abora/themes/* /mnt/etc/nixos/abora/themes/
+    mkdir -p /mnt/etc/nixos/abora
+    : > /mnt/etc/nixos/abora/apps.list
+    cat > /mnt/etc/nixos/abora/apps.nix <<'EOF'
+{ pkgs, ... }:
+{
+  environment.systemPackages = with pkgs; [
+  ];
+}
+EOF
+    write_starter_apps_list /mnt/etc/nixos/abora/apps.list
+    render_apps_module_file /mnt/etc/nixos/abora/apps.nix /mnt/etc/nixos/abora/apps.list
+
+    if [[ ! -s /mnt/etc/nixos/abora/apps.nix ]]; then
+        show_failure_screen \
+            "Missing app module" \
+            "The installer could not create the Abora app module on the target system." \
+            "$config_log"
+        return 1
+    fi
+}
+
+write_starter_apps_list() {
+    local target_file="$1"
+
+    : > "$target_file"
+
+    if [[ "${starter_apps_bundle,,}" == "none" ]]; then
+        return 0
+    fi
+
+    abora_catalog_bundle_ids "$starter_apps_bundle" > "$target_file"
+}
+
+render_apps_module_file() {
+    local target_file="$1"
+    local app_list_file="$2"
+    local app_id=""
+    local app_expr=""
+
+    {
+        printf '{ pkgs, ... }:\n'
+        printf '{\n'
+        printf '  environment.systemPackages = with pkgs; [\n'
+        while IFS= read -r app_id; do
+            [[ -n "$app_id" ]] || continue
+            app_expr="$(abora_catalog_expr "$app_id" 2>/dev/null || true)"
+            [[ -n "$app_expr" ]] || continue
+            printf '    %s\n' "$app_expr"
+        done < "$app_list_file"
+        printf '  ];\n'
+        printf '}\n'
+    } > "$target_file"
+}
+
+copy_github_auth_to_target() {
+    local root_hosts="/root/.config/gh/hosts.yml"
+    local target_dir="/mnt/home/${username_value}/.config/gh"
+    local uid="1000"
+    local gid="100"
+
+    [[ -f "$root_hosts" ]] || return 0
+    [[ "$github_identity" != "Skipped" ]] || return 0
+
+    info "Copying GitHub login into the installed system"
+    mkdir -p "$target_dir"
+    cp "$root_hosts" "$target_dir/hosts.yml"
+    chmod 600 "$target_dir/hosts.yml"
+
+    if command -v nixos-enter >/dev/null 2>&1; then
+        uid="$(nixos-enter --root /mnt -c "id -u ${username_value}" 2>/dev/null || printf '1000')"
+        gid="$(nixos-enter --root /mnt -c "id -g ${username_value}" 2>/dev/null || printf '100')"
+    fi
+
+    chown -R "$uid:$gid" "/mnt/home/${username_value}/.config"
+    success "GitHub auth copied for ${username_value}"
 }
 
 write_install_assets() {
     write_branding_assets
+}
+
+ensure_target_install_files() {
+    mkdir -p /mnt/etc/nixos/abora
+
+    if [[ ! -f /mnt/etc/nixos/abora/apps.list ]]; then
+        : > /mnt/etc/nixos/abora/apps.list
+    fi
+
+    if [[ ! -f /mnt/etc/nixos/abora/apps.nix ]]; then
+        cat > /mnt/etc/nixos/abora/apps.nix <<'EOF'
+{ pkgs, ... }:
+{
+  environment.systemPackages = with pkgs; [
+  ];
+}
+EOF
+    fi
+
+    if [[ ! -s /mnt/etc/nixos/abora/apps.nix ]]; then
+        render_apps_module_file /mnt/etc/nixos/abora/apps.nix /mnt/etc/nixos/abora/apps.list
+    fi
+
+    if [[ ! -s /mnt/etc/nixos/abora/apps.nix ]]; then
+        error_msg "Target app module is missing: /mnt/etc/nixos/abora/apps.nix"
+        return 1
+    fi
 }
 
 generate_config() {
@@ -955,25 +1434,30 @@ generate_config() {
     desktop_packages="$(desktop_package_block)"
 
     cat > /mnt/etc/nixos/configuration.nix <<EOF
-{ ... }:
+{ lib, ... }:
+let
+  appModule = ./abora/apps.nix;
+in
 {
   imports = [
     ./hardware-configuration.nix
     ./abora/installed-base.nix
     ./abora-local.nix
-  ];
+  ] ++ lib.optional (builtins.pathExists appModule) appModule;
 }
 EOF
 
     cat > /mnt/etc/nixos/abora-local.nix <<EOF
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 {
   system.nixos.variantName = "Abora ${version} ${desktop_label} Edition";
   system.nixos.variant_id = "${desktop_variant_id}";
 
-  boot.loader.grub = {
+  boot.loader.grub.enable = lib.mkForce false;
+  boot.loader.limine = {
     enable = true;
-    devices = [ "${disk}" ];
+    biosSupport = true;
+    biosDevice = "${disk}";
     efiSupport = true;
     efiInstallAsRemovable = true;
   };
@@ -1012,11 +1496,15 @@ EOF
   outputs = { nixpkgs, ... }: {
     nixosConfigurations.abora = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
-      modules = [
-        ./hardware-configuration.nix
-        ./abora/installed-base.nix
-        ./abora-local.nix
-      ];
+      modules =
+        let
+          appModule = ./abora/apps.nix;
+        in
+        [
+          ./hardware-configuration.nix
+          ./abora/installed-base.nix
+          ./abora-local.nix
+        ] ++ nixpkgs.lib.optional (builtins.pathExists appModule) appModule;
     };
   };
 }
@@ -1028,9 +1516,15 @@ install_system() {
     local nixpkgs_path=""
     local nix_path=""
     local status=0
+    local install_pid=""
+    local start_time=0
+    local elapsed=0
+    local progress=45
+    local status_text=""
 
     info "Installing Abora OS"
     info "This can take a few minutes."
+    ensure_target_install_files || return 1
     nixpkgs_path="$(resolve_nixpkgs_path)" || {
         error_msg "Could not locate nixpkgs for nixos-install."
         return 1
@@ -1040,18 +1534,34 @@ install_system() {
     printf '[*] Running nixos-install\n' > "$install_log"
     printf '[*] NIX_PATH=%s\n' "$nix_path" >> "$install_log"
 
-    if NIX_PATH="$nix_path" nixos-install \
+    NIX_PATH="$nix_path" nixos-install \
         --root /mnt \
         --no-root-passwd \
         -I "nixpkgs=${nixpkgs_path}" \
         -I "nixos-config=/mnt/etc/nixos/configuration.nix" \
-        >>"$install_log" 2>&1
-    then
+        >>"$install_log" 2>&1 &
+    install_pid="$!"
+    start_time="$(date +%s)"
+
+    while kill -0 "$install_pid" 2>/dev/null; do
+        elapsed=$(( $(date +%s) - start_time ))
+        progress="$(install_progress_percent "$install_log" "$elapsed")"
+        status_text="$(install_status_summary "$install_log")"
+        show_install_progress_screen "$progress" "$status_text" "$elapsed" "$install_log"
+        sleep 1
+    done
+
+    if wait "$install_pid"; then
+        elapsed=$(( $(date +%s) - start_time ))
+        show_install_progress_screen 100 "Installation complete" "$elapsed" "$install_log"
         success "Installation complete"
         return 0
     else
         status="$?"
         printf '\n[x] nixos-install exited with status %s\n' "$status" >> "$install_log"
+        if [[ -x /etc/abora/support-report.sh ]]; then
+            /etc/abora/support-report.sh >/tmp/abora-last-support-report.txt 2>/dev/null || true
+        fi
         show_failure_screen \
             "Installation failed" \
             "Abora could not finish writing the system." \
@@ -1091,6 +1601,8 @@ main() {
     local step=0
 
     require_root
+    sync_starter_apps_label
+    refresh_github_identity
     if ! command -v mkpasswd >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then
         error_msg "Password hashing is unavailable. Install mkpasswd or openssl."
         exit 1
@@ -1101,27 +1613,21 @@ main() {
 
         case "$step" in
             0)
-                pick_keyboard_layout
+                show_installer_welcome
                 ;;
             1)
-                pick_desktop_environment
+                prompt_names
                 ;;
             2)
-                prompt_disk || return 1
-                ;;
-            3)
-                prompt_hostname
-                ;;
-            4)
-                prompt_username
-                ;;
-            5)
-                prompt_timezone
-                ;;
-            6)
                 prompt_password
                 ;;
-            7)
+            3)
+                prompt_github_login
+                ;;
+            4)
+                show_extra_packages_setup
+                ;;
+            5)
                 confirm_install
                 ;;
         esac
@@ -1139,23 +1645,27 @@ main() {
             stay)
                 ;;
             install)
-                show_header "Installing Abora OS" "Applying partitions and writing the system."
+                show_install_progress_screen 5 "Preparing the target disk" 0
                 partition_disk
+                show_install_progress_screen 18 "Mounting the target filesystem" 0
                 mount_target
+                show_install_progress_screen 32 "Generating the Abora system configuration" 0 "$config_log"
                 generate_config || {
                     pause_prompt
                     return 1
                 }
+                show_install_progress_screen 40 "Starting nixos-install" 0 "$install_log"
                 install_system || {
                     pause_prompt
                     return 1
                 }
+                copy_github_auth_to_target
                 cleanup_target
                 finish_screen
                 return 0
                 ;;
             *)
-                if [[ "$step" -lt 7 ]]; then
+                if [[ "$step" -lt 5 ]]; then
                     step=$((step + 1))
                 fi
                 ;;

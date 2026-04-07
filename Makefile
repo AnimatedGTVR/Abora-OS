@@ -1,4 +1,4 @@
-.PHONY: help iso iso-local qemu qmec qemc check metadata release tinypm-package tinypm-image
+.PHONY: help iso iso-local qemu qmec qemc check check-desktops metadata release tinypm-package tinypm-image
 
 help:
 	@echo "Usage: make <target>"
@@ -12,6 +12,7 @@ help:
 	@echo "  qmec      - Alias for qemu"
 	@echo "  qemc      - Alias for qemu"
 	@echo "  check     - Run repository script checks"
+	@echo "  check-desktops - Evaluate every supported desktop profile"
 
 iso:
 	./scripts/build-iso.sh
@@ -39,3 +40,6 @@ qemc: qemu
 
 check:
 	./scripts/check-scripts.sh
+
+check-desktops:
+	./scripts/check-desktops.sh
