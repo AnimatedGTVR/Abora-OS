@@ -44,6 +44,8 @@ version="${ABORA_VERSION:-v2.0.0-dev}"
 
 BLUE='\033[38;5;33m'
 MAGENTA='\033[38;5;207m'
+CYAN='\033[38;5;51m'
+YELLOW='\033[38;5;220m'
 WHITE='\033[1;37m'
 DIM='\033[38;5;245m'
 GREEN='\033[38;5;84m'
@@ -171,6 +173,16 @@ repeat_char() {
     done
 
     printf '%s' "$output"
+}
+
+trunc() {
+    local str="$1"
+    local max="$2"
+    if [[ "${#str}" -gt "$max" ]]; then
+        printf '%s...' "${str:0:$((max - 3))}"
+    else
+        printf '%s' "$str"
+    fi
 }
 
 draw_progress_bar() {
@@ -318,12 +330,14 @@ menu_choose() {
     local selected=0
     local key=""
     local i=""
-    local max_visible=8
+    local display_num=""
+    local num_idx=0
+    local max_visible=10
     local start=0
     local end=0
 
     while true; do
-        show_header "$prompt" "Use the arrow keys, then press Enter."
+        show_header "$prompt" "Arrow keys or number to jump, Enter to confirm, Esc to go back."
 
         if [[ "${#options[@]}" -le "$max_visible" ]]; then
             start=0
@@ -346,10 +360,17 @@ menu_choose() {
         fi
 
         for ((i = start; i <= end; i++)); do
-            if [[ "$i" -eq "$selected" ]]; then
-                printf '%b› %s%b\n' "$MAGENTA" "${options[$i]}" "$NC"
+            if [[ $((i + 1)) -le 9 ]]; then
+                display_num="$((i + 1))"
+            elif [[ $((i + 1)) -eq 10 ]]; then
+                display_num="0"
             else
-                printf '  %s\n' "${options[$i]}"
+                display_num=" "
+            fi
+            if [[ "$i" -eq "$selected" ]]; then
+                printf '%b›%b [%s] %b%s%b\n' "$BLUE" "$NC" "$display_num" "$MAGENTA" "${options[$i]}" "$NC"
+            else
+                printf '%b  [%s]%b %s\n' "$DIM" "$display_num" "$NC" "${options[$i]}"
             fi
         done
 
@@ -358,7 +379,7 @@ menu_choose() {
         fi
 
         printf '\n'
-        printf '%b<↑↓> navigate • enter submit • esc back%b\n' "$DIM" "$NC"
+        printf '%b<↑↓> navigate  <1-9> jump  <enter> confirm  <esc> back%b\n' "$DIM" "$NC"
 
         key="$(read_key)"
         case "$key" in
@@ -378,6 +399,20 @@ menu_choose() {
                     selected=$((selected + 1))
                 else
                     selected=0
+                fi
+                ;;
+            [1-9])
+                num_idx=$((key - 1))
+                if [[ "$num_idx" -lt "${#options[@]}" ]]; then
+                    menu_result="$num_idx"
+                    return 0
+                fi
+                ;;
+            "0")
+                num_idx=9
+                if [[ "$num_idx" -lt "${#options[@]}" ]]; then
+                    menu_result="$num_idx"
+                    return 0
                 fi
                 ;;
             "")
@@ -473,6 +508,25 @@ refresh_github_identity() {
         fi
     else
         github_identity="Skipped"
+    fi
+}
+
+auto_detect_timezone() {
+    local detected=""
+    detected="$(timedatectl show --property=Timezone --value 2>/dev/null || true)"
+    if [[ -n "$detected" ]] && timezone_exists "$detected" 2>/dev/null; then
+        timezone_value="$detected"
+    fi
+}
+
+auto_detect_keyboard() {
+    local detected=""
+    detected="$(localectl status 2>/dev/null | awk '/VC Keymap:/ { print $3 }' || true)"
+    # Only accept values that look like a real keymap name (letters, digits, hyphens).
+    # This rejects localectl outputs like "(unset)", "n/a", or empty strings.
+    if [[ "$detected" =~ ^[a-z][a-z0-9_-]*$ ]]; then
+        keyboard_value="$detected"
+        sync_xkb_layout
     fi
 }
 
@@ -925,28 +979,38 @@ prompt_github_login() {
 
 pick_desktop_environment() {
     local labels=(
-        "GNOME - polished and simple"
-        "KDE Plasma - flexible and full featured"
-        "Hyprland - tiling Wayland desktop"
-        "XFCE - light and familiar"
-        "Cinnamon - traditional with modern polish"
-        "MATE - classic desktop feel"
-        "Budgie - clean and focused"
-        "LXQt - extra lightweight desktop"
-        "i3 - keyboard-driven tiling session"
-        "Openbox - very minimal floating session"
+        "GNOME          - polished, simple, modern"
+        "KDE Plasma     - flexible and feature-rich"
+        "Hyprland       - Wayland tiling compositor"
+        "Sway           - lightweight Wayland tiling"
+        "XFCE           - fast and familiar"
+        "Cinnamon       - traditional with modern polish"
+        "MATE           - classic GNOME 2 desktop"
+        "Budgie         - clean and focused"
+        "LXQt           - lightweight Qt desktop"
+        "Pantheon       - elementary OS look and feel"
+        "LXDE           - minimal traditional desktop"
+        "Enlightenment  - unique EFL-based desktop"
+        "i3             - keyboard-driven tiling"
+        "AwesomeWM      - highly configurable tiling"
+        "Openbox        - very minimal floating WM"
         "Back"
     )
     local values=(
         "gnome"
         "plasma"
         "hyprland"
+        "sway"
         "xfce"
         "cinnamon"
         "mate"
         "budgie"
         "lxqt"
+        "pantheon"
+        "lxde"
+        "enlightenment"
         "i3"
+        "awesome"
         "openbox"
     )
 
@@ -1167,20 +1231,38 @@ prompt_password() {
 }
 
 confirm_install() {
+    local inner=42
+
     show_header "Ready to install" "Review your choices before the disk is wiped."
-    printf '  Disk:      %s\n' "$disk"
-    printf '  Desktop:   %s\n' "$desktop_label"
-    printf '  GitHub:    %s\n' "$github_identity"
-    printf '  Apps:      %s\n' "$starter_apps_label"
-    printf '  Hostname:  %s\n' "$hostname_value"
-    printf '  User:      %s\n' "$username_value"
-    printf '  Timezone:  %s (default)\n' "$timezone_value"
+
+    printf '%b┌' "$BLUE"
+    repeat_char '─' $((inner + 2))
+    printf '┐%b\n' "$NC"
+
+    printf '%b│%b  %-*s %b│%b\n' "$BLUE" "$WHITE" "$inner" "Install Summary" "$BLUE" "$NC"
+
+    printf '%b├' "$BLUE"
+    repeat_char '─' $((inner + 2))
+    printf '┤%b\n' "$NC"
+
+    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Disk:"      "$CYAN" $((inner - 14)) "$(trunc "$disk" $((inner - 14)))"      "$NC" "$BLUE" "$NC"
+    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Desktop:"   "$CYAN" $((inner - 14)) "$(trunc "$desktop_label" $((inner - 14)))"   "$NC" "$BLUE" "$NC"
+    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Apps:"      "$CYAN" $((inner - 14)) "$(trunc "$starter_apps_label" $((inner - 14)))"      "$NC" "$BLUE" "$NC"
+    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "GitHub:"    "$CYAN" $((inner - 14)) "$(trunc "$github_identity" $((inner - 14)))"    "$NC" "$BLUE" "$NC"
+    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Hostname:"  "$CYAN" $((inner - 14)) "$(trunc "$hostname_value" $((inner - 14)))"  "$NC" "$BLUE" "$NC"
+    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "User:"      "$CYAN" $((inner - 14)) "$(trunc "$username_value" $((inner - 14)))"      "$NC" "$BLUE" "$NC"
+    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Timezone:"  "$CYAN" $((inner - 14)) "$(trunc "$timezone_value" $((inner - 14)))"  "$NC" "$BLUE" "$NC"
+
+    printf '%b└' "$BLUE"
+    repeat_char '─' $((inner + 2))
+    printf '┘%b\n' "$NC"
+
     printf '\n'
     preflight_warnings_text
-    printf 'The installer will wipe the selected disk and create:\n'
-    printf '  - 1 MiB BIOS boot partition\n'
-    printf '  - 512 MiB EFI system partition\n'
-    printf '  - ext4 root partition using the rest of the disk\n'
+    printf '%bDisk layout that will be created:%b\n' "$WHITE" "$NC"
+    printf '  1 MiB BIOS boot  +  512 MiB EFI  +  ext4 root (remaining space)\n'
+    printf '\n'
+    printf '%bThe selected disk will be completely erased.%b\n' "$RED" "$NC"
     printf '\n'
 
     menu_choose "Continue with installation?" "Install now" "Back" "Cancel"
@@ -1572,13 +1654,20 @@ install_system() {
 
 finish_screen() {
     show_header "Install complete" "Your machine is ready for first boot."
-    success "Abora OS ${version} is installed."
+
+    printf '%b[ok] Abora OS %s is installed successfully.%b\n' "$GREEN" "$version" "$NC"
     printf '\n'
-    printf 'Next:\n'
-    printf '  1. Remove the ISO from the VM or USB boot order.\n'
-    printf '  2. Reboot the machine.\n'
+    draw_rule
+    printf '%b  Next steps%b\n' "$WHITE" "$NC"
+    draw_rule
+    printf '  1. Remove the installation media (USB drive or ISO).\n'
+    printf '  2. Reboot — your drive will be selected automatically.\n'
+    printf '  3. Log in as %b%s%b on the %b%s%b desktop.\n' \
+        "$CYAN" "$username_value" "$NC" "$CYAN" "$desktop_label" "$NC"
+    draw_rule
     printf '\n'
-    menu_choose "What would you like to do now?" "Reboot into Abora OS" "Power off"
+
+    menu_choose "What would you like to do?" "Reboot into Abora OS" "Power off"
 
     case "$menu_result" in
         0)
@@ -1603,6 +1692,8 @@ main() {
     require_root
     sync_starter_apps_label
     refresh_github_identity
+    auto_detect_timezone
+    auto_detect_keyboard
     if ! command -v mkpasswd >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then
         error_msg "Password hashing is unavailable. Install mkpasswd or openssl."
         exit 1

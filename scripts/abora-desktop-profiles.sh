@@ -13,12 +13,17 @@ abora_supported_desktop_profiles() {
 gnome
 plasma
 hyprland
+sway
 xfce
 cinnamon
 mate
 budgie
 lxqt
+pantheon
+lxde
+enlightenment
 i3
+awesome
 openbox
 EOF
 }
@@ -56,6 +61,22 @@ abora_sync_desktop_label() {
         lxqt)
             desktop_label="LXQt"
             desktop_variant_id="lxqt"
+            ;;
+        sway)
+            desktop_label="Sway"
+            desktop_variant_id="sway"
+            ;;
+        lxde)
+            desktop_label="LXDE"
+            desktop_variant_id="lxde"
+            ;;
+        enlightenment)
+            desktop_label="Enlightenment"
+            desktop_variant_id="enlightenment"
+            ;;
+        awesome)
+            desktop_label="AwesomeWM"
+            desktop_variant_id="awesome"
             ;;
         pantheon)
             desktop_label="Pantheon"
@@ -95,6 +116,14 @@ abora_detect_desktop_profile() {
         printf 'lxqt\n'
     elif grep -q 'desktopManager\.pantheon\.enable = true;' "$file"; then
         printf 'pantheon\n'
+    elif grep -q 'programs\.sway\.enable = true;' "$file"; then
+        printf 'sway\n'
+    elif grep -q 'desktopManager\.lxde\.enable = true;' "$file"; then
+        printf 'lxde\n'
+    elif grep -q 'desktopManager\.enlightenment\.enable = true;' "$file"; then
+        printf 'enlightenment\n'
+    elif grep -q 'windowManager\.awesome\.enable = true;' "$file"; then
+        printf 'awesome\n'
     elif grep -q 'windowManager\.i3\.enable = true;' "$file"; then
         printf 'i3\n'
     elif grep -q 'windowManager\.openbox\.enable = true;' "$file"; then
@@ -267,6 +296,75 @@ EOF
   services.xserver.desktopManager.pantheon.enable = true;
 EOF
             ;;
+        sway)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+  };
+  programs.sway = {
+    enable = true;
+    wrapperFeatures.gtk = true;
+  };
+  services.displayManager = {
+    defaultSession = "sway";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.displayManager.sddm = {
+    enable = true;
+    wayland.enable = true;
+  };
+  xdg.portal.enable = true;
+  xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+EOF
+            ;;
+        lxde)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    desktopManager.lxde.enable = true;
+  };
+  services.displayManager = {
+    defaultSession = "lxde";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
+        enlightenment)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    desktopManager.enlightenment.enable = true;
+  };
+  services.displayManager = {
+    defaultSession = "enlightenment";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
+        awesome)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    windowManager.awesome.enable = true;
+  };
+  services.xserver.desktopManager.runXdgAutostartIfNone = true;
+  services.displayManager = {
+    defaultSession = "none+awesome";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
         i3)
             cat <<EOF
   services.xserver = {
@@ -308,6 +406,13 @@ abora_desktop_package_block() {
             cat <<'EOF'
     kitty
     swaybg
+EOF
+            ;;
+        sway)
+            cat <<'EOF'
+    foot
+    swayidle
+    swaylock
 EOF
             ;;
     esac
