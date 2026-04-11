@@ -1,12 +1,9 @@
 <p align="center">
   <img src="assets/Github/ReadME%20background.png" alt="Abora OS banner" width="94%">
-<<<<<<< HEAD
-=======
 </p>
 
 <p align="center">
   <img src="assets/Github/Abora-Logo.png" alt="Abora OS logo" width="110">
->>>>>>> 1f04b8f (Updated everything for preperation to v2! (Version Right-Now V2-dev!))
 </p>
 
 <h1 align="center">Abora OS</h1>
@@ -32,125 +29,125 @@
 
 <p align="center">
   <a href="https://www.aboraos.org/">Website</a>
-  •
+  &nbsp;•&nbsp;
   <a href="docs/wiki/Home.md">Wiki</a>
-  •
+  &nbsp;•&nbsp;
   <a href="RELEASE_NOTES.md">Release Notes</a>
-  •
+  &nbsp;•&nbsp;
   <a href="SECURITY.md">Security</a>
-  •
+  &nbsp;•&nbsp;
   <a href="docs/roadmap.md">Roadmap</a>
-  •
+  &nbsp;•&nbsp;
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
 <p align="center">
-<<<<<<< HEAD
-  Current public release: <code>v1.0.1</code>
-=======
-  Current development snapshot: <code>v2.0.0-dev</code>
->>>>>>> 1f04b8f (Updated everything for preperation to v2! (Version Right-Now V2-dev!))
+  Development snapshot: <code>v2.0.0-dev</code>
 </p>
 
-Abora OS is a distro project built for people who like what NixOS can do, but want the first experience to feel more welcoming.
+---
 
-It keeps the NixOS base, then gives it a cleaner live image, a simpler path to installation, and a stronger identity across the whole boot-to-desktop experience.
+Abora OS is a distro built for people who like what NixOS can do, but want the first experience to feel more welcoming.
 
-## Important Documentation
+It keeps the full NixOS base, then wraps it in a cleaner live image, a friendlier installer, and a stronger identity from boot to desktop.
 
-<<<<<<< HEAD
-- [Release notes](RELEASE_NOTES.md)
-- [Contributing guide](CONTRIBUTING.md)
-- [Project layout](docs/project-layout.md)
-- [Install checklist](docs/install-checklist.md)
-=======
-- [Wiki home](docs/wiki/Home.md)
-- [Release notes](RELEASE_NOTES.md)
-- [Security policy](SECURITY.md)
-- [Contributing guide](CONTRIBUTING.md)
-- [Project layout](docs/project-layout.md)
-- [Install checklist](docs/install-checklist.md)
-- [Hardware testing](docs/hardware-testing.md)
->>>>>>> 1f04b8f (Updated everything for preperation to v2! (Version Right-Now V2-dev!))
-- [Release checklist](docs/release-checklist.md)
-- [Roadmap](docs/roadmap.md)
+---
 
 ## What Is Abora?
 
 Abora is an attempt to make NixOS feel less distant.
 
-Instead of dropping people straight into a system that feels like it was only made for people who already know the rules, Abora tries to smooth out the first steps. The goal is not to hide NixOS. The goal is to make it easier to approach, easier to install, and easier to live with.
-
-## Why Abora?
-
-### A Softer First Step
-
-Abora is built around the idea that an operating system should invite people in. The live image, installer flow, and update path are meant to feel understandable instead of hostile.
-
-### NixOS, Without the Cold Start
-
-Under the hood, Abora still rides on NixOS. You still get reproducible builds, flake-based workflows, and a system that can be rebuilt cleanly. Abora just tries to package that power in a way that feels more like a real distro and less like homework.
-
-### A Real Identity
-
-Abora is not trying to be a blank shell. It has its own bootloader styling, wallpapers, fastfetch setup, and project voice so it feels like a complete operating system rather than a thin wrapper.
-
-### Built to Keep Growing
-
-<<<<<<< HEAD
-Abora `v1.0.1` is the current public release, but the point is bigger than one ISO. The project is meant to keep evolving into a cleaner, more welcoming NixOS experience over time.
-=======
-Abora is moving into the `v2` era, where the goal is a fuller desktop identity, simpler recovery, and a cleaner day-to-day user experience.
->>>>>>> 1f04b8f (Updated everything for preperation to v2! (Version Right-Now V2-dev!))
+Instead of dropping people into a system that feels like it was only built for people who already know the rules, Abora tries to smooth out the first steps. The goal is not to hide NixOS — the goal is to make it easier to approach, easier to install, and easier to live with.
 
 ## What You Get
 
-- a terminal-first live boot and installer
-- a built-in installer welcome flow with pre-install setup before disk changes begin
-- a curated app install flow with essentials, fan favorites, and developer picks
-- a curated wallpaper pack that seeds itself across the supported desktop sessions
-- dark-first desktop defaults across the supported session matrix
-- GNOME wallpaper/theme matching that updates accent/style automatically for Abora wallpapers
-- Limine as the new installed-system bootloader path for v2 work
-- reproducible ISO builds with Nix flakes
-- a local `sudo nixos update` flow for installed systems
-- optional GitHub CLI support for repo, dotfiles, and support workflows
-- Abora branding across the boot experience
+- Terminal-first live boot and installer with a full welcome flow
+- 15 desktop environments to choose from at install time
+- Curated starter app bundles: Fan Favorites, Essentials, Social, Creator, Developer
+- Curated wallpaper pack seeded across all supported desktop sessions
+- Dark-first desktop defaults across the full session matrix
+- GNOME accent and theme auto-matching for Abora wallpapers
+- Limine as the installed-system bootloader with Abora branding
+- Reproducible ISO builds via Nix flakes
+- `sudo nixos update` / `rollback` flow on installed systems
+- Optional GitHub CLI integration for repos, dotfiles, and support workflows
+- Abora branding across boot, desktop, and fastfetch
 
-## Installer Setup
+---
 
-The live image now keeps the simple path inside the installer itself instead of splitting it across separate helper apps.
+## Desktop Environments
 
-- the installer opens with a welcome step before anything touches the disk
-- a pre-install setup screen lets you choose keyboard, desktop, and starter app bundle up front
-- the starter app bundle is written into the installed system during setup
-- the installer still keeps a live shell nearby when you want the advanced path
+Abora v2 ships with **15 desktop environments** selectable at install time:
+
+| Desktop | Type | Display Manager |
+|---|---|---|
+| GNOME | Full DE | GDM |
+| KDE Plasma | Full DE | SDDM |
+| Hyprland | Wayland compositor | SDDM (Wayland) |
+| Sway | Wayland compositor | SDDM (Wayland) |
+| XFCE | Full DE | LightDM |
+| Cinnamon | Full DE | LightDM |
+| MATE | Full DE | LightDM |
+| Budgie | Full DE | LightDM |
+| LXQt | Lightweight DE | SDDM |
+| Pantheon | Full DE | LightDM |
+| LXDE | Lightweight DE | LightDM |
+| Enlightenment | Full DE | LightDM |
+| i3 | Tiling WM | LightDM |
+| AwesomeWM | Tiling WM | LightDM |
+| Openbox | Floating WM | LightDM |
+
+---
+
+## Installer
+
+The installer is a terminal-first, keyboard-driven setup flow that runs directly from the live image.
+
+### What the installer does
+
+- Opens with a welcome menu before anything touches the disk
+- Auto-detects timezone and keyboard layout from the live environment
+- Lets you pick hostname, username, password, and desktop environment
+- Offers a starter app bundle selection (or none at all)
+- Optional GitHub CLI login step for post-install workflows
+- Shows a bordered install summary before wiping the disk
+- Displays live progress during `nixos-install`
+- Dumps a full support report on failure
+
+### Keyboard shortcuts
+
+Menu navigation supports arrow keys **and number keys** — press `1`–`9` to jump to any item instantly.
+
+### Disk layout
+
+Every install creates a GPT with:
+- 1 MiB BIOS boot partition
+- 512 MiB EFI system partition
+- ext4 root partition using the rest of the disk
+
+---
 
 ## Quick Start
 
 Build the ISO, then boot it in QEMU:
 
 ```sh
-cd /home/animated/abora-os
 make iso
 make qemc
 ```
 
+---
+
 ## Updating an Installed System
 
-On an installed Abora system, use:
+On an installed Abora system:
 
 ```sh
-sudo nixos update
+sudo nixos update    # pull latest and rebuild
+sudo nixos rollback  # return to the previous generation
 ```
 
-If you need to return to the previous system generation:
-
-```sh
-sudo nixos rollback
-```
-
-If you want the shorter aliases, these work too:
+Shorter aliases also work:
 
 ```sh
 update
@@ -158,81 +155,72 @@ upgrade
 rollback
 ```
 
-Those commands:
+These commands sync the latest Abora project files into `/etc/nixos/abora/`, update the local flake, and rebuild the system.
 
-- sync the latest Abora project files into `/etc/nixos/abora/`
-- update the local flake and rebuild the system
-- migrate older installer-generated Abora installs into the current layout
-- or roll back to the previous generation when you use `rollback`
+---
 
 ## Release Flow
 
-Build the full release bundle locally:
+Build the full release bundle:
 
 ```sh
-cd /home/animated/abora-os
 make release
 ```
 
-That writes the ISO, TinyPM V3 package, checksums, release manifest, and GitHub-ready release notes into `out/`.
+That writes the ISO, TinyPM package, checksums, release manifest, and release notes into `out/`.
 
-If you only want to refresh release metadata:
-
-```sh
-make metadata
-```
-
-If you want the TinyPM V3 package by itself:
+Other targets:
 
 ```sh
-make tinypm-package
+make metadata        # refresh release metadata only
+make tinypm-package  # TinyPM package by itself
+make tinypm-image    # TinyPM container image locally
 ```
 
-If you want the TinyPM V3 container package locally:
+To publish a release:
 
 ```sh
-make tinypm-image
+git tag v2.0.0
+git push origin v2.0.0
 ```
 
-The GitHub Packages workflow publishes that image to:
+---
 
-```text
-ghcr.io/<your-github-owner>/abora-tinypm
-```
+## Development
 
-When it is time to publish a release on GitHub:
-
-```sh
-git tag v2.0.0-dev
-git push origin v2.0.0-dev
-```
-
-## Live Image Notes
-
-- the installer starts from the terminal-first boot flow
-- the boot menu now points straight into the installer instead of separate helper apps
-- the installer includes its own welcome screen and pre-install setup hub
-- `abora-support-report` creates a hardware and log archive for testing and bug reports
-- `abora-hardware-test --with-report` gives you a hardware-readiness pass before bare-metal testing
-- TinyPM V3 is still a separate Abora tool, not part of the `v2` boot or installer flow
-
-Run script checks with:
+Run script checks:
 
 ```sh
 ./scripts/check-scripts.sh
 ```
 
-Run the supported desktop matrix with:
+Validate all desktop environment configs against nixpkgs:
 
 ```sh
 ./scripts/check-desktops.sh
 ```
 
-Rebuild in the VM workspace with:
+Rebuild in the VM workspace:
 
 ```sh
 ./scripts/rebuild-vm.sh
 ```
+
+---
+
+## Documentation
+
+- [Wiki home](docs/wiki/Home.md)
+- [Installation guide](docs/wiki/Installation.md)
+- [Updating Abora](docs/wiki/Updating-Abora.md)
+- [Building Abora](docs/wiki/Building-Abora.md)
+- [Release notes](RELEASE_NOTES.md)
+- [Security policy](SECURITY.md)
+- [Contributing guide](CONTRIBUTING.md)
+- [Project layout](docs/project-layout.md)
+- [Roadmap](docs/roadmap.md)
+
+---
 
 ## License
 
