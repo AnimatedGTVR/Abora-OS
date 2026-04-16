@@ -212,7 +212,7 @@ in
   i18n.defaultLocale = lib.mkDefault "en_US.UTF-8";
   security.polkit.enable = lib.mkDefault true;
   services.udisks2.enable = lib.mkDefault true;
-  services.openssh.enable = lib.mkDefault true;
+  services.openssh.enable = lib.mkDefault false;
   security.rtkit.enable = lib.mkDefault true;
   services.pipewire = {
     enable = lib.mkDefault true;
@@ -221,10 +221,31 @@ in
     pulse.enable = lib.mkDefault true;
   };
 
-  services.qemuGuest.enable = true;
-  virtualisation.vmware.guest.enable = pkgs.stdenv.hostPlatform.isx86;
+  services.qemuGuest.enable = lib.mkDefault true;
+  services.spice-vdagentd.enable = lib.mkDefault true;
+  virtualisation.vmware.guest.enable = lib.mkDefault pkgs.stdenv.hostPlatform.isx86;
+  virtualisation.virtualbox.guest.enable = lib.mkDefault pkgs.stdenv.hostPlatform.isx86;
   virtualisation.hypervGuest.enable =
-    pkgs.stdenv.hostPlatform.isx86 || pkgs.stdenv.hostPlatform.isAarch64;
+    lib.mkDefault (pkgs.stdenv.hostPlatform.isx86 || pkgs.stdenv.hostPlatform.isAarch64);
+
+  fonts.packages = with pkgs; [
+    noto-fonts
+    noto-fonts-emoji
+  ];
+  fonts.fontconfig = {
+    enable = lib.mkDefault true;
+    defaultFonts = {
+      sansSerif = lib.mkDefault [ "Noto Sans" ];
+      serif     = lib.mkDefault [ "Noto Serif" ];
+      monospace = lib.mkDefault [ "Noto Sans Mono" ];
+      emoji     = lib.mkDefault [ "Noto Color Emoji" ];
+    };
+  };
+
+  environment.variables = {
+    XCURSOR_THEME = lib.mkDefault "Adwaita";
+    XCURSOR_SIZE  = lib.mkDefault "24";
+  };
 
   environment.systemPackages = with pkgs; [
     aboraApps
@@ -252,6 +273,7 @@ in
     rollbackCommand
     usbutils
     wget
+    papirus-icon-theme
     libsForQt5.qt5ct
     qt6Packages.qt6ct
     xdg-utils

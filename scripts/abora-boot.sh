@@ -88,7 +88,7 @@ menu_choose() {
         done
 
         printf '\n'
-        printf '%b<↑↓> navigate • enter submit%b\n' "$DIM" "$NC"
+        printf '%b<↑↓> navigate  <1-%d> jump  <enter> confirm%b\n' "$DIM" "${#options[@]}" "$NC"
 
         key="$(read_key)"
         case "$key" in
@@ -104,6 +104,13 @@ menu_choose() {
                     selected=$((selected + 1))
                 else
                     selected=0
+                fi
+                ;;
+            [1-9])
+                local num_idx=$((key - 1))
+                if [[ "$num_idx" -lt "${#options[@]}" ]]; then
+                    menu_result="$num_idx"
+                    return 0
                 fi
                 ;;
             "")

@@ -3,34 +3,27 @@ fun center_x(image) {
 }
 
 fun refresh_callback() {
-    cx = Window.GetX() + Window.GetWidth() / 2;
-    top = Window.GetY() + Window.GetHeight() * 0.20;
+    cx  = Window.GetX() + Window.GetWidth() / 2;
+    top = Window.GetY() + Window.GetHeight() * 0.34;
 
-    title_abora_sprite.SetX(cx - title_abora_img.GetWidth() - 10);
-    title_abora_sprite.SetY(top);
+    title_sprite.SetX(cx - title_img.GetWidth() / 2);
+    title_sprite.SetY(top);
 
-    title_os_sprite.SetX(cx + 10);
-    title_os_sprite.SetY(top);
+    tagline_sprite.SetX(cx - tagline_img.GetWidth() / 2);
+    tagline_sprite.SetY(top + title_img.GetHeight() + 6);
 
-    subtitle_sprite.SetX(center_x(subtitle_img));
-    subtitle_sprite.SetY(top + title_abora_img.GetHeight() + 12);
+    divider_sprite.SetX(cx - divider_img.GetWidth() / 2);
+    divider_sprite.SetY(top + title_img.GetHeight() + tagline_img.GetHeight() + 18);
 
-    line_sprite.SetX(center_x(line_img));
-    line_sprite.SetY(top + title_abora_img.GetHeight() + subtitle_img.GetHeight() + 18);
-
-    message_sprite.SetX(center_x(message_img));
-    message_sprite.SetY(top + title_abora_img.GetHeight() + subtitle_img.GetHeight() + 38);
-
-    status_sprite.SetX(center_x(status_img));
-    status_sprite.SetY(top + title_abora_img.GetHeight() + subtitle_img.GetHeight() + 70);
+    status_sprite.SetX(cx - status_img.GetWidth() / 2);
+    status_sprite.SetY(top + title_img.GetHeight() + tagline_img.GetHeight() + 44);
 }
 
 fun set_status(text) {
     if (text == "") {
-        text = "Loading Abora OS...";
+        text = "Starting services...";
     }
-
-    status_img = Image.Text(text, 0.74, 0.80, 0.90, "Sans 12", "center");
+    status_img = Image.Text(text, 0.55, 0.72, 0.92, "Sans 12", "center");
     status_sprite.SetImage(status_img);
 }
 
@@ -46,33 +39,18 @@ fun hide_message(text) {
     set_status("Starting services...");
 }
 
-Window.SetBackgroundTopColor(0.01, 0.03, 0.10);
-Window.SetBackgroundBottomColor(0.01, 0.08, 0.16);
+Window.SetBackgroundTopColor(0.01, 0.04, 0.10);
+Window.SetBackgroundBottomColor(0.00, 0.02, 0.07);
 
-title_abora_img = Image.Text("ABORA", 0.22, 0.72, 1.00, "Sans Bold 36", "center");
-title_os_img = Image.Text("OS", 0.57, 0.97, 1.00, "Sans Bold 36", "center");
-subtitle_img = Image.Text("Loading your desktop...", 0.73, 0.87, 0.98, "Sans 14", "center");
-line_img = Image.Text("────────────────────────────", 0.18, 0.66, 0.98, "Sans 16", "center");
-message_img = Image.Text("Boot details", 0.49, 0.63, 0.82, "Sans Bold 11", "center");
-status_img = Image.Text("Starting services...", 0.86, 0.92, 0.98, "Sans 12", "center");
+title_img   = Image.Text("Abora OS",                    0.70, 0.87, 1.00, "Sans Bold 38", "center");
+tagline_img = Image.Text("A simpler path into NixOS",   0.36, 0.54, 0.78, "Sans 13",      "center");
+divider_img = Image.Text("──────────────────────────────────────", 0.14, 0.26, 0.44, "Sans 11", "center");
+status_img  = Image.Text("Starting services...",         0.55, 0.72, 0.92, "Sans 12",      "center");
 
-title_abora_sprite = Sprite();
-title_abora_sprite.SetImage(title_abora_img);
-
-title_os_sprite = Sprite();
-title_os_sprite.SetImage(title_os_img);
-
-subtitle_sprite = Sprite();
-subtitle_sprite.SetImage(subtitle_img);
-
-line_sprite = Sprite();
-line_sprite.SetImage(line_img);
-
-message_sprite = Sprite();
-message_sprite.SetImage(message_img);
-
-status_sprite = Sprite();
-status_sprite.SetImage(status_img);
+title_sprite   = Sprite(); title_sprite.SetImage(title_img);
+tagline_sprite = Sprite(); tagline_sprite.SetImage(tagline_img);
+divider_sprite = Sprite(); divider_sprite.SetImage(divider_img);
+status_sprite  = Sprite(); status_sprite.SetImage(status_img);
 
 Plymouth.SetRefreshFunction(refresh_callback);
 Plymouth.SetDisplayNormalFunction(display_normal);

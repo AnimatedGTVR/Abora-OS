@@ -669,6 +669,63 @@ sync_xkb_layout() {
     esac
 }
 
+prompt_keyboard_layout() {
+    local input=""
+
+    while true; do
+        prompt_input "Choose keyboard layout" "$keyboard_value" \
+            "Enter a layout code (e.g. us, gb, de, fr, es, it). Type /back to return."
+        input="$prompt_result"
+        if [[ "$input" == "__back__" ]]; then
+            set_step_back
+            return 0
+        fi
+        if [[ "$input" =~ ^[a-z][a-z0-9_-]*$ ]]; then
+            keyboard_value="$input"
+            sync_xkb_layout
+            load_keyboard_layout
+            set_step_next
+            return 0
+        fi
+        error_msg "Invalid layout code. Use letters, numbers, or hyphens (e.g. us, gb, de, fr)."
+        pause_prompt
+    done
+}
+
+prompt_locale() {
+    while true; do
+        menu_choose \
+            "Locale settings" \
+            "Continue" \
+            "Timezone: ${timezone_value}" \
+            "Keyboard: ${keyboard_value}" \
+            "Back"
+
+        case "$menu_result" in
+            "__back__"|3)
+                set_step_back
+                return 0
+                ;;
+            0)
+                set_step_next
+                return 0
+                ;;
+            1)
+                prompt_timezone
+                if [[ "$step_action" == "back" ]]; then
+                    set_step_stay
+                fi
+                ;;
+            2)
+                prompt_keyboard_layout
+                if [[ "$step_action" == "back" ]]; then
+                    set_step_stay
+                fi
+                ;;
+        esac
+    done
+}
+
 find_zoneinfo_dir() {
     local candidate=""
 
@@ -983,6 +1040,8 @@ pick_desktop_environment() {
         "KDE Plasma     - flexible and feature-rich"
         "Hyprland       - Wayland tiling compositor"
         "Sway           - lightweight Wayland tiling"
+        "Niri           - scrollable Wayland tiling"
+        "River          - Wayland dynamic tiling"
         "XFCE           - fast and familiar"
         "Cinnamon       - traditional with modern polish"
         "MATE           - classic GNOME 2 desktop"
@@ -994,6 +1053,12 @@ pick_desktop_environment() {
         "i3             - keyboard-driven tiling"
         "AwesomeWM      - highly configurable tiling"
         "Openbox        - very minimal floating WM"
+        "Qtile          - Python-configured tiling"
+        "BSPWM          - binary space partitioning"
+        "Fluxbox        - fast and lightweight"
+        "IceWM          - very lightweight, retro feel"
+        "Herbstluftwm   - manual tiling WM"
+        "DWM            - suckless dynamic WM"
         "Back"
     )
     local values=(
@@ -1001,6 +1066,8 @@ pick_desktop_environment() {
         "plasma"
         "hyprland"
         "sway"
+        "niri"
+        "river"
         "xfce"
         "cinnamon"
         "mate"
@@ -1012,6 +1079,12 @@ pick_desktop_environment() {
         "i3"
         "awesome"
         "openbox"
+        "qtile"
+        "bspwm"
+        "fluxbox"
+        "icewm"
+        "herbstluftwm"
+        "dwm"
     )
 
     menu_choose "Select desktop environment" "${labels[@]}"
@@ -1252,6 +1325,7 @@ confirm_install() {
     printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Hostname:"  "$CYAN" $((inner - 14)) "$(trunc "$hostname_value" $((inner - 14)))"  "$NC" "$BLUE" "$NC"
     printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "User:"      "$CYAN" $((inner - 14)) "$(trunc "$username_value" $((inner - 14)))"      "$NC" "$BLUE" "$NC"
     printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Timezone:"  "$CYAN" $((inner - 14)) "$(trunc "$timezone_value" $((inner - 14)))"  "$NC" "$BLUE" "$NC"
+    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Keyboard:"  "$CYAN" $((inner - 14)) "$(trunc "$keyboard_value" $((inner - 14)))"  "$NC" "$BLUE" "$NC"
 
     printf '%b└' "$BLUE"
     repeat_char '─' $((inner + 2))
@@ -1710,15 +1784,18 @@ main() {
                 prompt_names
                 ;;
             2)
-                prompt_password
+                prompt_locale
                 ;;
             3)
-                prompt_github_login
+                prompt_password
                 ;;
             4)
-                show_extra_packages_setup
+                prompt_github_login
                 ;;
             5)
+                show_extra_packages_setup
+                ;;
+            6)
                 confirm_install
                 ;;
         esac
@@ -1756,7 +1833,7 @@ main() {
                 return 0
                 ;;
             *)
-                if [[ "$step" -lt 5 ]]; then
+                if [[ "$step" -lt 6 ]]; then
                     step=$((step + 1))
                 fi
                 ;;

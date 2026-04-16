@@ -15,18 +15,33 @@
     }
   },
   "modules": [
-    "os",
-    "host",
-    "kernel",
-    "uptime",
-    "packages",
-    "shell",
-    "de",
-    "wm",
-    "terminal",
-    "cpu",
-    "gpu",
-    "memory",
-    "disk"
+    "title",
+    "separator",
+    { "type": "os",       "key": "OS" },
+    { "type": "host",     "key": "Host" },
+    { "type": "kernel",   "key": "Kernel" },
+    { "type": "uptime",   "key": "Uptime" },
+    { "type": "packages", "key": "Packages" },
+    { "type": "shell",    "key": "Shell" },
+    "separator",
+    { "type": "de",       "key": "DE" },
+    { "type": "wm",       "key": "WM" },
+    { "type": "terminal", "key": "Terminal" },
+    { "type": "display",  "key": "Display" },
+    "separator",
+    { "type": "cpu",      "key": "CPU" },
+    { "type": "gpu",      "key": "GPU" },
+    { "type": "memory",   "key": "Memory" },
+    {
+      "type": "disk",
+      "key": "Disk",
+      "folders": "/"
+    },
+    "separator",
+    {
+      "type": "colors",
+      "paddingLeft": 1,
+      "symbol": "circle"
+    }
   ]
 }

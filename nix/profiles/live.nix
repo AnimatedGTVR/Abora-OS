@@ -298,7 +298,9 @@ in
 
   services.xserver.enable = false;
   services.qemuGuest.enable = true;
+  services.spice-vdagentd.enable = true;
   virtualisation.vmware.guest.enable = pkgs.stdenv.hostPlatform.isx86;
+  virtualisation.virtualbox.guest.enable = pkgs.stdenv.hostPlatform.isx86;
   virtualisation.hypervGuest.enable =
     pkgs.stdenv.hostPlatform.isx86 || pkgs.stdenv.hostPlatform.isAarch64;
   systemd.settings.Manager = {

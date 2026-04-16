@@ -42,7 +42,7 @@
 </p>
 
 <p align="center">
-  Development snapshot: <code>v2.0.0-dev</code>
+  <strong>v2.0.0</strong>
 </p>
 
 ---
@@ -62,7 +62,7 @@ Instead of dropping people into a system that feels like it was only built for p
 ## What You Get
 
 - Terminal-first live boot and installer with a full welcome flow
-- 15 desktop environments to choose from at install time
+- 23 desktop environments to choose from at install time
 - Curated starter app bundles: Fan Favorites, Essentials, Social, Creator, Developer
 - Curated wallpaper pack seeded across all supported desktop sessions
 - Dark-first desktop defaults across the full session matrix
@@ -77,7 +77,7 @@ Instead of dropping people into a system that feels like it was only built for p
 
 ## Desktop Environments
 
-Abora v2 ships with **15 desktop environments** selectable at install time:
+Abora v2 ships with **23 desktop environments** selectable at install time:
 
 | Desktop | Type | Display Manager |
 |---|---|---|
@@ -85,6 +85,8 @@ Abora v2 ships with **15 desktop environments** selectable at install time:
 | KDE Plasma | Full DE | SDDM |
 | Hyprland | Wayland compositor | SDDM (Wayland) |
 | Sway | Wayland compositor | SDDM (Wayland) |
+| Niri | Wayland compositor | SDDM (Wayland) |
+| River | Wayland compositor | SDDM (Wayland) |
 | XFCE | Full DE | LightDM |
 | Cinnamon | Full DE | LightDM |
 | MATE | Full DE | LightDM |
@@ -96,6 +98,12 @@ Abora v2 ships with **15 desktop environments** selectable at install time:
 | i3 | Tiling WM | LightDM |
 | AwesomeWM | Tiling WM | LightDM |
 | Openbox | Floating WM | LightDM |
+| Qtile | Tiling WM | LightDM |
+| BSPWM | Tiling WM | LightDM |
+| Fluxbox | Floating WM | LightDM |
+| IceWM | Floating WM | LightDM |
+| Herbstluftwm | Tiling WM | LightDM |
+| DWM | Tiling WM | LightDM |
 
 ---
 
@@ -106,7 +114,7 @@ The installer is a terminal-first, keyboard-driven setup flow that runs directly
 ### What the installer does
 
 - Opens with a welcome menu before anything touches the disk
-- Auto-detects timezone and keyboard layout from the live environment
+- Auto-detects timezone and keyboard layout, with a dedicated locale step to correct either
 - Lets you pick hostname, username, password, and desktop environment
 - Offers a starter app bundle selection (or none at all)
 - Optional GitHub CLI login step for post-install workflows

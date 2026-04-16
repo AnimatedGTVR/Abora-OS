@@ -215,13 +215,21 @@ seed_dark_theme_for_session() {
             write_lxqt_dark_settings
             export_dark_environment "qt6ct"
             ;;
-        *i3*:* | *:i3*)
+        *i3*:* | *:i3* | \
+        *awesome*:* | *:awesome* | \
+        *Openbox*:* | *openbox*:* | *:openbox* | *:Openbox* | \
+        *bspwm*:* | *:bspwm* | \
+        *qtile*:* | *:qtile* | \
+        *fluxbox*:* | *:fluxbox* | \
+        *icewm*:* | *:icewm* | \
+        *herbstluftwm*:* | *:herbstluftwm* | \
+        *dwm*:* | *:dwm*)
             export_dark_environment "qt6ct"
             ;;
-        *Openbox*:* | *openbox*:* | *:openbox* | *:Openbox*)
-            export_dark_environment "qt6ct"
-            ;;
-        *Hyprland*:* | *hyprland*:* | *:hyprland* | *:Hyprland*)
+        *Hyprland*:* | *hyprland*:* | *:hyprland* | *:Hyprland* | \
+        *sway*:* | *:sway* | *:sway-uwsm* | \
+        *niri*:* | *:niri* | \
+        *river*:* | *:river*)
             export_dark_environment "qt6ct"
             ;;
         *)
@@ -281,7 +289,7 @@ seed_feh() {
     feh --no-fehbg --bg-fill "$default_wallpaper" >/dev/null 2>&1
 }
 
-seed_hyprland() {
+seed_swaybg() {
     command_exists swaybg || return 1
     [[ -n "${WAYLAND_DISPLAY:-}" ]] || return 1
 
@@ -291,6 +299,10 @@ seed_hyprland() {
 
     nohup swaybg -i "$default_wallpaper" -m fill >/dev/null 2>&1 &
     printf '%s\n' "$!" > "$swaybg_pid_file"
+}
+
+seed_hyprland() {
+    seed_swaybg
 }
 
 run_theme_sync_once() {
@@ -350,18 +362,28 @@ main() {
                 fi
             fi
             ;;
-        *i3*:* | *:i3*)
+        *i3*:* | *:i3* | \
+        *awesome*:* | *:awesome* | \
+        *Openbox*:* | *openbox*:* | *:openbox* | *:Openbox* | \
+        *bspwm*:* | *:bspwm* | \
+        *qtile*:* | *:qtile* | \
+        *fluxbox*:* | *:fluxbox* | \
+        *icewm*:* | *:icewm* | \
+        *herbstluftwm*:* | *:herbstluftwm* | \
+        *dwm*:* | *:dwm*)
             seed_feh || true
             ;;
-        *Openbox*:* | *openbox*:* | *:openbox* | *:Openbox*)
-            seed_feh || true
-            ;;
-        *Hyprland*:* | *hyprland*:* | *:hyprland* | *:Hyprland*)
-            seed_hyprland || true
+        *Hyprland*:* | *hyprland*:* | *:hyprland* | *:Hyprland* | \
+        *sway*:* | *:sway* | *:sway-uwsm* | \
+        *niri*:* | *:niri* | \
+        *river*:* | *:river*)
+            seed_swaybg || true
             ;;
         *)
             if [[ -n "${DISPLAY:-}" ]]; then
                 seed_feh || true
+            elif [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+                seed_swaybg || true
             fi
             ;;
     esac

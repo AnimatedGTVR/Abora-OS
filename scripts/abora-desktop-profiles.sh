@@ -25,6 +25,14 @@ enlightenment
 i3
 awesome
 openbox
+niri
+river
+qtile
+bspwm
+fluxbox
+icewm
+herbstluftwm
+dwm
 EOF
 }
 
@@ -90,6 +98,38 @@ abora_sync_desktop_label() {
             desktop_label="Openbox"
             desktop_variant_id="openbox"
             ;;
+        niri)
+            desktop_label="Niri"
+            desktop_variant_id="niri"
+            ;;
+        river)
+            desktop_label="River"
+            desktop_variant_id="river"
+            ;;
+        qtile)
+            desktop_label="Qtile"
+            desktop_variant_id="qtile"
+            ;;
+        bspwm)
+            desktop_label="BSPWM"
+            desktop_variant_id="bspwm"
+            ;;
+        fluxbox)
+            desktop_label="Fluxbox"
+            desktop_variant_id="fluxbox"
+            ;;
+        icewm)
+            desktop_label="IceWM"
+            desktop_variant_id="icewm"
+            ;;
+        herbstluftwm)
+            desktop_label="Herbstluftwm"
+            desktop_variant_id="herbstluftwm"
+            ;;
+        dwm)
+            desktop_label="DWM"
+            desktop_variant_id="dwm"
+            ;;
         *)
             desktop_label="GNOME"
             desktop_variant_id="gnome"
@@ -128,6 +168,22 @@ abora_detect_desktop_profile() {
         printf 'i3\n'
     elif grep -q 'windowManager\.openbox\.enable = true;' "$file"; then
         printf 'openbox\n'
+    elif grep -q 'programs\.niri\.enable = true;' "$file"; then
+        printf 'niri\n'
+    elif grep -q 'programs\.river\.enable = true;' "$file"; then
+        printf 'river\n'
+    elif grep -q 'windowManager\.qtile\.enable = true;' "$file"; then
+        printf 'qtile\n'
+    elif grep -q 'windowManager\.bspwm\.enable = true;' "$file"; then
+        printf 'bspwm\n'
+    elif grep -q 'windowManager\.fluxbox\.enable = true;' "$file"; then
+        printf 'fluxbox\n'
+    elif grep -q 'windowManager\.icewm\.enable = true;' "$file"; then
+        printf 'icewm\n'
+    elif grep -q 'windowManager\.herbstluftwm\.enable = true;' "$file"; then
+        printf 'herbstluftwm\n'
+    elif grep -q 'windowManager\.dwm\.enable = true;' "$file"; then
+        printf 'dwm\n'
     else
         printf 'gnome\n'
     fi
@@ -397,6 +453,145 @@ EOF
   services.xserver.displayManager.lightdm.enable = true;
 EOF
             ;;
+        niri)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+  };
+  programs.niri.enable = true;
+  services.displayManager = {
+    defaultSession = "niri";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.displayManager.sddm = {
+    enable = true;
+    wayland.enable = true;
+  };
+  xdg.portal.enable = true;
+  xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+EOF
+            ;;
+        river)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+  };
+  programs.river = {
+    enable = true;
+    xwayland.enable = true;
+  };
+  services.displayManager = {
+    defaultSession = "river";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.displayManager.sddm = {
+    enable = true;
+    wayland.enable = true;
+  };
+  xdg.portal.enable = true;
+  xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+EOF
+            ;;
+        qtile)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    windowManager.qtile.enable = true;
+  };
+  services.xserver.desktopManager.runXdgAutostartIfNone = true;
+  services.displayManager = {
+    defaultSession = "none+qtile";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
+        bspwm)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    windowManager.bspwm.enable = true;
+  };
+  services.xserver.desktopManager.runXdgAutostartIfNone = true;
+  services.displayManager = {
+    defaultSession = "none+bspwm";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
+        fluxbox)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    windowManager.fluxbox.enable = true;
+  };
+  services.xserver.desktopManager.runXdgAutostartIfNone = true;
+  services.displayManager = {
+    defaultSession = "fluxbox";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
+        icewm)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    windowManager.icewm.enable = true;
+  };
+  services.xserver.desktopManager.runXdgAutostartIfNone = true;
+  services.displayManager = {
+    defaultSession = "icewm-session";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
+        herbstluftwm)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    windowManager.herbstluftwm.enable = true;
+  };
+  services.xserver.desktopManager.runXdgAutostartIfNone = true;
+  services.displayManager = {
+    defaultSession = "none+herbstluftwm";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
+        dwm)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+    windowManager.dwm.enable = true;
+  };
+  services.xserver.desktopManager.runXdgAutostartIfNone = true;
+  services.displayManager = {
+    defaultSession = "none+dwm";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
     esac
 }
 
@@ -413,6 +608,25 @@ EOF
     foot
     swayidle
     swaylock
+EOF
+            ;;
+        niri)
+            cat <<'EOF'
+    foot
+    waybar
+    fuzzel
+EOF
+            ;;
+        river)
+            cat <<'EOF'
+    foot
+    waybar
+    wofi
+EOF
+            ;;
+        bspwm)
+            cat <<'EOF'
+    sxhkd
 EOF
             ;;
     esac
