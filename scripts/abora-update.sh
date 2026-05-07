@@ -130,22 +130,30 @@ handle_channel_command() {
             abora_banner "Update Channels" "Choose how your system receives updates."
             channel="$(read_channel)"
 
+            abora_card_start "Available Channels"
+
             local marker_stable="" marker_unstable=""
             [[ "$channel" == "stable" ]]   && marker_stable=" %b◀ current%b"
             [[ "$channel" == "unstable" ]] && marker_unstable=" %b◀ current%b"
 
-            printf '  %bstable%b' "$ABORA_CYAN" "$ABORA_NC"
+            printf '  %b│%b  %bstable%b' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
             # shellcheck disable=SC2059
             [[ -n "$marker_stable" ]]   && printf "  $marker_stable" "$ABORA_GREEN" "$ABORA_NC"
             printf '\n'
-            abora_dim_line "  Latest tagged Abora releases. Recommended for most users."
+            printf '  %b│%b  %bLatest tagged Abora releases. Recommended for most users.%b\n' \
+                "$ABORA_BLUE" "$ABORA_NC" "$ABORA_DIM" "$ABORA_NC"
             printf '\n'
 
-            printf '  %bunstable%b' "$ABORA_CYAN" "$ABORA_NC"
+            printf '  %b│%b  %bunstable%b' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
             # shellcheck disable=SC2059
             [[ -n "$marker_unstable" ]] && printf "  $marker_unstable" "$ABORA_GREEN" "$ABORA_NC"
             printf '\n'
-            abora_dim_line "  Development builds from the main branch. May include breaking changes."
+            printf '  %b│%b  %bDevelopment builds from the main branch. May include breaking changes.%b\n' \
+                "$ABORA_BLUE" "$ABORA_NC" "$ABORA_DIM" "$ABORA_NC"
+            printf '  %b│%b\n' "$ABORA_BLUE" "$ABORA_NC"
+
+            abora_card_end
+
             printf '\n'
             ;;
         set)
@@ -197,6 +205,20 @@ run_as_root() {
     exit 1
 }
 
+confirm() {
+    local prompt="$1"
+    local answer=""
+    if [[ ! -t 0 ]]; then
+        return 0
+    fi
+    printf '  %b%s [Y/n]%b ' "$ABORA_YELLOW" "$prompt" "$ABORA_NC"
+    read -r answer
+    case "$answer" in
+        ""|y|Y|yes|YES) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 system_string() {
     case "$(uname -m)" in
         x86_64) printf 'x86_64-linux\n' ;;
@@ -231,10 +253,11 @@ write_flake_file() {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = { nixpkgs, ... }: {
-    nixosConfigurations.${flake_config_name} = nixpkgs.lib.nixosSystem {
+  outputs = { nixpkgs, ... }:
+    let
+      lib = nixpkgs.lib;
       system = "${nix_system}";
-      modules =
+      baseModules =
         let
           appModule = ./abora/apps.nix;
           anixLayer = ./anix.nix;
@@ -245,9 +268,39 @@ write_flake_file() {
           ./abora/abora-options.nix
           ./abora/anix-module.nix
           ./abora-local.nix
-        ] ++ nixpkgs.lib.optional (builtins.pathExists appModule) appModule
-          ++ nixpkgs.lib.optional (builtins.pathExists anixLayer) anixLayer;
-    };
+        ] ++ lib.optional (builtins.pathExists appModule) appModule
+          ++ lib.optional (builtins.pathExists anixLayer) anixLayer;
+      mkProfile = name: extraModules: nixpkgs.lib.nixosSystem {
+        inherit system;
+        modules = baseModules ++ extraModules ++ [
+          { system.nixos.variantName = lib.mkOverride 800 "Abora ${name} Profile"; }
+        ];
+      };
+    in {
+    nixosConfigurations.${flake_config_name} = mkProfile "Stable" [];
+    nixosConfigurations.stable = mkProfile "Stable" [];
+    nixosConfigurations.minimal = mkProfile "Minimal" [
+      { abora.desktop = lib.mkForce "none"; }
+    ];
+    nixosConfigurations.gaming = mkProfile "Gaming" [
+      { pkgs, ... }: {
+        abora.desktop = lib.mkForce "gnome";
+        environment.systemPackages = with pkgs; [ mangohud prismlauncher lutris ];
+        programs.steam.enable = lib.mkDefault true;
+      }
+    ];
+    nixosConfigurations.creator = mkProfile "Creator" [
+      { pkgs, ... }: {
+        abora.desktop = lib.mkForce "gnome";
+        environment.systemPackages = with pkgs; [ blender gimp inkscape krita obs-studio audacity ];
+      }
+    ];
+    nixosConfigurations.developer = mkProfile "Developer" [
+      { pkgs, ... }: {
+        abora.desktop = lib.mkForce "gnome";
+        environment.systemPackages = with pkgs; [ git gh vscode direnv nixfmt-rfc-style shellcheck ];
+      }
+    ];
   };
 }
 EOF
@@ -332,6 +385,11 @@ sync_abora_files() {
     cp "$upstream_dir/nix/modules/anix.nix" "$abora_dir/anix-module.nix"
     cp "$upstream_dir/scripts/abora-ui.sh"     "$abora_dir/ui.sh"
     cp "$upstream_dir/scripts/abora-config.sh" "$abora_dir/config.sh"
+    cp "$upstream_dir/scripts/abora.sh" "$abora_dir/abora.sh"
+    cp "$upstream_dir/scripts/abora-desktop.sh" "$abora_dir/desktop.sh"
+    cp "$upstream_dir/scripts/abora-doctor.sh" "$abora_dir/doctor.sh"
+    cp "$upstream_dir/scripts/abora-recovery.sh" "$abora_dir/recovery.sh"
+    cp "$upstream_dir/scripts/abora-welcome.sh" "$abora_dir/welcome.sh"
     cp "$upstream_dir/scripts/anix.sh" "$abora_dir/anix.sh"
     cp "$upstream_dir/scripts/abora-app-catalog.sh" "$abora_dir/app-catalog.sh"
     cp "$upstream_dir/scripts/abora-apps.sh" "$abora_dir/apps.sh"
@@ -369,16 +427,6 @@ sync_abora_files() {
 
     if [[ ! -f "$abora_dir/apps.list" ]]; then
         : > "$abora_dir/apps.list"
-    fi
-
-    if [[ ! -f "$config_dir/anix.nix" ]]; then
-        cat > "$config_dir/anix.nix" <<EOF
-# ANIX is a simple layer on top of Abora/NixOS.
-{ ... }:
-{
-  anix.enable = true;
-}
-EOF
     fi
 
     if [[ ! -f "$abora_dir/apps.nix" ]]; then
@@ -535,6 +583,15 @@ channel="$(read_channel)"
 effective_ref="$(resolve_channel_ref "$channel")"
 
 abora_banner "System Update" "Channel: ${channel}  ·  Ref: ${effective_ref}"
+
+if [[ -x "$config_dir/abora/anix.sh" ]]; then
+    if confirm "Save a local ANIX snapshot before updating?"; then
+        env ANIX_SYSTEM_CONFIG="$config_dir" ANIX_FLAKE_CONFIG_NAME="$flake_config_name" bash "$config_dir/abora/anix.sh" save "anix: snapshot before Abora update" || {
+            abora_warn "Snapshot failed or was cancelled; continuing with update."
+            printf '\n'
+        }
+    fi
+fi
 
 sync_abora_files "$effective_ref" || {
     abora_error "Abora could not fetch the latest project files."

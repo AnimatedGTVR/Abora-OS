@@ -30,6 +30,31 @@ let
       ./config.sh
     else
       ../../scripts/abora-config.sh;
+  aboraScript =
+    if builtins.pathExists ./abora.sh then
+      ./abora.sh
+    else
+      ../../scripts/abora.sh;
+  desktopScript =
+    if builtins.pathExists ./desktop.sh then
+      ./desktop.sh
+    else
+      ../../scripts/abora-desktop.sh;
+  doctorScript =
+    if builtins.pathExists ./doctor.sh then
+      ./doctor.sh
+    else
+      ../../scripts/abora-doctor.sh;
+  recoveryScript =
+    if builtins.pathExists ./recovery.sh then
+      ./recovery.sh
+    else
+      ../../scripts/abora-recovery.sh;
+  welcomeScript =
+    if builtins.pathExists ./welcome.sh then
+      ./welcome.sh
+    else
+      ../../scripts/abora-welcome.sh;
   anixScript =
     if builtins.pathExists ./anix.sh then
       ./anix.sh
@@ -126,6 +151,21 @@ let
   '';
   aboraConfig = pkgs.writeShellScriptBin "abora-config" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/config.sh "$@"
+  '';
+  aboraCommand = pkgs.writeShellScriptBin "abora" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/abora.sh "$@"
+  '';
+  aboraDesktop = pkgs.writeShellScriptBin "abora-desktop" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/desktop.sh "$@"
+  '';
+  aboraDoctor = pkgs.writeShellScriptBin "abora-doctor" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/doctor.sh "$@"
+  '';
+  aboraRecovery = pkgs.writeShellScriptBin "abora-recovery" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/recovery.sh "$@"
+  '';
+  aboraWelcome = pkgs.writeShellScriptBin "abora-welcome" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/welcome.sh "$@"
   '';
   anixCommand = pkgs.writeShellScriptBin "anix" ''
     exec env ANIX_SYSTEM_CONFIG=/etc/nixos ANIX_FLAKE_CONFIG_NAME=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/anix.sh "$@"
@@ -305,11 +345,16 @@ in
 
   environment.systemPackages = with pkgs; [
     aboraApps
+    aboraCommand
     anixCommand
     aboraConfig
+    aboraDesktop
+    aboraDoctor
     aboraHardwareTest
+    aboraRecovery
     aboraSupportReport
     aboraUpdate
+    aboraWelcome
     aboraWallpapersPackage
     aboraSessionSetup
     aboraThemeSync
@@ -349,6 +394,26 @@ in
       };
       "abora/config.sh" = {
         source = configScript;
+        mode = "0755";
+      };
+      "abora/abora.sh" = {
+        source = aboraScript;
+        mode = "0755";
+      };
+      "abora/desktop.sh" = {
+        source = desktopScript;
+        mode = "0755";
+      };
+      "abora/doctor.sh" = {
+        source = doctorScript;
+        mode = "0755";
+      };
+      "abora/recovery.sh" = {
+        source = recoveryScript;
+        mode = "0755";
+      };
+      "abora/welcome.sh" = {
+        source = welcomeScript;
         mode = "0755";
       };
       "abora/anix.sh" = {
@@ -394,6 +459,26 @@ in
         source = themeSyncScript;
         mode = "0755";
       };
+      "motd".text = ''
+        Abora OS ${version}
+
+          abora welcome       first steps and quick actions
+          abora doctor        check system health
+          abora recovery      rollback and repair tools
+          anix doctor         check the Nix/ANIX layer
+          sudo nixos update   update the system
+      '';
+      "profile.d/abora-welcome.sh".text = ''
+        if [ -n "''${PS1:-}" ] && [ -z "''${ABORA_WELCOME_SHOWN:-}" ] && command -v abora-welcome >/dev/null 2>&1; then
+          export ABORA_WELCOME_SHOWN=1
+          if [ ! -f "$HOME/.cache/abora/welcome-seen" ]; then
+            mkdir -p "$HOME/.cache/abora"
+            touch "$HOME/.cache/abora/welcome-seen"
+            abora-welcome status || true
+            printf '  Run %s for first-step actions.\n\n' "abora welcome"
+          fi
+        fi
+      '';
       "xdg/autostart/abora-theme-sync.desktop".text = ''
         [Desktop Entry]
         Type=Application

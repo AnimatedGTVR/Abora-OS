@@ -8,8 +8,38 @@ abora_default_wallpaper_uri() {
     printf 'file:///run/current-system/sw/share/backgrounds/abora/%s\n' "$(abora_default_wallpaper_name)"
 }
 
+abora_supported_wallpapers() {
+    cat <<'EOF'
+oceandusk.png
+bluehorizon.png
+astronautwallpaper.png
+glacierreflection.png
+EOF
+}
+
+abora_sync_wallpaper_label() {
+    case "$1" in
+        oceandusk.png)
+            wallpaper_label="Ocean Dusk"
+            ;;
+        bluehorizon.png)
+            wallpaper_label="Blue Horizon"
+            ;;
+        astronautwallpaper.png)
+            wallpaper_label="Astronaut Wallpaper"
+            ;;
+        glacierreflection.png)
+            wallpaper_label="Glacier Reflection"
+            ;;
+        *)
+            wallpaper_label="$1"
+            ;;
+    esac
+}
+
 abora_supported_desktop_profiles() {
     cat <<'EOF'
+none
 gnome
 plasma
 hyprland
@@ -38,6 +68,10 @@ EOF
 
 abora_sync_desktop_label() {
     case "$1" in
+        none)
+            desktop_label="No desktop"
+            desktop_variant_id="none"
+            ;;
         gnome)
             desktop_label="GNOME"
             desktop_variant_id="gnome"
@@ -75,8 +109,8 @@ abora_sync_desktop_label() {
             desktop_variant_id="sway"
             ;;
         lxde)
-            desktop_label="LXDE"
-            desktop_variant_id="lxde"
+            desktop_label="LXQt"
+            desktop_variant_id="lxqt"
             ;;
         enlightenment)
             desktop_label="Enlightenment"
@@ -140,7 +174,9 @@ abora_sync_desktop_label() {
 abora_detect_desktop_profile() {
     local file="$1"
 
-    if grep -q 'programs\.hyprland = {' "$file" || grep -q 'defaultSession = "hyprland-uwsm";' "$file"; then
+    if grep -q 'services\.getty\.autologinUser = ' "$file" && ! grep -q 'services\.xserver\.enable = true;' "$file"; then
+        printf 'none\n'
+    elif grep -q 'programs\.hyprland = {' "$file" || grep -q 'defaultSession = "hyprland-uwsm";' "$file"; then
         printf 'hyprland\n'
     elif grep -q 'services\.desktopManager\.plasma6\.enable = true;' "$file"; then
         printf 'plasma\n'
@@ -159,7 +195,7 @@ abora_detect_desktop_profile() {
     elif grep -q 'programs\.sway\.enable = true;' "$file"; then
         printf 'sway\n'
     elif grep -q 'desktopManager\.lxde\.enable = true;' "$file"; then
-        printf 'lxde\n'
+        printf 'lxqt\n'
     elif grep -q 'desktopManager\.enlightenment\.enable = true;' "$file"; then
         printf 'enlightenment\n'
     elif grep -q 'windowManager\.awesome\.enable = true;' "$file"; then
@@ -196,6 +232,11 @@ abora_desktop_config_block() {
     local default_wallpaper_uri="${4:-$(abora_default_wallpaper_uri)}"
 
     case "$desktop_profile" in
+        none)
+            cat <<EOF
+  services.getty.autologinUser = "${username_value}";
+EOF
+            ;;
         gnome)
             cat <<EOF
   services.xserver = {
@@ -380,10 +421,10 @@ EOF
   services.xserver = {
     enable = true;
     xkb.layout = "${xkb_layout_value}";
-    desktopManager.lxde.enable = true;
+    desktopManager.lxqt.enable = true;
   };
   services.displayManager = {
-    defaultSession = "lxde";
+    defaultSession = "lxqt";
     autoLogin.enable = true;
     autoLogin.user = "${username_value}";
   };

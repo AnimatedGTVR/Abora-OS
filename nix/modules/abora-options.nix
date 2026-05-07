@@ -8,9 +8,16 @@
 let
   cfg = config.abora;
   active = cfg.user.name != null;
-  defaultWallpaperUri = "file:///run/current-system/sw/share/backgrounds/abora/oceandusk.png";
+  wallpaperDir =
+    if builtins.pathExists ./wallpapers then
+      ./wallpapers
+    else
+      ../../assets/wallpapers/collection;
+  defaultWallpaperPath = "/run/current-system/sw/share/backgrounds/abora/${cfg.wallpaper}";
+  defaultWallpaperUri = "file://${defaultWallpaperPath}";
 
   desktopLabel = {
+    none         = "No desktop";
     gnome        = "GNOME";
     plasma       = "Plasma";
     hyprland     = "Hyprland";
@@ -21,7 +28,6 @@ let
     budgie       = "Budgie";
     lxqt         = "LXQt";
     pantheon     = "Pantheon";
-    lxde         = "LXDE";
     enlightenment = "Enlightenment";
     i3           = "i3";
     awesome      = "AwesomeWM";
@@ -87,8 +93,8 @@ in
 
     desktop = lib.mkOption {
       type = lib.types.enum [
-        "gnome" "plasma" "hyprland" "sway" "xfce" "cinnamon" "mate"
-        "budgie" "lxqt" "pantheon" "lxde" "enlightenment" "i3"
+        "none" "gnome" "plasma" "hyprland" "sway" "xfce" "cinnamon" "mate"
+        "budgie" "lxqt" "pantheon" "enlightenment" "i3"
         "awesome" "openbox" "niri" "river" "qtile" "bspwm" "fluxbox"
         "icewm" "herbstluftwm" "dwm"
       ];
@@ -110,6 +116,12 @@ in
       default = "26.05";
       description = "NixOS state version. Set once at install time — do not change afterwards.";
     };
+
+    wallpaper = lib.mkOption {
+      type = lib.types.enum (builtins.attrNames (builtins.readDir wallpaperDir));
+      default = "oceandusk.png";
+      description = "Default wallpaper file shipped with Abora.";
+    };
   };
 
   # ── Config ─────────────────────────────────────────────────────────────────
@@ -118,11 +130,12 @@ in
   config = lib.mkMerge [
 
     # Always apply these with mkDefault so they lose to any direct override.
-    {
-      networking.hostName = lib.mkDefault cfg.hostname;
-      time.timeZone       = lib.mkDefault cfg.timezone;
-      console.keyMap      = lib.mkDefault cfg.keyboard.console;
-    }
+      {
+        networking.hostName = lib.mkDefault cfg.hostname;
+        time.timeZone       = lib.mkDefault cfg.timezone;
+        console.keyMap      = lib.mkDefault cfg.keyboard.console;
+        environment.variables.ABORA_DEFAULT_WALLPAPER = lib.mkDefault defaultWallpaperPath;
+      }
 
     # Everything else requires abora.user.name to be set.
     (lib.mkIf active (lib.mkMerge [
@@ -155,6 +168,11 @@ in
           efiSupport          = true;
           efiInstallAsRemovable = true;
         };
+      })
+
+      # ── GNOME ──────────────────────────────────────────────────────────
+      (lib.mkIf (is "none") {
+        services.getty.autologinUser = cfg.user.name;
       })
 
       # ── GNOME ──────────────────────────────────────────────────────────
@@ -334,21 +352,6 @@ in
         };
         services.xserver.displayManager.lightdm.enable      = true;
         services.xserver.desktopManager.pantheon.enable     = true;
-      })
-
-      # ── LXDE ───────────────────────────────────────────────────────────
-      (lib.mkIf (is "lxde") {
-        services.xserver = {
-          enable                     = true;
-          xkb.layout                 = cfg.keyboard.xkb;
-          desktopManager.lxde.enable = true;
-        };
-        services.displayManager = {
-          defaultSession   = "lxde";
-          autoLogin.enable = true;
-          autoLogin.user   = cfg.user.name;
-        };
-        services.xserver.displayManager.lightdm.enable = true;
       })
 
       # ── Enlightenment ──────────────────────────────────────────────────

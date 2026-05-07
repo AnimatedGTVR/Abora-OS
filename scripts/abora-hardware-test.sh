@@ -5,66 +5,43 @@ export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/l
 
 script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 support_report_script="${ABORA_SUPPORT_REPORT_SCRIPT:-$script_dir/abora-support-report.sh}"
-version="${ABORA_VERSION:-v2.0.0-dev}"
+ui_lib="${ABORA_UI_LIB:-$script_dir/abora-ui.sh}"
 with_report=0
 fail_count=0
 warn_count=0
 pass_count=0
 report_path=""
 
-BLUE='\033[38;5;33m'
-YELLOW='\033[38;5;220m'
-GREEN='\033[38;5;84m'
-RED='\033[38;5;203m'
-WHITE='\033[1;37m'
-DIM='\033[38;5;245m'
-NC='\033[0m'
-
-use_color=0
-if [[ -t 1 ]]; then
-    use_color=1
+if [[ ! -f "$ui_lib" && -f /etc/abora/ui.sh ]]; then
+    ui_lib="/etc/abora/ui.sh"
 fi
 
-paint() {
-    local color="$1"
-    shift
-
-    if [[ "$use_color" -eq 1 ]]; then
-        printf '%b%s%b' "$color" "$*" "$NC"
-    else
-        printf '%s' "$*"
-    fi
-}
+# shellcheck source=/dev/null
+source "$ui_lib"
 
 section() {
     printf '\n'
-    paint "$WHITE" "$1"
-    printf '\n'
-    paint "$DIM" "------------------------------------------------------------"
-    printf '\n'
+    printf '  %b▸ %s%b\n' "$ABORA_ACCENT" "$1" "$ABORA_NC"
+    abora_rule
 }
 
 pass() {
     pass_count=$((pass_count + 1))
-    paint "$GREEN" "[ok]"
-    printf ' %s\n' "$1"
+    printf '  %b✓%b  %b%s%b\n' "$ABORA_GREEN" "$ABORA_NC" "$ABORA_GREEN" "$1" "$ABORA_NC"
 }
 
 warn() {
     warn_count=$((warn_count + 1))
-    paint "$YELLOW" "[warn]"
-    printf ' %s\n' "$1"
+    printf '  %b!%b  %b%s%b\n' "$ABORA_YELLOW" "$ABORA_NC" "$ABORA_YELLOW" "$1" "$ABORA_NC"
 }
 
 fail() {
     fail_count=$((fail_count + 1))
-    paint "$RED" "[x]"
-    printf ' %s\n' "$1"
+    printf '  %b✗%b  %b%s%b\n' "$ABORA_RED" "$ABORA_NC" "$ABORA_RED" "$1" "$ABORA_NC"
 }
 
 info() {
-    paint "$BLUE" "[*]"
-    printf ' %s\n' "$1"
+    abora_info "$1"
 }
 
 usage() {
@@ -187,10 +164,8 @@ main() {
         esac
     done
 
-    section "Abora hardware readiness test"
-    info "Version: ${version}"
-    info "This checks the current machine for hardware-test readiness."
-    info "It does not replace a real Abora USB boot."
+    abora_banner "Hardware Readiness Test" "Checks whether this machine is a suitable Abora test target."
+    abora_info "This does not replace a real Abora USB boot."
 
     section "Firmware and platform"
     virt="$(systemd-detect-virt 2>/dev/null || true)"
@@ -313,9 +288,13 @@ main() {
     fi
 
     section "Summary"
-    info "Passed: ${pass_count}"
-    info "Warnings: ${warn_count}"
-    info "Failures: ${fail_count}"
+
+    abora_card_start "Results"
+    printf '  %b│%b  %bPassed%b    %b%d%b\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_GREEN" "$ABORA_NC" "$ABORA_GREEN" "$pass_count" "$ABORA_NC"
+    printf '  %b│%b  %bWarnings%b  %b%d%b\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_YELLOW" "$ABORA_NC" "$ABORA_YELLOW" "$warn_count" "$ABORA_NC"
+    printf '  %b│%b  %bFailures%b  %b%d%b\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_RED" "$ABORA_NC" "$ABORA_RED" "$fail_count" "$ABORA_NC"
+    printf '  %b│%b\n' "$ABORA_BLUE" "$ABORA_NC"
+    abora_card_end
 
     if [[ "$fail_count" -gt 0 ]]; then
         fail "This machine is not a safe hardware test target yet."

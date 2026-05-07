@@ -64,7 +64,7 @@ Instead of dropping people into a system that feels like it was only built for p
 - Terminal-first live boot and installer with a full welcome flow
 - 23 desktop environments to choose from at install time
 - Curated starter app bundles: Fan Favorites, Essentials, Social, Creator, Developer, Gaming, System
-- 55 apps in the catalog across 7 categories
+- 52 apps in the catalog across 6 categories
 - Flatpak + Flathub enabled out of the box on every install
 - Curated wallpaper pack seeded across all supported desktop sessions
 - Dark-first desktop defaults across the full session matrix
@@ -177,19 +177,61 @@ Note: `user` and `disk` are read-only through `abora config` for safety — edit
 
 ## ANIX Layer
 
-ANIX is no longer a separate distro build. Inside Abora, it is a small layer on top of the normal NixOS/Abora config that keeps a few common settings easier to read and change.
+ANIX is the human layer for NixOS and Abora: a safer OS-management CLI that hides the rebuild and flake syntax without replacing the NixOS machinery underneath.
 
 Use it like this:
 
 ```sh
 anix init
 anix show
+anix switch nix gaming
+anix rollback nix
+anix rollback nix minimal
+anix save
+anix doctor
 anix set hostname my-pc
+anix set wallpaper bluehorizon.png
 anix set desktop none
+anix wallpapers
 anix apply
 ```
 
-ANIX writes to `/etc/nixos/anix.nix` and rebuilds the normal Abora flake. It does not replace NixOS or Abora — it just gives you a simpler front layer for common settings.
+ANIX maps friendly profile names to real flake configs, so `anix switch nix gaming` becomes the safe version of `sudo nixos-rebuild switch --flake /etc/nixos#gaming`.
+
+Snapshots stay local by default. `anix save` creates a Git commit in the user's `/etc/nixos` config repo, warns about possible secrets, and recommends moving real keys/passwords to `sops-nix` or `agenix`. Pushing snapshots is opt-in:
+
+```sh
+anix config set snapshots.push true
+```
+
+ANIX still writes simple settings to `/etc/nixos/anix.nix` and rebuilds the normal Abora flake. It does not replace NixOS or Abora; it gives beginners a cleaner front layer for profile switching, rollback, recovery, desktop choice, wallpaper changes, and system health checks.
+
+---
+
+## Abora Management Tools
+
+Abora v2.5 also includes a small OS management layer:
+
+```sh
+abora welcome          # first-step status and quick actions
+abora doctor           # check Flatpak, themes, boot assets, updates, ANIX
+abora recovery         # rollback, rebuild, repair Flathub, collect reports
+abora desktop list     # list desktop profiles
+abora desktop set gnome
+make preflight         # maintainer release checks
+```
+
+Fresh installs expose named flake profiles for ANIX:
+
+```sh
+anix switch nix stable
+anix switch nix minimal
+anix switch nix gaming
+anix switch nix creator
+anix switch nix developer
+```
+
+Updates offer a local ANIX snapshot before rebuilding, so users have a recovery point before changing the system.
 
 ---
 

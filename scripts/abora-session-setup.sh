@@ -14,9 +14,35 @@ swaybg_pid_file="${XDG_RUNTIME_DIR:-/tmp}/abora-swaybg.pid"
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 qt5ct_colors="${ABORA_QT5CT_COLORS:-/run/current-system/sw/share/qt5ct/colors/darker.conf}"
 qt6ct_colors="${ABORA_QT6CT_COLORS:-/run/current-system/sw/share/qt6ct/colors/darker.conf}"
+launch_sound="${ABORA_LAUNCH_SOUND:-/etc/abora/effects/LaunchingAbora.mp3}"
+launch_sound_marker="${XDG_RUNTIME_DIR:-/tmp}/abora-launch-sound.played"
 
 command_exists() {
     command -v "$1" >/dev/null 2>&1
+}
+
+play_launch_sound_once() {
+    [[ -f "$launch_sound" ]] || return 0
+    [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || return 0
+    [[ ! -f "$launch_sound_marker" ]] || return 0
+
+    mkdir -p "$(dirname "$launch_sound_marker")"
+    : > "$launch_sound_marker"
+
+    if command_exists mpg123; then
+        nohup mpg123 -q "$launch_sound" >/dev/null 2>&1 &
+        return 0
+    fi
+
+    if command_exists mpv; then
+        nohup mpv --really-quiet --no-video "$launch_sound" >/dev/null 2>&1 &
+        return 0
+    fi
+
+    if command_exists ffplay; then
+        nohup ffplay -nodisp -autoexit -loglevel quiet "$launch_sound" >/dev/null 2>&1 &
+        return 0
+    fi
 }
 
 desktop_signature() {
@@ -236,6 +262,8 @@ seed_dark_theme_for_session() {
             export_dark_environment
             ;;
     esac
+
+    play_launch_sound_once || true
 }
 
 seed_gnome_like() {

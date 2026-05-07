@@ -6,6 +6,21 @@ let
   aboraConfig = pkgs.writeShellScriptBin "abora-config" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/config.sh "$@"
   '';
+  aboraCommand = pkgs.writeShellScriptBin "abora" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/abora.sh "$@"
+  '';
+  aboraDesktop = pkgs.writeShellScriptBin "abora-desktop" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/desktop.sh "$@"
+  '';
+  aboraDoctor = pkgs.writeShellScriptBin "abora-doctor" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/doctor.sh "$@"
+  '';
+  aboraRecovery = pkgs.writeShellScriptBin "abora-recovery" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/recovery.sh "$@"
+  '';
+  aboraWelcome = pkgs.writeShellScriptBin "abora-welcome" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/welcome.sh "$@"
+  '';
   anixCommand = pkgs.writeShellScriptBin "anix" ''
     exec env ANIX_SYSTEM_CONFIG=/etc/nixos ANIX_FLAKE_CONFIG_NAME=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/anix.sh "$@"
   '';
@@ -42,6 +57,11 @@ let
     chmod -R u+w "$out"
     cp ${../../assets/bootloader/background.png} "$out/background.png"
     cp ${../../assets/bootloader/theme.txt} "$out/theme.txt"
+  '';
+  aboraPlymouthTheme = pkgs.runCommandLocal "abora-plymouth-theme" { } ''
+    mkdir -p "$out/share/plymouth/themes/abora"
+    cp ${../../assets/plymouth/abora.plymouth} "$out/share/plymouth/themes/abora/abora.plymouth"
+    cp ${../../assets/plymouth/abora.script} "$out/share/plymouth/themes/abora/abora.script"
   '';
   wallpaperDir = ../../assets/wallpapers/collection;
   wallpaperThemeDir = ../../assets/wallpaper-themes;
@@ -112,25 +132,40 @@ in
     "nixpkgs=${pkgs.path}"
     "nixos-config=/etc/nixos/configuration.nix"
   ];
+  boot.initrd.systemd.enable = true;
   boot.initrd.verbose = false;
   boot.consoleLogLevel = 3;
   boot.kernelParams = [
     "quiet"
+    "splash"
     "loglevel=3"
     "udev.log_level=3"
+    "rd.udev.log_level=3"
+    "systemd.log_level=notice"
+    "rd.systemd.log_level=notice"
     "systemd.show_status=false"
     "rd.systemd.show_status=false"
     "vt.global_cursor_default=0"
   ];
+  boot.plymouth = {
+    enable = true;
+    theme = "abora";
+    themePackages = [ aboraPlymouthTheme ];
+  };
 
   environment.systemPackages = with pkgs; [
     aboraApps
+    aboraCommand
     anixCommand
     aboraConfig
+    aboraDesktop
+    aboraDoctor
     aboraHardwareTest
+    aboraRecovery
     aboraSessionSetup
     aboraSupportReport
     aboraUpdate
+    aboraWelcome
     aboraWallpapersPackage
     aboraThemeSync
     bashInteractive
@@ -183,6 +218,26 @@ in
       };
       "abora/apps.sh" = {
         source = ../../scripts/abora-apps.sh;
+        mode = "0755";
+      };
+      "abora/abora.sh" = {
+        source = ../../scripts/abora.sh;
+        mode = "0755";
+      };
+      "abora/desktop.sh" = {
+        source = ../../scripts/abora-desktop.sh;
+        mode = "0755";
+      };
+      "abora/doctor.sh" = {
+        source = ../../scripts/abora-doctor.sh;
+        mode = "0755";
+      };
+      "abora/recovery.sh" = {
+        source = ../../scripts/abora-recovery.sh;
+        mode = "0755";
+      };
+      "abora/welcome.sh" = {
+        source = ../../scripts/abora-welcome.sh;
         mode = "0755";
       };
       "abora/default-wallpaper.png".source = ../../assets/wallpapers/collection/oceandusk.png;
