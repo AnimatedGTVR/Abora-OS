@@ -20,6 +20,31 @@ let
       ./fastfetch-config.jsonc
     else
       ../../assets/fastfetch-config.jsonc;
+  uiScript =
+    if builtins.pathExists ./ui.sh then
+      ./ui.sh
+    else
+      ../../scripts/abora-ui.sh;
+  configScript =
+    if builtins.pathExists ./config.sh then
+      ./config.sh
+    else
+      ../../scripts/abora-config.sh;
+  anixScript =
+    if builtins.pathExists ./anix.sh then
+      ./anix.sh
+    else
+      ../../scripts/anix.sh;
+  optionsModule =
+    if builtins.pathExists ./abora-options.nix then
+      ./abora-options.nix
+    else
+      ../../nix/modules/abora-options.nix;
+  anixModule =
+    if builtins.pathExists ./anix-module.nix then
+      ./anix-module.nix
+    else
+      ../../nix/modules/anix.nix;
   appCatalogScript =
     if builtins.pathExists ./app-catalog.sh then
       ./app-catalog.sh
@@ -85,6 +110,11 @@ let
       ./bootloader
     else
       ../../assets/bootloader;
+  effectsDir =
+    if builtins.pathExists ./effects then
+      ./effects
+    else
+      ../../assets/Effects;
   limineWallpaperFile =
     if builtins.pathExists (bootloaderDir + "/limine-background.png") then
       bootloaderDir + "/limine-background.png"
@@ -93,6 +123,12 @@ let
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
   aboraApps = pkgs.writeShellScriptBin "abora-apps" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/apps.sh "$@"
+  '';
+  aboraConfig = pkgs.writeShellScriptBin "abora-config" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/config.sh "$@"
+  '';
+  anixCommand = pkgs.writeShellScriptBin "anix" ''
+    exec env ANIX_SYSTEM_CONFIG=/etc/nixos ANIX_FLAKE_CONFIG_NAME=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/anix.sh "$@"
   '';
   aboraSupportReport = pkgs.writeShellScriptBin "abora-support-report" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/support-report.sh "$@"
@@ -184,6 +220,8 @@ in
     variantName = lib.mkDefault "Abora ${version}";
   };
 
+  nixpkgs.config.allowUnfree = lib.mkDefault true;
+
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   nix.nixPath = [
     "nixpkgs=${pkgs.path}"
@@ -221,6 +259,24 @@ in
     pulse.enable = lib.mkDefault true;
   };
 
+  services.flatpak.enable = lib.mkDefault true;
+
+  # Add Flathub automatically once the network is up.
+  systemd.services.abora-flatpak-setup = {
+    description     = "Add Flathub remote for Flatpak";
+    after           = [ "network-online.target" "flatpak.service" ];
+    wants           = [ "network-online.target" ];
+    wantedBy        = [ "multi-user.target" ];
+    serviceConfig   = {
+      Type            = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      ${pkgs.flatpak}/bin/flatpak remote-add --system --if-not-exists flathub \
+        https://dl.flathub.org/repo/flathub.flatpakrepo || true
+    '';
+  };
+
   services.qemuGuest.enable = lib.mkDefault true;
   services.spice-vdagentd.enable = lib.mkDefault true;
   virtualisation.vmware.guest.enable = lib.mkDefault pkgs.stdenv.hostPlatform.isx86;
@@ -230,7 +286,7 @@ in
 
   fonts.packages = with pkgs; [
     noto-fonts
-    noto-fonts-emoji
+    noto-fonts-color-emoji
   ];
   fonts.fontconfig = {
     enable = lib.mkDefault true;
@@ -249,6 +305,8 @@ in
 
   environment.systemPackages = with pkgs; [
     aboraApps
+    anixCommand
+    aboraConfig
     aboraHardwareTest
     aboraSupportReport
     aboraUpdate
@@ -267,6 +325,7 @@ in
     iw
     nixosCommand
     pciutils
+    mpg123
     smartmontools
     updateCommand
     upgradeCommand
@@ -284,6 +343,20 @@ in
   environment.etc =
     {
       "abora/VERSION".source = versionFile;
+      "abora/ui.sh" = {
+        source = uiScript;
+        mode = "0644";
+      };
+      "abora/config.sh" = {
+        source = configScript;
+        mode = "0755";
+      };
+      "abora/anix.sh" = {
+        source = anixScript;
+        mode = "0755";
+      };
+      "abora/abora-options.nix".source = optionsModule;
+      "abora/anix-module.nix".source = anixModule;
       "abora/app-catalog.sh" = {
         source = appCatalogScript;
         mode = "0755";
@@ -304,6 +377,7 @@ in
       "abora/title.txt".source = titleFile;
       "abora/fastfetch-logo.txt".source = fastfetchLogoFile;
       "abora/fastfetch-config.jsonc".source = fastfetchConfigFile;
+      "abora/effects/LaunchingAbora.mp3".source = effectsDir + "/LaunchingAbora.mp3";
       "abora/desktop-profiles.sh" = {
         source = desktopProfilesScript;
         mode = "0755";

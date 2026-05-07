@@ -3,13 +3,20 @@ set -euo pipefail
 
 script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 desktop_profiles_lib="${ABORA_DESKTOP_PROFILES_LIB:-$script_dir/abora-desktop-profiles.sh}"
+ui_lib="${ABORA_UI_LIB:-$script_dir/abora-ui.sh}"
 
 if [[ ! -f "$desktop_profiles_lib" && -f /etc/abora/desktop-profiles.sh ]]; then
     desktop_profiles_lib="/etc/abora/desktop-profiles.sh"
 fi
 
+if [[ ! -f "$ui_lib" && -f /etc/abora/ui.sh ]]; then
+    ui_lib="/etc/abora/ui.sh"
+fi
+
 # shellcheck source=/dev/null
 source "$desktop_profiles_lib"
+# shellcheck source=/dev/null
+source "$ui_lib"
 
 config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
 command_name="${ABORA_UPDATE_COMMAND:-$(basename "$0")}"
@@ -18,13 +25,162 @@ repo_ref="${ABORA_REPO_REF:-main}"
 upstream_dir="${ABORA_UPSTREAM_DIR:-$config_dir/.abora-upstream}"
 flake_config_name="${ABORA_FLAKE_CONFIG_NAME:-abora}"
 
-info() {
-    printf '[*] %s\n' "$1"
+# ── Channel helpers ───────────────────────────────────────────────────────────
+
+channel_file() {
+    printf '%s/abora/channel' "$config_dir"
 }
 
-error_msg() {
-    printf '[x] %s\n' "$1" >&2
+read_channel() {
+    local cf
+    cf="$(channel_file)"
+    if [[ -f "$cf" ]]; then
+        tr -d '[:space:]' < "$cf"
+    else
+        printf 'stable'
+    fi
 }
+
+write_channel() {
+    local name="$1" cf
+    cf="$(channel_file)"
+    mkdir -p "$(dirname "$cf")"
+    printf '%s\n' "$name" > "$cf"
+}
+
+# Resolve the git ref for the current channel.
+# For stable: finds the latest v* tag via git ls-remote.
+# For unstable: uses main.
+resolve_channel_ref() {
+    local channel="$1" latest_tag=""
+
+    case "$channel" in
+        stable)
+            abora_info "Resolving latest stable release tag..."
+            latest_tag="$(
+                git ls-remote --tags "$repo_git_url" 'refs/tags/v*' 2>/dev/null \
+                    | grep -v '\^{}' \
+                    | awk '{print $2}' \
+                    | sed 's|refs/tags/||' \
+                    | sort -V \
+                    | tail -n1 \
+                    || true
+            )"
+            if [[ -n "$latest_tag" ]]; then
+                printf '%s' "$latest_tag"
+            else
+                abora_warn "Could not resolve a stable tag — falling back to main."
+                printf 'main'
+            fi
+            ;;
+        unstable)
+            printf 'main'
+            ;;
+        *)
+            abora_warn "Unknown channel '${channel}' — using main."
+            printf 'main'
+            ;;
+    esac
+}
+
+# ── Usage ─────────────────────────────────────────────────────────────────────
+
+usage() {
+    abora_banner "System Update" "Keep your Abora installation up to date."
+    printf '  %bCommands%b\n\n' "$ABORA_WHITE" "$ABORA_NC"
+    printf '  %bnixos update%b  /  %bupdate%b  /  %babora-update%b\n' \
+        "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Sync the latest Abora files and rebuild the system."
+    printf '\n'
+    printf '  %bnixos rollback%b  /  %brollback%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Roll back to the previous system generation."
+    printf '\n'
+    printf '  %bnixos channel%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Show the current update channel."
+    printf '\n'
+    printf '  %bnixos channel list%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  List all available channels."
+    printf '\n'
+    printf '  %bnixos channel set <stable|unstable>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Switch to a different update channel."
+    printf '\n'
+}
+
+# ── Channel subcommand ────────────────────────────────────────────────────────
+
+handle_channel_command() {
+    local sub="${1:-}" channel
+
+    case "$sub" in
+        "" | show)
+            channel="$(read_channel)"
+            abora_banner "Update Channel" "Your system receives updates from this channel."
+            printf '  %bChannel%b    %b%s%b\n' "$ABORA_DIM" "$ABORA_NC" "$ABORA_CYAN" "$channel" "$ABORA_NC"
+            case "$channel" in
+                stable)
+                    abora_dim_line "  Tracks tagged Abora releases. Recommended for most users."
+                    ;;
+                unstable)
+                    abora_dim_line "  Tracks the main development branch. May include breaking changes."
+                    ;;
+            esac
+            printf '\n'
+            ;;
+        list)
+            abora_banner "Update Channels" "Choose how your system receives updates."
+            channel="$(read_channel)"
+
+            local marker_stable="" marker_unstable=""
+            [[ "$channel" == "stable" ]]   && marker_stable=" %b◀ current%b"
+            [[ "$channel" == "unstable" ]] && marker_unstable=" %b◀ current%b"
+
+            printf '  %bstable%b' "$ABORA_CYAN" "$ABORA_NC"
+            # shellcheck disable=SC2059
+            [[ -n "$marker_stable" ]]   && printf "  $marker_stable" "$ABORA_GREEN" "$ABORA_NC"
+            printf '\n'
+            abora_dim_line "  Latest tagged Abora releases. Recommended for most users."
+            printf '\n'
+
+            printf '  %bunstable%b' "$ABORA_CYAN" "$ABORA_NC"
+            # shellcheck disable=SC2059
+            [[ -n "$marker_unstable" ]] && printf "  $marker_unstable" "$ABORA_GREEN" "$ABORA_NC"
+            printf '\n'
+            abora_dim_line "  Development builds from the main branch. May include breaking changes."
+            printf '\n'
+            ;;
+        set)
+            local new_channel="${2:-}"
+            case "$new_channel" in
+                stable | unstable)
+                    run_as_root env \
+                        ABORA_SYSTEM_CONFIG="$config_dir" \
+                        bash -c '
+                            channel_file="'"$config_dir"'/abora/channel"
+                            mkdir -p "$(dirname "$channel_file")"
+                            printf "%s\n" "'"$new_channel"'" > "$channel_file"
+                        '
+                    abora_success "Channel set to '${new_channel}'."
+                    abora_dim_line "Run 'update' to apply the new channel."
+                    printf '\n'
+                    ;;
+                "")
+                    abora_error "Specify a channel: stable or unstable"
+                    exit 1
+                    ;;
+                *)
+                    abora_error "Unknown channel: ${new_channel}. Use 'stable' or 'unstable'."
+                    exit 1
+                    ;;
+            esac
+            ;;
+        *)
+            abora_error "Unknown channel subcommand: ${sub}"
+            exit 1
+            ;;
+    esac
+}
+
+# ── System helpers ────────────────────────────────────────────────────────────
 
 run_as_root() {
     if [[ "$(id -u)" -eq 0 ]]; then
@@ -37,21 +193,8 @@ run_as_root() {
         return
     fi
 
-    error_msg "This command needs root privileges. Run it as root or install sudo."
+    abora_error "This command needs root privileges. Run it as root or install sudo."
     exit 1
-}
-
-usage() {
-    cat <<EOF
-Usage:
-  nixos update
-  nixos upgrade
-  nixos rollback
-  update
-  upgrade
-  rollback
-  abora-update
-EOF
 }
 
 system_string() {
@@ -61,6 +204,8 @@ system_string() {
         *) printf '%s-linux\n' "$(uname -m)" ;;
     esac
 }
+
+# ── Config writers ────────────────────────────────────────────────────────────
 
 desktop_config_block() {
     local desktop_profile="$1"
@@ -92,12 +237,16 @@ write_flake_file() {
       modules =
         let
           appModule = ./abora/apps.nix;
+          anixLayer = ./anix.nix;
         in
         [
           ./hardware-configuration.nix
           ./abora/installed-base.nix
+          ./abora/abora-options.nix
+          ./abora/anix-module.nix
           ./abora-local.nix
-        ] ++ nixpkgs.lib.optional (builtins.pathExists appModule) appModule;
+        ] ++ nixpkgs.lib.optional (builtins.pathExists appModule) appModule
+          ++ nixpkgs.lib.optional (builtins.pathExists anixLayer) anixLayer;
     };
   };
 }
@@ -115,50 +264,32 @@ write_local_module() {
     local disk_value="$8"
     local state_version="$9"
     local desktop_profile="${10}"
-    local desktop_block=""
-    local desktop_packages=""
-    local desktop_label=""
-    local desktop_variant_id=""
-
-    abora_sync_desktop_label "$desktop_profile"
-    desktop_block="$(desktop_config_block "$desktop_profile" "$xkb_layout_value" "$username_value")"
-    desktop_packages="$(desktop_package_block "$desktop_profile")"
 
     cat > "$target" <<EOF
-{ pkgs, lib, ... }:
+# ── Abora OS — system configuration ──────────────────────────────────────────
+# Edit these values to personalise your system, then run 'update' to apply.
+# Do not change abora.disk or abora.stateVersion after the first install.
+{ ... }:
 {
-  system.nixos.variantName = "Abora ${desktop_label} Edition";
-  system.nixos.variant_id = "${desktop_variant_id}";
+  # ── Identity ──────────────────────────────────────────────────────────────
+  abora.hostname         = "${hostname_value}";
+  abora.timezone         = "${timezone_value}";  # e.g. America/New_York, Europe/London
+  abora.keyboard.console = "${keyboard_value}";  # TTY keymap
+  abora.keyboard.xkb     = "${xkb_layout_value}"; # graphical keyboard layout
 
-  boot.loader.grub.enable = lib.mkForce false;
-  boot.loader.limine = {
-    enable = true;
-    biosSupport = true;
-    biosDevice = "${disk_value}";
-    efiSupport = true;
-    efiInstallAsRemovable = true;
-  };
+  # ── User ──────────────────────────────────────────────────────────────────
+  abora.user.name           = "${username_value}";
+  abora.user.hashedPassword = "${user_password_hash}"; # generate with: mkpasswd
 
-  networking.hostName = "${hostname_value}";
-  time.timeZone = "${timezone_value}";
-  console.keyMap = "${keyboard_value}";
+  # ── Desktop ───────────────────────────────────────────────────────────────
+  # Options: none gnome plasma hyprland sway niri xfce cinnamon mate budgie
+  #          lxqt pantheon lxde enlightenment i3 awesome openbox
+  #          river qtile bspwm fluxbox icewm herbstluftwm dwm
+  abora.desktop = "${desktop_profile}";
 
-${desktop_block}
-  users.users."${username_value}" = {
-    isNormalUser = true;
-    description = "Abora User";
-    createHome = true;
-    extraGroups = [ "wheel" "networkmanager" "audio" "video" ];
-    hashedPassword = "${user_password_hash}";
-  };
-
-  security.sudo.wheelNeedsPassword = true;
-
-  environment.systemPackages = with pkgs; [
-${desktop_packages}
-  ];
-
-  system.stateVersion = "${state_version}";
+  # ── Hardware ──────────────────────────────────────────────────────────────
+  abora.disk         = "${disk_value}";    # install disk for the bootloader
+  abora.stateVersion = "${state_version}"; # set at install time — do not change
 }
 EOF
 }
@@ -170,7 +301,10 @@ extract_setting() {
     sed -nE "$expression" "$file" | head -n1
 }
 
+# ── File sync ─────────────────────────────────────────────────────────────────
+
 sync_abora_files() {
+    local effective_ref="$1"
     local abora_dir="$config_dir/abora"
     local upstream_background="$upstream_dir/assets/bootloader/background.png"
     local upstream_limine_background="$upstream_dir/assets/bootloader/limine-background.png"
@@ -178,22 +312,27 @@ sync_abora_files() {
     local limine_source=""
 
     if ! command -v git >/dev/null 2>&1; then
-        error_msg "The git command is required to fetch the latest Abora files."
+        abora_error "The git command is required to fetch the latest Abora files."
         return 1
     fi
 
     if [[ -d "$upstream_dir/.git" ]]; then
-        info "Fetching latest Abora project files"
-        git -C "$upstream_dir" fetch --depth=1 origin "$repo_ref" >/dev/null 2>&1
+        abora_info "Fetching latest Abora files (${effective_ref})"
+        git -C "$upstream_dir" fetch --depth=1 origin "$effective_ref" >/dev/null 2>&1
         git -C "$upstream_dir" reset --hard FETCH_HEAD >/dev/null 2>&1
     else
-        info "Cloning latest Abora project files"
+        abora_info "Cloning Abora files (${effective_ref})"
         rm -rf "$upstream_dir"
-        git clone --depth=1 --branch "$repo_ref" "$repo_git_url" "$upstream_dir" >/dev/null 2>&1
+        git clone --depth=1 --branch "$effective_ref" "$repo_git_url" "$upstream_dir" >/dev/null 2>&1
     fi
 
-    mkdir -p "$abora_dir/plymouth" "$abora_dir/bootloader"
+    mkdir -p "$abora_dir/plymouth" "$abora_dir/bootloader" "$abora_dir/effects"
     cp "$upstream_dir/VERSION" "$abora_dir/VERSION"
+    cp "$upstream_dir/nix/modules/abora-options.nix" "$abora_dir/abora-options.nix"
+    cp "$upstream_dir/nix/modules/anix.nix" "$abora_dir/anix-module.nix"
+    cp "$upstream_dir/scripts/abora-ui.sh"     "$abora_dir/ui.sh"
+    cp "$upstream_dir/scripts/abora-config.sh" "$abora_dir/config.sh"
+    cp "$upstream_dir/scripts/anix.sh" "$abora_dir/anix.sh"
     cp "$upstream_dir/scripts/abora-app-catalog.sh" "$abora_dir/app-catalog.sh"
     cp "$upstream_dir/scripts/abora-apps.sh" "$abora_dir/apps.sh"
     cp "$upstream_dir/scripts/abora-support-report.sh" "$abora_dir/support-report.sh"
@@ -207,10 +346,12 @@ sync_abora_files() {
     cp "$upstream_dir/assets/abora-title.txt" "$abora_dir/title.txt"
     cp "$upstream_dir/assets/fastfetch-logo.txt" "$abora_dir/fastfetch-logo.txt"
     cp "$upstream_dir/assets/fastfetch-config.jsonc" "$abora_dir/fastfetch-config.jsonc"
+    cp "$upstream_dir/assets/Effects/LaunchingAbora.mp3" "$abora_dir/effects/LaunchingAbora.mp3"
     cp "$upstream_dir/assets/plymouth/abora.plymouth" "$abora_dir/plymouth/abora.plymouth"
     cp "$upstream_dir/assets/plymouth/abora.script" "$abora_dir/plymouth/abora.script"
+
     if [[ ! -f "$upstream_background" || ! -f "$upstream_theme" ]]; then
-        error_msg "The latest Abora bootloader assets are incomplete."
+        abora_error "The latest Abora bootloader assets are incomplete."
         return 1
     fi
 
@@ -230,6 +371,16 @@ sync_abora_files() {
         : > "$abora_dir/apps.list"
     fi
 
+    if [[ ! -f "$config_dir/anix.nix" ]]; then
+        cat > "$config_dir/anix.nix" <<EOF
+# ANIX is a simple layer on top of Abora/NixOS.
+{ ... }:
+{
+  anix.enable = true;
+}
+EOF
+    fi
+
     if [[ ! -f "$abora_dir/apps.nix" ]]; then
         cat > "$abora_dir/apps.nix" <<'EOF'
 { pkgs, ... }:
@@ -241,22 +392,18 @@ EOF
     fi
 }
 
+# ── Legacy migration ──────────────────────────────────────────────────────────
+
 bootstrap_legacy_flake() {
     local legacy_config="$config_dir/configuration.nix"
     local local_module="$config_dir/abora-local.nix"
     local flake_file="$config_dir/flake.nix"
-    local hostname_value=""
-    local timezone_value=""
-    local keyboard_value=""
-    local xkb_layout_value=""
-    local username_value=""
-    local user_password_hash=""
-    local disk_value=""
-    local state_version=""
+    local hostname_value="" timezone_value="" keyboard_value="" xkb_layout_value=""
+    local username_value="" user_password_hash="" disk_value="" state_version=""
     local desktop_profile=""
 
     if [[ ! -f "$legacy_config" && ! -f "$flake_file" ]]; then
-        error_msg "No flake.nix or configuration.nix found in $config_dir."
+        abora_error "No flake.nix or configuration.nix found in $config_dir."
         return 1
     fi
 
@@ -278,12 +425,12 @@ bootstrap_legacy_flake() {
         state_version="${state_version:-26.05}"
 
         if [[ -z "$username_value" || -z "$user_password_hash" || -z "$disk_value" ]]; then
-            error_msg "Could not migrate the legacy Abora install automatically."
-            error_msg "Missing values: user=${username_value:-missing} passwordHash=${user_password_hash:+set}${user_password_hash:-missing} disk=${disk_value:-missing}"
+            abora_error "Could not migrate the legacy Abora install automatically."
+            abora_error "Missing values: user=${username_value:-missing} passwordHash=${user_password_hash:+set}${user_password_hash:-missing} disk=${disk_value:-missing}"
             return 1
         fi
 
-        info "Migrating legacy Abora install to flake layout"
+        abora_info "Migrating legacy Abora install to flake layout"
         cp -f "$legacy_config" "$config_dir/configuration.legacy.nix"
         write_local_module \
             "$local_module" \
@@ -296,27 +443,31 @@ bootstrap_legacy_flake() {
             "$disk_value" \
             "$state_version" \
             "$desktop_profile"
-        info "Created $local_module"
+        abora_info "Created $local_module"
     fi
 
     write_flake_file "$flake_file" "$(system_string)"
-    info "Wrote $flake_file"
+    abora_info "Wrote $flake_file"
 }
 
+# ── Pre-flight checks ─────────────────────────────────────────────────────────
+
 if ! command -v nix >/dev/null 2>&1; then
-    error_msg "The nix command is not available on this system."
+    abora_error "The nix command is not available on this system."
     exit 1
 fi
 
 if ! command -v nixos-rebuild >/dev/null 2>&1; then
-    error_msg "The nixos-rebuild command is not available on this system."
+    abora_error "The nixos-rebuild command is not available on this system."
     exit 1
 fi
 
 if [[ ! -d "$config_dir" ]]; then
-    error_msg "NixOS config directory not found: $config_dir"
+    abora_error "NixOS config directory not found: $config_dir"
     exit 1
 fi
+
+# ── Command routing ───────────────────────────────────────────────────────────
 
 case "$command_name" in
     nixos)
@@ -328,12 +479,17 @@ case "$command_name" in
                 command_name="rollback"
                 shift
                 ;;
+            channel)
+                shift
+                handle_channel_command "$@"
+                exit 0
+                ;;
             "" | help | -h | --help)
                 usage
                 exit 0
                 ;;
             *)
-                error_msg "Unknown nixos command: $1"
+                abora_error "Unknown nixos command: $1"
                 usage >&2
                 exit 1
                 ;;
@@ -342,11 +498,12 @@ case "$command_name" in
 esac
 
 if [[ "$#" -gt 0 ]]; then
-    error_msg "This command does not take extra arguments yet."
+    abora_error "This command does not take extra arguments yet."
     usage >&2
     exit 1
 fi
 
+# Re-exec as root, forwarding channel env vars too.
 if [[ "$(id -u)" -ne 0 ]]; then
     run_as_root env \
         ABORA_UPDATE_COMMAND="$command_name" \
@@ -359,25 +516,48 @@ if [[ "$(id -u)" -ne 0 ]]; then
     exit 0
 fi
 
+# ── Rollback ──────────────────────────────────────────────────────────────────
+
 if [[ "$command_name" == "rollback" ]]; then
-    info "Rolling Abora back to the previous system generation"
+    abora_banner "System Rollback" "Reverting to the previous system generation."
+    abora_step "Rolling back to the previous generation"
+    printf '\n'
     nixos-rebuild switch --rollback
+    printf '\n'
+    abora_success "Rollback complete."
+    printf '\n'
     exit 0
 fi
 
-sync_abora_files || {
-    error_msg "Abora could not fetch the latest project files."
+# ── Update ────────────────────────────────────────────────────────────────────
+
+channel="$(read_channel)"
+effective_ref="$(resolve_channel_ref "$channel")"
+
+abora_banner "System Update" "Channel: ${channel}  ·  Ref: ${effective_ref}"
+
+sync_abora_files "$effective_ref" || {
+    abora_error "Abora could not fetch the latest project files."
     exit 1
 }
+abora_success "Abora files synced."
+printf '\n'
 
 bootstrap_legacy_flake || {
-    error_msg "Abora could not prepare a flake-based system update."
-    error_msg "Reinstall from the latest Abora ISO if this system predates the flake update path."
+    abora_error "Abora could not prepare a flake-based system update."
+    abora_error "Reinstall from the latest Abora ISO if this system predates the flake update path."
     exit 1
 }
 
-info "Updating Abora from the latest local flake"
+abora_step "Updating flake inputs"
+printf '\n'
 nix --extra-experimental-features "nix-command flakes" flake update --flake "$config_dir"
+printf '\n'
 
-info "Rebuilding Abora from $config_dir"
+abora_step "Rebuilding Abora from $config_dir"
+printf '\n'
 nixos-rebuild switch --flake "$config_dir#${flake_config_name}"
+printf '\n'
+
+abora_success "Abora is up to date."
+printf '\n'

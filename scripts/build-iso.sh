@@ -26,6 +26,7 @@ mkdir -p "$out_dir"
 export NIX_CONFIG="${NIX_CONFIG:-experimental-features = nix-command flakes}"
 
 nix_target="$repo_dir#packages.x86_64-linux.iso"
+artifact_prefix="abora"
 echo "Building target: $nix_target"
 
 build_link="$out_dir/nix-iso-result"
@@ -60,12 +61,12 @@ if [[ -z "${iso_src:-}" || ! -f "$iso_src" ]]; then
     exit 1
 fi
 
-target_iso="$out_dir/abora-${build_date}-x86_64-${version_tag}.iso"
-rm -f "$out_dir"/*-"${version_tag}".iso
-rm -f "$out_dir/SHA256SUMS-${version_tag}.txt"
-rm -f "$out_dir/RELEASE_MANIFEST-${version_tag}.txt"
-rm -f "$out_dir/RELEASE_NOTES-${version_tag}.md"
+target_iso="$out_dir/${artifact_prefix}-${build_date}-x86_64-${version_tag}.iso"
+rm -f "$out_dir/${artifact_prefix}-"*"-${version_tag}.iso"
 cp -f "$iso_src" "$target_iso"
 
 echo "ISO output: $target_iso"
+rm -f "$out_dir/SHA256SUMS-${version_tag}.txt"
+rm -f "$out_dir/RELEASE_MANIFEST-${version_tag}.txt"
+rm -f "$out_dir/RELEASE_NOTES-${version_tag}.md"
 ABORA_OUT_DIR="$out_dir" "$repo_dir/scripts/release-metadata.sh" >/dev/null

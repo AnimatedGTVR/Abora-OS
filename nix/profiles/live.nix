@@ -3,6 +3,12 @@ let
   aboraApps = pkgs.writeShellScriptBin "abora-apps" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/apps.sh "$@"
   '';
+  aboraConfig = pkgs.writeShellScriptBin "abora-config" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/config.sh "$@"
+  '';
+  anixCommand = pkgs.writeShellScriptBin "anix" ''
+    exec env ANIX_SYSTEM_CONFIG=/etc/nixos ANIX_FLAKE_CONFIG_NAME=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/anix.sh "$@"
+  '';
   aboraSupportReport = pkgs.writeShellScriptBin "abora-support-report" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/support-report.sh "$@"
   '';
@@ -119,6 +125,8 @@ in
 
   environment.systemPackages = with pkgs; [
     aboraApps
+    anixCommand
+    aboraConfig
     aboraHardwareTest
     aboraSessionSetup
     aboraSupportReport
@@ -182,6 +190,7 @@ in
       "abora/VERSION".source = ../../VERSION;
       "abora/fastfetch-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "abora/fastfetch-config.jsonc".source = ../../assets/fastfetch-config.jsonc;
+      "abora/effects/LaunchingAbora.mp3".source = ../../assets/Effects/LaunchingAbora.mp3;
       "abora/desktop-profiles.sh" = {
         source = ../../scripts/abora-desktop-profiles.sh;
         mode = "0755";
@@ -213,6 +222,20 @@ in
         mode = "0755";
       };
       "abora/installed-base.nix".source = ../../nix/modules/installed-base.nix;
+      "abora/abora-options.nix".source  = ../../nix/modules/abora-options.nix;
+      "abora/ui.sh" = {
+        source = ../../scripts/abora-ui.sh;
+        mode   = "0644";
+      };
+      "abora/config.sh" = {
+        source = ../../scripts/abora-config.sh;
+        mode   = "0755";
+      };
+      "abora/anix.sh" = {
+        source = ../../scripts/anix.sh;
+        mode = "0755";
+      };
+      "abora/anix-module.nix".source = ../../nix/modules/anix.nix;
       "abora/session-setup.sh" = {
         source = ../../scripts/abora-session-setup.sh;
         mode = "0755";
