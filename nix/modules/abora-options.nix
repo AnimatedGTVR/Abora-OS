@@ -39,7 +39,6 @@ let
     fluxbox      = "Fluxbox";
     icewm        = "IceWM";
     herbstluftwm = "Herbstluftwm";
-    dwm          = "DWM";
   }.${cfg.desktop} or "Abora";
 
   is = d: active && cfg.desktop == d;
@@ -535,22 +534,6 @@ in
         };
         services.displayManager = {
           defaultSession   = "none+herbstluftwm";
-          autoLogin.enable = true;
-          autoLogin.user   = cfg.user.name;
-        };
-        services.xserver.displayManager.lightdm.enable = true;
-      })
-
-      # ── DWM ────────────────────────────────────────────────────────────
-      (lib.mkIf (is "dwm") {
-        services.xserver = {
-          enable                             = true;
-          xkb.layout                         = cfg.keyboard.xkb;
-          windowManager.dwm.enable           = true;
-          desktopManager.runXdgAutostartIfNone = true;
-        };
-        services.displayManager = {
-          defaultSession   = "none+dwm";
           autoLogin.enable = true;
           autoLogin.user   = cfg.user.name;
         };
