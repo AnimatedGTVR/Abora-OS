@@ -35,7 +35,7 @@ in
         "none" "gnome" "plasma" "hyprland" "sway" "xfce" "cinnamon" "mate"
         "budgie" "lxqt" "pantheon" "enlightenment" "i3" "awesome"
         "openbox" "niri" "river" "qtile" "bspwm" "fluxbox" "icewm"
-        "herbstluftwm" "dwm"
+        "herbstluftwm"
       ]);
       default = null;
       description = "Optional desktop override (requires Abora OS for full effect).";
