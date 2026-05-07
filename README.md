@@ -42,7 +42,7 @@
 </p>
 
 <p align="center">
-  <strong>v2.0.0</strong>
+  <strong>v2.5.0</strong>
 </p>
 
 ---
@@ -63,13 +63,18 @@ Instead of dropping people into a system that feels like it was only built for p
 
 - Terminal-first live boot and installer with a full welcome flow
 - 23 desktop environments to choose from at install time
-- Curated starter app bundles: Fan Favorites, Essentials, Social, Creator, Developer
+- Curated starter app bundles: Fan Favorites, Essentials, Social, Creator, Developer, Gaming, System
+- 55 apps in the catalog across 7 categories
+- Flatpak + Flathub enabled out of the box on every install
 - Curated wallpaper pack seeded across all supported desktop sessions
 - Dark-first desktop defaults across the full session matrix
 - GNOME accent and theme auto-matching for Abora wallpapers
 - Limine as the installed-system bootloader with Abora branding
 - Reproducible ISO builds via Nix flakes
 - `sudo nixos update` / `rollback` flow on installed systems
+- Update channels: track `stable` releases or `unstable` (main branch)
+- `abora config` command to view and change system settings without editing Nix
+- Consistent ocean-themed terminal UI across all Abora tools
 - Optional GitHub CLI integration for repos, dotfiles, and support workflows
 - Abora branding across boot, desktop, and fastfetch
 
@@ -77,7 +82,7 @@ Instead of dropping people into a system that feels like it was only built for p
 
 ## Desktop Environments
 
-Abora v2 ships with **23 desktop environments** selectable at install time:
+Abora v2.5 ships with **23 desktop environments** selectable at install time:
 
 | Desktop | Type | Display Manager |
 |---|---|---|
@@ -146,6 +151,67 @@ make qemc
 
 ---
 
+## Configuring an Installed System
+
+After installation, your system settings live in `/etc/nixos/abora/abora-local.nix`:
+
+```nix
+abora.hostname = "my-pc";
+abora.timezone = "America/New_York";
+abora.desktop  = "gnome";
+```
+
+The `abora config` command lets you view and change settings without editing the file directly:
+
+```sh
+abora config                         # show all current settings
+abora config set hostname   my-pc
+abora config set timezone   America/New_York
+abora config set desktop    hyprland
+abora config apply                   # rebuild to apply changes
+```
+
+Note: `user` and `disk` are read-only through `abora config` for safety — edit `abora-local.nix` directly for those.
+
+---
+
+## ANIX Layer
+
+ANIX is no longer a separate distro build. Inside Abora, it is a small layer on top of the normal NixOS/Abora config that keeps a few common settings easier to read and change.
+
+Use it like this:
+
+```sh
+anix init
+anix show
+anix set hostname my-pc
+anix set desktop none
+anix apply
+```
+
+ANIX writes to `/etc/nixos/anix.nix` and rebuilds the normal Abora flake. It does not replace NixOS or Abora — it just gives you a simpler front layer for common settings.
+
+---
+
+## Update Channels
+
+Installed systems can track either the `stable` channel (latest tagged release) or `unstable` (main branch):
+
+```sh
+nixos channel          # show current channel
+nixos channel list     # list available channels
+nixos channel set stable
+nixos channel set unstable
+```
+
+---
+
+## Flatpak
+
+Flatpak is enabled on every Abora install and the Flathub remote is added automatically on first boot — no manual setup needed.
+
+---
+
 ## Updating an Installed System
 
 On an installed Abora system:
@@ -188,8 +254,8 @@ make tinypm-image    # TinyPM container image locally
 To publish a release:
 
 ```sh
-git tag v2.0.0
-git push origin v2.0.0
+git tag v2.5.0
+git push origin v2.5.0
 ```
 
 ---

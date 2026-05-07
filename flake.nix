@@ -10,7 +10,10 @@
       system = "x86_64-linux";
       version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile ./VERSION);
     in {
-      nixosModules.installed-base = import ./nix/modules/installed-base.nix;
+      nixosModules = {
+        installed-base = import ./nix/modules/installed-base.nix;
+        anix = import ./nix/modules/anix.nix;
+      };
 
       nixosConfigurations.abora-live = nixpkgs.lib.nixosSystem {
         inherit system;
@@ -21,7 +24,9 @@
         ];
       };
 
-      packages.${system}.iso = self.nixosConfigurations.abora-live.config.system.build.isoImage;
+      packages.${system} = {
+        iso = self.nixosConfigurations.abora-live.config.system.build.isoImage;
+      };
       defaultPackage.${system} = self.packages.${system}.iso;
     };
 }
