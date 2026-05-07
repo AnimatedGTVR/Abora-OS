@@ -1,63 +1,72 @@
-{ lib, config, ... }:
+{ lib, config, options, ... }:
 let
   cfg = config.anix;
-  desktopType = lib.types.nullOr (lib.types.enum [
-    "none" "gnome" "plasma" "hyprland" "sway" "xfce" "cinnamon" "mate"
-    "budgie" "lxqt" "pantheon" "lxde" "enlightenment" "i3" "awesome"
-    "openbox" "niri" "river" "qtile" "bspwm" "fluxbox" "icewm"
-    "herbstluftwm" "dwm"
-  ]);
 in
 {
   options.anix = {
-    enable = lib.mkEnableOption "ANIX, a simple layer on top of Abora/NixOS";
+    enable = lib.mkEnableOption "ANIX, a simple configuration layer for NixOS";
 
     hostname = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
-      description = "Optional hostname override applied through the ANIX layer.";
+      description = "Optional hostname override.";
     };
 
     timezone = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
-      description = "Optional timezone override applied through the ANIX layer.";
+      description = "Optional timezone override (e.g. America/New_York).";
     };
 
     keyboard.console = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
-      description = "Optional console keymap override applied through the ANIX layer.";
+      description = "Optional console keymap (e.g. us, de, fr).";
     };
 
     keyboard.xkb = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
-      description = "Optional graphical keyboard layout override applied through the ANIX layer.";
+      description = "Optional graphical keyboard layout (e.g. us, de, fr).";
     };
 
     desktop = lib.mkOption {
-      type = desktopType;
+      type = lib.types.nullOr (lib.types.enum [
+        "none" "gnome" "plasma" "hyprland" "sway" "xfce" "cinnamon" "mate"
+        "budgie" "lxqt" "pantheon" "enlightenment" "i3" "awesome"
+        "openbox" "niri" "river" "qtile" "bspwm" "fluxbox" "icewm"
+        "herbstluftwm" "dwm"
+      ]);
       default = null;
-      description = "Optional desktop override applied through the ANIX layer.";
+      description = "Optional desktop override (requires Abora OS for full effect).";
+    };
+
+    wallpaper = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = "Optional wallpaper filename (requires Abora OS).";
     };
   };
 
   config = lib.mkIf cfg.enable (lib.mkMerge [
     (lib.mkIf (cfg.hostname != null) {
-      abora.hostname = lib.mkForce cfg.hostname;
+      networking.hostName = lib.mkForce cfg.hostname;
     })
     (lib.mkIf (cfg.timezone != null) {
-      abora.timezone = lib.mkForce cfg.timezone;
+      time.timeZone = lib.mkForce cfg.timezone;
     })
     (lib.mkIf (cfg.keyboard.console != null) {
-      abora.keyboard.console = lib.mkForce cfg.keyboard.console;
+      console.keyMap = lib.mkForce cfg.keyboard.console;
     })
     (lib.mkIf (cfg.keyboard.xkb != null) {
-      abora.keyboard.xkb = lib.mkForce cfg.keyboard.xkb;
+      services.xserver.xkb.layout = lib.mkForce cfg.keyboard.xkb;
     })
-    (lib.mkIf (cfg.desktop != null) {
+    # desktop and wallpaper only take effect when running under Abora OS
+    (lib.mkIf (cfg.desktop != null && options ? abora) {
       abora.desktop = lib.mkForce cfg.desktop;
+    })
+    (lib.mkIf (cfg.wallpaper != null && options ? abora) {
+      abora.wallpaper = lib.mkForce cfg.wallpaper;
     })
   ]);
 }

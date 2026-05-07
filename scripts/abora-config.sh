@@ -15,6 +15,7 @@ source "$ui_lib"
 
 config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
 local_module="${config_dir}/abora-local.nix"
+wallpaper_dir="${ABORA_WALLPAPER_DIR:-/etc/abora/wallpapers}"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -75,13 +76,14 @@ write_option() {
 show_config() {
     require_local_module
 
-    local hostname timezone kb_console kb_xkb user_name desktop disk state_ver
+    local hostname timezone kb_console kb_xkb user_name desktop wallpaper disk state_ver
     hostname="$(read_option "hostname")"
     timezone="$(read_option "timezone")"
     kb_console="$(read_option "keyboard.console")"
     kb_xkb="$(read_option "keyboard.xkb")"
     user_name="$(read_option "user.name")"
     desktop="$(read_option "desktop")"
+    wallpaper="$(read_option "wallpaper")"
     disk="$(read_option "disk")"
     state_ver="$(read_option "stateVersion")"
 
@@ -95,17 +97,23 @@ show_config() {
 
     abora_banner "System Configuration" "${local_module}"
 
-    local col=18
-    printf '  %b%-*s%b  %b%s%b\n' "$ABORA_DIM" "$col" "hostname"      "$ABORA_NC" "$ABORA_CYAN"    "${hostname:-—}"   "$ABORA_NC"
-    printf '  %b%-*s%b  %b%s%b\n' "$ABORA_DIM" "$col" "timezone"      "$ABORA_NC" "$ABORA_CYAN"    "${timezone:-—}"   "$ABORA_NC"
-    printf '  %b%-*s%b  %b%s%b  /  %b%s%b\n' \
-        "$ABORA_DIM" "$col" "keyboard" "$ABORA_NC" \
+    abora_card_start "Current Settings"
+
+    abora_kv "hostname"      "${hostname:-—}"
+    abora_kv "timezone"      "${timezone:-—}"
+    printf '  %b│%b  %b%-18s%b  %b%s%b  /  %b%s%b\n' \
+        "$ABORA_BLUE" "$ABORA_NC" \
+        "$ABORA_DIM" "keyboard" "$ABORA_NC" \
         "$ABORA_CYAN" "${kb_console:-—}" "$ABORA_NC" \
         "$ABORA_DIM" "${kb_xkb:-—}" "$ABORA_NC"
-    printf '  %b%-*s%b  %b%s%b\n' "$ABORA_DIM" "$col" "desktop"       "$ABORA_NC" "$ABORA_CYAN"    "${desktop:-—}"    "$ABORA_NC"
-    printf '  %b%-*s%b  %b%s%b\n' "$ABORA_DIM" "$col" "user"          "$ABORA_NC" "$ABORA_CYAN"    "${user_name:-—}"  "$ABORA_NC"
-    printf '  %b%-*s%b  %b%s%b\n' "$ABORA_DIM" "$col" "disk"          "$ABORA_NC" "$ABORA_FAINT"   "${disk:-—}"       "$ABORA_NC"
-    printf '  %b%-*s%b  %b%s%b\n' "$ABORA_DIM" "$col" "state version" "$ABORA_NC" "$ABORA_FAINT"   "${state_ver:-—}"  "$ABORA_NC"
+    abora_kv "desktop"       "${desktop:-—}"
+    abora_kv "wallpaper"     "${wallpaper:-—}"
+    abora_kv "user"          "${user_name:-—}"
+    abora_kv_faint "disk"    "${disk:-—}"
+    abora_kv_faint "state version" "${state_ver:-—}"
+
+    abora_card_end
+
     printf '\n'
     abora_dim_line "Run 'abora config set <key> <value>' to change a setting."
     abora_dim_line "Run 'abora config apply' to rebuild after changes."
@@ -116,9 +124,35 @@ show_config() {
 
 valid_desktops=(
     none gnome plasma hyprland sway xfce cinnamon mate budgie lxqt pantheon
-    lxde enlightenment i3 awesome openbox niri river qtile bspwm fluxbox
+    enlightenment i3 awesome openbox niri river qtile bspwm fluxbox
     icewm herbstluftwm dwm
 )
+
+wallpaper_candidates() {
+    if [[ -d "$wallpaper_dir" ]]; then
+        find "$wallpaper_dir" -maxdepth 1 -type f -printf '%f\n' 2>/dev/null | sort
+        return 0
+    fi
+
+    printf '%s\n' \
+        oceandusk.png \
+        bluehorizon.png \
+        astronautwallpaper.png \
+        glacierreflection.png
+}
+
+validate_wallpaper() {
+    local candidate="$1"
+    if wallpaper_candidates | grep -Fxq "$candidate"; then
+        return 0
+    fi
+
+    abora_error "Unknown wallpaper: '${candidate}'"
+    printf '  %bAvailable wallpapers:%b\n' "$ABORA_DIM" "$ABORA_NC"
+    wallpaper_candidates | sed 's/^/    /'
+    printf '\n'
+    exit 1
+}
 
 validate_desktop() {
     local d="$1"
@@ -152,9 +186,12 @@ do_set() {
         desktop)
             validate_desktop "$value"
             ;;
+        wallpaper)
+            validate_wallpaper "$value"
+            ;;
         *)
             abora_error "Unknown key: '${key}'"
-            printf '  %bSettable keys:%b  hostname  timezone  keyboard  keyboard.xkb  desktop\n\n' \
+            printf '  %bSettable keys:%b  hostname  timezone  keyboard  keyboard.xkb  desktop  wallpaper\n\n' \
                 "$ABORA_DIM" "$ABORA_NC"
             exit 1
             ;;
@@ -203,6 +240,7 @@ usage() {
     printf '  %babora config set timezone   <value>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     printf '  %babora config set keyboard   <value>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     printf '  %babora config set desktop    <value>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora config set wallpaper  <value>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Update a setting in abora-local.nix."
     printf '\n'
 
@@ -217,6 +255,7 @@ usage() {
     abora_dim_line "  keyboard       Console keymap (e.g. us, de, fr)"
     abora_dim_line "  keyboard.xkb   Graphical keyboard layout"
     abora_dim_line "  desktop        Desktop environment (e.g. gnome, hyprland, plasma)"
+    abora_dim_line "  wallpaper      Shipped Abora wallpaper filename"
     printf '\n'
 }
 

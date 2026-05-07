@@ -13,18 +13,27 @@ esac
 bash_scripts=(
   "scripts/abora-app-catalog.sh"
   "scripts/abora-apps.sh"
+  "scripts/abora.sh"
   "scripts/abora-boot.sh"
+  "scripts/abora-config.sh"
+  "scripts/abora-desktop.sh"
   "scripts/abora-desktop-profiles.sh"
+  "scripts/abora-doctor.sh"
   "scripts/abora-hardware-test.sh"
   "scripts/abora-installer.sh"
+  "scripts/abora-recovery.sh"
   "scripts/abora-session-setup.sh"
   "scripts/abora-support-report.sh"
+  "scripts/abora-ui.sh"
+  "scripts/abora-welcome.sh"
+  "scripts/anix.sh"
   "scripts/check-desktops.sh"
   "scripts/abora-theme-sync.sh"
   "scripts/abora-update.sh"
   "scripts/build-iso.sh"
   "scripts/build-tinypm-image.sh"
   "scripts/package-tinypm.sh"
+  "scripts/preflight.sh"
   "scripts/rebuild-vm.sh"
   "scripts/release-metadata.sh"
   "scripts/run-qemu.sh"
@@ -33,6 +42,8 @@ bash_scripts=(
 
 nix_files=(
   "flake.nix"
+  "nix/modules/abora-options.nix"
+  "nix/modules/anix.nix"
   "nix/modules/installed-base.nix"
   "nix/profiles/live.nix"
 )
@@ -109,6 +120,94 @@ if printf '%s' "$empty_output" | grep -q "No ISO files found"; then
   pass "runtime: release-metadata empty-dir guard"
 else
   fail "runtime: release-metadata empty-dir guard"
+fi
+
+tmp_anix="$tmp_ok/anix.nix"
+printf '%s\n' \
+  '{ ... }:' \
+  '{' \
+  '  anix.enable = true;' \
+  '  anix.hostname = "testbox";' \
+  '  anix.timezone = "UTC";' \
+  '  anix.keyboard.console = "us";' \
+  '  anix.keyboard.xkb = "us";' \
+  '  anix.desktop = "gnome";' \
+  '  anix.wallpaper = "oceandusk.png";' \
+  '}' > "$tmp_anix"
+anix_output="$(
+  ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+  ANIX_CONFIG_FILE="$tmp_anix" \
+  ANIX_SYSTEM_CONFIG="$tmp_ok" \
+  scripts/anix.sh show 2>&1
+)"
+if printf '%s' "$anix_output" | grep -q "testbox" \
+  && printf '%s' "$anix_output" | grep -q "oceandusk.png"; then
+  pass "runtime: anix fallback UI show"
+else
+  fail "runtime: anix fallback UI show"
+fi
+
+tmp_anix_config_dir="$tmp_ok/anix-config"
+mkdir -p "$tmp_anix_config_dir"
+if ANIX_NO_SUDO=1 \
+  ANIX_SYSTEM_CONFIG="$tmp_anix_config_dir" \
+  ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+  scripts/anix.sh config set snapshots.push true >/dev/null \
+  && grep -q "snapshots.push=true" "$tmp_anix_config_dir/.anix/config"; then
+  pass "runtime: anix tool config set"
+else
+  fail "runtime: anix tool config set"
+fi
+
+tmp_anix_save_dir="$tmp_ok/anix-save"
+mkdir -p "$tmp_anix_save_dir"
+printf '%s\n' '{ ... }: { networking.hostName = "testbox"; }' > "$tmp_anix_save_dir/configuration.nix"
+if ANIX_NO_SUDO=1 \
+  ANIX_ASSUME_YES=1 \
+  ANIX_SYSTEM_CONFIG="$tmp_anix_save_dir" \
+  ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+  scripts/anix.sh save "anix: test snapshot" >/dev/null \
+  && git -C "$tmp_anix_save_dir" log --oneline -1 | grep -q "anix: test snapshot"; then
+  pass "runtime: anix local snapshot"
+else
+  fail "runtime: anix local snapshot"
+fi
+
+tmp_anix_switch_dir="$tmp_ok/anix-switch"
+tmp_anix_bin="$tmp_ok/anix-bin"
+tmp_anix_log="$tmp_ok/anix-rebuild.log"
+mkdir -p "$tmp_anix_switch_dir" "$tmp_anix_bin"
+printf '%s\n' '{ ... }: { }' > "$tmp_anix_switch_dir/flake.nix"
+git -C "$tmp_anix_switch_dir" init >/dev/null
+git -C "$tmp_anix_switch_dir" -c user.name=ANIX -c user.email=anix@localhost add -A
+git -C "$tmp_anix_switch_dir" -c user.name=ANIX -c user.email=anix@localhost commit -m "initial" >/dev/null
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'printf "%s\n" "$*" >> "$ANIX_REBUILD_LOG"' > "$tmp_anix_bin/nixos-rebuild"
+chmod +x "$tmp_anix_bin/nixos-rebuild"
+if PATH="$tmp_anix_bin:$PATH" \
+  ANIX_REBUILD_LOG="$tmp_anix_log" \
+  ANIX_NO_SUDO=1 \
+  ANIX_SYSTEM_CONFIG="$tmp_anix_switch_dir" \
+  ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+  scripts/anix.sh switch nix gaming --now >/dev/null \
+  && grep -q "switch --flake ${tmp_anix_switch_dir}#gaming" "$tmp_anix_log"; then
+  pass "runtime: anix switch maps flake profile"
+else
+  fail "runtime: anix switch maps flake profile"
+fi
+
+if PATH="$tmp_anix_bin:$PATH" \
+  ANIX_REBUILD_LOG="$tmp_anix_log" \
+  ANIX_NO_SUDO=1 \
+  ANIX_ASSUME_YES=1 \
+  ANIX_SYSTEM_CONFIG="$tmp_anix_switch_dir" \
+  ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+  scripts/anix.sh rollback nix --now >/dev/null \
+  && grep -q "switch --rollback" "$tmp_anix_log"; then
+  pass "runtime: anix generation rollback"
+else
+  fail "runtime: anix generation rollback"
 fi
 
 if [[ "$failed" -ne 0 ]]; then

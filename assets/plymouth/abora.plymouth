@@ -4,5 +4,5 @@ Description=Abora OS boot splash
 ModuleName=script
 
 [script]
-ImageDir=/share/plymouth/themes/abora
-ScriptFile=/share/plymouth/themes/abora/abora.script
+ImageDir=.
+ScriptFile=abora.script

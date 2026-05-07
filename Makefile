@@ -1,4 +1,4 @@
-.PHONY: help iso iso-local qemu qmec qemc check check-desktops metadata release tinypm-package tinypm-image
+.PHONY: help iso iso-local qemu qmec qemc check check-desktops preflight metadata release tinypm-package tinypm-image
 
 help:
 	@echo "Usage: make <target>"
@@ -13,6 +13,7 @@ help:
 	@echo "  qemc      - Alias for qemu"
 	@echo "  check     - Run repository script checks"
 	@echo "  check-desktops - Evaluate every supported desktop profile"
+	@echo "  preflight - Run full release preflight checks"
 
 iso:
 	./scripts/build-iso.sh
@@ -43,3 +44,6 @@ check:
 
 check-desktops:
 	./scripts/check-desktops.sh
+
+preflight:
+	./scripts/preflight.sh
