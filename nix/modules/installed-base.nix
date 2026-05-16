@@ -441,7 +441,7 @@ in
       "abora/title.txt".source = titleFile;
       "abora/fastfetch-logo.txt".source = fastfetchLogoFile;
       "abora/fastfetch-config.jsonc".source = fastfetchConfigFile;
-      "abora/effects/LaunchingAbora.mp3".source = effectsDir + "/LaunchingAbora.mp3";
+      "abora/effects/v3StartingAbora.mp3".source = effectsDir + "/v3StartingAbora.mp3";
       "abora/desktop-profiles.sh" = {
         source = desktopProfilesScript;
         mode = "0755";

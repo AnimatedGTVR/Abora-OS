@@ -6,7 +6,6 @@ export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/l
 script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 desktop_profiles_lib="${ABORA_DESKTOP_PROFILES_LIB:-$script_dir/abora-desktop-profiles.sh}"
 app_catalog_lib="${ABORA_APP_CATALOG_LIB:-$script_dir/abora-app-catalog.sh}"
-ui_lib="${ABORA_UI_LIB:-$script_dir/abora-ui.sh}"
 
 if [[ ! -f "$desktop_profiles_lib" && -f /etc/abora/desktop-profiles.sh ]]; then
     desktop_profiles_lib="/etc/abora/desktop-profiles.sh"
@@ -16,154 +15,154 @@ if [[ ! -f "$app_catalog_lib" && -f /etc/abora/app-catalog.sh ]]; then
     app_catalog_lib="/etc/abora/app-catalog.sh"
 fi
 
-if [[ ! -f "$ui_lib" && -f /etc/abora/ui.sh ]]; then
-    ui_lib="/etc/abora/ui.sh"
-fi
-
 # shellcheck source=/dev/null
 source "$desktop_profiles_lib"
 # shellcheck source=/dev/null
 source "$app_catalog_lib"
-# shellcheck source=/dev/null
-source "$ui_lib"
 
 disk=""
 hostname_value="abora"
 username_value="abora"
-language_value="en_US.UTF-8"
 timezone_value="UTC"
 keyboard_value="us"
 xkb_layout_value="us"
+anix_enabled="yes"
 desktop_profile="gnome"
 desktop_label="GNOME"
 desktop_variant_id="gnome"
 wallpaper_name="oceandusk.png"
-wallpaper_label="Ocean Dusk"
 starter_apps_bundle="favorites"
 starter_apps_label="Fan Favorites"
 github_identity="Skipped"
 user_password_hash=""
 efi_part=""
 root_part=""
-anix_enabled="yes"
-anix_info_compact="no"
 config_log="/tmp/abora-generate-config.log"
 install_log="/tmp/abora-install.log"
 support_report_output="/tmp/abora-last-support-report.txt"
 
 title_file="/etc/abora/title.txt"
-version="${ABORA_VERSION:-v2.5.0}"
-product_name="${ABORA_PRODUCT_NAME:-Abora OS}"
-product_short="${ABORA_PRODUCT_SHORT:-Abora}"
-product_tagline="${ABORA_PRODUCT_TAGLINE:-A simpler path into NixOS.}"
-product_notice="${ABORA_PRODUCT_NOTICE:-}"
-ABORA_UI_VERSION="$version"   # keep brand header in sync with installer version
+version="${ABORA_VERSION:-v2.0.0-dev}"
 
-# ── Palette aliases (delegates to abora-ui.sh) ───────────────────────────────
-BLUE="$ABORA_BLUE"
-ACCENT="$ABORA_ACCENT"
-CYAN="$ABORA_CYAN"
-YELLOW="$ABORA_YELLOW"
-WHITE="$ABORA_WHITE"
-DIM="$ABORA_DIM"
-FAINT="$ABORA_FAINT"
-GREEN="$ABORA_GREEN"
-RED="$ABORA_RED"
-MAGENTA="$ABORA_MAGENTA"
-NC="$ABORA_NC"
-
+BLUE='\033[38;5;33m'
+MAGENTA='\033[38;5;207m'
+CYAN='\033[38;5;51m'
+YELLOW='\033[38;5;220m'
+WHITE='\033[1;37m'
+DIM='\033[38;5;245m'
+GREEN='\033[38;5;84m'
+RED='\033[38;5;203m'
+NC='\033[0m'
 menu_result=""
 prompt_result=""
 step_action="next"
 
-# ── Core helper aliases ───────────────────────────────────────────────────────
+clear_screen() {
+    clear || printf '\033c'
+}
 
-clear_screen()      { clear || printf '\033c'; }
-terminal_cols()     { abora_cols; }
-terminal_rows()     { local r; r="$(tput lines 2>/dev/null || printf '24')"; printf '%s' "${r:-24}"; }
-repeat_char()       { _abora_repeat "$@"; }
-trunc()             { abora_trunc "$@"; }
-draw_rule()         { abora_rule; }
-draw_brand_header() { abora_brand_header; }
-info()              { abora_info "$@"; }
-success()           { abora_success "$@"; }
-error_msg()         { abora_error "$@"; }
+draw_rule() {
+    printf '%b' "$DIM"
+    printf '────────────────────────────────────────────────────────────\n'
+    printf '%b' "$NC"
+}
 
 show_header() {
-    local title="${1:-${product_name} ${version} installer}"
+    local title="${1:-Abora OS ${version} installer}"
     local subtitle="${2:-Set up your machine.}"
-    local step_num="${3:-}"
-    local step_total="${4:-}"
 
     clear_screen
-    printf '\n'
-    draw_brand_header
-    printf '\n'
 
-    # Step indicator if provided
-    if [[ -n "$step_num" && -n "$step_total" ]]; then
-        printf '  %bstep %d of %d%b\n' "$ABORA_DIM" "$((step_num + 1))" "$step_total" "$ABORA_NC"
-        printf '\n'
+    if [[ -f "$title_file" ]]; then
+        printf '%b' "$WHITE"
+        cat "$title_file"
+        printf '%b' "$NC"
     fi
 
-    printf '  %b%s%b\n' "$ABORA_WHITE" "$title" "$ABORA_NC"
-    printf '  %b%s%b\n' "$ABORA_DIM" "$subtitle" "$ABORA_NC"
     printf '\n'
+    printf '%b%s%b\n' "$WHITE" "$title" "$NC"
+    printf '%b%s%b\n' "$DIM" "$subtitle" "$NC"
     draw_rule
     printf '\n'
 }
 
-# Welcome header with ASCII logo (only on wide terminals).
-show_welcome_header() {
-    local cols
-    cols="$(terminal_cols)"
+info() {
+    printf '%b[*] %s%b\n' "$BLUE" "$1" "$NC"
+}
 
-    clear_screen
-    printf '\n'
+success() {
+    printf '%b[ok] %s%b\n' "$GREEN" "$1" "$NC"
+}
 
-    if [[ "$cols" -ge 78 ]]; then
-        abora_ascii_header "$version"
-    else
-        draw_brand_header
-    fi
-
-    printf '\n'
-    draw_rule
-    printf '\n'
-    printf '  %b%s%b\n' "$ABORA_WHITE" "Welcome to ${product_name}" "$ABORA_NC"
-    printf '  %b%s%b\n' "$ABORA_DIM" "$product_tagline" "$ABORA_NC"
-    printf '\n'
-    draw_rule
-    printf '\n'
+error_msg() {
+    printf '%b[x] %s%b\n' "$RED" "$1" "$NC" >&2
 }
 
 pause_prompt() {
     printf '\n'
-    printf '  %bpress enter to continue...%b' "$FAINT" "$NC"
-    read -r
-    printf '\n'
+    read -r -p "Press ENTER to continue..."
 }
 
-# ── Log display ───────────────────────────────────────────────────────────────
+terminal_cols() {
+    local cols=""
+    cols="$(tput cols 2>/dev/null || printf '80')"
+    printf '%s' "${cols:-80}"
+}
+
+terminal_rows() {
+    local rows=""
+    rows="$(tput lines 2>/dev/null || printf '24')"
+    printf '%s' "${rows:-24}"
+}
 
 print_log_tail() {
     local logfile="$1"
-    local cols max_lines=10 width line
+    local cols=""
+    local max_lines=15
+    local width=0
+    local line=""
+    local first_error=""
+    local first_error_line=0
+    local current_line=0
 
     cols="$(terminal_cols)"
-    width=$((cols - 6))
-    [[ $width -lt 20 ]] && width=20
+    width=$((cols - 4))
+
+    if [[ "$width" -lt 20 ]]; then
+        width=20
+    fi
 
     if [[ ! -s "$logfile" ]]; then
-        printf '  %bno output captured yet%b\n' "$FAINT" "$NC"
+        printf '%bNo log output was captured.%b\n' "$DIM" "$NC"
         return 0
     fi
 
+    # Show the first "error:" line if it appears before the tail window
+    first_error="$(grep -m1 '^error:' "$logfile" 2>/dev/null || true)"
+    first_error_line="$(grep -nm1 '^error:' "$logfile" 2>/dev/null | cut -d: -f1 || true)"
+    current_line="$(wc -l < "$logfile" 2>/dev/null || printf '0')"
+
+    if [[ -n "$first_error" ]] && [[ -n "$first_error_line" ]] && \
+       [[ "$first_error_line" -lt $(( current_line - max_lines )) ]]; then
+        printf '%b--- First error (line %s) ---%b\n' "$DIM" "$first_error_line" "$NC"
+        while IFS= read -r line; do
+            if [[ "${#line}" -gt "$width" ]]; then
+                printf '%s...\n' "${line:0:$((width - 3))}"
+            else
+                printf '%s\n' "$line"
+            fi
+        done < <(sed -n "${first_error_line},$((first_error_line + 4))p" "$logfile")
+        printf '%b--- Recent output ---%b\n' "$DIM" "$NC"
+    fi
+
     while IFS= read -r line; do
+        # Skip noisy Nix download/ETA lines — they show inaccurate time estimates
+        [[ "$line" =~ ETA[[:space:]] ]] && continue
+        [[ "$line" =~ ^[[:space:]]*[0-9]+\.[0-9]+\ (GiB|MiB|KiB)[[:space:]] ]] && continue
         if [[ "${#line}" -gt "$width" ]]; then
-            printf '  %b%s...%b\n' "$FAINT" "${line:0:$((width - 3))}" "$NC"
+            printf '%s...\n' "${line:0:$((width - 3))}"
         else
-            printf '  %b%s%b\n' "$FAINT" "$line" "$NC"
+            printf '%s\n' "$line"
         fi
     done < <(tail -n "$max_lines" "$logfile")
 }
@@ -175,49 +174,77 @@ show_failure_screen() {
     local report_path=""
 
     show_header "$title" "$subtitle"
-
-    abora_card_start "Recent output"
+    printf '%bRecent log lines%b\n' "$WHITE" "$NC"
+    draw_rule
     print_log_tail "$logfile"
-    abora_card_end
-
     printf '\n'
-    printf '  %bfull log:%b  %s\n' "$FAINT" "$DIM" "$logfile"
+    printf '%bFull log:%b %s\n' "$DIM" "$NC" "$logfile"
 
     if [[ -f "$support_report_output" ]]; then
         report_path="$(cat "$support_report_output" 2>/dev/null || true)"
         if [[ -n "$report_path" ]]; then
-            printf '  %bsupport report:%b  %s\n' "$FAINT" "$DIM" "$report_path"
+            printf '%bSupport report:%b %s\n' "$DIM" "$NC" "$report_path"
         fi
     fi
 }
 
-# ── Progress ──────────────────────────────────────────────────────────────────
+repeat_char() {
+    local char="$1"
+    local count="$2"
+    local output=""
+
+    while [[ "$count" -gt 0 ]]; do
+        output+="$char"
+        count=$((count - 1))
+    done
+
+    printf '%s' "$output"
+}
+
+trunc() {
+    local str="$1"
+    local max="$2"
+    if [[ "${#str}" -gt "$max" ]]; then
+        printf '%s...' "${str:0:$((max - 3))}"
+    else
+        printf '%s' "$str"
+    fi
+}
 
 draw_progress_bar() {
     local percent="$1"
-    local cols width filled empty
+    local width=""
+    local filled=0
+    local empty=0
 
-    [[ $percent -lt 0 ]] && percent=0
-    [[ $percent -gt 100 ]] && percent=100
+    if [[ "$percent" -lt 0 ]]; then
+        percent=0
+    elif [[ "$percent" -gt 100 ]]; then
+        percent=100
+    fi
 
-    cols="$(terminal_cols)"
-    width=$((cols - 12))
-    [[ $width -lt 20 ]] && width=20
-    [[ $width -gt 60 ]] && width=60
+    width=$(( $(terminal_cols) - 24 ))
+    if [[ "$width" -lt 20 ]]; then
+        width=20
+    elif [[ "$width" -gt 42 ]]; then
+        width=42
+    fi
 
     filled=$((percent * width / 100))
     empty=$((width - filled))
 
-    printf '  %b' "$BLUE"
-    repeat_char '█' "$filled"
-    printf '%b' "$FAINT"
-    repeat_char '░' "$empty"
-    printf '%b  %b%3d%%%b\n' "$NC" "$WHITE" "$percent" "$NC"
+    printf '%b[' "$BLUE"
+    printf '%b' "$MAGENTA"
+    repeat_char "█" "$filled"
+    printf '%b' "$DIM"
+    repeat_char "░" "$empty"
+    printf '%b] %3d%%%b\n' "$NC" "$percent" "$NC"
 }
 
 format_elapsed() {
     local seconds="$1"
-    local minutes=0 hours=0
+    local minutes=0
+    local hours=0
 
     hours=$((seconds / 3600))
     minutes=$(((seconds % 3600) / 60))
@@ -256,7 +283,8 @@ install_status_summary() {
 install_progress_percent() {
     local logfile="$1"
     local elapsed="$2"
-    local line_count=0 progress=45
+    local line_count=0
+    local progress=45
 
     if [[ -f "$logfile" ]]; then
         line_count="$(wc -l < "$logfile")"
@@ -265,15 +293,26 @@ install_progress_percent() {
     progress=$((45 + line_count / 6 + elapsed / 4))
 
     if grep -qi 'building the configuration' "$logfile" 2>/dev/null; then
-        [[ $progress -lt 60 ]] && progress=60
+        if [[ "$progress" -lt 60 ]]; then
+            progress=60
+        fi
     fi
+
     if grep -qi "copying path '/nix/store" "$logfile" 2>/dev/null; then
-        [[ $progress -lt 72 ]] && progress=72
+        if [[ "$progress" -lt 72 ]]; then
+            progress=72
+        fi
     fi
+
     if grep -qi 'installing the boot loader' "$logfile" 2>/dev/null; then
-        [[ $progress -lt 88 ]] && progress=88
+        if [[ "$progress" -lt 88 ]]; then
+            progress=88
+        fi
     fi
-    [[ $progress -gt 94 ]] && progress=94
+
+    if [[ "$progress" -gt 94 ]]; then
+        progress=94
+    fi
 
     printf '%s' "$progress"
 }
@@ -284,23 +323,20 @@ show_install_progress_screen() {
     local elapsed="$3"
     local logfile="${4:-}"
 
-    show_header "Installing ${product_name}" "Applying partitions and writing the system."
-
-    printf '  %b%s%b\n' "$ABORA_WHITE" "$status_text" "$NC"
+    show_header "Installing Abora OS" "Writing the system — usually 5–15 min on a typical connection."
+    printf '%bProgress%b\n' "$WHITE" "$NC"
+    draw_progress_bar "$percent"
     printf '\n'
-    abora_progress_smooth "$percent"
-    printf '  %b%s elapsed%b\n' "$FAINT" "$(format_elapsed "$elapsed")" "$NC"
+    printf '  Status:   %s\n' "$status_text"
+    printf '  Elapsed:  %s\n' "$(format_elapsed "$elapsed")"
 
     if [[ -n "$logfile" ]]; then
         printf '\n'
+        printf '%bRecent log lines%b\n' "$WHITE" "$NC"
         draw_rule
-        printf '  %brecent output%b\n' "$FAINT" "$NC"
-        printf '\n'
         print_log_tail "$logfile"
     fi
 }
-
-# ── Interactive menus ─────────────────────────────────────────────────────────
 
 read_key() {
     local key=""
@@ -318,27 +354,35 @@ menu_choose() {
     shift
     local options=("$@")
     local selected=0
-    local key="" i="" display_num="" num_idx=0
-    local max_visible=10 start=0 end=0
+    local key=""
+    local i=""
+    local display_num=""
+    local num_idx=0
+    local max_visible=10
+    local start=0
+    local end=0
 
     while true; do
-        show_header "$prompt" "arrow keys or number to jump · enter to select · esc to go back"
+        show_header "$prompt" "Arrow keys or number to jump, Enter to confirm, Esc to go back."
 
         if [[ "${#options[@]}" -le "$max_visible" ]]; then
             start=0
             end=$((${#options[@]} - 1))
         else
             start=$((selected - (max_visible / 2)))
-            [[ $start -lt 0 ]] && start=0
+            if [[ "$start" -lt 0 ]]; then
+                start=0
+            fi
+
             end=$((start + max_visible - 1))
-            if [[ $end -ge "${#options[@]}" ]]; then
+            if [[ "$end" -ge "${#options[@]}" ]]; then
                 end=$((${#options[@]} - 1))
                 start=$((end - max_visible + 1))
             fi
         fi
 
         if [[ "$start" -gt 0 ]]; then
-            printf '  %b  ↑ more above%b\n' "$FAINT" "$NC"
+            printf '%b  ↑ more choices above%b\n' "$DIM" "$NC"
         fi
 
         for ((i = start; i <= end; i++)); do
@@ -349,26 +393,19 @@ menu_choose() {
             else
                 display_num=" "
             fi
-
             if [[ "$i" -eq "$selected" ]]; then
-                printf '  %b▸%b %b%s%b %b%s%b\n' \
-                    "$ACCENT" "$NC" \
-                    "$FAINT" "$display_num" "$NC" \
-                    "$ABORA_WHITE" "${options[$i]}" "$NC"
+                printf '%b›%b [%s] %b%s%b\n' "$BLUE" "$NC" "$display_num" "$MAGENTA" "${options[$i]}" "$NC"
             else
-                printf '  %b%s%b %b%s%b\n' \
-                    "$FAINT" "$display_num" "$NC" \
-                    "$DIM" "${options[$i]}" "$NC"
+                printf '%b  [%s]%b %s\n' "$DIM" "$display_num" "$NC" "${options[$i]}"
             fi
         done
 
         if [[ "$end" -lt $((${#options[@]} - 1)) ]]; then
-            printf '  %b  ↓ more below%b\n' "$FAINT" "$NC"
+            printf '%b  ↓ more choices below%b\n' "$DIM" "$NC"
         fi
 
         printf '\n'
-        draw_rule
-        printf '  %b↑↓ navigate  ·  1-9 jump  ·  enter select  ·  esc back%b\n' "$FAINT" "$NC"
+        printf '%b<↑↓> navigate  <1-9> jump  <enter> confirm  <esc> back%b\n' "$DIM" "$NC"
 
         key="$(read_key)"
         case "$key" in
@@ -421,12 +458,10 @@ prompt_input() {
     while true; do
         show_header "$prompt" "$subtitle"
         if [[ -n "$default_value" ]]; then
-            printf '  %b›%b  %b[%s]%b  ' "$CYAN" "$NC" "$FAINT" "$default_value" "$NC"
-            read -r input
+            read -r -p "> [${default_value}] " input
             prompt_result="${input:-$default_value}"
         else
-            printf '  %b›%b  ' "$CYAN" "$NC"
-            read -r input
+            read -r -p "> " input
             prompt_result="$input"
         fi
         if [[ "$prompt_result" == "/back" ]]; then
@@ -436,41 +471,51 @@ prompt_input() {
     done
 }
 
-# ── Step state helpers ────────────────────────────────────────────────────────
-
-set_step_next()    { step_action="next"; }
-set_step_back()    { step_action="back"; }
-set_step_cancel()  { step_action="cancel"; }
-set_step_install() { step_action="install"; }
-set_step_stay()    { step_action="stay"; }
-
-sync_anix_label() {
-    if [[ "${anix_enabled}" == "yes" ]]; then
-        printf 'Enabled'
-    else
-        printf 'Disabled'
-    fi
+set_step_next() {
+    step_action="next"
 }
 
-sync_wallpaper_label() {
-    abora_sync_wallpaper_label "$wallpaper_name"
+set_step_back() {
+    step_action="back"
 }
 
-# ── App bundle helpers ────────────────────────────────────────────────────────
+set_step_cancel() {
+    step_action="cancel"
+}
+
+set_step_install() {
+    step_action="install"
+}
+
+set_step_stay() {
+    step_action="stay"
+}
 
 sync_starter_apps_label() {
     case "${starter_apps_bundle,,}" in
-        none)        starter_apps_label="No starter apps" ;;
-        favorites)   starter_apps_label="Fan Favorites" ;;
-        essentials)  starter_apps_label="Essentials" ;;
-        social)      starter_apps_label="Social" ;;
-        creator)     starter_apps_label="Creator" ;;
-        developer)   starter_apps_label="Developer" ;;
-        *)           starter_apps_label="Custom" ;;
+        none)
+            starter_apps_label="No starter apps"
+            ;;
+        favorites)
+            starter_apps_label="Fan Favorites"
+            ;;
+        essentials)
+            starter_apps_label="Essentials"
+            ;;
+        social)
+            starter_apps_label="Social"
+            ;;
+        creator)
+            starter_apps_label="Creator"
+            ;;
+        developer)
+            starter_apps_label="Developer"
+            ;;
+        *)
+            starter_apps_label="Custom"
+            ;;
     esac
 }
-
-# ── GitHub helpers ────────────────────────────────────────────────────────────
 
 refresh_github_identity() {
     local login=""
@@ -492,8 +537,6 @@ refresh_github_identity() {
     fi
 }
 
-# ── Auto-detect ───────────────────────────────────────────────────────────────
-
 auto_detect_timezone() {
     local detected=""
     detected="$(timedatectl show --property=Timezone --value 2>/dev/null || true)"
@@ -505,6 +548,8 @@ auto_detect_timezone() {
 auto_detect_keyboard() {
     local detected=""
     detected="$(localectl status 2>/dev/null | awk '/VC Keymap:/ { print $3 }' || true)"
+    # Only accept values that look like a real keymap name (letters, digits, hyphens).
+    # This rejects localectl outputs like "(unset)", "n/a", or empty strings.
     if [[ "$detected" =~ ^[a-z][a-z0-9_-]*$ ]]; then
         keyboard_value="$detected"
         sync_xkb_layout
@@ -517,8 +562,6 @@ require_root() {
         exit 1
     fi
 }
-
-# ── Nix path helpers ──────────────────────────────────────────────────────────
 
 resolve_nixpkgs_path() {
     local candidate=""
@@ -540,19 +583,10 @@ resolve_nixpkgs_path() {
     return 1
 }
 
-# ── Keyboard / timezone helpers ───────────────────────────────────────────────
-
 load_keyboard_layout() {
     if command -v loadkeys >/dev/null 2>&1; then
         loadkeys "$keyboard_value" >/dev/null 2>&1 || true
     fi
-}
-
-sync_xkb_layout() {
-    case "$keyboard_value" in
-        uk) xkb_layout_value="gb" ;;
-        *)  xkb_layout_value="$keyboard_value" ;;
-    esac
 }
 
 detect_boot_mode() {
@@ -570,17 +604,19 @@ system_memory_gib() {
 }
 
 cpu_summary() {
-    lscpu 2>/dev/null | awk -F: '/Model name:/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' \
-        || printf 'Unknown CPU'
+    lscpu 2>/dev/null | awk -F: '/Model name:/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' || printf 'Unknown CPU'
 }
 
 selected_disk_summary() {
-    [[ -n "$disk" ]] || { printf 'No disk selected yet'; return 0; }
+    [[ -n "$disk" ]] || {
+        printf 'No disk selected yet'
+        return 0
+    }
 
     lsblk -dn -o NAME,SIZE,MODEL,TRAN,RM "$disk" 2>/dev/null | awk '
         {
             model = ($3 == "" ? "Unknown model" : $3)
-            tran  = ($4 == "" ? "internal" : $4)
+            tran = ($4 == "" ? "internal" : $4)
             removable = ($5 == "1" ? "removable" : "fixed")
             printf "/dev/%s  %s  %s  [%s, %s]\n", $1, $2, model, tran, removable
         }
@@ -589,19 +625,15 @@ selected_disk_summary() {
 
 hardware_summary_text() {
     cat <<EOF
-  Boot mode   $(detect_boot_mode)
-  Memory      $(system_memory_gib)
-  CPU         $(cpu_summary)
-  Disk        $(selected_disk_summary)
-  Desktop     ${desktop_label}
-  Wallpaper   ${wallpaper_label}
-  Apps        ${starter_apps_label}
-  ANIX        $(sync_anix_label)
-  GitHub      ${github_identity}
+Boot mode:   $(detect_boot_mode)
+Memory:      $(system_memory_gib)
+CPU:         $(cpu_summary)
+Disk target: $(selected_disk_summary)
+Desktop:     ${desktop_label}
+Apps:        ${starter_apps_label}
+GitHub:      ${github_identity}
 EOF
 }
-
-# ── Support report ────────────────────────────────────────────────────────────
 
 save_support_report() {
     local report_path=""
@@ -613,13 +645,13 @@ save_support_report() {
     fi
 
     show_header "Saving support report" "Collecting hardware and log details."
-    printf '  Gathering report...\n'
+    printf 'Abora is gathering a support report now.\n'
     printf '\n'
     report_path="$(/etc/abora/support-report.sh 2>/dev/null || true)"
     if [[ -n "$report_path" && -f "$report_path" ]]; then
         printf '%s\n' "$report_path" > "$support_report_output"
         success "Support report saved"
-        printf '\n  %barchive:%b  %s\n' "$FAINT" "$DIM" "$report_path"
+        printf '\nReport archive:\n  %s\n' "$report_path"
     else
         error_msg "Support report generation failed."
     fi
@@ -627,72 +659,146 @@ save_support_report() {
 }
 
 show_hardware_summary() {
-    show_header "Hardware summary" "Your current machine at a glance."
-    draw_rule
-    printf '\n'
+    show_header "Hardware summary" "Useful before testing or filing a report."
     hardware_summary_text
     printf '\n'
-    draw_rule
-    printf '  %bTip: use "Save support report" to capture these details and logs.%b\n' "$FAINT" "$NC"
-    printf '\n'
+    printf 'Tip: use "Save support report" to capture hardware details and current logs.\n'
     pause_prompt
 }
 
 preflight_warnings_text() {
-    local root_device="" root_parent=""
+    local root_device=""
+    local root_parent=""
 
     if root_device="$(findmnt -n -o SOURCE / 2>/dev/null)"; then
         root_parent="$(lsblk -no PKNAME "$root_device" 2>/dev/null || true)"
     fi
 
     if [[ -n "$root_parent" && "$disk" == "/dev/${root_parent}" ]]; then
-        printf '  %b!%b  %bThe selected disk appears to back the current live system.%b\n' \
-            "$YELLOW" "$NC" "$YELLOW" "$NC"
-        printf '     Installing here will erase the media you booted from.\n\n'
+        printf '%bWarning:%b the selected disk appears to back the current live system.\n' "$RED" "$NC"
+        printf 'Installing to the live USB disk will erase the media you booted from.\n\n'
     fi
 
     if [[ "$(awk '/MemTotal:/ { print $2 }' /proc/meminfo 2>/dev/null || printf '0')" -lt 4194304 ]]; then
-        printf '  %b!%b  %bSystem memory is under 4 GiB — expect slower installs.%b\n\n' \
-            "$YELLOW" "$NC" "$YELLOW" "$NC"
+        printf '%bWarning:%b system memory is under 4 GiB. Expect slower installs and desktop startup.\n\n' "$RED" "$NC"
     fi
 }
 
-# ── About screen ──────────────────────────────────────────────────────────────
+sync_xkb_layout() {
+    case "$keyboard_value" in
+        uk)
+            xkb_layout_value="gb"
+            ;;
+        *)
+            xkb_layout_value="$keyboard_value"
+            ;;
+    esac
+}
+
+prompt_keyboard_layout() {
+    local input=""
+
+    while true; do
+        prompt_input "Choose keyboard layout" "$keyboard_value" \
+            "Enter a layout code (e.g. us, gb, de, fr, es, it). Type /back to return."
+        input="$prompt_result"
+        if [[ "$input" == "__back__" ]]; then
+            set_step_back
+            return 0
+        fi
+        if [[ "$input" =~ ^[a-z][a-z0-9_-]*$ ]]; then
+            keyboard_value="$input"
+            sync_xkb_layout
+            load_keyboard_layout
+            set_step_next
+            return 0
+        fi
+        error_msg "Invalid layout code. Use letters, numbers, or hyphens (e.g. us, gb, de, fr)."
+        pause_prompt
+    done
+}
+
+prompt_locale() {
+    while true; do
+        menu_choose \
+            "Locale settings" \
+            "Continue" \
+            "Timezone: ${timezone_value}" \
+            "Keyboard: ${keyboard_value}" \
+            "Back"
+
+        case "$menu_result" in
+            "__back__"|3)
+                set_step_back
+                return 0
+                ;;
+            0)
+                set_step_next
+                return 0
+                ;;
+            1)
+                prompt_timezone
+                if [[ "$step_action" == "back" ]]; then
+                    set_step_stay
+                fi
+                ;;
+            2)
+                prompt_keyboard_layout
+                if [[ "$step_action" == "back" ]]; then
+                    set_step_stay
+                fi
+                ;;
+        esac
+    done
+}
+
+find_zoneinfo_dir() {
+    local candidate=""
+
+    for candidate in \
+        "${ABORA_ZONEINFO_PATH:-}" \
+        /usr/share/zoneinfo \
+        /run/current-system/sw/share/zoneinfo \
+        /etc/zoneinfo
+    do
+        if [[ -n "$candidate" && -d "$candidate" ]]; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+collect_timezones() {
+    local zoneinfo_dir=""
+
+    zoneinfo_dir="$(find_zoneinfo_dir)" || return 1
+
+    find "$zoneinfo_dir" -type f | sed "s#^${zoneinfo_dir}/##" | grep -Ev \
+        '^(posix/|right/|SystemV/|localtime$|posixrules$|leap-seconds.list$|leapseconds$|tzdata.zi$|zone.tab$|zone1970.tab$|iso3166.tab$)' \
+        | sort -u
+}
+
+timezone_exists() {
+    local value="${1:-}"
+
+    [[ -n "$value" ]] || return 1
+    collect_timezones | grep -Fxq "$value"
+}
 
 show_about_abora() {
-    show_header "Welcome to ${product_name}" "$product_tagline"
-    draw_rule
+    show_header "Welcome to Abora OS" "A simpler path into NixOS."
+    printf 'Abora is trying to make NixOS feel more human from the start.\n'
     printf '\n'
-    printf '  %s is trying to make NixOS feel more human from the start.\n' "$product_short"
+    printf 'This installer keeps the advanced NixOS base, but gives you:\n'
+    printf '  - a cleaner first-run path\n'
+    printf '  - easier desktop selection\n'
+    printf '  - optional starter apps before first boot\n'
+    printf '  - a system that still updates the NixOS way\n'
     printf '\n'
-    printf '  This installer gives you:\n'
-    printf '\n'
-    printf '  %b·%b  a cleaner first-run path\n'            "$BLUE" "$NC"
-    printf '  %b·%b  easier desktop selection\n'            "$BLUE" "$NC"
-    printf '  %b·%b  optional starter apps before first boot\n' "$BLUE" "$NC"
-    printf '  %b·%b  a system that still updates the NixOS way\n' "$BLUE" "$NC"
-    printf '\n'
-    draw_rule
-    printf '  %bNothing is written to disk until you confirm the install.%b\n' "$FAINT" "$NC"
-    if [[ -n "$product_notice" ]]; then
-        printf '\n'
-        printf '  %b%s%b\n' "$CYAN" "$product_notice" "$NC"
-    fi
-    printf '\n'
-    pause_prompt
-}
-
-show_product_notice() {
-    [[ -n "$product_notice" ]] || return 0
-
-    show_header "${product_name} setup notice" "Optional setup should feel clear before you continue."
-    draw_rule
-    printf '\n'
-    printf '  %b%s%b\n' "$CYAN" "$product_notice" "$NC"
-    printf '\n'
-    draw_rule
-    printf '  %bYou can skip the optional setup choices and continue with a plain NixOS-style base.%b\n' "$FAINT" "$NC"
-    printf '\n'
+    printf 'You are still in the live environment right now.\n'
+    printf 'Nothing is written to disk until you confirm the install.\n'
     pause_prompt
 }
 
@@ -700,36 +806,33 @@ open_live_shell_from_installer() {
     local shell_bin="${SHELL:-/run/current-system/sw/bin/bash}"
 
     show_header "Live shell" "Exit the shell to return to the installer."
-    printf '  %bOpening a root shell. Type exit when you are done.%b\n\n' "$FAINT" "$NC"
+    printf '%bOpening a root shell in the live environment.%b\n' "$DIM" "$NC"
+    printf '%bType exit when you want to come back here.%b\n\n' "$DIM" "$NC"
     "$shell_bin" --login || true
 }
 
-# ── Starter apps ──────────────────────────────────────────────────────────────
-
 starter_apps_preview() {
-    local app_id="" app_name=""
+    local app_id=""
+    local app_name=""
 
     if [[ "${starter_apps_bundle,,}" == "none" ]]; then
-        printf '  No extra starter apps selected.\n'
+        printf 'No extra starter apps are selected.\n'
         return 0
     fi
 
-    printf '  %bBundle:%b  %s\n' "$FAINT" "$NC" "$starter_apps_label"
+    printf 'Bundle: %s\n' "$starter_apps_label"
     printf '\n'
 
     while IFS= read -r app_id; do
         [[ -n "$app_id" ]] || continue
         app_name="$(abora_catalog_name "$app_id" 2>/dev/null || printf '%s' "$app_id")"
-        printf '  %b·%b  %s\n' "$BLUE" "$NC" "$app_name"
+        printf '  - %s\n' "$app_name"
     done < <(abora_catalog_bundle_ids "$starter_apps_bundle")
 }
 
 show_starter_apps_preview() {
     show_header "Starter apps" "These apps will be preinstalled on the new system."
-    draw_rule
-    printf '\n'
     starter_apps_preview
-    printf '\n'
     pause_prompt
 }
 
@@ -763,180 +866,108 @@ pick_starter_apps_bundle() {
     set_step_next
 }
 
-# ── Welcome screen ────────────────────────────────────────────────────────────
+sync_anix_label() {
+    if [[ "$anix_enabled" == "yes" ]]; then
+        printf 'Enabled'
+    else
+        printf 'Disabled'
+    fi
+}
+
+prompt_anix_opt_in() {
+    while true; do
+        show_header "ANIX — NixOS made simple" "Decide how you want to manage your system."
+        draw_rule
+        printf '\n'
+        printf '  %bANIX%b is a lightweight layer that lets you change your desktop,\n' "$WHITE" "$NC"
+        printf '  hostname, timezone, and keyboard with simple commands:\n'
+        printf '\n'
+        printf '  %banix set desktop gnome%b\n' "$CYAN" "$NC"
+        printf '  %banix set hostname mypc%b\n' "$CYAN" "$NC"
+        printf '  %banix apply%b\n' "$CYAN" "$NC"
+        printf '\n'
+        printf '  It also keeps local Git snapshots so you can roll back any change.\n'
+        printf '\n'
+        draw_rule
+        printf '  Currently: %b%s%b\n\n' "$CYAN" "$(sync_anix_label)" "$NC"
+
+        menu_choose "ANIX setup" \
+            "Enable ANIX (recommended)" \
+            "Disable ANIX" \
+            "Back"
+
+        case "$menu_result" in
+            "__back__"|2)
+                set_step_back
+                return 0
+                ;;
+            0)
+                anix_enabled="yes"
+                set_step_next
+                return 0
+                ;;
+            1)
+                anix_enabled="no"
+                set_step_next
+                return 0
+                ;;
+        esac
+    done
+}
 
 show_installer_welcome() {
     while true; do
-        show_welcome_header
-
-        printf '  %s is trying to make NixOS feel more human from the start.\n' "$product_short"
-        printf '\n'
-        printf '  %bThis installer gives you:%b\n' "$ABORA_WHITE" "$NC"
-        printf '\n'
-        printf '  %b·%b  a cleaner first-run path\n'            "$BLUE" "$NC"
-        printf '  %b·%b  easier desktop selection\n'            "$BLUE" "$NC"
-        printf '  %b·%b  optional starter apps before first boot\n' "$BLUE" "$NC"
-        printf '  %b·%b  a system that still updates the NixOS way\n' "$BLUE" "$NC"
-        printf '\n'
-        draw_rule
-        printf '  %bNothing is written to disk until you confirm the install.%b\n' "$FAINT" "$NC"
-        if [[ -n "$product_notice" ]]; then
-            printf '\n'
-            printf '  %b%s%b\n' "$CYAN" "$product_notice" "$NC"
-        fi
-        printf '\n'
-
         menu_choose \
-            "What would you like to do?" \
-            "Begin installation" \
+            "Welcome to Abora OS ${version}" \
+            "Continue to installer setup" \
             "View hardware summary" \
             "Save support report" \
+            "Read about Abora" \
             "Open live shell" \
             "Reboot" \
             "Power off" \
             "Cancel"
 
         case "$menu_result" in
-            "__back__"|6)
+            "__back__"|7)
                 set_step_cancel
                 return 0
                 ;;
             0)
-                show_product_notice
                 set_step_next
                 return 0
                 ;;
-            1)  show_hardware_summary ;;
-            2)  save_support_report ;;
-            3)  open_live_shell_from_installer ;;
-            4)  sync; reboot ;;
-            5)  sync; poweroff ;;
-        esac
-    done
-}
-
-prompt_anix_opt_in() {
-    local selected=0
-    local key=""
-    local toggle_label=""
-    local options=()
-
-    while true; do
-        show_header "Do you want ANIX?" "ANIX is optional — a simpler front layer for NixOS settings." 1 8
-        draw_rule
-        printf '\n'
-
-        if [[ "$anix_info_compact" == "yes" ]]; then
-            printf '  ANIX is a simple layer on top of NixOS and Abora.\n'
-            printf '  You do not need it. If you skip it, you will just be using NixOS.\n'
-            toggle_label="Show more"
-        else
-            printf '  ANIX is an easier front layer for common NixOS-style settings.\n'
-            printf '\n'
-            printf '  It helps with things like:\n'
-            printf '  %b·%b  changing the wallpaper more easily\n' "$BLUE" "$NC"
-            printf '  %b·%b  switching desktop/session defaults\n' "$BLUE" "$NC"
-            printf '  %b·%b  editing hostname, timezone, and keyboard settings\n' "$BLUE" "$NC"
-            printf '  %b·%b  rebuilding with simpler commands for first-time Nix users\n' "$BLUE" "$NC"
-            printf '\n'
-            printf '  You do not have to install ANIX. It just makes NixOS easier.\n'
-            toggle_label="Show less"
-        fi
-
-        printf '\n'
-        draw_rule
-        printf '\n'
-
-        # Show current choice
-        printf '  %bCurrent choice:%b\n' "$ABORA_WHITE" "$NC"
-        printf '\n'
-        if [[ "$anix_enabled" == "yes" ]]; then
-            abora_checkbox "Yes — install the ANIX helper layer" "yes"
-            abora_checkbox "No — keep the install plain" "no"
-        else
-            abora_checkbox "Yes — install the ANIX helper layer" "no"
-            abora_checkbox "No — keep the install plain" "yes"
-        fi
-
-        printf '\n'
-        draw_rule
-        printf '  %b%s%b\n' "$ABORA_DIM" "$toggle_label" "$ABORA_NC"
-        printf '\n'
-
-        if [[ "$anix_enabled" == "yes" ]]; then
-            options=("Keep ANIX enabled" "Skip ANIX" "$toggle_label" "Back")
-        else
-            options=("Install ANIX" "Keep install plain" "$toggle_label" "Back")
-        fi
-
-        for i in "${!options[@]}"; do
-            if [[ "$i" -eq "$selected" ]]; then
-                printf '  %b▸%b  %b%s%b\n' "$ACCENT" "$NC" "$ABORA_WHITE" "${options[$i]}" "$NC"
-            else
-                printf '  %b  %b%s%b\n' "$FAINT" "$NC" "$DIM" "${options[$i]}" "$NC"
-            fi
-        done
-
-        printf '\n'
-        draw_rule
-        printf '  %b↑↓ navigate  ·  enter select  ·  esc back%b\n' "$FAINT" "$NC"
-
-        key="$(read_key)"
-        case "$key" in
-            $'\033')
-                set_step_back
-                return 0
+            1)
+                show_hardware_summary
                 ;;
-            $'\033[A')
-                if [[ "$selected" -gt 0 ]]; then
-                    selected=$((selected - 1))
-                else
-                    selected=$((${#options[@]} - 1))
-                fi
+            2)
+                save_support_report
                 ;;
-            $'\033[B')
-                if [[ "$selected" -lt $((${#options[@]} - 1)) ]]; then
-                    selected=$((selected + 1))
-                else
-                    selected=0
-                fi
+            3)
+                show_about_abora
                 ;;
-            "")
-                case "$selected" in
-                    0)
-                        anix_enabled="yes"
-                        ;;
-                    1)
-                        anix_enabled="no"
-                        ;;
-                    2)
-                        if [[ "$anix_info_compact" == "yes" ]]; then
-                            anix_info_compact="no"
-                        else
-                            anix_info_compact="yes"
-                        fi
-                        ;;
-                    *)
-                        set_step_back
-                        return 0
-                        ;;
-                esac
+            4)
+                open_live_shell_from_installer
+                ;;
+            5)
+                sync
+                reboot
+                ;;
+            6)
+                sync
+                poweroff
                 ;;
         esac
     done
 }
-
-# ── Extra packages screen ─────────────────────────────────────────────────────
 
 show_extra_packages_setup() {
     while true; do
         menu_choose \
             "Extra packages and setup" \
             "Continue to install review" \
-            "ANIX: $(sync_anix_label)" \
             "Install target: ${disk:-Not selected}" \
             "Desktop environment: ${desktop_label}" \
-            "Wallpaper: ${wallpaper_label}" \
             "Extra packages: ${starter_apps_label}" \
             "View selected package bundle" \
             "View hardware summary" \
@@ -946,35 +977,39 @@ show_extra_packages_setup() {
             "Cancel"
 
         case "$menu_result" in
-            "__back__"|10)
+            "__back__"|8)
                 set_step_back
                 return 0
                 ;;
             1)
-                prompt_anix_opt_in
-                set_step_stay
-                ;;
-            2)
                 prompt_disk || true
                 set_step_stay
                 ;;
-            3)
+            2)
                 pick_desktop_environment
                 set_step_stay
                 ;;
-            4)
-                pick_wallpaper
-                set_step_stay
-                ;;
-            5)
+            3)
                 pick_starter_apps_bundle
                 set_step_stay
                 ;;
-            6)  show_starter_apps_preview ;;
-            7)  show_hardware_summary ;;
-            8)  save_support_report ;;
-            9)  open_live_shell_from_installer ;;
-            11)
+            4)
+                show_starter_apps_preview
+                ;;
+            5)
+                show_hardware_summary
+                ;;
+            6)
+                save_support_report
+                ;;
+            7)
+                open_live_shell_from_installer
+                ;;
+            8)
+                set_step_back
+                return 0
+                ;;
+            9)
                 set_step_cancel
                 return 0
                 ;;
@@ -992,22 +1027,23 @@ show_extra_packages_setup() {
     done
 }
 
-# ── Names ─────────────────────────────────────────────────────────────────────
-
 prompt_names() {
     while true; do
         prompt_hostname
-        [[ "$step_action" == "back" ]] && { set_step_back; return 0; }
+        if [[ "$step_action" == "back" ]]; then
+            set_step_back
+            return 0
+        fi
 
         prompt_username
-        [[ "$step_action" == "back" ]] && continue
+        if [[ "$step_action" == "back" ]]; then
+            continue
+        fi
 
         set_step_next
         return 0
     done
 }
-
-# ── GitHub login ──────────────────────────────────────────────────────────────
 
 prompt_github_login() {
     local continue_label=""
@@ -1044,15 +1080,13 @@ prompt_github_login() {
                 ;;
             1)
                 show_header "GitHub device login" "This step is optional and can be skipped."
-                draw_rule
+                printf 'Abora will show a one-time device code in this installer.\n'
                 printf '\n'
-                printf '  %s will show a one-time device code in this installer.\n' "$product_short"
+                printf 'Then you can finish the login from your phone or another computer at:\n'
+                printf '  github.com/login/device\n'
                 printf '\n'
-                printf '  Finish the login from your phone or another machine:\n'
-                printf '  %b  github.com/login/device%b\n' "$CYAN" "$NC"
-                printf '\n'
-                printf '  If login succeeds, your GitHub auth config will be copied\n'
-                printf '  into the installed user account.\n'
+                printf 'If login succeeds, the GitHub auth config will be copied into the installed user account.\n'
+                printf 'If you do not want this, go back and skip the GitHub step.\n'
                 printf '\n'
                 pause_prompt
                 clear_screen
@@ -1075,11 +1109,8 @@ prompt_github_login() {
     done
 }
 
-# ── Desktop picker ────────────────────────────────────────────────────────────
-
 pick_desktop_environment() {
     local labels=(
-        "No desktop     - console-only NixOS system"
         "GNOME          - polished, simple, modern"
         "KDE Plasma     - flexible and feature-rich"
         "Hyprland       - Wayland tiling compositor"
@@ -1092,6 +1123,7 @@ pick_desktop_environment() {
         "Budgie         - clean and focused"
         "LXQt           - lightweight Qt desktop"
         "Pantheon       - elementary OS look and feel"
+        "LXDE           - minimal traditional desktop"
         "Enlightenment  - unique EFL-based desktop"
         "i3             - keyboard-driven tiling"
         "AwesomeWM      - highly configurable tiling"
@@ -1101,14 +1133,30 @@ pick_desktop_environment() {
         "Fluxbox        - fast and lightweight"
         "IceWM          - very lightweight, retro feel"
         "Herbstluftwm   - manual tiling WM"
-        "DWM            - suckless dynamic WM"
         "Back"
     )
     local values=(
-        "none" "gnome" "plasma" "hyprland" "sway" "niri" "river"
-        "xfce" "cinnamon" "mate" "budgie" "lxqt" "pantheon"
-        "enlightenment" "i3" "awesome" "openbox"
-        "qtile" "bspwm" "fluxbox" "icewm" "herbstluftwm" "dwm"
+        "gnome"
+        "plasma"
+        "hyprland"
+        "sway"
+        "niri"
+        "river"
+        "xfce"
+        "cinnamon"
+        "mate"
+        "budgie"
+        "lxqt"
+        "pantheon"
+        "enlightenment"
+        "i3"
+        "awesome"
+        "openbox"
+        "qtile"
+        "bspwm"
+        "fluxbox"
+        "icewm"
+        "herbstluftwm"
     )
 
     menu_choose "Select desktop environment" "${labels[@]}"
@@ -1121,56 +1169,38 @@ pick_desktop_environment() {
     set_step_next
 }
 
-pick_wallpaper() {
-    local labels=(
-        "Ocean Dusk           - the current Abora default"
-        "Blue Horizon         - bright blue and clean"
-        "Astronaut Wallpaper  - darker and more dramatic"
-        "Glacier Reflection   - colder and calmer"
-        "Back"
-    )
-    local values=(
-        "oceandusk.png"
-        "bluehorizon.png"
-        "astronautwallpaper.png"
-        "glacierreflection.png"
-    )
-
-    menu_choose "Select default wallpaper" "${labels[@]}"
-    if [[ "$menu_result" == "__back__" || "$menu_result" == "${#values[@]}" ]]; then
-        set_step_back
-        return 0
-    fi
-
-    wallpaper_name="${values[$menu_result]}"
-    sync_wallpaper_label
-    set_step_next
-}
-
-# ── Disk picker ───────────────────────────────────────────────────────────────
-
 collect_disks() {
     lsblk -dn -e 7,11 -o NAME,SIZE,MODEL,TYPE | awk '
         $NF == "disk" {
-            if ($1 ~ /^(fd|loop|ram|sr|zram)/) next
+            if ($1 ~ /^(fd|loop|ram|sr|zram)/) {
+                next
+            }
             model = ""
             for (i = 3; i < NF; i++) {
                 model = model (model ? " " : "") $i
             }
-            if (model == "") model = "Unknown model"
+            if (model == "") {
+                model = "Unknown model"
+            }
             print $1 "|" $2 "|" model
         }
     '
 }
 
 prompt_disk() {
-    local entries=() labels=() paths=()
-    local choice="" name="" size="" model="" entry=""
+    local entries=()
+    local labels=()
+    local paths=()
+    local choice=""
+    local name=""
+    local size=""
+    local model=""
+    local entry=""
 
     mapfile -t entries < <(collect_disks)
     if [[ "${#entries[@]}" -eq 0 ]]; then
         show_header "Select install target" "No installable disks were found."
-        printf '  %bNo disks are visible to the installer right now.%b\n' "$RED" "$NC"
+        printf '%bNo disks are visible to the installer right now.%b\n' "$RED" "$NC"
         printf '\n'
         menu_choose "Choose what to do next" "Rescan disks" "Back"
         if [[ "$menu_result" == "__back__" || "$menu_result" == "1" ]]; then
@@ -1197,20 +1227,22 @@ prompt_disk() {
     set_step_next
 }
 
-# ── Individual prompts ────────────────────────────────────────────────────────
-
 prompt_hostname() {
     local input=""
 
     while true; do
         prompt_input "Choose a hostname" "$hostname_value"
         input="$prompt_result"
-        [[ "$input" == "__back__" ]] && { set_step_back; return 0; }
+        if [[ "$input" == "__back__" ]]; then
+            set_step_back
+            return 0
+        fi
         if [[ "$input" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]]; then
             hostname_value="$input"
             set_step_next
             return
         fi
+
         error_msg "Hostname must use letters, numbers, or hyphens."
         pause_prompt
     done
@@ -1222,53 +1254,25 @@ prompt_username() {
     while true; do
         prompt_input "Choose a username" "$username_value"
         input="$prompt_result"
-        [[ "$input" == "__back__" ]] && { set_step_back; return 0; }
+        if [[ "$input" == "__back__" ]]; then
+            set_step_back
+            return 0
+        fi
         if [[ "$input" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
             username_value="$input"
             set_step_next
             return
         fi
+
         error_msg "Username must start with a lowercase letter or underscore."
         pause_prompt
     done
 }
 
-find_zoneinfo_dir() {
-    local candidate=""
-
-    for candidate in \
-        "${ABORA_ZONEINFO_PATH:-}" \
-        /usr/share/zoneinfo \
-        /run/current-system/sw/share/zoneinfo \
-        /etc/zoneinfo
-    do
-        if [[ -n "$candidate" && -d "$candidate" ]]; then
-            printf '%s' "$candidate"
-            return 0
-        fi
-    done
-
-    return 1
-}
-
-collect_timezones() {
-    local zoneinfo_dir=""
-
-    zoneinfo_dir="$(find_zoneinfo_dir)" || return 1
-
-    find "$zoneinfo_dir" -type f | sed "s#^${zoneinfo_dir}/##" | grep -Ev \
-        '^(posix/|right/|SystemV/|localtime$|posixrules$|leap-seconds.list$|leapseconds$|tzdata.zi$|zone.tab$|zone1970.tab$|iso3166.tab$)' \
-        | sort -u
-}
-
-timezone_exists() {
-    local value="${1:-}"
-    [[ -n "$value" ]] || return 1
-    collect_timezones | grep -Fxq "$value"
-}
-
 prompt_timezone() {
-    local input="" query="" zoneinfo_matches=()
+    local input=""
+    local query=""
+    local zoneinfo_matches=()
 
     menu_choose \
         "Choose timezone method" \
@@ -1285,7 +1289,10 @@ prompt_timezone() {
         while true; do
             prompt_input "Search timezone" "$timezone_value"
             query="$prompt_result"
-            [[ "$query" == "__back__" ]] && { set_step_back; return 0; }
+            if [[ "$query" == "__back__" ]]; then
+                set_step_back
+                return 0
+            fi
             mapfile -t zoneinfo_matches < <(collect_timezones | grep -Fi -- "${query:-UTC}" | head -n 30)
 
             if [[ "${#zoneinfo_matches[@]}" -eq 0 ]]; then
@@ -1308,7 +1315,10 @@ prompt_timezone() {
     while true; do
         prompt_input "Enter timezone directly" "$timezone_value"
         input="${prompt_result:-$timezone_value}"
-        [[ "$input" == "__back__" ]] && { set_step_back; return 0; }
+        if [[ "$input" == "__back__" ]]; then
+            set_step_back
+            return 0
+        fi
 
         if timezone_exists "$input"; then
             timezone_value="$input"
@@ -1321,136 +1331,20 @@ prompt_timezone() {
     done
 }
 
-prompt_keyboard_layout() {
-    local input=""
-
-    while true; do
-        prompt_input "Choose keyboard layout" "$keyboard_value" \
-            "Enter a layout code (e.g. us, gb, de, fr, es, it). Type /back to return."
-        input="$prompt_result"
-        [[ "$input" == "__back__" ]] && { set_step_back; return 0; }
-        if [[ "$input" =~ ^[a-z][a-z0-9_-]*$ ]]; then
-            keyboard_value="$input"
-            sync_xkb_layout
-            load_keyboard_layout
-            set_step_next
-            return 0
-        fi
-        error_msg "Invalid layout code. Use letters, numbers, or hyphens (e.g. us, gb, de)."
-        pause_prompt
-    done
-}
-
-prompt_language() {
-    local lang_labels=(
-        "English (US)             en_US.UTF-8"
-        "English (UK)             en_GB.UTF-8"
-        "German / Deutsch         de_DE.UTF-8"
-        "French / Français        fr_FR.UTF-8"
-        "Spanish / Español        es_ES.UTF-8"
-        "Portuguese (Brazil)      pt_BR.UTF-8"
-        "Portuguese (Portugal)    pt_PT.UTF-8"
-        "Italian / Italiano       it_IT.UTF-8"
-        "Dutch / Nederlands       nl_NL.UTF-8"
-        "Polish / Polski          pl_PL.UTF-8"
-        "Russian / Русский        ru_RU.UTF-8"
-        "Ukrainian / Українська   uk_UA.UTF-8"
-        "Czech / Čeština          cs_CZ.UTF-8"
-        "Hungarian / Magyar       hu_HU.UTF-8"
-        "Romanian / Română        ro_RO.UTF-8"
-        "Turkish / Türkçe         tr_TR.UTF-8"
-        "Swedish / Svenska        sv_SE.UTF-8"
-        "Norwegian / Norsk        nb_NO.UTF-8"
-        "Danish / Dansk           da_DK.UTF-8"
-        "Finnish / Suomi          fi_FI.UTF-8"
-        "Greek / Ελληνικά         el_GR.UTF-8"
-        "Arabic / العربية         ar_SA.UTF-8"
-        "Hebrew / עברית           he_IL.UTF-8"
-        "Hindi / हिन्दी            hi_IN.UTF-8"
-        "Chinese (Simplified)     zh_CN.UTF-8"
-        "Chinese (Traditional)    zh_TW.UTF-8"
-        "Japanese / 日本語         ja_JP.UTF-8"
-        "Korean / 한국어            ko_KR.UTF-8"
-        "Indonesian / Bahasa      id_ID.UTF-8"
-        "Vietnamese / Tiếng Việt  vi_VN.UTF-8"
-        "Back"
-    )
-    local lang_codes=(
-        "en_US.UTF-8" "en_GB.UTF-8" "de_DE.UTF-8" "fr_FR.UTF-8"
-        "es_ES.UTF-8" "pt_BR.UTF-8" "pt_PT.UTF-8" "it_IT.UTF-8"
-        "nl_NL.UTF-8" "pl_PL.UTF-8" "ru_RU.UTF-8" "uk_UA.UTF-8"
-        "cs_CZ.UTF-8" "hu_HU.UTF-8" "ro_RO.UTF-8" "tr_TR.UTF-8"
-        "sv_SE.UTF-8" "nb_NO.UTF-8" "da_DK.UTF-8" "fi_FI.UTF-8"
-        "el_GR.UTF-8" "ar_SA.UTF-8" "he_IL.UTF-8" "hi_IN.UTF-8"
-        "zh_CN.UTF-8" "zh_TW.UTF-8" "ja_JP.UTF-8" "ko_KR.UTF-8"
-        "id_ID.UTF-8" "vi_VN.UTF-8"
-    )
-
-    menu_choose "Choose language" "${lang_labels[@]}"
-    local idx="$menu_result"
-
-    if [[ "$idx" == "__back__" || "$idx" -eq $((${#lang_labels[@]} - 1)) ]]; then
-        set_step_back
-        return 0
-    fi
-
-    language_value="${lang_codes[$idx]}"
-    set_step_stay
-    return 0
-}
-
-prompt_locale() {
-    while true; do
-        menu_choose \
-            "Locale settings" \
-            "Continue" \
-            "Language: ${language_value}" \
-            "Timezone: ${timezone_value}" \
-            "Keyboard: ${keyboard_value}" \
-            "Back"
-
-        case "$menu_result" in
-            "__back__"|4)
-                set_step_back
-                return 0
-                ;;
-            0)
-                set_step_next
-                return 0
-                ;;
-            1)
-                prompt_language
-                [[ "$step_action" == "back" ]] && set_step_stay
-                ;;
-            2)
-                prompt_timezone
-                [[ "$step_action" == "back" ]] && set_step_stay
-                ;;
-            3)
-                prompt_keyboard_layout
-                [[ "$step_action" == "back" ]] && set_step_stay
-                ;;
-        esac
-    done
-}
-
 prompt_password() {
-    local first="" second=""
+    local first=""
+    local second=""
 
     while true; do
-        show_header "Set password" "Choose a password for ${username_value}."
-        draw_rule
-        printf '\n'
+        show_header "Set password" "Choose a password for ${username_value}. Type /back to return."
 
-        printf '  %b›%b  Password:         ' "$CYAN" "$NC"
-        read -r -s first
+        read -r -s -p "Password: " first
         printf '\n'
         if [[ "$first" == "/back" ]]; then
             set_step_back
             return 0
         fi
-        printf '  %b›%b  Confirm password: ' "$CYAN" "$NC"
-        read -r -s second
+        read -r -s -p "Confirm password: " second
         printf '\n'
 
         if [[ -z "$first" ]]; then
@@ -1475,73 +1369,61 @@ prompt_password() {
             continue
         fi
 
-        success "Password set for ${username_value}"
         unset first second
         set_step_next
         return
     done
 }
 
-# ── Confirm screen ────────────────────────────────────────────────────────────
-
 confirm_install() {
-    local cols inner
-
-    cols="$(terminal_cols)"
-    inner=$((cols - 6))
-    [[ $inner -lt 30 ]] && inner=30
-    [[ $inner -gt 60 ]] && inner=60
-
-    local key_w=10
-    local val_w=$((inner - key_w - 5))
+    local inner=42
 
     show_header "Ready to install" "Review your choices before the disk is wiped."
 
-    # Summary card
-    abora_card_start "Install Summary"
+    printf '%b┌' "$BLUE"
+    repeat_char '─' $((inner + 2))
+    printf '┐%b\n' "$NC"
 
-    printf '  %b│%b\n' "$BLUE" "$NC"
+    printf '%b│%b  %-*s %b│%b\n' "$BLUE" "$WHITE" "$inner" "Install Summary" "$BLUE" "$NC"
 
-    _row() {
-        local label="$1" value="$2"
-        printf '  %b│%b  %b%-*s%b  %b%-*s%b  %b│%b\n' \
-            "$BLUE" "$NC" \
-            "$DIM"  "$key_w" "$label" "$NC" \
-            "$CYAN" "$val_w" "$(trunc "$value" "$val_w")" "$NC" \
-            "$BLUE" "$NC"
-    }
+    printf '%b├' "$BLUE"
+    repeat_char '─' $((inner + 2))
+    printf '┤%b\n' "$NC"
 
-    _row "Disk"      "$disk"
-    _row "Desktop"   "$desktop_label"
-    _row "Wallpaper" "$wallpaper_label"
-    _row "ANIX"      "$(sync_anix_label)"
-    _row "Apps"      "$starter_apps_label"
-    _row "GitHub"    "$github_identity"
-    _row "Hostname"  "$hostname_value"
-    _row "User"      "$username_value"
-    _row "Timezone"  "$timezone_value"
-    _row "Keyboard"  "$keyboard_value"
+    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Disk:"      "$CYAN" $((inner - 14)) "$(trunc "$disk" $((inner - 14)))"      "$NC" "$BLUE" "$NC"
+    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Desktop:"   "$CYAN" $((inner - 14)) "$(trunc "$desktop_label" $((inner - 14)))"   "$NC" "$BLUE" "$NC"
+    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Apps:"      "$CYAN" $((inner - 14)) "$(trunc "$starter_apps_label" $((inner - 14)))"      "$NC" "$BLUE" "$NC"
+    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "GitHub:"    "$CYAN" $((inner - 14)) "$(trunc "$github_identity" $((inner - 14)))"    "$NC" "$BLUE" "$NC"
+    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Hostname:"  "$CYAN" $((inner - 14)) "$(trunc "$hostname_value" $((inner - 14)))"  "$NC" "$BLUE" "$NC"
+    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "User:"      "$CYAN" $((inner - 14)) "$(trunc "$username_value" $((inner - 14)))"      "$NC" "$BLUE" "$NC"
+    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Timezone:"  "$CYAN" $((inner - 14)) "$(trunc "$timezone_value" $((inner - 14)))"  "$NC" "$BLUE" "$NC"
+    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Keyboard:"  "$CYAN" $((inner - 14)) "$(trunc "$keyboard_value" $((inner - 14)))"  "$NC" "$BLUE" "$NC"
 
-    printf '  %b│%b\n' "$BLUE" "$NC"
-    abora_card_end
+    printf '%b└' "$BLUE"
+    repeat_char '─' $((inner + 2))
+    printf '┘%b\n' "$NC"
 
     printf '\n'
     preflight_warnings_text
-    printf '  %bDisk layout:%b  1 MiB BIOS boot  ·  512 MiB EFI  ·  ext4 root (remaining)\n' \
-        "$FAINT" "$NC"
+    printf '%bDisk layout that will be created:%b\n' "$WHITE" "$NC"
+    printf '  1 MiB BIOS boot  +  512 MiB EFI  +  ext4 root (remaining space)\n'
     printf '\n'
-    printf '  %b!  The selected disk will be completely erased.%b\n' "$RED" "$NC"
+    printf '%bThe selected disk will be completely erased.%b\n' "$RED" "$NC"
     printf '\n'
 
     menu_choose "Continue with installation?" "Install now" "Back" "Cancel"
     case "$menu_result" in
-        "__back__"|1) set_step_back ;;
-        2)            set_step_cancel ;;
-        *)            set_step_install ;;
+        "__back__"|1)
+            set_step_back
+            ;;
+        2)
+            set_step_cancel
+            ;;
+        *)
+            set_step_install
+            ;;
     esac
 }
-
-# ── Disk partitioning ─────────────────────────────────────────────────────────
 
 disk_part_suffix() {
     case "$disk" in
@@ -1587,8 +1469,6 @@ mount_target() {
     success "Target mounted at /mnt"
 }
 
-# ── Config generation ─────────────────────────────────────────────────────────
-
 desktop_config_block() {
     abora_desktop_config_block "$desktop_profile" "$xkb_layout_value" "$username_value"
 }
@@ -1603,40 +1483,31 @@ write_branding_assets() {
     local live_theme="/etc/abora/bootloader/theme.txt"
     local limine_source=""
 
-    mkdir -p /mnt/etc/nixos/abora/plymouth \
-             /mnt/etc/nixos/abora/bootloader \
-             /mnt/etc/nixos/abora/effects \
-             /mnt/etc/nixos/abora/wallpapers \
-             /mnt/etc/nixos/abora/themes
-
-    cp "$title_file"                           /mnt/etc/nixos/abora/title.txt
-    cp /etc/abora/VERSION                      /mnt/etc/nixos/abora/VERSION
-    cp /etc/abora/app-catalog.sh               /mnt/etc/nixos/abora/app-catalog.sh
-    cp /etc/abora/apps.sh                      /mnt/etc/nixos/abora/apps.sh
-    cp /etc/abora/support-report.sh            /mnt/etc/nixos/abora/support-report.sh
-    cp /etc/abora/hardware-test.sh             /mnt/etc/nixos/abora/hardware-test.sh
-    cp /etc/abora/default-wallpaper.png        /mnt/etc/nixos/abora/default-wallpaper.png
-    cp /etc/abora/fastfetch-logo.txt           /mnt/etc/nixos/abora/fastfetch-logo.txt
-    cp /etc/abora/fastfetch-config.jsonc       /mnt/etc/nixos/abora/fastfetch-config.jsonc
-    cp /etc/abora/effects/LaunchingAbora.mp3   /mnt/etc/nixos/abora/effects/LaunchingAbora.mp3
-    cp /etc/abora/desktop-profiles.sh          /mnt/etc/nixos/abora/desktop-profiles.sh
-    cp /etc/abora/installed-base.nix  /mnt/etc/nixos/abora/installed-base.nix
-    cp /etc/abora/abora-options.nix   /mnt/etc/nixos/abora/abora-options.nix
-    cp /etc/abora/anix-module.nix     /mnt/etc/nixos/abora/anix-module.nix
-    cp /etc/abora/ui.sh               /mnt/etc/nixos/abora/ui.sh
-    cp /etc/abora/config.sh           /mnt/etc/nixos/abora/config.sh
-    cp /etc/abora/abora.sh            /mnt/etc/nixos/abora/abora.sh
-    cp /etc/abora/desktop.sh          /mnt/etc/nixos/abora/desktop.sh
-    cp /etc/abora/doctor.sh           /mnt/etc/nixos/abora/doctor.sh
-    cp /etc/abora/recovery.sh         /mnt/etc/nixos/abora/recovery.sh
-    cp /etc/abora/welcome.sh          /mnt/etc/nixos/abora/welcome.sh
-    cp /etc/abora/anix.sh             /mnt/etc/nixos/abora/anix.sh
-    cp /etc/abora/session-setup.sh             /mnt/etc/nixos/abora/session-setup.sh
-    cp /etc/abora/theme-sync.sh                /mnt/etc/nixos/abora/theme-sync.sh
-    cp /etc/abora/update.sh                    /mnt/etc/nixos/abora/update.sh
-    cp /etc/abora/plymouth/abora.plymouth      /mnt/etc/nixos/abora/plymouth/abora.plymouth
-    cp /etc/abora/plymouth/abora.script        /mnt/etc/nixos/abora/plymouth/abora.script
-
+    mkdir -p /mnt/etc/nixos/abora/plymouth /mnt/etc/nixos/abora/bootloader /mnt/etc/nixos/abora/wallpapers /mnt/etc/nixos/abora/themes /mnt/etc/nixos/abora/effects
+    cp "$title_file" /mnt/etc/nixos/abora/title.txt
+    cp /etc/abora/VERSION /mnt/etc/nixos/abora/VERSION
+    cp /etc/abora/abora.sh /mnt/etc/nixos/abora/abora.sh
+    cp /etc/abora/ui.sh /mnt/etc/nixos/abora/ui.sh
+    cp /etc/abora/config.sh /mnt/etc/nixos/abora/config.sh
+    cp /etc/abora/desktop.sh /mnt/etc/nixos/abora/desktop.sh
+    cp /etc/abora/doctor.sh /mnt/etc/nixos/abora/doctor.sh
+    cp /etc/abora/recovery.sh /mnt/etc/nixos/abora/recovery.sh
+    cp /etc/abora/welcome.sh /mnt/etc/nixos/abora/welcome.sh
+    cp /etc/abora/app-catalog.sh /mnt/etc/nixos/abora/app-catalog.sh
+    cp /etc/abora/apps.sh /mnt/etc/nixos/abora/apps.sh
+    cp /etc/abora/support-report.sh /mnt/etc/nixos/abora/support-report.sh
+    cp /etc/abora/hardware-test.sh /mnt/etc/nixos/abora/hardware-test.sh
+    cp /etc/abora/default-wallpaper.png /mnt/etc/nixos/abora/default-wallpaper.png
+    cp /etc/abora/fastfetch-logo.txt /mnt/etc/nixos/abora/fastfetch-logo.txt
+    cp /etc/abora/fastfetch-config.jsonc /mnt/etc/nixos/abora/fastfetch-config.jsonc
+    cp /etc/abora/desktop-profiles.sh /mnt/etc/nixos/abora/desktop-profiles.sh
+    cp /etc/abora/installed-base.nix /mnt/etc/nixos/abora/installed-base.nix
+    cp /etc/abora/session-setup.sh /mnt/etc/nixos/abora/session-setup.sh
+    cp /etc/abora/theme-sync.sh /mnt/etc/nixos/abora/theme-sync.sh
+    cp /etc/abora/update.sh /mnt/etc/nixos/abora/update.sh
+    [[ -f /etc/abora/effects/v3StartingAbora.mp3 ]] && cp /etc/abora/effects/v3StartingAbora.mp3 /mnt/etc/nixos/abora/effects/v3StartingAbora.mp3 || true
+    cp /etc/abora/plymouth/abora.plymouth /mnt/etc/nixos/abora/plymouth/abora.plymouth
+    cp /etc/abora/plymouth/abora.script /mnt/etc/nixos/abora/plymouth/abora.script
     if [[ ! -f "$live_background" ]]; then
         show_failure_screen \
             "Missing boot assets" \
@@ -1653,15 +1524,15 @@ write_branding_assets() {
     fi
 
     limine_source="$live_background"
-    [[ -f "$live_limine_background" ]] && limine_source="$live_limine_background"
+    if [[ -f "$live_limine_background" ]]; then
+        limine_source="$live_limine_background"
+    fi
 
-    install -Dm0644 "$live_background"  /mnt/etc/nixos/abora/bootloader/background.png
-    install -Dm0644 "$limine_source"    /mnt/etc/nixos/abora/bootloader/limine-background.png
-    install -Dm0644 "$live_theme"       /mnt/etc/nixos/abora/bootloader/theme.txt
+    install -Dm0644 "$live_background" /mnt/etc/nixos/abora/bootloader/background.png
+    install -Dm0644 "$limine_source" /mnt/etc/nixos/abora/bootloader/limine-background.png
+    install -Dm0644 "$live_theme" /mnt/etc/nixos/abora/bootloader/theme.txt
 
-    if [[ ! -f /mnt/etc/nixos/abora/bootloader/background.png \
-       || ! -f /mnt/etc/nixos/abora/bootloader/limine-background.png \
-       || ! -f /mnt/etc/nixos/abora/bootloader/theme.txt ]]; then
+    if [[ ! -f /mnt/etc/nixos/abora/bootloader/background.png || ! -f /mnt/etc/nixos/abora/bootloader/limine-background.png || ! -f /mnt/etc/nixos/abora/bootloader/theme.txt ]]; then
         show_failure_screen \
             "Missing boot assets" \
             "The installer could not write the bootloader assets onto the target system." \
@@ -1670,7 +1541,7 @@ write_branding_assets() {
     fi
 
     cp /etc/abora/wallpapers/* /mnt/etc/nixos/abora/wallpapers/
-    cp /etc/abora/themes/*     /mnt/etc/nixos/abora/themes/
+    cp /etc/abora/themes/* /mnt/etc/nixos/abora/themes/
     mkdir -p /mnt/etc/nixos/abora
     : > /mnt/etc/nixos/abora/apps.list
     cat > /mnt/etc/nixos/abora/apps.nix <<'EOF'
@@ -1694,15 +1565,21 @@ EOF
 
 write_starter_apps_list() {
     local target_file="$1"
+
     : > "$target_file"
-    [[ "${starter_apps_bundle,,}" == "none" ]] && return 0
+
+    if [[ "${starter_apps_bundle,,}" == "none" ]]; then
+        return 0
+    fi
+
     abora_catalog_bundle_ids "$starter_apps_bundle" > "$target_file"
 }
 
 render_apps_module_file() {
     local target_file="$1"
     local app_list_file="$2"
-    local app_id="" app_expr=""
+    local app_id=""
+    local app_expr=""
 
     {
         printf '{ pkgs, ... }:\n'
@@ -1722,7 +1599,8 @@ render_apps_module_file() {
 copy_github_auth_to_target() {
     local root_hosts="/root/.config/gh/hosts.yml"
     local target_dir="/mnt/home/${username_value}/.config/gh"
-    local uid="1000" gid="100"
+    local uid="1000"
+    local gid="100"
 
     [[ -f "$root_hosts" ]] || return 0
     [[ "$github_identity" != "Skipped" ]] || return 0
@@ -1743,6 +1621,10 @@ copy_github_auth_to_target() {
 
 write_install_assets() {
     write_branding_assets
+
+    [[ -f /etc/abora/anix.sh ]]        && cp /etc/abora/anix.sh        /mnt/etc/nixos/abora/anix.sh        || true
+    [[ -f /etc/abora/anix-module.nix ]] && cp /etc/abora/anix-module.nix /mnt/etc/nixos/abora/anix-module.nix || true
+    [[ -f /etc/abora/abora-options.nix ]] && cp /etc/abora/abora-options.nix /mnt/etc/nixos/abora/abora-options.nix || true
 }
 
 ensure_target_install_files() {
@@ -1750,33 +1632,6 @@ ensure_target_install_files() {
 
     if [[ ! -f /mnt/etc/nixos/abora/apps.list ]]; then
         : > /mnt/etc/nixos/abora/apps.list
-    fi
-
-    if [[ "${anix_enabled}" == "yes" && ! -f /mnt/etc/nixos/anix.nix ]]; then
-        cat > /mnt/etc/nixos/anix.nix <<EOF
-# ANIX is the simple layer on top of Abora/NixOS.
-# Change the values below, save the file, then run: anix apply
-{ ... }:
-{
-  anix.enable = true;
-
-  # Your system name on the network.
-  anix.hostname = "${hostname_value}";
-
-  # Timezone example: America/New_York
-  anix.timezone = "${timezone_value}";
-
-  # Keyboard layouts for console and desktop sessions.
-  anix.keyboard.console = "${keyboard_value}";
-  anix.keyboard.xkb = "${xkb_layout_value}";
-
-  # Pick one desktop or use "none" for a console-only system.
-  anix.desktop = "${desktop_profile}";
-
-  # Pick one of the shipped Abora wallpapers.
-  anix.wallpaper = "${wallpaper_name}";
-}
-EOF
     fi
 
     if [[ ! -f /mnt/etc/nixos/abora/apps.nix ]]; then
@@ -1800,67 +1655,100 @@ EOF
 }
 
 generate_config() {
+    local desktop_block=""
+    local desktop_packages=""
+
     info "Generating NixOS configuration"
     info "Writing configuration log to ${config_log}"
     printf '[*] Running nixos-generate-config --root /mnt\n' > "$config_log"
     if ! nixos-generate-config --root /mnt >>"$config_log" 2>&1; then
         show_failure_screen \
             "Configuration failed" \
-            "${product_short} could not generate the base NixOS hardware config." \
+            "Abora could not generate the base NixOS hardware config." \
             "$config_log"
         return 1
     fi
 
     write_install_assets
+    desktop_block="$(desktop_config_block)"
+    desktop_packages="$(desktop_package_block)"
+
+    if [[ "$anix_enabled" == "yes" ]]; then
+        cat > /mnt/etc/nixos/anix.nix <<EOF
+# ANIX is the simple layer on top of Abora/NixOS.
+# Change the values below, save the file, then run: anix apply
+{ ... }:
+{
+  anix.enable = true;
+
+  # Your system name on the network.
+  anix.hostname = "${hostname_value}";
+
+  # Timezone example: America/New_York
+  anix.timezone = "${timezone_value}";
+
+  # Keyboard layouts for console and desktop sessions.
+  anix.keyboard.console = "${keyboard_value}";
+  anix.keyboard.xkb = "${xkb_layout_value}";
+
+  # Pick one desktop or use "none" for a console-only system.
+  anix.desktop = "${desktop_profile}";
+
+  # Wallpaper filename (Abora OS only).
+  anix.wallpaper = "${wallpaper_name}";
+}
+EOF
+    fi
 
     cat > /mnt/etc/nixos/configuration.nix <<EOF
 { lib, ... }:
 let
   appModule = ./abora/apps.nix;
-  anixLayer = ./anix.nix;
 in
 {
   imports = [
     ./hardware-configuration.nix
     ./abora/installed-base.nix
-    ./abora/abora-options.nix
-    ./abora/anix-module.nix
     ./abora-local.nix
-  ] ++ lib.optional (builtins.pathExists appModule) appModule
-    ++ lib.optional (builtins.pathExists anixLayer) anixLayer;
+  ] ++ lib.optional (builtins.pathExists appModule) appModule;
 }
 EOF
 
     cat > /mnt/etc/nixos/abora-local.nix <<EOF
-# ── Abora OS — system configuration ──────────────────────────────────────────
-# Edit these values to personalise your system, then run 'update' to apply.
-# Do not change abora.disk or abora.stateVersion after the first install.
-{ ... }:
+{ pkgs, lib, ... }:
 {
-  # ── Identity ──────────────────────────────────────────────────────────────
-  abora.hostname         = "${hostname_value}";
-  abora.locale           = "${language_value}";  # e.g. de_DE.UTF-8, fr_FR.UTF-8
-  abora.timezone         = "${timezone_value}";  # e.g. America/New_York, Europe/London
-  abora.keyboard.console = "${keyboard_value}";  # TTY keymap
-  abora.keyboard.xkb     = "${xkb_layout_value}"; # graphical keyboard layout
+  system.nixos.variantName = "Abora ${version} ${desktop_label} Edition";
+  system.nixos.variant_id = "${desktop_variant_id}";
 
-  # ── User ──────────────────────────────────────────────────────────────────
-  abora.user.name           = "${username_value}";
-  abora.user.hashedPassword = "${user_password_hash}"; # generate with: mkpasswd
+  boot.loader.grub.enable = lib.mkForce false;
+  boot.loader.limine = {
+    enable = true;
+    biosSupport = true;
+    biosDevice = "${disk}";
+    efiSupport = true;
+    efiInstallAsRemovable = true;
+  };
 
-  # ── Desktop ───────────────────────────────────────────────────────────────
-  # Options: none gnome plasma hyprland sway niri xfce cinnamon mate budgie
-  #          lxqt pantheon enlightenment i3 awesome openbox
-  #          river qtile bspwm fluxbox icewm herbstluftwm dwm
-  abora.desktop = "${desktop_profile}";
+  networking.hostName = "${hostname_value}";
+  time.timeZone = "${timezone_value}";
+  console.keyMap = "${keyboard_value}";
 
-  # ── Look and feel ────────────────────────────────────────────────────────
-  # Pick one of the shipped Abora wallpapers.
-  abora.wallpaper = "${wallpaper_name}";
+${desktop_block}
+  users.users."${username_value}" = {
+    isNormalUser = true;
+    description = "Abora User";
+    createHome = true;
+    extraGroups = [ "wheel" "networkmanager" "audio" "video" ];
+    hashedPassword = "${user_password_hash}";
+  };
 
-  # ── Hardware ──────────────────────────────────────────────────────────────
-  abora.disk         = "${disk}";      # install disk for the bootloader
-  abora.stateVersion = "26.05";        # set at install time — do not change
+  security.sudo.wheelNeedsPassword = true;
+
+  environment.systemPackages = with pkgs; [
+${desktop_packages}
+  ];
+
+  system.stateVersion = "26.05";
 }
 EOF
 
@@ -1872,54 +1760,24 @@ EOF
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = { nixpkgs, ... }:
-    let
-      lib = nixpkgs.lib;
+  outputs = { nixpkgs, ... }: {
+    nixosConfigurations.abora = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
-      baseModules =
+      modules =
         let
-          appModule = ./abora/apps.nix;
-          anixLayer = ./anix.nix;
+          lib       = nixpkgs.lib;
+          appModule  = ./abora/apps.nix;
+          anixModule = ./abora/anix-module.nix;
+          anixLayer  = ./anix.nix;
         in
         [
           ./hardware-configuration.nix
           ./abora/installed-base.nix
-          ./abora/abora-options.nix
-          ./abora/anix-module.nix
           ./abora-local.nix
-        ] ++ lib.optional (builtins.pathExists appModule) appModule
-          ++ lib.optional (builtins.pathExists anixLayer) anixLayer;
-      mkProfile = name: extraModules: nixpkgs.lib.nixosSystem {
-        inherit system;
-        modules = baseModules ++ extraModules ++ [
-          { system.nixos.variantName = lib.mkOverride 800 "Abora ${name} Profile"; }
-        ];
-      };
-    in {
-    nixosConfigurations.abora = mkProfile "Stable" [];
-    nixosConfigurations.stable = mkProfile "Stable" [];
-    nixosConfigurations.minimal = mkProfile "Minimal" [
-      { abora.desktop = lib.mkForce "none"; }
-    ];
-    nixosConfigurations.gaming = mkProfile "Gaming" [
-      { pkgs, ... }: {
-        abora.desktop = lib.mkForce "gnome";
-        environment.systemPackages = with pkgs; [ mangohud prismlauncher lutris ];
-        programs.steam.enable = lib.mkDefault true;
-      }
-    ];
-    nixosConfigurations.creator = mkProfile "Creator" [
-      { pkgs, ... }: {
-        abora.desktop = lib.mkForce "gnome";
-        environment.systemPackages = with pkgs; [ blender gimp inkscape krita obs-studio audacity ];
-      }
-    ];
-    nixosConfigurations.developer = mkProfile "Developer" [
-      { pkgs, ... }: {
-        abora.desktop = lib.mkForce "gnome";
-        environment.systemPackages = with pkgs; [ git gh vscode direnv nixfmt-rfc-style shellcheck ];
-      }
-    ];
+        ] ++ lib.optional (builtins.pathExists appModule)  appModule
+          ++ lib.optional (builtins.pathExists anixModule) anixModule
+          ++ lib.optional (builtins.pathExists anixLayer)  anixLayer;
+    };
   };
 }
 EOF
@@ -1927,12 +1785,17 @@ EOF
 }
 
 install_system() {
-    local nixpkgs_path="" nix_path="" status=0
-    local install_pid="" start_time=0 elapsed=0
-    local progress=45 status_text=""
+    local nixpkgs_path=""
+    local nix_path=""
+    local status=0
+    local install_pid=""
+    local start_time=0
+    local elapsed=0
+    local progress=45
+    local status_text=""
 
-    info "Installing ${product_name}"
-    info "This can take a few minutes."
+    info "Installing Abora OS"
+    info "This usually takes 5-15 minutes depending on network speed."
     ensure_target_install_files || return 1
     nixpkgs_path="$(resolve_nixpkgs_path)" || {
         error_msg "Could not locate nixpkgs for nixos-install."
@@ -1946,6 +1809,11 @@ install_system() {
     NIX_PATH="$nix_path" nixos-install \
         --root /mnt \
         --no-root-passwd \
+        --show-trace \
+        --option max-substitution-jobs 32 \
+        --option http-connections 128 \
+        --option max-jobs auto \
+        --cores 0 \
         -I "nixpkgs=${nixpkgs_path}" \
         -I "nixos-config=/mnt/etc/nixos/configuration.nix" \
         >>"$install_log" 2>&1 &
@@ -1973,107 +1841,50 @@ install_system() {
         fi
         show_failure_screen \
             "Installation failed" \
-            "${product_short} could not finish writing the system." \
+            "Abora could not finish writing the system." \
             "$install_log"
         return 1
     fi
 }
 
-# ── Finish screen ─────────────────────────────────────────────────────────────
-
 finish_screen() {
     show_header "Install complete" "Your machine is ready for first boot."
 
-    abora_card_start "Success"
-    printf '  %b│%b\n' "$BLUE" "$NC"
-    printf '  %b│%b  %b✓%b  %b%s %s installed successfully.%b\n' \
-        "$BLUE" "$NC" "$GREEN" "$NC" "$GREEN" "$product_name" "$version" "$NC"
-    printf '  %b│%b\n' "$BLUE" "$NC"
-    printf '  %b│%b  %bNext steps%b\n' "$BLUE" "$NC" "$WHITE" "$NC"
-    printf '  %b│%b\n' "$BLUE" "$NC"
-    printf '  %b│%b  %b1%b  Remove the installation media (USB drive or ISO).\n' \
-        "$BLUE" "$NC" "$DIM" "$NC"
-    printf '  %b│%b  %b2%b  Reboot — your drive will be selected automatically.\n' \
-        "$BLUE" "$NC" "$DIM" "$NC"
-    if [[ "$desktop_profile" == "none" ]]; then
-        printf '  %b│%b  %b3%b  Log in as  %b%s%b  on the local console.\n' \
-            "$BLUE" "$NC" "$DIM" "$NC" "$CYAN" "$username_value" "$NC"
-    else
-        printf '  %b│%b  %b3%b  Log in as  %b%s%b  on the  %b%s%b  desktop.\n' \
-            "$BLUE" "$NC" "$DIM" "$NC" "$CYAN" "$username_value" "$NC" "$CYAN" "$desktop_label" "$NC"
-    fi
-    printf '  %b│%b\n' "$BLUE" "$NC"
-    abora_card_end
-
+    printf '%b[ok] Abora OS %s is installed successfully.%b\n' "$GREEN" "$version" "$NC"
+    printf '\n'
+    draw_rule
+    printf '%b  Next steps%b\n' "$WHITE" "$NC"
+    draw_rule
+    printf '  1. Remove the installation media (USB drive or ISO).\n'
+    printf '  2. Reboot — your drive will be selected automatically.\n'
+    printf '  3. Log in as %b%s%b on the %b%s%b desktop.\n' \
+        "$CYAN" "$username_value" "$NC" "$CYAN" "$desktop_label" "$NC"
+    draw_rule
     printf '\n'
 
-    menu_choose "What would you like to do?" "Reboot into ${product_name}" "Power off"
+    menu_choose "What would you like to do?" "Reboot into Abora OS" "Power off"
 
     case "$menu_result" in
-        0)  sync; reboot ;;
-        *)  sync; poweroff ;;
+        0)
+            sync
+            reboot
+            ;;
+        *)
+            sync
+            poweroff
+            ;;
     esac
 }
-
-# ── Cleanup ───────────────────────────────────────────────────────────────────
 
 cleanup_target() {
     sync
     umount -R /mnt 2>/dev/null || true
 }
 
-show_installer_loading() {
-    local frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
-    local phases=(
-        "Checking system requirements"
-        "Detecting hardware configuration"
-        "Loading desktop profiles"
-        "Preparing installer modules"
-        "Starting the installer"
-    )
-    local total_phases=${#phases[@]}
-    local i=0 idx=0 elapsed=0
-
-    clear_screen
-    printf '\n'
-    draw_brand_header
-    printf '\n'
-
-    local cols width
-    cols="$(terminal_cols)"
-    width=$((cols - 12))
-    [[ $width -lt 20 ]] && width=20
-    [[ $width -gt 60 ]] && width=60
-
-    printf '  %bInitializing%b\n' "$ABORA_WHITE" "$NC"
-    printf '\n'
-
-    while [[ $elapsed -lt 4 ]]; do
-        idx=$((elapsed % ${#frames[@]}))
-        i=$((elapsed * total_phases / 4))
-        [[ $i -ge $total_phases ]] && i=$((total_phases - 1))
-
-        printf '\r  %b%s%b  %b%s%b  %b%ds%b' \
-            "$ACCENT" "${frames[$idx]}" "$NC" \
-            "$ABORA_WHITE" "${phases[$i]}" "$NC" \
-            "$FAINT" "$((4 - elapsed))" "$NC"
-
-        sleep 0.25
-        elapsed=$((elapsed + 1))
-    done
-
-    printf '\n\n'
-    success "System ready"
-    printf '\n'
-}
-
-# ── Main loop ─────────────────────────────────────────────────────────────────
-
 main() {
     local step=0
 
     require_root
-    sync_wallpaper_label
     sync_starter_apps_label
     refresh_github_identity
     auto_detect_timezone
@@ -2083,27 +1894,41 @@ main() {
         exit 1
     fi
 
-    if [[ "${ABORA_SKIP_INSTALLER_LOADING:-0}" != "1" ]]; then
-        show_installer_loading
-    fi
-
     while true; do
         set_step_next
 
         case "$step" in
-            0) show_installer_welcome ;;
-            1) prompt_anix_opt_in ;;
-            2) prompt_names ;;
-            3) prompt_locale ;;
-            4) prompt_password ;;
-            5) prompt_github_login ;;
-            6) show_extra_packages_setup ;;
-            7) confirm_install ;;
+            0)
+                show_installer_welcome
+                ;;
+            1)
+                prompt_anix_opt_in
+                ;;
+            2)
+                prompt_names
+                ;;
+            3)
+                prompt_locale
+                ;;
+            4)
+                prompt_password
+                ;;
+            5)
+                prompt_github_login
+                ;;
+            6)
+                show_extra_packages_setup
+                ;;
+            7)
+                confirm_install
+                ;;
         esac
 
         case "$step_action" in
             back)
-                [[ "$step" -gt 0 ]] && step=$((step - 1))
+                if [[ "$step" -gt 0 ]]; then
+                    step=$((step - 1))
+                fi
                 ;;
             cancel)
                 info "Install cancelled."
@@ -2112,14 +1937,20 @@ main() {
             stay)
                 ;;
             install)
-                show_install_progress_screen 5  "Preparing the target disk"               0
+                show_install_progress_screen 5 "Preparing the target disk" 0
                 partition_disk
-                show_install_progress_screen 18 "Mounting the target filesystem"          0
+                show_install_progress_screen 18 "Mounting the target filesystem" 0
                 mount_target
                 show_install_progress_screen 32 "Generating the Abora system configuration" 0 "$config_log"
-                generate_config || { pause_prompt; return 1; }
-                show_install_progress_screen 40 "Starting nixos-install"                  0 "$install_log"
-                install_system  || { pause_prompt; return 1; }
+                generate_config || {
+                    pause_prompt
+                    return 1
+                }
+                show_install_progress_screen 40 "Starting nixos-install" 0 "$install_log"
+                install_system || {
+                    pause_prompt
+                    return 1
+                }
                 copy_github_auth_to_target
                 cleanup_target
                 finish_screen

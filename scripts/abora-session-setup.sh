@@ -14,7 +14,7 @@ swaybg_pid_file="${XDG_RUNTIME_DIR:-/tmp}/abora-swaybg.pid"
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 qt5ct_colors="${ABORA_QT5CT_COLORS:-/run/current-system/sw/share/qt5ct/colors/darker.conf}"
 qt6ct_colors="${ABORA_QT6CT_COLORS:-/run/current-system/sw/share/qt6ct/colors/darker.conf}"
-launch_sound="${ABORA_LAUNCH_SOUND:-/etc/abora/effects/LaunchingAbora.mp3}"
+launch_sound="${ABORA_LAUNCH_SOUND:-/etc/abora/effects/v3StartingAbora.mp3}"
 launch_sound_marker="${XDG_RUNTIME_DIR:-/tmp}/abora-launch-sound.played"
 
 command_exists() {
@@ -248,8 +248,7 @@ seed_dark_theme_for_session() {
         *qtile*:* | *:qtile* | \
         *fluxbox*:* | *:fluxbox* | \
         *icewm*:* | *:icewm* | \
-        *herbstluftwm*:* | *:herbstluftwm* | \
-        *dwm*:* | *:dwm*)
+        *herbstluftwm*:* | *:herbstluftwm*)
             export_dark_environment "qt6ct"
             ;;
         *Hyprland*:* | *hyprland*:* | *:hyprland* | *:Hyprland* | \
@@ -397,8 +396,7 @@ main() {
         *qtile*:* | *:qtile* | \
         *fluxbox*:* | *:fluxbox* | \
         *icewm*:* | *:icewm* | \
-        *herbstluftwm*:* | *:herbstluftwm* | \
-        *dwm*:* | *:dwm*)
+        *herbstluftwm*:* | *:herbstluftwm*)
             seed_feh || true
             ;;
         *Hyprland*:* | *hyprland*:* | *:hyprland* | *:Hyprland* | \
