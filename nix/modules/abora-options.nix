@@ -53,6 +53,13 @@ in
       description = "The machine hostname.";
     };
 
+    locale = lib.mkOption {
+      type    = lib.types.str;
+      default = "en_US.UTF-8";
+      example = "de_DE.UTF-8";
+      description = "System locale (e.g. en_US.UTF-8, de_DE.UTF-8, fr_FR.UTF-8).";
+    };
+
     timezone = lib.mkOption {
       type    = lib.types.str;
       default = "UTC";
@@ -130,9 +137,10 @@ in
 
     # Always apply these with mkDefault so they lose to any direct override.
       {
-        networking.hostName = lib.mkDefault cfg.hostname;
-        time.timeZone       = lib.mkDefault cfg.timezone;
-        console.keyMap      = lib.mkDefault cfg.keyboard.console;
+        networking.hostName  = lib.mkDefault cfg.hostname;
+        time.timeZone        = lib.mkDefault cfg.timezone;
+        i18n.defaultLocale   = lib.mkDefault cfg.locale;
+        console.keyMap       = lib.mkDefault cfg.keyboard.console;
         environment.variables.ABORA_DEFAULT_WALLPAPER = lib.mkDefault defaultWallpaperPath;
       }
 
