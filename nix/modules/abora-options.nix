@@ -102,7 +102,7 @@ in
         "none" "gnome" "plasma" "hyprland" "sway" "xfce" "cinnamon" "mate"
         "budgie" "lxqt" "pantheon" "enlightenment" "i3"
         "awesome" "openbox" "niri" "river" "qtile" "bspwm" "fluxbox"
-        "icewm" "herbstluftwm" "dwm"
+        "icewm" "herbstluftwm"
       ];
       default     = "gnome";
       description = "Desktop environment or window manager to enable.";

@@ -337,7 +337,7 @@ write_local_module() {
   # ── Desktop ───────────────────────────────────────────────────────────────
   # Options: none gnome plasma hyprland sway niri xfce cinnamon mate budgie
   #          lxqt pantheon lxde enlightenment i3 awesome openbox
-  #          river qtile bspwm fluxbox icewm herbstluftwm dwm
+  #          river qtile bspwm fluxbox icewm herbstluftwm
   abora.desktop = "${desktop_profile}";
 
   # ── Hardware ──────────────────────────────────────────────────────────────
@@ -404,7 +404,7 @@ sync_abora_files() {
     cp "$upstream_dir/assets/abora-title.txt" "$abora_dir/title.txt"
     cp "$upstream_dir/assets/fastfetch-logo.txt" "$abora_dir/fastfetch-logo.txt"
     cp "$upstream_dir/assets/fastfetch-config.jsonc" "$abora_dir/fastfetch-config.jsonc"
-    cp "$upstream_dir/assets/Effects/LaunchingAbora.mp3" "$abora_dir/effects/LaunchingAbora.mp3"
+    cp "$upstream_dir/assets/Effects/v3StartingAbora.mp3" "$abora_dir/effects/v3StartingAbora.mp3"
     cp "$upstream_dir/assets/plymouth/abora.plymouth" "$abora_dir/plymouth/abora.plymouth"
     cp "$upstream_dir/assets/plymouth/abora.script" "$abora_dir/plymouth/abora.script"
 

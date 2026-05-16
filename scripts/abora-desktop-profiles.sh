@@ -61,7 +61,6 @@ bspwm
 fluxbox
 icewm
 herbstluftwm
-dwm
 EOF
 }
 
@@ -159,10 +158,6 @@ abora_sync_desktop_label() {
             desktop_label="Herbstluftwm"
             desktop_variant_id="herbstluftwm"
             ;;
-        dwm)
-            desktop_label="DWM"
-            desktop_variant_id="dwm"
-            ;;
         *)
             desktop_label="GNOME"
             desktop_variant_id="gnome"
@@ -217,8 +212,6 @@ abora_detect_desktop_profile() {
         printf 'icewm\n'
     elif grep -q 'windowManager\.herbstluftwm\.enable = true;' "$file"; then
         printf 'herbstluftwm\n'
-    elif grep -q 'windowManager\.dwm\.enable = true;' "$file"; then
-        printf 'dwm\n'
     else
         printf 'gnome\n'
     fi
@@ -610,22 +603,6 @@ EOF
   services.xserver.desktopManager.runXdgAutostartIfNone = true;
   services.displayManager = {
     defaultSession = "none+herbstluftwm";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-EOF
-            ;;
-        dwm)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    windowManager.dwm.enable = true;
-  };
-  services.xserver.desktopManager.runXdgAutostartIfNone = true;
-  services.displayManager = {
-    defaultSession = "none+dwm";
     autoLogin.enable = true;
     autoLogin.user = "${username_value}";
   };

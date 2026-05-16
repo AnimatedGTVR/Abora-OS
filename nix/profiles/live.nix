@@ -127,7 +127,13 @@ in
     label = version;
   };
 
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  nix.settings = {
+    experimental-features = [ "nix-command" "flakes" ];
+    max-substitution-jobs = 32;
+    http-connections = 128;
+    max-jobs = "auto";
+    cores = 0;
+  };
   nix.nixPath = [
     "nixpkgs=${pkgs.path}"
     "nixos-config=/etc/nixos/configuration.nix"
@@ -198,6 +204,20 @@ in
     qt6Packages.qt6ct
     xdg-utils
     swaybg
+    # Pre-seeded so nixos-install copies locally instead of downloading
+    mpg123
+    papirus-icon-theme
+    xterm
+    noto-fonts
+    noto-fonts-color-emoji
+    flatpak
+    polkit
+    pipewire
+    wireplumber
+    networkmanager
+    plymouth
+    udisks2
+    rtkit
   ];
 
   environment.variables = {
@@ -245,7 +265,7 @@ in
       "abora/VERSION".source = ../../VERSION;
       "abora/fastfetch-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "abora/fastfetch-config.jsonc".source = ../../assets/fastfetch-config.jsonc;
-      "abora/effects/LaunchingAbora.mp3".source = ../../assets/Effects/LaunchingAbora.mp3;
+      "abora/effects/v3StartingAbora.mp3".source = ../../assets/Effects/v3StartingAbora.mp3;
       "abora/desktop-profiles.sh" = {
         source = ../../scripts/abora-desktop-profiles.sh;
         mode = "0755";
