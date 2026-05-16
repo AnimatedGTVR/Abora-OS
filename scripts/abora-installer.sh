@@ -30,6 +30,7 @@ source "$ui_lib"
 disk=""
 hostname_value="abora"
 username_value="abora"
+language_value="en_US.UTF-8"
 timezone_value="UTC"
 keyboard_value="us"
 xkb_layout_value="us"
@@ -1340,17 +1341,76 @@ prompt_keyboard_layout() {
     done
 }
 
+prompt_language() {
+    local lang_labels=(
+        "English (US)             en_US.UTF-8"
+        "English (UK)             en_GB.UTF-8"
+        "German / Deutsch         de_DE.UTF-8"
+        "French / Français        fr_FR.UTF-8"
+        "Spanish / Español        es_ES.UTF-8"
+        "Portuguese (Brazil)      pt_BR.UTF-8"
+        "Portuguese (Portugal)    pt_PT.UTF-8"
+        "Italian / Italiano       it_IT.UTF-8"
+        "Dutch / Nederlands       nl_NL.UTF-8"
+        "Polish / Polski          pl_PL.UTF-8"
+        "Russian / Русский        ru_RU.UTF-8"
+        "Ukrainian / Українська   uk_UA.UTF-8"
+        "Czech / Čeština          cs_CZ.UTF-8"
+        "Hungarian / Magyar       hu_HU.UTF-8"
+        "Romanian / Română        ro_RO.UTF-8"
+        "Turkish / Türkçe         tr_TR.UTF-8"
+        "Swedish / Svenska        sv_SE.UTF-8"
+        "Norwegian / Norsk        nb_NO.UTF-8"
+        "Danish / Dansk           da_DK.UTF-8"
+        "Finnish / Suomi          fi_FI.UTF-8"
+        "Greek / Ελληνικά         el_GR.UTF-8"
+        "Arabic / العربية         ar_SA.UTF-8"
+        "Hebrew / עברית           he_IL.UTF-8"
+        "Hindi / हिन्दी            hi_IN.UTF-8"
+        "Chinese (Simplified)     zh_CN.UTF-8"
+        "Chinese (Traditional)    zh_TW.UTF-8"
+        "Japanese / 日本語         ja_JP.UTF-8"
+        "Korean / 한국어            ko_KR.UTF-8"
+        "Indonesian / Bahasa      id_ID.UTF-8"
+        "Vietnamese / Tiếng Việt  vi_VN.UTF-8"
+        "Back"
+    )
+    local lang_codes=(
+        "en_US.UTF-8" "en_GB.UTF-8" "de_DE.UTF-8" "fr_FR.UTF-8"
+        "es_ES.UTF-8" "pt_BR.UTF-8" "pt_PT.UTF-8" "it_IT.UTF-8"
+        "nl_NL.UTF-8" "pl_PL.UTF-8" "ru_RU.UTF-8" "uk_UA.UTF-8"
+        "cs_CZ.UTF-8" "hu_HU.UTF-8" "ro_RO.UTF-8" "tr_TR.UTF-8"
+        "sv_SE.UTF-8" "nb_NO.UTF-8" "da_DK.UTF-8" "fi_FI.UTF-8"
+        "el_GR.UTF-8" "ar_SA.UTF-8" "he_IL.UTF-8" "hi_IN.UTF-8"
+        "zh_CN.UTF-8" "zh_TW.UTF-8" "ja_JP.UTF-8" "ko_KR.UTF-8"
+        "id_ID.UTF-8" "vi_VN.UTF-8"
+    )
+
+    menu_choose "Choose language" "${lang_labels[@]}"
+    local idx="$menu_result"
+
+    if [[ "$idx" == "__back__" || "$idx" -eq $((${#lang_labels[@]} - 1)) ]]; then
+        set_step_back
+        return 0
+    fi
+
+    language_value="${lang_codes[$idx]}"
+    set_step_stay
+    return 0
+}
+
 prompt_locale() {
     while true; do
         menu_choose \
             "Locale settings" \
             "Continue" \
+            "Language: ${language_value}" \
             "Timezone: ${timezone_value}" \
             "Keyboard: ${keyboard_value}" \
             "Back"
 
         case "$menu_result" in
-            "__back__"|3)
+            "__back__"|4)
                 set_step_back
                 return 0
                 ;;
@@ -1359,10 +1419,14 @@ prompt_locale() {
                 return 0
                 ;;
             1)
-                prompt_timezone
+                prompt_language
                 [[ "$step_action" == "back" ]] && set_step_stay
                 ;;
             2)
+                prompt_timezone
+                [[ "$step_action" == "back" ]] && set_step_stay
+                ;;
+            3)
                 prompt_keyboard_layout
                 [[ "$step_action" == "back" ]] && set_step_stay
                 ;;
@@ -1775,6 +1839,7 @@ EOF
 {
   # ── Identity ──────────────────────────────────────────────────────────────
   abora.hostname         = "${hostname_value}";
+  abora.locale           = "${language_value}";  # e.g. de_DE.UTF-8, fr_FR.UTF-8
   abora.timezone         = "${timezone_value}";  # e.g. America/New_York, Europe/London
   abora.keyboard.console = "${keyboard_value}";  # TTY keymap
   abora.keyboard.xkb     = "${xkb_layout_value}"; # graphical keyboard layout

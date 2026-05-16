@@ -287,7 +287,6 @@ in
   };
 
   networking.networkmanager.enable = lib.mkDefault true;
-  i18n.defaultLocale = lib.mkDefault "en_US.UTF-8";
   security.polkit.enable = lib.mkDefault true;
   services.udisks2.enable = lib.mkDefault true;
   services.openssh.enable = lib.mkDefault false;

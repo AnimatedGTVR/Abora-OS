@@ -50,7 +50,6 @@ mate
 budgie
 lxqt
 pantheon
-lxde
 enlightenment
 i3
 awesome

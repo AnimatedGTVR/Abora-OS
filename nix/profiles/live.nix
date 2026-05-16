@@ -414,6 +414,7 @@ in
   };
 
   image.fileName = lib.mkForce "abora-${version}-x86_64.iso";
+  isoImage.makeEfiBootable = true;
   isoImage.prependToMenuLabel = "";
   isoImage.appendToMenuLabel = "";
   isoImage.configurationName = null;
