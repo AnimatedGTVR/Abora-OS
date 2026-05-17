@@ -35,7 +35,13 @@ rm -f "$build_link"
 nix build "$nix_target" \
     --print-build-logs \
     --show-trace \
-    --out-link "$build_link"
+    --out-link "$build_link" \
+    --option substituters "https://cache.nixos.org" \
+    --option trusted-public-keys "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" \
+    --option max-substitution-jobs 64 \
+    --option http-connections 128 \
+    --option max-jobs auto \
+    --cores 0
 
 if [[ ! -e "$build_link" ]]; then
     echo "Nix build completed but output link was not created: $build_link" >&2
