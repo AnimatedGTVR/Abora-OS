@@ -381,23 +381,91 @@ step_network() {
 }
 
 step_desktop() {
-    _screen "Choose Your Desktop" "Pick the environment you'll use every day."
-    printf '\n'
-    local opts=(
-        "GNOME|Modern, clean, and polished. Best for newcomers."
-        "KDE Plasma|Powerful and highly customizable. Windows-like feel."
-        "Hyprland|Minimal tiling compositor. Keyboard-driven, fast."
+    # id|Display Label|Category|Description
+    local _de_list=(
+        "gnome|GNOME|Full Desktop|Modern, clean, polished. Best for newcomers."
+        "plasma|KDE Plasma|Full Desktop|Powerful and customizable. Windows-like feel."
+        "xfce|XFCE|Full Desktop|Lightweight, stable, traditional. Fast on old hardware."
+        "cinnamon|Cinnamon|Full Desktop|Familiar and traditional. Windows-like layout."
+        "mate|MATE|Full Desktop|Classic GNOME 2 fork. Simple and efficient."
+        "budgie|Budgie|Full Desktop|Modern and elegant. Clean, simple design."
+        "lxqt|LXQt|Full Desktop|Lightweight Qt desktop. Minimal and fast."
+        "pantheon|Pantheon|Full Desktop|Elementary OS desktop. Beautiful and focused."
+        "enlightenment|Enlightenment|Full Desktop|Unique compositing DE. Very low footprint."
+        "hyprland|Hyprland|Wayland Compositor|Dynamic tiling, GPU-accelerated. Keyboard-driven."
+        "sway|Sway|Wayland Compositor|i3-compatible Wayland compositor. Minimal."
+        "niri|Niri|Wayland Compositor|Scrollable-tiling Wayland compositor."
+        "river|River|Wayland Compositor|Dynamic tiling Wayland compositor."
+        "i3|i3|Window Manager|Popular tiling WM. Keyboard-driven and scriptable."
+        "awesome|AwesomeWM|Window Manager|Lua-configured tiling WM. Highly extensible."
+        "openbox|Openbox|Window Manager|Lightweight stacking WM. Simple and fast."
+        "bspwm|BSPWM|Window Manager|Binary space partitioning tiling WM."
+        "qtile|Qtile|Window Manager|Python-configured WM. Fully customizable."
+        "fluxbox|Fluxbox|Window Manager|Fast and lightweight stacking WM."
+        "icewm|IceWM|Window Manager|Classic lightweight WM. Very fast startup."
+        "herbstluftwm|Herbstluftwm|Window Manager|Manual tiling, command-based."
+        "none|No Desktop|None|Terminal only. No graphical environment installed."
     )
-    _hint "↑↓ navigate  ·  ↵ select  ·  Esc back"
-    _menu 0 "${opts[@]}"
-    case $MENU_IDX in
-        0) desktop_profile="gnome";    desktop_label="GNOME";      desktop_variant_id="gnome"    ;;
-        1) desktop_profile="plasma";   desktop_label="KDE Plasma"; desktop_variant_id="plasma"   ;;
-        2) desktop_profile="hyprland"; desktop_label="Hyprland";   desktop_variant_id="hyprland" ;;
-        *) STEP_RESULT="back"; return ;;
-    esac
-    abora_sync_desktop_label "$desktop_profile" 2>/dev/null || true
-    STEP_RESULT="next"
+
+    local ids=() labels=() cats=() descs=()
+    local _entry
+    for _entry in "${_de_list[@]}"; do
+        IFS='|' read -r _id _lbl _cat _desc <<< "$_entry"
+        ids+=("$_id"); labels+=("$_lbl"); cats+=("$_cat"); descs+=("$_desc")
+    done
+
+    local count=${#ids[@]}
+    local cur=0
+    local rows; rows=$(_rows)
+    local visible=$(( rows - 14 ))
+    [[ $visible -lt 5 ]] && visible=5
+
+    while true; do
+        _screen "Choose Your Desktop" "Pick the environment you'll use every day."
+
+        local win_start=0
+        if [[ $count -gt $visible ]]; then
+            win_start=$(( cur - visible / 2 ))
+            [[ $win_start -lt 0 ]] && win_start=0
+            [[ $(( win_start + visible )) -ge $count ]] && win_start=$(( count - visible ))
+        fi
+        local win_end=$(( win_start + visible - 1 ))
+        [[ $win_end -ge $count ]] && win_end=$(( count - 1 ))
+
+        [[ $win_start -gt 0 ]] && printf '  %b  ↑ %d more above%b\n' "$GY" "$win_start" "$NC"
+
+        local prev_cat="" i
+        for (( i = win_start; i <= win_end; i++ )); do
+            if [[ "${cats[$i]}" != "$prev_cat" ]]; then
+                prev_cat="${cats[$i]}"
+                printf '\n  %b─── %s%b\n' "$C" "$prev_cat" "$NC"
+            fi
+            if [[ $i -eq $cur ]]; then
+                printf '%b  ──▶  %-16s%b  %b%s%b\n' \
+                    "$C" "${labels[$i]}" "$NC" "$GY" "${descs[$i]}" "$NC"
+            else
+                printf '%b    ·  %s%b\n' "$GY" "${labels[$i]}" "$NC"
+            fi
+        done
+
+        local remaining=$(( count - 1 - win_end ))
+        [[ $remaining -gt 0 ]] && printf '\n  %b  ↓ %d more below%b\n' "$GY" "$remaining" "$NC"
+
+        _hint "↑↓ Move   ↵ Select   Esc Back"
+
+        read_key
+        case "$KEY_NAME" in
+            UP)    [[ $cur -gt 0 ]] && (( cur-- )) ;;
+            DOWN)  [[ $cur -lt $((count-1)) ]] && (( cur++ )) ;;
+            ENTER)
+                desktop_profile="${ids[$cur]}"
+                abora_sync_desktop_label "$desktop_profile" 2>/dev/null || true
+                STEP_RESULT="next"
+                return
+                ;;
+            ESC) STEP_RESULT="back"; return ;;
+        esac
+    done
 }
 
 step_names() {
