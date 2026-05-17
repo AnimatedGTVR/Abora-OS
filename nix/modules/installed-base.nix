@@ -268,6 +268,7 @@ in
     "nixos-config=/etc/nixos/configuration.nix"
   ];
 
+  boot.kernelPackages = lib.mkDefault pkgs.linuxPackages_6_6;
   boot.initrd.systemd.enable = lib.mkDefault true;
   boot.initrd.verbose = lib.mkDefault false;
   boot.kernelParams = lib.mkDefault [
