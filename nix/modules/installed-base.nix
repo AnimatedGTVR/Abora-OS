@@ -279,7 +279,6 @@ in
   ];
   boot.consoleLogLevel = lib.mkDefault 3;
   boot.loader.efi.canTouchEfiVariables = lib.mkDefault false;
-  boot.loader.grub.splashImage = lib.mkForce (bootloaderDir + "/background.png");
   boot.loader.limine.style.wallpapers = [ limineWallpaperFile ];
   boot.plymouth = {
     enable = lib.mkDefault true;

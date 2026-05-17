@@ -259,6 +259,7 @@ format_elapsed() {
 
 install_status_summary() {
     local logfile="$1"
+    local elapsed="${2:-0}"
 
     if [[ ! -s "$logfile" ]]; then
         printf 'Preparing the install environment'
@@ -267,8 +268,14 @@ install_status_summary() {
 
     if grep -qi 'installing the boot loader' "$logfile"; then
         printf 'Installing the bootloader'
+    elif grep -qi 'setting up /etc' "$logfile"; then
+        printf 'Activating the new system'
     elif grep -qi 'activating the configuration' "$logfile"; then
         printf 'Activating the new system'
+    elif grep -qi 'running activation' "$logfile"; then
+        printf 'Activating the new system'
+    elif grep -qi 'created.*symlinks in user environment' "$logfile"; then
+        printf 'Linking system environment'
     elif grep -qi 'building the configuration' "$logfile"; then
         printf 'Building the system configuration'
     elif grep -qi "copying path '/nix/store" "$logfile"; then
@@ -290,29 +297,30 @@ install_progress_percent() {
         line_count="$(wc -l < "$logfile")"
     fi
 
-    progress=$((45 + line_count / 6 + elapsed / 4))
+    progress=$((45 + line_count / 8 + elapsed / 6))
 
     if grep -qi 'building the configuration' "$logfile" 2>/dev/null; then
-        if [[ "$progress" -lt 60 ]]; then
-            progress=60
-        fi
+        [[ "$progress" -lt 60 ]] && progress=60
     fi
 
     if grep -qi "copying path '/nix/store" "$logfile" 2>/dev/null; then
-        if [[ "$progress" -lt 72 ]]; then
-            progress=72
-        fi
+        [[ "$progress" -lt 70 ]] && progress=70
+    fi
+
+    if grep -qi 'created.*symlinks in user environment' "$logfile" 2>/dev/null; then
+        [[ "$progress" -lt 82 ]] && progress=82
+    fi
+
+    if grep -qi 'activating the configuration\|setting up /etc\|running activation' "$logfile" 2>/dev/null; then
+        [[ "$progress" -lt 88 ]] && progress=88
     fi
 
     if grep -qi 'installing the boot loader' "$logfile" 2>/dev/null; then
-        if [[ "$progress" -lt 88 ]]; then
-            progress=88
-        fi
+        [[ "$progress" -lt 93 ]] && progress=93
     fi
 
-    if [[ "$progress" -gt 94 ]]; then
-        progress=94
-    fi
+    # Let time push progress up to 99 — no artificial freeze at 94
+    [[ "$progress" -gt 99 ]] && progress=99
 
     printf '%s' "$progress"
 }
@@ -2052,11 +2060,34 @@ install_system() {
         >>"$install_log" 2>&1 &
     install_pid="$!"
     start_time="$(date +%s)"
+    local last_log_size=0
+    local last_log_change_time="$start_time"
+    local stale_warn=0
 
     while kill -0 "$install_pid" 2>/dev/null; do
         elapsed=$(( $(date +%s) - start_time ))
         progress="$(install_progress_percent "$install_log" "$elapsed")"
-        status_text="$(install_status_summary "$install_log")"
+        status_text="$(install_status_summary "$install_log" "$elapsed")"
+
+        # Detect log staleness: if no new output for 5 min after build completed, warn
+        local cur_log_size=0
+        [[ -f "$install_log" ]] && cur_log_size="$(wc -c < "$install_log" 2>/dev/null || printf '0')"
+        if [[ "$cur_log_size" -ne "$last_log_size" ]]; then
+            last_log_size="$cur_log_size"
+            last_log_change_time="$(date +%s)"
+            stale_warn=0
+        else
+            local stale_for=$(( $(date +%s) - last_log_change_time ))
+            # After build is done (symlinks created), warn if no new log for 5 min
+            if [[ "$stale_for" -gt 300 ]] && grep -qi 'symlinks in user environment' "$install_log" 2>/dev/null; then
+                stale_warn=1
+            fi
+        fi
+
+        if [[ "$stale_warn" -eq 1 ]]; then
+            status_text="Bootloader install (may take a few minutes)"
+        fi
+
         show_install_progress_screen "$progress" "$status_text" "$elapsed" "$install_log"
         sleep 1
     done
