@@ -116,6 +116,7 @@ in
 {
   system.stateVersion = "26.05";
   networking.hostName = "abora";
+  networking.networkmanager.enable = true;
   system.nixos.tags = [ "abora" "nixos-base" ];
   system.nixos = {
     distroId = "abora";
@@ -214,7 +215,6 @@ in
     polkit
     pipewire
     wireplumber
-    networkmanager
     plymouth
     udisks2
     rtkit

@@ -915,6 +915,226 @@ prompt_anix_opt_in() {
     done
 }
 
+_net_signal_bar() {
+    local sig="${1:-0}"
+    if   [[ "$sig" -ge 80 ]]; then printf '████'
+    elif [[ "$sig" -ge 60 ]]; then printf '███░'
+    elif [[ "$sig" -ge 40 ]]; then printf '██░░'
+    elif [[ "$sig" -ge 20 ]]; then printf '█░░░'
+    else                           printf '░░░░'
+    fi
+}
+
+_net_scan_wifi() {
+    local raw line ssid signal security rest
+    wifi_ssids=()
+    wifi_signals=()
+    wifi_security=()
+
+    nmcli device wifi rescan 2>/dev/null || true
+
+    # Parse terse nmcli output robustly:
+    # Format:  SSID:SIGNAL:SECURITY   (colons in SSID are escaped as \:)
+    # We split from the right: last field = SECURITY, second-to-last = SIGNAL, rest = SSID
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+
+        # Strip trailing whitespace
+        line="${line%"${line##*[![:space:]]}"}"
+
+        # Extract SECURITY (everything after last unescaped colon)
+        security="${line##*:}"
+        rest="${line%:"$security"}"
+
+        # Extract SIGNAL (everything after last unescaped colon in rest)
+        signal="${rest##*:}"
+        ssid="${rest%:"$signal"}"
+
+        # Unescape \: in SSID
+        ssid="${ssid//\\:/: }"
+        ssid="${ssid% }"
+
+        [[ -z "$ssid" || "$ssid" == "--" ]] && continue
+        [[ "$signal" =~ ^[0-9]+$ ]] || continue
+
+        # Deduplicate: skip if SSID already seen
+        local seen=0
+        local j
+        for j in "${!wifi_ssids[@]}"; do
+            [[ "${wifi_ssids[$j]}" == "$ssid" ]] && seen=1 && break
+        done
+        [[ "$seen" -eq 1 ]] && continue
+
+        wifi_ssids+=("$ssid")
+        wifi_signals+=("$signal")
+        wifi_security+=("$security")
+    done < <(nmcli -t -f SSID,SIGNAL,SECURITY device wifi list 2>/dev/null \
+        | sort -t: -k2 -rn 2>/dev/null \
+        || true)
+}
+
+_net_is_connected() {
+    nmcli -t networking connectivity check 2>/dev/null | grep -q "^full$"
+}
+
+prompt_network_connect() {
+    local wifi_ssids=()
+    local wifi_signals=()
+    local wifi_security=()
+    local connected=0
+    local selected=0
+    local status_msg=""
+    local key=""
+    local i=0
+
+    _net_is_connected && connected=1
+    _net_scan_wifi
+
+    while true; do
+        # ── Draw screen ───────────────────────────────────────────────────────
+        show_header "Network" "Choose a network to connect before installing."
+
+        # Ethernet section
+        local eth_found=0
+        while IFS= read -r iface; do
+            [[ -z "$iface" ]] && continue
+            eth_found=1
+            local state
+            state="$(nmcli -t -f GENERAL.STATE device show "$iface" 2>/dev/null \
+                | cut -d: -f2 | head -1 || true)"
+            if printf '%s' "$state" | grep -qi "connected"; then
+                printf '  %b✔  Ethernet (%s) — connected%b\n' "$GREEN" "$iface" "$NC"
+                connected=1
+            else
+                printf '  %b─  Ethernet (%s) — unplugged%b\n' "$DIM" "$iface" "$NC"
+            fi
+        done < <(nmcli -t -f DEVICE,TYPE device 2>/dev/null \
+            | awk -F: '$2=="ethernet"{print $1}' || true)
+
+        printf '\n'
+
+        # WiFi section header
+        if [[ "${#wifi_ssids[@]}" -eq 0 ]]; then
+            printf '  %bNo wireless networks found.%b\n' "$DIM" "$NC"
+        else
+            # Total rows = wifi list + divider + Rescan + Continue/Skip
+            local total=$(( ${#wifi_ssids[@]} + 2 ))
+            local max_wifi=12
+            local start=0
+            local end=$(( ${#wifi_ssids[@]} - 1 ))
+
+            # Scroll window around selection (wifi items only)
+            if [[ "${#wifi_ssids[@]}" -gt "$max_wifi" ]]; then
+                start=$(( selected - max_wifi / 2 ))
+                [[ "$start" -lt 0 ]] && start=0
+                end=$(( start + max_wifi - 1 ))
+                [[ "$end" -ge "${#wifi_ssids[@]}" ]] && end=$(( ${#wifi_ssids[@]} - 1 )) && start=$(( end - max_wifi + 1 ))
+            fi
+
+            [[ "$start" -gt 0 ]] && printf '  %b↑ more above%b\n' "$DIM" "$NC"
+
+            for (( i = start; i <= end; i++ )); do
+                local bar sig sec locked ssid_display
+                sig="${wifi_signals[$i]:-0}"
+                sec="${wifi_security[$i]:-}"
+                bar="$(_net_signal_bar "$sig")"
+                [[ -n "$sec" && "$sec" != "--" ]] && locked=" 🔒" || locked=""
+                ssid_display="${wifi_ssids[$i]}"
+
+                if [[ "$i" -eq "$selected" ]]; then
+                    printf '%b›  %s  %b%s%b%s\n' "$BLUE" "$bar" "$WHITE" "$ssid_display" "$NC" "$locked"
+                else
+                    printf '   %b%s  %s%b%s\n' "$DIM" "$bar" "$ssid_display" "$NC" "$locked"
+                fi
+            done
+
+            [[ "$end" -lt $(( ${#wifi_ssids[@]} - 1 )) ]] && printf '  %b↓ more below%b\n' "$DIM" "$NC"
+        fi
+
+        printf '\n'
+        draw_rule
+
+        # Bottom actions
+        local action_rescan="  [ R ] Rescan"
+        local action_continue
+        if [[ "$connected" -eq 1 ]]; then
+            action_continue="  [ C ] Continue  ›  (connected)"
+        else
+            action_continue="  [ S ] Skip (no internet)"
+        fi
+        printf '%b%s%b\n' "$DIM" "$action_rescan" "$NC"
+        printf '%b%s%b\n' "$DIM" "$action_continue" "$NC"
+        printf '\n'
+
+        if [[ -n "$status_msg" ]]; then
+            printf '  %s\n\n' "$status_msg"
+            status_msg=""
+        fi
+
+        printf '%b<↑↓> select  <enter> connect  <R> rescan  <C/S> continue  <esc> back%b\n' "$DIM" "$NC"
+
+        # ── Input ─────────────────────────────────────────────────────────────
+        key="$(read_key)"
+        case "$key" in
+            $'\033')
+                set_step_back; return 0
+                ;;
+            $'\033[A')   # up
+                if [[ "${#wifi_ssids[@]}" -gt 0 ]]; then
+                    selected=$(( selected - 1 ))
+                    [[ "$selected" -lt 0 ]] && selected=$(( ${#wifi_ssids[@]} - 1 ))
+                fi
+                ;;
+            $'\033[B')   # down
+                if [[ "${#wifi_ssids[@]}" -gt 0 ]]; then
+                    selected=$(( selected + 1 ))
+                    [[ "$selected" -ge "${#wifi_ssids[@]}" ]] && selected=0
+                fi
+                ;;
+            r|R)
+                status_msg="${DIM}Scanning…${NC}"
+                _net_scan_wifi
+                selected=0
+                _net_is_connected && connected=1
+                ;;
+            c|C|s|S)
+                set_step_next; return 0
+                ;;
+            "")   # enter — connect to selected network
+                if [[ "${#wifi_ssids[@]}" -eq 0 ]]; then
+                    status_msg="${DIM}No networks available.${NC}"
+                    continue
+                fi
+                local chosen_ssid="${wifi_ssids[$selected]}"
+                local chosen_sec="${wifi_security[$selected]}"
+                local password=""
+
+                if [[ -n "$chosen_sec" && "$chosen_sec" != "--" ]]; then
+                    prompt_input "Password for ${chosen_ssid}" "" \
+                        "Enter WiFi password and press Enter. Type /back to cancel."
+                    password="$prompt_result"
+                    [[ "$password" == "__back__" ]] && continue
+                fi
+
+                show_header "Connecting" "Joining ${chosen_ssid}…"
+                local ok=0
+                if [[ -z "$password" ]]; then
+                    nmcli device wifi connect "$chosen_ssid" 2>/dev/null && ok=1 || true
+                else
+                    nmcli device wifi connect "$chosen_ssid" password "$password" 2>/dev/null && ok=1 || true
+                fi
+
+                if [[ "$ok" -eq 1 ]]; then
+                    connected=1
+                    status_msg="${GREEN}✔ Connected to ${chosen_ssid}${NC}"
+                else
+                    status_msg="${RED}✘ Could not connect — check the password and try again${NC}"
+                fi
+                ;;
+        esac
+    done
+}
+
 show_installer_welcome() {
     while true; do
         menu_choose \
@@ -1899,27 +2119,30 @@ main() {
 
         case "$step" in
             0)
-                show_installer_welcome
+                prompt_network_connect
                 ;;
             1)
-                prompt_anix_opt_in
+                show_installer_welcome
                 ;;
             2)
-                prompt_names
+                prompt_anix_opt_in
                 ;;
             3)
-                prompt_locale
+                prompt_names
                 ;;
             4)
-                prompt_password
+                prompt_locale
                 ;;
             5)
-                prompt_github_login
+                prompt_password
                 ;;
             6)
-                show_extra_packages_setup
+                prompt_github_login
                 ;;
             7)
+                show_extra_packages_setup
+                ;;
+            8)
                 confirm_install
                 ;;
         esac
@@ -1957,7 +2180,7 @@ main() {
                 return 0
                 ;;
             *)
-                if [[ "$step" -lt 7 ]]; then
+                if [[ "$step" -lt 8 ]]; then
                     step=$((step + 1))
                 fi
                 ;;
