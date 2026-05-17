@@ -1669,8 +1669,10 @@ partition_disk() {
 
     info "Partitioning ${disk}"
     umount -R /mnt 2>/dev/null || true
-    wipefs -af "$disk" >/dev/null
-    parted -s "$disk" mklabel gpt
+    wipefs -af "$disk" >/dev/null \
+        || { error_msg "Failed to wipe ${disk}. Check if disk is locked or in use."; return 1; }
+    parted -s "$disk" mklabel gpt \
+        || { error_msg "Failed to create partition table on ${disk}."; return 1; }
     parted -s "$disk" unit MiB mkpart BIOSBOOT 1 3
     parted -s "$disk" set 1 bios_grub on
     parted -s "$disk" unit MiB mkpart ESP fat32 3 515
@@ -1683,17 +1685,21 @@ partition_disk() {
     efi_part="${disk}${suffix}2"
     root_part="${disk}${suffix}3"
 
-    mkfs.vfat -F 32 -n ABORA_EFI "$efi_part" >/dev/null
-    mkfs.ext4 -F -L ABORA_ROOT "$root_part" >/dev/null
+    mkfs.vfat -F 32 -n ABORA_EFI "$efi_part" >/dev/null \
+        || { error_msg "Failed to format EFI partition ${efi_part}."; return 1; }
+    mkfs.ext4 -F -L ABORA_ROOT "$root_part" >/dev/null \
+        || { error_msg "Failed to format root partition ${root_part}."; return 1; }
     success "Disk prepared"
 }
 
 mount_target() {
     info "Mounting target filesystem"
     mkdir -p /mnt
-    mount "$root_part" /mnt
+    mount "$root_part" /mnt \
+        || { error_msg "Failed to mount root partition ${root_part}. Disk may need repartitioning."; return 1; }
     mkdir -p /mnt/boot
-    mount "$efi_part" /mnt/boot
+    mount "$efi_part" /mnt/boot \
+        || { error_msg "Failed to mount EFI partition ${efi_part}."; return 1; }
     success "Target mounted at /mnt"
 }
 
@@ -1705,6 +1711,15 @@ desktop_package_block() {
     abora_desktop_package_block "$desktop_profile"
 }
 
+_cp_required() {
+    local src="$1" dst="$2"
+    if [[ ! -f "$src" ]]; then
+        error_msg "Required file missing from live ISO: ${src}"
+        return 1
+    fi
+    cp "$src" "$dst"
+}
+
 write_branding_assets() {
     local live_background="/etc/abora/bootloader/background.png"
     local live_limine_background="/etc/abora/bootloader/limine-background.png"
@@ -1712,30 +1727,30 @@ write_branding_assets() {
     local limine_source=""
 
     mkdir -p /mnt/etc/nixos/abora/plymouth /mnt/etc/nixos/abora/bootloader /mnt/etc/nixos/abora/wallpapers /mnt/etc/nixos/abora/themes /mnt/etc/nixos/abora/effects
-    cp "$title_file" /mnt/etc/nixos/abora/title.txt
-    cp /etc/abora/VERSION /mnt/etc/nixos/abora/VERSION
-    cp /etc/abora/abora.sh /mnt/etc/nixos/abora/abora.sh
-    cp /etc/abora/ui.sh /mnt/etc/nixos/abora/ui.sh
-    cp /etc/abora/config.sh /mnt/etc/nixos/abora/config.sh
-    cp /etc/abora/desktop.sh /mnt/etc/nixos/abora/desktop.sh
-    cp /etc/abora/doctor.sh /mnt/etc/nixos/abora/doctor.sh
-    cp /etc/abora/recovery.sh /mnt/etc/nixos/abora/recovery.sh
-    cp /etc/abora/welcome.sh /mnt/etc/nixos/abora/welcome.sh
-    cp /etc/abora/app-catalog.sh /mnt/etc/nixos/abora/app-catalog.sh
-    cp /etc/abora/apps.sh /mnt/etc/nixos/abora/apps.sh
-    cp /etc/abora/support-report.sh /mnt/etc/nixos/abora/support-report.sh
-    cp /etc/abora/hardware-test.sh /mnt/etc/nixos/abora/hardware-test.sh
-    cp /etc/abora/default-wallpaper.png /mnt/etc/nixos/abora/default-wallpaper.png
-    cp /etc/abora/fastfetch-logo.txt /mnt/etc/nixos/abora/fastfetch-logo.txt
-    cp /etc/abora/fastfetch-config.jsonc /mnt/etc/nixos/abora/fastfetch-config.jsonc
-    cp /etc/abora/desktop-profiles.sh /mnt/etc/nixos/abora/desktop-profiles.sh
-    cp /etc/abora/installed-base.nix /mnt/etc/nixos/abora/installed-base.nix
-    cp /etc/abora/session-setup.sh /mnt/etc/nixos/abora/session-setup.sh
-    cp /etc/abora/theme-sync.sh /mnt/etc/nixos/abora/theme-sync.sh
-    cp /etc/abora/update.sh /mnt/etc/nixos/abora/update.sh
+    _cp_required "$title_file"                        /mnt/etc/nixos/abora/title.txt
+    _cp_required /etc/abora/VERSION                   /mnt/etc/nixos/abora/VERSION
+    _cp_required /etc/abora/abora.sh                  /mnt/etc/nixos/abora/abora.sh
+    _cp_required /etc/abora/ui.sh                     /mnt/etc/nixos/abora/ui.sh
+    _cp_required /etc/abora/config.sh                 /mnt/etc/nixos/abora/config.sh
+    _cp_required /etc/abora/desktop.sh                /mnt/etc/nixos/abora/desktop.sh
+    _cp_required /etc/abora/doctor.sh                 /mnt/etc/nixos/abora/doctor.sh
+    _cp_required /etc/abora/recovery.sh               /mnt/etc/nixos/abora/recovery.sh
+    _cp_required /etc/abora/welcome.sh                /mnt/etc/nixos/abora/welcome.sh
+    _cp_required /etc/abora/app-catalog.sh            /mnt/etc/nixos/abora/app-catalog.sh
+    _cp_required /etc/abora/apps.sh                   /mnt/etc/nixos/abora/apps.sh
+    _cp_required /etc/abora/support-report.sh         /mnt/etc/nixos/abora/support-report.sh
+    _cp_required /etc/abora/hardware-test.sh          /mnt/etc/nixos/abora/hardware-test.sh
+    _cp_required /etc/abora/default-wallpaper.png     /mnt/etc/nixos/abora/default-wallpaper.png
+    _cp_required /etc/abora/fastfetch-logo.txt        /mnt/etc/nixos/abora/fastfetch-logo.txt
+    _cp_required /etc/abora/fastfetch-config.jsonc    /mnt/etc/nixos/abora/fastfetch-config.jsonc
+    _cp_required /etc/abora/desktop-profiles.sh       /mnt/etc/nixos/abora/desktop-profiles.sh
+    _cp_required /etc/abora/installed-base.nix        /mnt/etc/nixos/abora/installed-base.nix
+    _cp_required /etc/abora/session-setup.sh          /mnt/etc/nixos/abora/session-setup.sh
+    _cp_required /etc/abora/theme-sync.sh             /mnt/etc/nixos/abora/theme-sync.sh
+    _cp_required /etc/abora/update.sh                 /mnt/etc/nixos/abora/update.sh
     [[ -f /etc/abora/effects/v3StartingAbora.mp3 ]] && cp /etc/abora/effects/v3StartingAbora.mp3 /mnt/etc/nixos/abora/effects/v3StartingAbora.mp3 || true
-    cp /etc/abora/plymouth/abora.plymouth /mnt/etc/nixos/abora/plymouth/abora.plymouth
-    cp /etc/abora/plymouth/abora.script /mnt/etc/nixos/abora/plymouth/abora.script
+    _cp_required /etc/abora/plymouth/abora.plymouth   /mnt/etc/nixos/abora/plymouth/abora.plymouth
+    _cp_required /etc/abora/plymouth/abora.script     /mnt/etc/nixos/abora/plymouth/abora.script
     if [[ ! -f "$live_background" ]]; then
         show_failure_screen \
             "Missing boot assets" \
@@ -1768,8 +1783,11 @@ write_branding_assets() {
         return 1
     fi
 
-    cp /etc/abora/wallpapers/* /mnt/etc/nixos/abora/wallpapers/
-    cp /etc/abora/themes/* /mnt/etc/nixos/abora/themes/
+    # Use find to avoid glob-expansion failures on empty directories
+    find /etc/abora/wallpapers -maxdepth 1 -type f \
+        -exec cp {} /mnt/etc/nixos/abora/wallpapers/ \; 2>/dev/null || true
+    find /etc/abora/themes -maxdepth 1 -type f \
+        -exec cp {} /mnt/etc/nixos/abora/themes/ \; 2>/dev/null || true
     mkdir -p /mnt/etc/nixos/abora
     : > /mnt/etc/nixos/abora/apps.list
     cat > /mnt/etc/nixos/abora/apps.nix <<'EOF'
@@ -1900,6 +1918,16 @@ generate_config() {
     write_install_assets
     desktop_block="$(desktop_config_block)"
     desktop_packages="$(desktop_package_block)"
+
+    if [[ -z "$user_password_hash" ]]; then
+        error_msg "Password hash is empty — go back and set a password before installing."
+        return 1
+    fi
+
+    if [[ -z "$desktop_block" ]]; then
+        error_msg "No desktop configuration found for '${desktop_profile}'. This is a bug — please report it."
+        return 1
+    fi
 
     if [[ "$anix_enabled" == "yes" ]]; then
         cat > /mnt/etc/nixos/anix.nix <<EOF
