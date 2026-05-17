@@ -30,6 +30,9 @@ let
   aboraHardwareTest = pkgs.writeShellScriptBin "abora-hardware-test" ''
     exec env ABORA_SUPPORT_REPORT_SCRIPT=/etc/abora/support-report.sh ${pkgs.bashInteractive}/bin/bash /etc/abora/hardware-test.sh "$@"
   '';
+  aboraInstall = pkgs.writeShellScriptBin "abora-install" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/installer.sh "$@"
+  '';
   aboraUpdate = pkgs.writeShellScriptBin "abora-update" ''
     exec env ABORA_UPDATE_COMMAND=abora-update ${pkgs.bashInteractive}/bin/bash /etc/abora/update.sh "$@"
   '';
@@ -164,6 +167,7 @@ in
   environment.systemPackages = with pkgs; [
     aboraApps
     aboraCommand
+    aboraInstall
     anixCommand
     aboraConfig
     aboraDesktop
@@ -288,6 +292,20 @@ in
       '';
       "issue.net".text = ''
         Abora OS ${version}
+      '';
+      "profile.d/abora-live.sh".text = ''
+        if [ -z "$ABORA_LIVE_GREETED" ]; then
+          export ABORA_LIVE_GREETED=1
+          printf '\n'
+          printf '\033[1;36m  ◈  ABORA OS \033[0;37m${version}\033[0m  —  Live Shell\033[0m\n'
+          printf '\033[90m  ─────────────────────────────────────────────\033[0m\n'
+          printf '\n'
+          printf '  \033[1;37mabora-install\033[0m        Start the installer\n'
+          printf '  \033[90mabora-install --force\033[0m  Force-restart installer\n'
+          printf '\n'
+          printf '  \033[90mType a command or press Ctrl+D to power off.\033[0m\n'
+          printf '\n'
+        fi
       '';
       "abora/boot.sh" = {
         source = ../../scripts/abora-boot.sh;
