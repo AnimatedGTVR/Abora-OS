@@ -1,26 +1,24 @@
 #!/usr/bin/env bash
+# ════════════════════════════════════════════════════════════════════
+#  ABORA OS INSTALLER  ·  v3
+#  Two-panel TUI — sidebar step tracker + content area
+# ════════════════════════════════════════════════════════════════════
 set -euo pipefail
 
 export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
-script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 desktop_profiles_lib="${ABORA_DESKTOP_PROFILES_LIB:-$script_dir/abora-desktop-profiles.sh}"
 app_catalog_lib="${ABORA_APP_CATALOG_LIB:-$script_dir/abora-app-catalog.sh}"
-
-if [[ ! -f "$desktop_profiles_lib" && -f /etc/abora/desktop-profiles.sh ]]; then
-    desktop_profiles_lib="/etc/abora/desktop-profiles.sh"
-fi
-
-if [[ ! -f "$app_catalog_lib" && -f /etc/abora/app-catalog.sh ]]; then
-    app_catalog_lib="/etc/abora/app-catalog.sh"
-fi
-
-# shellcheck source=/dev/null
+[[ ! -f "$desktop_profiles_lib" && -f /etc/abora/desktop-profiles.sh ]] && desktop_profiles_lib="/etc/abora/desktop-profiles.sh"
+[[ ! -f "$app_catalog_lib"      && -f /etc/abora/app-catalog.sh      ]] && app_catalog_lib="/etc/abora/app-catalog.sh"
 source "$desktop_profiles_lib"
-# shellcheck source=/dev/null
 source "$app_catalog_lib"
 
+# ── State ────────────────────────────────────────────────────────────────────
 disk=""
+efi_part=""
+root_part=""
 hostname_value="abora"
 username_value="abora"
 timezone_value="UTC"
@@ -35,2043 +33,1271 @@ starter_apps_bundle="favorites"
 starter_apps_label="Fan Favorites"
 github_identity="Skipped"
 user_password_hash=""
-efi_part=""
-root_part=""
-config_log="/tmp/abora-generate-config.log"
+config_log="/tmp/abora-config.log"
 install_log="/tmp/abora-install.log"
-support_report_output="/tmp/abora-last-support-report.txt"
-
 title_file="/etc/abora/title.txt"
-version="${ABORA_VERSION:-v2.0.0-dev}"
+version="${ABORA_VERSION:-}"
+[[ -z "$version" && -f /etc/abora/VERSION ]] && version="$(tr -d '\n' < /etc/abora/VERSION)"
+[[ -z "$version" ]] && version="v3"
 
-BLUE='\033[38;5;33m'
-MAGENTA='\033[38;5;207m'
-CYAN='\033[38;5;51m'
-YELLOW='\033[38;5;220m'
-WHITE='\033[1;37m'
-DIM='\033[38;5;245m'
-GREEN='\033[38;5;84m'
-RED='\033[38;5;203m'
+# ── Colors ───────────────────────────────────────────────────────────────────
 NC='\033[0m'
-menu_result=""
-prompt_result=""
-step_action="next"
+BOLD='\033[1m'
+DIM='\033[2m'
+W='\033[1;37m'
+BW='\033[0;37m'
+C='\033[1;36m'
+BC='\033[0;36m'
+B='\033[1;34m'
+G='\033[1;32m'
+BG='\033[0;32m'
+RD='\033[1;31m'
+BR='\033[0;31m'
+Y='\033[1;33m'
+MG='\033[1;35m'
+GY='\033[90m'
 
-clear_screen() {
-    clear || printf '\033c'
+# ── Layout constants ─────────────────────────────────────────────────────────
+SB_W=22          # sidebar width (includes its right border)
+HDR_H=3          # header rows
+FTR_H=2          # footer rows
+
+# Computed each frame
+COLS=80; ROWS=24
+CT_R=0; CT_C=0; CT_H=0; CT_W=0   # content top-row, left-col, height, width
+
+# ── Terminal primitives ───────────────────────────────────────────────────────
+_at()   { printf '\033[%d;%dH' "$1" "$2"; }
+_cls()  { printf '\033[2J\033[H'; }
+_show() { tput cnorm 2>/dev/null || true; }
+_hide() { tput civis 2>/dev/null || true; }
+_save() { printf '\033[s'; }
+_rest() { printf '\033[u'; }
+
+_hline() {   # row col width [char]
+    local r=$1 c=$2 w=$3 ch="${4:-─}"
+    _at "$r" "$c"
+    local line; line="$(printf '%*s' "$w" '' | tr ' ' "$ch")"
+    printf '%s' "$line"
 }
 
-draw_rule() {
-    printf '%b' "$DIM"
-    printf '────────────────────────────────────────────────────────────\n'
-    printf '%b' "$NC"
-}
-
-show_header() {
-    local title="${1:-Abora OS ${version} installer}"
-    local subtitle="${2:-Set up your machine.}"
-
-    clear_screen
-
-    if [[ -f "$title_file" ]]; then
-        printf '%b' "$WHITE"
-        cat "$title_file"
-        printf '%b' "$NC"
+_box() {   # row col height width [title]
+    local r=$1 c=$2 h=$3 w=$4 title="${5:-}"
+    local inner=$((w-2)) ir ic
+    # top
+    _at "$r" "$c"
+    if [[ -n "$title" ]]; then
+        local tl=${#title}
+        local lp=$(( (inner - tl - 2) / 2 ))
+        local rp=$(( inner - tl - 2 - lp ))
+        printf '┌'; printf '%*s' "$lp" | tr ' ' '─'
+        printf ' %s ' "$title"
+        printf '%*s' "$rp" | tr ' ' '─'; printf '┐'
+    else
+        printf '┌'; printf '%*s' "$inner" | tr ' ' '─'; printf '┐'
     fi
-
-    printf '\n'
-    printf '%b%s%b\n' "$WHITE" "$title" "$NC"
-    printf '%b%s%b\n' "$DIM" "$subtitle" "$NC"
-    draw_rule
-    printf '\n'
+    # sides
+    for (( ir = r+1; ir < r+h-1; ir++ )); do
+        _at "$ir" "$c";         printf '│'
+        _at "$ir" $((c+w-1));   printf '│'
+    done
+    # bottom
+    _at $((r+h-1)) "$c"
+    printf '└'; printf '%*s' "$inner" | tr ' ' '─'; printf '┘'
 }
 
-info() {
-    printf '%b[*] %s%b\n' "$BLUE" "$1" "$NC"
+_fill() {   # row col height width [char]
+    local r=$1 c=$2 h=$3 w=$4 ch="${5:- }"
+    local line; line="$(printf '%*s' "$w" '' | tr ' ' "$ch")"
+    local ir
+    for (( ir = r; ir < r+h; ir++ )); do
+        _at "$ir" "$c"; printf '%s' "$line"
+    done
 }
 
-success() {
-    printf '%b[ok] %s%b\n' "$GREEN" "$1" "$NC"
+_trunc() {   # string maxlen
+    local s="$1" n="$2"
+    [[ ${#s} -gt $n ]] && printf '%s…' "${s:0:$((n-1))}" || printf '%s' "$s"
 }
 
-error_msg() {
-    printf '%b[x] %s%b\n' "$RED" "$1" "$NC" >&2
-}
-
-pause_prompt() {
-    printf '\n'
-    read -r -p "Press ENTER to continue..."
-}
-
-terminal_cols() {
-    local cols=""
-    cols="$(tput cols 2>/dev/null || printf '80')"
-    printf '%s' "${cols:-80}"
-}
-
-terminal_rows() {
-    local rows=""
-    rows="$(tput lines 2>/dev/null || printf '24')"
-    printf '%s' "${rows:-24}"
-}
-
-print_log_tail() {
-    local logfile="$1"
-    local cols=""
-    local max_lines=15
-    local width=0
-    local line=""
-    local first_error=""
-    local first_error_line=0
-    local current_line=0
-
-    cols="$(terminal_cols)"
-    width=$((cols - 4))
-
-    if [[ "$width" -lt 20 ]]; then
-        width=20
-    fi
-
-    if [[ ! -s "$logfile" ]]; then
-        printf '%bNo log output was captured.%b\n' "$DIM" "$NC"
-        return 0
-    fi
-
-    # Show the first "error:" line if it appears before the tail window
-    first_error="$(grep -m1 '^error:' "$logfile" 2>/dev/null || true)"
-    first_error_line="$(grep -nm1 '^error:' "$logfile" 2>/dev/null | cut -d: -f1 || true)"
-    current_line="$(wc -l < "$logfile" 2>/dev/null || printf '0')"
-
-    if [[ -n "$first_error" ]] && [[ -n "$first_error_line" ]] && \
-       [[ "$first_error_line" -lt $(( current_line - max_lines )) ]]; then
-        printf '%b--- First error (line %s) ---%b\n' "$DIM" "$first_error_line" "$NC"
-        while IFS= read -r line; do
-            if [[ "${#line}" -gt "$width" ]]; then
-                printf '%s...\n' "${line:0:$((width - 3))}"
-            else
-                printf '%s\n' "$line"
-            fi
-        done < <(sed -n "${first_error_line},$((first_error_line + 4))p" "$logfile")
-        printf '%b--- Recent output ---%b\n' "$DIM" "$NC"
-    fi
-
-    while IFS= read -r line; do
-        # Skip noisy Nix download/ETA lines — they show inaccurate time estimates
-        [[ "$line" =~ ETA[[:space:]] ]] && continue
-        [[ "$line" =~ ^[[:space:]]*[0-9]+\.[0-9]+\ (GiB|MiB|KiB)[[:space:]] ]] && continue
-        if [[ "${#line}" -gt "$width" ]]; then
-            printf '%s...\n' "${line:0:$((width - 3))}"
+# ── Key reading ───────────────────────────────────────────────────────────────
+# Sets: KEY_NAME  (UP DOWN LEFT RIGHT ENTER ESC CHAR BACKSPACE)
+#       KEY_CHAR  (the raw char for CHAR type)
+read_key() {
+    local ch seq
+    IFS= read -rsn1 ch
+    KEY_CHAR="$ch"
+    KEY_NAME="CHAR"
+    if [[ "$ch" == $'\x1b' ]]; then
+        IFS= read -rsn1 -t 0.1 seq || true
+        if [[ "$seq" == '[' ]]; then
+            IFS= read -rsn1 -t 0.1 seq || true
+            case "$seq" in
+                A) KEY_NAME="UP"    ;;
+                B) KEY_NAME="DOWN"  ;;
+                C) KEY_NAME="RIGHT" ;;
+                D) KEY_NAME="LEFT"  ;;
+                *) KEY_NAME="ESC"   ;;
+            esac
         else
-            printf '%s\n' "$line"
+            KEY_NAME="ESC"
         fi
-    done < <(tail -n "$max_lines" "$logfile")
-}
-
-show_failure_screen() {
-    local title="$1"
-    local subtitle="$2"
-    local logfile="$3"
-    local report_path=""
-
-    show_header "$title" "$subtitle"
-    printf '%bRecent log lines%b\n' "$WHITE" "$NC"
-    draw_rule
-    print_log_tail "$logfile"
-    printf '\n'
-    printf '%bFull log:%b %s\n' "$DIM" "$NC" "$logfile"
-
-    if [[ -f "$support_report_output" ]]; then
-        report_path="$(cat "$support_report_output" 2>/dev/null || true)"
-        if [[ -n "$report_path" ]]; then
-            printf '%bSupport report:%b %s\n' "$DIM" "$NC" "$report_path"
-        fi
+    elif [[ "$ch" == $'\r' || "$ch" == $'\n' ]]; then
+        KEY_NAME="ENTER"
+    elif [[ "$ch" == $'\x7f' || "$ch" == $'\x08' ]]; then
+        KEY_NAME="BACKSPACE"
+    elif [[ "$ch" == $'\x09' ]]; then
+        KEY_NAME="TAB"
     fi
 }
 
-repeat_char() {
-    local char="$1"
-    local count="$2"
-    local output=""
+# ── Layout ────────────────────────────────────────────────────────────────────
+_layout() {
+    COLS=$(tput cols  2>/dev/null || printf '80')
+    ROWS=$(tput lines 2>/dev/null || printf '24')
+    CT_R=$(( HDR_H + 2 ))          # content starts after header + divider
+    CT_C=$(( SB_W + 2 ))           # content starts after sidebar + its border + 1
+    CT_H=$(( ROWS - HDR_H - FTR_H - 2 ))
+    CT_W=$(( COLS - SB_W - 3 ))    # -sidebar -left-border -right-border
+}
 
-    while [[ "$count" -gt 0 ]]; do
-        output+="$char"
-        count=$((count - 1))
+_draw_header() {
+    # Row 1 — top border
+    _at 1 1
+    printf "${B}╔${NC}"
+    printf "${B}%s${NC}" "$(printf '%*s' $((COLS-2)) | tr ' ' '═')"
+    printf "${B}╗${NC}"
+
+    # Row 2 — title bar
+    _at 2 1
+    printf "${B}║${NC}"
+    printf "${W}  ◈  ABORA OS INSTALLER${NC}"
+    local verstr="  ${version}  "
+    local pad=$(( COLS - 25 - ${#verstr} - 2 ))
+    [[ $pad -lt 0 ]] && pad=0
+    printf '%*s' "$pad"
+    printf "${GY}%s${NC}" "$verstr"
+    printf "${B}║${NC}"
+
+    # Row 3 — bottom of header with sidebar T-junction
+    _at 3 1
+    printf "${B}╠${NC}"
+    printf "${B}%s${NC}" "$(printf '%*s' $((SB_W)) | tr ' ' '═')"
+    printf "${B}╦${NC}"
+    printf "${B}%s${NC}" "$(printf '%*s' $((COLS - SB_W - 3)) | tr ' ' '═')"
+    printf "${B}╣${NC}"
+}
+
+_draw_footer() {
+    local frow=$(( ROWS - FTR_H + 1 ))
+    # divider
+    _at "$frow" 1
+    printf "${B}╠${NC}"
+    printf "${B}%s${NC}" "$(printf '%*s' $((SB_W)) | tr ' ' '═')"
+    printf "${B}╩${NC}"
+    printf "${B}%s${NC}" "$(printf '%*s' $((COLS - SB_W - 3)) | tr ' ' '═')"
+    printf "${B}╣${NC}"
+
+    # key hints
+    _at $(( frow + 1 )) 1
+    printf "${B}║${NC}"
+    printf "${GY}  ↑↓ Move   Enter Select   Esc Back   Ctrl+C Quit${NC}"
+    local hintpad=$(( COLS - 52 - 2 ))
+    [[ $hintpad -lt 0 ]] && hintpad=0
+    printf '%*s' "$hintpad"
+    printf "${B}║${NC}"
+
+    # bottom border
+    _at $(( frow + 2 )) 1  2>/dev/null || true
+    printf "${B}╚${NC}"
+    printf "${B}%s${NC}" "$(printf '%*s' $((COLS-2)) | tr ' ' '═')"
+    printf "${B}╝${NC}"
+}
+
+# Step definitions: "key|label"
+STEPS=(
+    "network|Network"
+    "welcome|Welcome"
+    "desktop|Desktop"
+    "names|User"
+    "password|Password"
+    "options|Options"
+    "disk|Disk"
+    "confirm|Confirm"
+)
+STEP_DONE=()   # filled as steps complete
+
+_draw_sidebar() {
+    local current_key="$1"
+    local sb_content_w=$(( SB_W - 2 ))
+    local r=$(( HDR_H + 2 ))
+    local max_r=$(( ROWS - FTR_H ))
+    local i=0
+
+    # sidebar right border
+    for (( sr = HDR_H + 2; sr < ROWS - FTR_H + 1; sr++ )); do
+        _at "$sr" $(( SB_W + 1 ))
+        printf "${B}║${NC}"
     done
 
-    printf '%s' "$output"
+    # clear sidebar area
+    _fill "$r" 2 $(( max_r - r )) "$sb_content_w"
+
+    _at "$r" 2; printf "${GY}  STEPS${NC}"
+    (( r++ )) || true
+    _at "$r" 2; printf "${GY}  %s${NC}" "$(printf '%*s' "$sb_content_w" | tr ' ' '─')"
+    (( r++ )) || true
+
+    for step_def in "${STEPS[@]}"; do
+        local key="${step_def%%|*}"
+        local label="${step_def##*|}"
+        [[ $r -ge $max_r ]] && break
+
+        _at "$r" 2
+        if [[ "$key" == "$current_key" ]]; then
+            printf "${C}  →  %-*s${NC}" $(( sb_content_w - 5 )) "$label"
+        elif _step_done "$key"; then
+            printf "${BG}  ✓  ${NC}${GY}%-*s${NC}" $(( sb_content_w - 5 )) "$label"
+        else
+            printf "${GY}  ·  %-*s${NC}" $(( sb_content_w - 5 )) "$label"
+        fi
+        (( r++ )) || true
+    done
 }
 
-trunc() {
-    local str="$1"
-    local max="$2"
-    if [[ "${#str}" -gt "$max" ]]; then
-        printf '%s...' "${str:0:$((max - 3))}"
-    else
-        printf '%s' "$str"
-    fi
+_step_done() {
+    local k="$1"
+    local d
+    for d in "${STEP_DONE[@]+"${STEP_DONE[@]}"}"; do
+        [[ "$d" == "$k" ]] && return 0
+    done
+    return 1
 }
 
-draw_progress_bar() {
-    local percent="$1"
-    local width=""
-    local filled=0
-    local empty=0
-
-    if [[ "$percent" -lt 0 ]]; then
-        percent=0
-    elif [[ "$percent" -gt 100 ]]; then
-        percent=100
-    fi
-
-    width=$(( $(terminal_cols) - 24 ))
-    if [[ "$width" -lt 20 ]]; then
-        width=20
-    elif [[ "$width" -gt 42 ]]; then
-        width=42
-    fi
-
-    filled=$((percent * width / 100))
-    empty=$((width - filled))
-
-    printf '%b[' "$BLUE"
-    printf '%b' "$MAGENTA"
-    repeat_char "█" "$filled"
-    printf '%b' "$DIM"
-    repeat_char "░" "$empty"
-    printf '%b] %3d%%%b\n' "$NC" "$percent" "$NC"
+_mark_done() {
+    local k="$1"
+    _step_done "$k" || STEP_DONE+=("$k")
 }
 
-format_elapsed() {
-    local seconds="$1"
-    local minutes=0
-    local hours=0
+# Draw the full chrome (header + sidebar + footer) — call before drawing content
+_chrome() {
+    local step_key="${1:-}"
+    _layout
+    _hide
+    _cls
+    _draw_header
+    _draw_sidebar "$step_key"
+    _draw_footer
 
-    hours=$((seconds / 3600))
-    minutes=$(((seconds % 3600) / 60))
-    seconds=$((seconds % 60))
-
-    if [[ "$hours" -gt 0 ]]; then
-        printf '%02dh %02dm %02ds' "$hours" "$minutes" "$seconds"
-    else
-        printf '%02dm %02ds' "$minutes" "$seconds"
-    fi
+    # content area right border
+    for (( cr = CT_R; cr < CT_R + CT_H; cr++ )); do
+        _at "$cr" $(( CT_C + CT_W ))
+        printf "${B}║${NC}"
+    done
+    # clear content area
+    _fill "$CT_R" "$CT_C" "$CT_H" $(( CT_W - 1 ))
 }
 
-install_status_summary() {
-    local logfile="$1"
-    local elapsed="${2:-0}"
-
-    if [[ ! -s "$logfile" ]]; then
-        printf 'Preparing the install environment'
-        return 0
-    fi
-
-    if grep -qi 'installing the boot loader' "$logfile"; then
-        printf 'Installing the bootloader'
-    elif grep -qi 'setting up /etc' "$logfile"; then
-        printf 'Activating the new system'
-    elif grep -qi 'activating the configuration' "$logfile"; then
-        printf 'Activating the new system'
-    elif grep -qi 'running activation' "$logfile"; then
-        printf 'Activating the new system'
-    elif grep -qi 'created.*symlinks in user environment' "$logfile"; then
-        printf 'Linking system environment'
-    elif grep -qi 'building the configuration' "$logfile"; then
-        printf 'Building the system configuration'
-    elif grep -qi "copying path '/nix/store" "$logfile"; then
-        printf 'Copying system packages'
-    elif grep -qi 'writing the system profile' "$logfile"; then
-        printf 'Writing the installed system'
-    else
-        printf 'Writing the installed system'
-    fi
+# Print inside content area at relative row/col (1-based within content)
+_cat() {   # rel_row rel_col text...
+    local rr=$1 rc=$2; shift 2
+    _at $(( CT_R + rr - 1 )) $(( CT_C + rc - 1 ))
+    printf '%b' "$@"
 }
 
-install_progress_percent() {
-    local logfile="$1"
-    local elapsed="$2"
-    local line_count=0
-    local progress=45
-
-    if [[ -f "$logfile" ]]; then
-        line_count="$(wc -l < "$logfile")"
+# Content area heading
+_content_title() {
+    local title="$1" sub="${2:-}"
+    _cat 1 1 "${W}${title}${NC}"
+    if [[ -n "$sub" ]]; then
+        _cat 2 1 "${GY}${sub}${NC}"
     fi
-
-    progress=$((45 + line_count / 8 + elapsed / 6))
-
-    if grep -qi 'building the configuration' "$logfile" 2>/dev/null; then
-        [[ "$progress" -lt 60 ]] && progress=60
-    fi
-
-    if grep -qi "copying path '/nix/store" "$logfile" 2>/dev/null; then
-        [[ "$progress" -lt 70 ]] && progress=70
-    fi
-
-    if grep -qi 'created.*symlinks in user environment' "$logfile" 2>/dev/null; then
-        [[ "$progress" -lt 82 ]] && progress=82
-    fi
-
-    if grep -qi 'activating the configuration\|setting up /etc\|running activation' "$logfile" 2>/dev/null; then
-        [[ "$progress" -lt 88 ]] && progress=88
-    fi
-
-    if grep -qi 'installing the boot loader' "$logfile" 2>/dev/null; then
-        [[ "$progress" -lt 93 ]] && progress=93
-    fi
-
-    # Let time push progress up to 99 — no artificial freeze at 94
-    [[ "$progress" -gt 99 ]] && progress=99
-
-    printf '%s' "$progress"
+    _cat 3 1 "${B}$(printf '%*s' $(( CT_W - 2 )) | tr ' ' '─')${NC}"
 }
 
-show_install_progress_screen() {
-    local percent="$1"
-    local status_text="$2"
-    local elapsed="$3"
-    local logfile="${4:-}"
-
-    show_header "Installing Abora OS" "Writing the system — usually 5–10 min on a fast connection."
-    printf '%bProgress%b\n' "$WHITE" "$NC"
-    draw_progress_bar "$percent"
-    printf '\n'
-    printf '  Status:   %s\n' "$status_text"
-    printf '  Elapsed:  %s\n' "$(format_elapsed "$elapsed")"
-
-    if [[ -n "$logfile" ]]; then
-        printf '\n'
-        printf '%bRecent log lines%b\n' "$WHITE" "$NC"
-        draw_rule
-        print_log_tail "$logfile"
-    fi
+# ── Progress bar ──────────────────────────────────────────────────────────────
+_pbar() {   # row col width percent color
+    local r=$1 c=$2 w=$3 pct=$4 clr="${5:-$C}"
+    local filled=$(( w * pct / 100 ))
+    local empty=$(( w - filled ))
+    _at "$r" "$c"
+    printf "${clr}"
+    [[ $filled -gt 0 ]] && printf '%*s' "$filled" | tr ' ' '█'
+    printf "${GY}"
+    [[ $empty -gt 0 ]] && printf '%*s' "$empty" | tr ' ' '░'
+    printf "${NC}"
 }
 
-read_key() {
-    local key=""
-    IFS= read -rsn1 key || true
-    if [[ "$key" == $'\033' ]]; then
-        local rest=""
-        IFS= read -rsn2 -t 0.05 rest || true
-        key+="$rest"
-    fi
-    printf '%s' "$key"
+# ── Text input field ──────────────────────────────────────────────────────────
+# Returns result in INPUT_VAL
+input_field() {   # row col width prompt default [secret]
+    local r=$1 c=$2 w=$3 prompt="$4" def="${5:-}" secret="${6:-}"
+    local val="$def"
+    local cursor_pos=${#val}
+
+    _show
+    while true; do
+        # draw field
+        _at "$r" "$c"
+        printf "${GY}%s${NC} " "$prompt"
+        local fc=$(( c + ${#prompt} + 1 ))
+        local fw=$(( w - ${#prompt} - 2 ))
+        _at "$r" "$fc"
+        printf "${W}["
+        if [[ "$secret" == "secret" ]]; then
+            local stars; stars="$(printf '%*s' "${#val}" | tr ' ' '*')"
+            printf "${C}%-*s${NC}" "$fw" "$stars"
+        else
+            printf "${C}%-*s${NC}" "$fw" "$(_trunc "$val" "$fw")"
+        fi
+        printf "${W}]${NC}"
+
+        IFS= read -rsn1 KEY_CHAR
+        case "$KEY_CHAR" in
+            $'\x7f'|$'\x08')
+                [[ ${#val} -gt 0 ]] && val="${val%?}"
+                ;;
+            $'\r'|$'\n')
+                break
+                ;;
+            $'\x1b')
+                INPUT_VAL="__back__"
+                _hide
+                return 0
+                ;;
+            $'\x03')
+                exit 0
+                ;;
+            *)
+                val="${val}${KEY_CHAR}"
+                ;;
+        esac
+    done
+    INPUT_VAL="$val"
+    _hide
 }
 
-menu_choose() {
-    local prompt="$1"
-    shift
-    local options=("$@")
-    local selected=0
-    local key=""
-    local i=""
-    local display_num=""
-    local num_idx=0
-    local max_visible=10
-    local start=0
-    local end=0
+# ── Radio card selector ───────────────────────────────────────────────────────
+# options array format: "key|Label|Description line 1|Description line 2"
+# Returns selected index in RADIO_IDX
+radio_cards() {   # start_row options_array_name [default_key]
+    local start_r="$1"
+    local -n _opts="$2"
+    local default_key="${3:-}"
+    local sel=0 i
+
+    # find default
+    for (( i=0; i<${#_opts[@]}; i++ )); do
+        local k="${_opts[$i]%%|*}"
+        [[ "$k" == "$default_key" ]] && sel=$i && break
+    done
 
     while true; do
-        show_header "$prompt" "Arrow keys or number to jump, Enter to confirm, Esc to go back."
-
-        if [[ "${#options[@]}" -le "$max_visible" ]]; then
-            start=0
-            end=$((${#options[@]} - 1))
-        else
-            start=$((selected - (max_visible / 2)))
-            if [[ "$start" -lt 0 ]]; then
-                start=0
-            fi
-
-            end=$((start + max_visible - 1))
-            if [[ "$end" -ge "${#options[@]}" ]]; then
-                end=$((${#options[@]} - 1))
-                start=$((end - max_visible + 1))
-            fi
-        fi
-
-        if [[ "$start" -gt 0 ]]; then
-            printf '%b  ↑ more choices above%b\n' "$DIM" "$NC"
-        fi
-
-        for ((i = start; i <= end; i++)); do
-            if [[ $((i + 1)) -le 9 ]]; then
-                display_num="$((i + 1))"
-            elif [[ $((i + 1)) -eq 10 ]]; then
-                display_num="0"
+        # draw cards
+        local r="$start_r"
+        for (( i=0; i<${#_opts[@]}; i++ )); do
+            IFS='|' read -r key lbl desc1 desc2 <<< "${_opts[$i]}"
+            local card_w=$(( CT_W - 3 ))
+            local cr=$(( CT_R + r - 1 ))
+            if [[ $i -eq $sel ]]; then
+                _at "$cr" "$CT_C"; printf "${C}┌%s┐${NC}" "$(printf '%*s' $((card_w-2)) | tr ' ' '─')"
+                _at $((cr+1)) "$CT_C"; printf "${C}│${NC}  ${C}◉  ${W}%-*s${NC}  ${C}│${NC}" $(( card_w - 8 )) "$lbl"
+                _at $((cr+2)) "$CT_C"; printf "${C}│${NC}     ${GY}%-*s${NC}  ${C}│${NC}" $(( card_w - 7 )) "$(_trunc "$desc1" $(( card_w - 7 )))"
+                if [[ -n "$desc2" ]]; then
+                    _at $((cr+3)) "$CT_C"; printf "${C}│${NC}     ${GY}%-*s${NC}  ${C}│${NC}" $(( card_w - 7 )) "$(_trunc "$desc2" $(( card_w - 7 )))"
+                    _at $((cr+4)) "$CT_C"; printf "${C}└%s┘${NC}" "$(printf '%*s' $((card_w-2)) | tr ' ' '─')"
+                    r=$(( r + 6 ))
+                else
+                    _at $((cr+3)) "$CT_C"; printf "${C}└%s┘${NC}" "$(printf '%*s' $((card_w-2)) | tr ' ' '─')"
+                    r=$(( r + 5 ))
+                fi
             else
-                display_num=" "
-            fi
-            if [[ "$i" -eq "$selected" ]]; then
-                printf '%b›%b [%s] %b%s%b\n' "$BLUE" "$NC" "$display_num" "$MAGENTA" "${options[$i]}" "$NC"
-            else
-                printf '%b  [%s]%b %s\n' "$DIM" "$display_num" "$NC" "${options[$i]}"
+                _at "$cr" "$CT_C"; printf "${GY}┌%s┐${NC}" "$(printf '%*s' $((card_w-2)) | tr ' ' '─')"
+                _at $((cr+1)) "$CT_C"; printf "${GY}│${NC}  ${GY}○  ${BW}%-*s${NC}  ${GY}│${NC}" $(( card_w - 8 )) "$lbl"
+                _at $((cr+2)) "$CT_C"; printf "${GY}│${NC}     ${GY}%-*s${NC}  ${GY}│${NC}" $(( card_w - 7 )) "$(_trunc "$desc1" $(( card_w - 7 )))"
+                if [[ -n "$desc2" ]]; then
+                    _at $((cr+3)) "$CT_C"; printf "${GY}│${NC}     ${GY}%-*s${NC}  ${GY}│${NC}" $(( card_w - 7 )) "$(_trunc "$desc2" $(( card_w - 7 )))"
+                    _at $((cr+4)) "$CT_C"; printf "${GY}└%s┘${NC}" "$(printf '%*s' $((card_w-2)) | tr ' ' '─')"
+                    r=$(( r + 6 ))
+                else
+                    _at $((cr+3)) "$CT_C"; printf "${GY}└%s┘${NC}" "$(printf '%*s' $((card_w-2)) | tr ' ' '─')"
+                    r=$(( r + 5 ))
+                fi
             fi
         done
 
-        if [[ "$end" -lt $((${#options[@]} - 1)) ]]; then
-            printf '%b  ↓ more choices below%b\n' "$DIM" "$NC"
-        fi
+        read_key
+        case "$KEY_NAME" in
+            UP)    (( sel > 0 )) && (( sel-- )) || true ;;
+            DOWN)  (( sel < ${#_opts[@]} - 1 )) && (( sel++ )) || true ;;
+            ENTER) RADIO_IDX=$sel; return 0 ;;
+            ESC|BACKSPACE) RADIO_IDX=-1; return 0 ;;
+        esac
+    done
+}
 
-        printf '\n'
-        printf '%b<↑↓> navigate  <1-9> jump  <enter> confirm  <esc> back%b\n' "$DIM" "$NC"
+# ── Toggle list ───────────────────────────────────────────────────────────────
+# options: "key|label|description" — state tracked in TOGGLE_STATE assoc array
+toggle_list() {   # start_row options_array_name toggle_state_array_name
+    local start_r="$1"
+    local -n _topts="$2"
+    local -n _tstate="$3"
+    local sel=0
 
-        key="$(read_key)"
-        case "$key" in
-            $'\033')
-                menu_result="__back__"
-                return 0
-                ;;
-            $'\033[A')
-                if [[ "$selected" -gt 0 ]]; then
-                    selected=$((selected - 1))
+    while true; do
+        local r="$start_r"
+        for (( i=0; i<${#_topts[@]}; i++ )); do
+            IFS='|' read -r tkey tlbl tdesc <<< "${_topts[$i]}"
+            local on="${_tstate[$tkey]:-off}"
+            local cr=$(( CT_R + r - 1 ))
+            local tw=$(( CT_W - 3 ))
+            if [[ $i -eq $sel ]]; then
+                if [[ "$on" == "on" ]]; then
+                    _at "$cr" "$CT_C"; printf "${C}  ◉  ${W}%-*s${GY}  %s${NC}" $(( tw / 2 )) "$tlbl" "$tdesc"
                 else
-                    selected=$((${#options[@]} - 1))
+                    _at "$cr" "$CT_C"; printf "${C}  ○  ${GY}%-*s  %s${NC}" $(( tw / 2 )) "$tlbl" "$tdesc"
                 fi
-                ;;
-            $'\033[B')
-                if [[ "$selected" -lt $((${#options[@]} - 1)) ]]; then
-                    selected=$((selected + 1))
+            else
+                if [[ "$on" == "on" ]]; then
+                    _at "$cr" "$CT_C"; printf "${BG}  ◉  ${BW}%-*s${GY}  %s${NC}" $(( tw / 2 )) "$tlbl" "$tdesc"
                 else
-                    selected=0
+                    _at "$cr" "$CT_C"; printf "${GY}  ○  %-*s  %s${NC}" $(( tw / 2 )) "$tlbl" "$tdesc"
                 fi
+            fi
+            (( r++ )) || true
+        done
+
+        read_key
+        case "$KEY_NAME" in
+            UP)   (( sel > 0 )) && (( sel-- )) || true ;;
+            DOWN) (( sel < ${#_topts[@]} - 1 )) && (( sel++ )) || true ;;
+            ENTER|CHAR)
+                if [[ "$KEY_NAME" == "CHAR" && "$KEY_CHAR" != " " ]]; then continue; fi
+                local tk="${_topts[$sel]%%|*}"
+                [[ "${_tstate[$tk]:-off}" == "on" ]] && _tstate[$tk]="off" || _tstate[$tk]="on"
                 ;;
-            [1-9])
-                num_idx=$((key - 1))
-                if [[ "$num_idx" -lt "${#options[@]}" ]]; then
-                    menu_result="$num_idx"
-                    return 0
-                fi
-                ;;
-            "0")
-                num_idx=9
-                if [[ "$num_idx" -lt "${#options[@]}" ]]; then
-                    menu_result="$num_idx"
-                    return 0
-                fi
-                ;;
-            "")
-                menu_result="$selected"
-                return 0
-                ;;
+            TAB) TOGGLE_IDX="done"; return 0 ;;
+            ESC|BACKSPACE) TOGGLE_IDX="back"; return 0 ;;
         esac
     done
 }
 
-prompt_input() {
-    local prompt="$1"
-    local default_value="${2:-}"
-    local subtitle="${3:-Type a value and press Enter. Type /back to return.}"
-    local input=""
-
-    while true; do
-        show_header "$prompt" "$subtitle"
-        if [[ -n "$default_value" ]]; then
-            read -r -p "> [${default_value}] " input
-            prompt_result="${input:-$default_value}"
-        else
-            read -r -p "> " input
-            prompt_result="$input"
-        fi
-        if [[ "$prompt_result" == "/back" ]]; then
-            prompt_result="__back__"
-        fi
-        return 0
-    done
+# ── Status message (inline, bottom of content) ───────────────────────────────
+_status() {   # message [color]
+    local msg="$1" clr="${2:-$GY}"
+    _at $(( CT_R + CT_H - 2 )) "$CT_C"
+    printf "${clr}  %s${NC}" "$(_trunc "$msg" $(( CT_W - 4 )))"
 }
 
-set_step_next() {
-    step_action="next"
+_clear_status() {
+    _at $(( CT_R + CT_H - 2 )) "$CT_C"
+    printf '%*s' $(( CT_W - 1 ))
 }
 
-set_step_back() {
-    step_action="back"
+# ── Bottom action bar ─────────────────────────────────────────────────────────
+_actions() {   # left_label right_label
+    local lbl_l="$1" lbl_r="$2"
+    local row=$(( CT_R + CT_H - 1 ))
+    local aw=$(( CT_W - 2 ))
+    _at "$row" "$CT_C"
+    printf '%*s' "$aw"
+    _at "$row" "$CT_C"
+    printf "${GY}  ← ${W}%s${NC}" "$lbl_l"
+    local rlen=$(( ${#lbl_r} + 4 ))
+    _at "$row" $(( CT_C + aw - rlen ))
+    printf "${W}%s${NC} ${GY}→${NC}" "$lbl_r"
 }
 
-set_step_cancel() {
-    step_action="cancel"
-}
+# ════════════════════════════════════════════════════════════════════
+#  STEPS
+# ════════════════════════════════════════════════════════════════════
 
-set_step_install() {
-    step_action="install"
-}
+# ── Step: Network ─────────────────────────────────────────────────────────────
+_wifi_ssids=(); _wifi_signals=(); _wifi_security=()
 
-set_step_stay() {
-    step_action="stay"
-}
-
-sync_starter_apps_label() {
-    case "${starter_apps_bundle,,}" in
-        none)
-            starter_apps_label="No starter apps"
-            ;;
-        favorites)
-            starter_apps_label="Fan Favorites"
-            ;;
-        essentials)
-            starter_apps_label="Essentials"
-            ;;
-        social)
-            starter_apps_label="Social"
-            ;;
-        creator)
-            starter_apps_label="Creator"
-            ;;
-        developer)
-            starter_apps_label="Developer"
-            ;;
-        *)
-            starter_apps_label="Custom"
-            ;;
-    esac
-}
-
-refresh_github_identity() {
-    local login=""
-
-    if ! command -v gh >/dev/null 2>&1; then
-        github_identity="GitHub CLI unavailable"
-        return 0
-    fi
-
-    if gh auth status --hostname github.com >/dev/null 2>&1; then
-        login="$(gh api user --jq '.login' 2>/dev/null || true)"
-        if [[ -n "$login" ]]; then
-            github_identity="Signed in as ${login}"
-        else
-            github_identity="Signed in"
-        fi
-    else
-        github_identity="Skipped"
-    fi
-}
-
-auto_detect_timezone() {
-    local detected=""
-    detected="$(timedatectl show --property=Timezone --value 2>/dev/null || true)"
-    if [[ -n "$detected" ]] && timezone_exists "$detected" 2>/dev/null; then
-        timezone_value="$detected"
-    fi
-}
-
-auto_detect_keyboard() {
-    local detected=""
-    detected="$(localectl status 2>/dev/null | awk '/VC Keymap:/ { print $3 }' || true)"
-    # Only accept values that look like a real keymap name (letters, digits, hyphens).
-    # This rejects localectl outputs like "(unset)", "n/a", or empty strings.
-    if [[ "$detected" =~ ^[a-z][a-z0-9_-]*$ ]]; then
-        keyboard_value="$detected"
-        sync_xkb_layout
-    fi
-}
-
-require_root() {
-    if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
-        error_msg "This installer must run as root."
-        exit 1
-    fi
-}
-
-resolve_nixpkgs_path() {
-    local candidate=""
-
-    for candidate in \
-        "${ABORA_NIXPKGS_PATH:-}" \
-        /etc/abora/nixpkgs \
-        /etc/nix/path/nixpkgs \
-        /run/current-system/nixpkgs/nixpkgs \
-        /nix/var/nix/profiles/per-user/root/channels/nixos \
-        /nix/var/nix/profiles/per-user/root/channels
-    do
-        if [[ -n "$candidate" && -e "$candidate" ]]; then
-            printf '%s' "$candidate"
-            return 0
-        fi
-    done
-
-    return 1
-}
-
-load_keyboard_layout() {
-    if command -v loadkeys >/dev/null 2>&1; then
-        loadkeys "$keyboard_value" >/dev/null 2>&1 || true
-    fi
-}
-
-detect_boot_mode() {
-    if [[ -d /sys/firmware/efi ]]; then
-        printf 'UEFI'
-    else
-        printf 'Legacy BIOS'
-    fi
-}
-
-system_memory_gib() {
-    local mem_kib="0"
-    mem_kib="$(awk '/MemTotal:/ { print $2 }' /proc/meminfo 2>/dev/null || printf '0')"
-    awk -v kib="$mem_kib" 'BEGIN { printf "%.1f GiB", kib / 1024 / 1024 }'
-}
-
-cpu_summary() {
-    lscpu 2>/dev/null | awk -F: '/Model name:/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' || printf 'Unknown CPU'
-}
-
-selected_disk_summary() {
-    [[ -n "$disk" ]] || {
-        printf 'No disk selected yet'
-        return 0
-    }
-
-    lsblk -dn -o NAME,SIZE,MODEL,TRAN,RM "$disk" 2>/dev/null | awk '
-        {
-            model = ($3 == "" ? "Unknown model" : $3)
-            tran = ($4 == "" ? "internal" : $4)
-            removable = ($5 == "1" ? "removable" : "fixed")
-            printf "/dev/%s  %s  %s  [%s, %s]\n", $1, $2, model, tran, removable
-        }
-    ' || printf '%s\n' "$disk"
-}
-
-hardware_summary_text() {
-    cat <<EOF
-Boot mode:   $(detect_boot_mode)
-Memory:      $(system_memory_gib)
-CPU:         $(cpu_summary)
-Disk target: $(selected_disk_summary)
-Desktop:     ${desktop_label}
-Apps:        ${starter_apps_label}
-GitHub:      ${github_identity}
-EOF
-}
-
-save_support_report() {
-    local report_path=""
-
-    if [[ ! -x /etc/abora/support-report.sh ]]; then
-        error_msg "The support report tool is not available in this build."
-        pause_prompt
-        return 1
-    fi
-
-    show_header "Saving support report" "Collecting hardware and log details."
-    printf 'Abora is gathering a support report now.\n'
-    printf '\n'
-    report_path="$(/etc/abora/support-report.sh 2>/dev/null || true)"
-    if [[ -n "$report_path" && -f "$report_path" ]]; then
-        printf '%s\n' "$report_path" > "$support_report_output"
-        success "Support report saved"
-        printf '\nReport archive:\n  %s\n' "$report_path"
-    else
-        error_msg "Support report generation failed."
-    fi
-    pause_prompt
-}
-
-show_hardware_summary() {
-    show_header "Hardware summary" "Useful before testing or filing a report."
-    hardware_summary_text
-    printf '\n'
-    printf 'Tip: use "Save support report" to capture hardware details and current logs.\n'
-    pause_prompt
-}
-
-preflight_warnings_text() {
-    local root_device=""
-    local root_parent=""
-
-    if root_device="$(findmnt -n -o SOURCE / 2>/dev/null)"; then
-        root_parent="$(lsblk -no PKNAME "$root_device" 2>/dev/null || true)"
-    fi
-
-    if [[ -n "$root_parent" && "$disk" == "/dev/${root_parent}" ]]; then
-        printf '%bWarning:%b the selected disk appears to back the current live system.\n' "$RED" "$NC"
-        printf 'Installing to the live USB disk will erase the media you booted from.\n\n'
-    fi
-
-    if [[ "$(awk '/MemTotal:/ { print $2 }' /proc/meminfo 2>/dev/null || printf '0')" -lt 4194304 ]]; then
-        printf '%bWarning:%b system memory is under 4 GiB. Expect slower installs and desktop startup.\n\n' "$RED" "$NC"
-    fi
-}
-
-sync_xkb_layout() {
-    case "$keyboard_value" in
-        uk)
-            xkb_layout_value="gb"
-            ;;
-        *)
-            xkb_layout_value="$keyboard_value"
-            ;;
-    esac
-}
-
-prompt_keyboard_layout() {
-    local input=""
-
-    while true; do
-        prompt_input "Choose keyboard layout" "$keyboard_value" \
-            "Enter a layout code (e.g. us, gb, de, fr, es, it). Type /back to return."
-        input="$prompt_result"
-        if [[ "$input" == "__back__" ]]; then
-            set_step_back
-            return 0
-        fi
-        if [[ "$input" =~ ^[a-z][a-z0-9_-]*$ ]]; then
-            keyboard_value="$input"
-            sync_xkb_layout
-            load_keyboard_layout
-            set_step_next
-            return 0
-        fi
-        error_msg "Invalid layout code. Use letters, numbers, or hyphens (e.g. us, gb, de, fr)."
-        pause_prompt
-    done
-}
-
-prompt_locale() {
-    while true; do
-        menu_choose \
-            "Locale settings" \
-            "Continue" \
-            "Timezone: ${timezone_value}" \
-            "Keyboard: ${keyboard_value}" \
-            "Back"
-
-        case "$menu_result" in
-            "__back__"|3)
-                set_step_back
-                return 0
-                ;;
-            0)
-                set_step_next
-                return 0
-                ;;
-            1)
-                prompt_timezone
-                if [[ "$step_action" == "back" ]]; then
-                    set_step_stay
-                fi
-                ;;
-            2)
-                prompt_keyboard_layout
-                if [[ "$step_action" == "back" ]]; then
-                    set_step_stay
-                fi
-                ;;
-        esac
-    done
-}
-
-find_zoneinfo_dir() {
-    local candidate=""
-
-    for candidate in \
-        "${ABORA_ZONEINFO_PATH:-}" \
-        /usr/share/zoneinfo \
-        /run/current-system/sw/share/zoneinfo \
-        /etc/zoneinfo
-    do
-        if [[ -n "$candidate" && -d "$candidate" ]]; then
-            printf '%s' "$candidate"
-            return 0
-        fi
-    done
-
-    return 1
-}
-
-collect_timezones() {
-    local zoneinfo_dir=""
-
-    zoneinfo_dir="$(find_zoneinfo_dir)" || return 1
-
-    find "$zoneinfo_dir" -type f | sed "s#^${zoneinfo_dir}/##" | grep -Ev \
-        '^(posix/|right/|SystemV/|localtime$|posixrules$|leap-seconds.list$|leapseconds$|tzdata.zi$|zone.tab$|zone1970.tab$|iso3166.tab$)' \
-        | sort -u
-}
-
-timezone_exists() {
-    local value="${1:-}"
-
-    [[ -n "$value" ]] || return 1
-    collect_timezones | grep -Fxq "$value"
-}
-
-show_about_abora() {
-    show_header "Welcome to Abora OS" "A simpler path into NixOS."
-    printf 'Abora is trying to make NixOS feel more human from the start.\n'
-    printf '\n'
-    printf 'This installer keeps the advanced NixOS base, but gives you:\n'
-    printf '  - a cleaner first-run path\n'
-    printf '  - easier desktop selection\n'
-    printf '  - optional starter apps before first boot\n'
-    printf '  - a system that still updates the NixOS way\n'
-    printf '\n'
-    printf 'You are still in the live environment right now.\n'
-    printf 'Nothing is written to disk until you confirm the install.\n'
-    pause_prompt
-}
-
-open_live_shell_from_installer() {
-    local shell_bin="${SHELL:-/run/current-system/sw/bin/bash}"
-
-    show_header "Live shell" "Exit the shell to return to the installer."
-    printf '%bOpening a root shell in the live environment.%b\n' "$DIM" "$NC"
-    printf '%bType exit when you want to come back here.%b\n\n' "$DIM" "$NC"
-    "$shell_bin" --login || true
-}
-
-starter_apps_preview() {
-    local app_id=""
-    local app_name=""
-
-    if [[ "${starter_apps_bundle,,}" == "none" ]]; then
-        printf 'No extra starter apps are selected.\n'
-        return 0
-    fi
-
-    printf 'Bundle: %s\n' "$starter_apps_label"
-    printf '\n'
-
-    while IFS= read -r app_id; do
-        [[ -n "$app_id" ]] || continue
-        app_name="$(abora_catalog_name "$app_id" 2>/dev/null || printf '%s' "$app_id")"
-        printf '  - %s\n' "$app_name"
-    done < <(abora_catalog_bundle_ids "$starter_apps_bundle")
-}
-
-show_starter_apps_preview() {
-    show_header "Starter apps" "These apps will be preinstalled on the new system."
-    starter_apps_preview
-    pause_prompt
-}
-
-pick_starter_apps_bundle() {
-    local labels=(
-        "No starter apps"
-        "Fan Favorites"
-        "Essentials"
-        "Social"
-        "Creator"
-        "Developer"
-        "Back"
-    )
-    local values=(
-        "none"
-        "favorites"
-        "essentials"
-        "social"
-        "creator"
-        "developer"
-    )
-
-    menu_choose "Choose starter apps" "${labels[@]}"
-    if [[ "$menu_result" == "__back__" || "$menu_result" == "${#values[@]}" ]]; then
-        set_step_back
-        return 0
-    fi
-
-    starter_apps_bundle="${values[$menu_result]}"
-    sync_starter_apps_label
-    set_step_next
-}
-
-sync_anix_label() {
-    if [[ "$anix_enabled" == "yes" ]]; then
-        printf 'Enabled'
-    else
-        printf 'Disabled'
-    fi
-}
-
-prompt_anix_opt_in() {
-    while true; do
-        show_header "ANIX — NixOS made simple" "Decide how you want to manage your system."
-        draw_rule
-        printf '\n'
-        printf '  %bANIX%b is a lightweight layer that lets you change your desktop,\n' "$WHITE" "$NC"
-        printf '  hostname, timezone, and keyboard with simple commands:\n'
-        printf '\n'
-        printf '  %banix set desktop gnome%b\n' "$CYAN" "$NC"
-        printf '  %banix set hostname mypc%b\n' "$CYAN" "$NC"
-        printf '  %banix apply%b\n' "$CYAN" "$NC"
-        printf '\n'
-        printf '  It also keeps local Git snapshots so you can roll back any change.\n'
-        printf '\n'
-        draw_rule
-        printf '  Currently: %b%s%b\n\n' "$CYAN" "$(sync_anix_label)" "$NC"
-
-        menu_choose "ANIX setup" \
-            "Enable ANIX (recommended)" \
-            "Disable ANIX" \
-            "Back"
-
-        case "$menu_result" in
-            "__back__"|2)
-                set_step_back
-                return 0
-                ;;
-            0)
-                anix_enabled="yes"
-                set_step_next
-                return 0
-                ;;
-            1)
-                anix_enabled="no"
-                set_step_next
-                return 0
-                ;;
-        esac
-    done
-}
-
-_net_signal_bar() {
+_net_bar() {
     local sig="${1:-0}"
-    if   [[ "$sig" -ge 80 ]]; then printf '████'
-    elif [[ "$sig" -ge 60 ]]; then printf '███░'
-    elif [[ "$sig" -ge 40 ]]; then printf '██░░'
-    elif [[ "$sig" -ge 20 ]]; then printf '█░░░'
-    else                           printf '░░░░'
+    if   [[ "$sig" -ge 80 ]]; then printf '${G}████${NC}'
+    elif [[ "$sig" -ge 60 ]]; then printf '${Y}███░${NC}'
+    elif [[ "$sig" -ge 40 ]]; then printf '${Y}██░░${NC}'
+    elif [[ "$sig" -ge 20 ]]; then printf '${RD}█░░░${NC}'
+    else                           printf '${GY}░░░░${NC}'
     fi
 }
 
-_net_scan_wifi() {
-    local raw line ssid signal security rest
-    wifi_ssids=()
-    wifi_signals=()
-    wifi_security=()
-
+_net_scan() {
+    _wifi_ssids=(); _wifi_signals=(); _wifi_security=()
     nmcli device wifi rescan 2>/dev/null || true
-
-    # Parse terse nmcli output robustly:
-    # Format:  SSID:SIGNAL:SECURITY   (colons in SSID are escaped as \:)
-    # We split from the right: last field = SECURITY, second-to-last = SIGNAL, rest = SSID
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
-
-        # Strip trailing whitespace
         line="${line%"${line##*[![:space:]]}"}"
-
-        # Extract SECURITY (everything after last unescaped colon)
-        security="${line##*:}"
-        rest="${line%:"$security"}"
-
-        # Extract SIGNAL (everything after last unescaped colon in rest)
-        signal="${rest##*:}"
-        ssid="${rest%:"$signal"}"
-
-        # Unescape \: in SSID
-        ssid="${ssid//\\:/: }"
-        ssid="${ssid% }"
-
+        local security="${line##*:}"
+        local rest="${line%:"$security"}"
+        local signal="${rest##*:}"
+        local ssid="${rest%:"$signal"}"
+        ssid="${ssid//\\:/∶}"
         [[ -z "$ssid" || "$ssid" == "--" ]] && continue
         [[ "$signal" =~ ^[0-9]+$ ]] || continue
-
-        # Deduplicate: skip if SSID already seen
         local seen=0
-        local j
-        for j in "${!wifi_ssids[@]}"; do
-            [[ "${wifi_ssids[$j]}" == "$ssid" ]] && seen=1 && break
+        for j in "${!_wifi_ssids[@]}"; do
+            [[ "${_wifi_ssids[$j]}" == "$ssid" ]] && seen=1 && break
         done
-        [[ "$seen" -eq 1 ]] && continue
-
-        wifi_ssids+=("$ssid")
-        wifi_signals+=("$signal")
-        wifi_security+=("$security")
-    done < <(nmcli -t -f SSID,SIGNAL,SECURITY device wifi list 2>/dev/null \
-        | sort -t: -k2 -rn 2>/dev/null \
-        || true)
+        [[ $seen -eq 1 ]] && continue
+        _wifi_ssids+=("$ssid"); _wifi_signals+=("$signal"); _wifi_security+=("$security")
+    done < <(nmcli -t -f SSID,SIGNAL,SECURITY device wifi list 2>/dev/null | sort -t: -k2 -rn 2>/dev/null || true)
 }
 
-_net_is_connected() {
+_net_connected() {
     nmcli -t networking connectivity check 2>/dev/null | grep -q "^full$"
 }
 
-prompt_network_connect() {
-    local wifi_ssids=()
-    local wifi_signals=()
-    local wifi_security=()
-    local connected=0
-    local selected=0
-    local status_msg=""
-    local key=""
-    local i=0
+step_network() {
+    _chrome "network"
+    _content_title "Connect to the Internet" "A network connection is needed to download system packages."
 
-    _net_is_connected && connected=1
-    _net_scan_wifi
+    _status "Scanning for networks…" "$GY"
+    _net_scan
+    _clear_status
+
+    local sel=0 msg="" msg_clr="$GY"
+    local connected=0
+    _net_connected && connected=1
 
     while true; do
-        # ── Draw screen ───────────────────────────────────────────────────────
-        show_header "Network" "Choose a network to connect before installing."
+        _layout
+        local r=5
 
         # Ethernet section
+        _cat $r 1 "${W}Ethernet${NC}"
+        (( r++ )) || true
         local eth_found=0
         while IFS= read -r iface; do
             [[ -z "$iface" ]] && continue
             eth_found=1
-            local state
-            state="$(nmcli -t -f GENERAL.STATE device show "$iface" 2>/dev/null \
-                | cut -d: -f2 | head -1 || true)"
+            local state; state="$(nmcli -t -f GENERAL.STATE device show "$iface" 2>/dev/null | cut -d: -f2 | head -1 || true)"
             if printf '%s' "$state" | grep -qi "connected"; then
-                printf '  %b✔  Ethernet (%s) — connected%b\n' "$GREEN" "$iface" "$NC"
+                _cat $r 1 "  ${G}✓  Ethernet (${iface}) — connected${NC}"
                 connected=1
             else
-                printf '  %b─  Ethernet (%s) — unplugged%b\n' "$DIM" "$iface" "$NC"
+                _cat $r 1 "  ${GY}─  Ethernet (${iface}) — unplugged${NC}"
             fi
-        done < <(nmcli -t -f DEVICE,TYPE device 2>/dev/null \
-            | awk -F: '$2=="ethernet"{print $1}' || true)
+            (( r++ )) || true
+        done < <(nmcli -t -f DEVICE,TYPE device 2>/dev/null | awk -F: '$2=="ethernet"{print $1}' || true)
+        [[ $eth_found -eq 0 ]] && { _cat $r 1 "  ${GY}No ethernet detected${NC}"; (( r++ )) || true; }
 
-        printf '\n'
+        (( r++ )) || true
+        _cat $r 1 "${W}WiFi${NC}"
+        (( r++ )) || true
 
-        # WiFi section header
-        if [[ "${#wifi_ssids[@]}" -eq 0 ]]; then
-            printf '  %bNo wireless networks found.%b\n' "$DIM" "$NC"
+        if [[ ${#_wifi_ssids[@]} -eq 0 ]]; then
+            _cat $r 1 "  ${GY}No wireless networks found. Press R to rescan.${NC}"
+            (( r++ )) || true
         else
-            # Total rows = wifi list + divider + Rescan + Continue/Skip
-            local total=$(( ${#wifi_ssids[@]} + 2 ))
-            local max_wifi=12
-            local start=0
-            local end=$(( ${#wifi_ssids[@]} - 1 ))
-
-            # Scroll window around selection (wifi items only)
-            if [[ "${#wifi_ssids[@]}" -gt "$max_wifi" ]]; then
-                start=$(( selected - max_wifi / 2 ))
-                [[ "$start" -lt 0 ]] && start=0
-                end=$(( start + max_wifi - 1 ))
-                [[ "$end" -ge "${#wifi_ssids[@]}" ]] && end=$(( ${#wifi_ssids[@]} - 1 )) && start=$(( end - max_wifi + 1 ))
+            local max_show=$(( CT_H - r - 6 ))
+            [[ $max_show -lt 1 ]] && max_show=1
+            local start=0 end=$(( ${#_wifi_ssids[@]} - 1 ))
+            if [[ ${#_wifi_ssids[@]} -gt $max_show ]]; then
+                start=$(( sel - max_show / 2 )); [[ $start -lt 0 ]] && start=0
+                end=$(( start + max_show - 1 ))
+                [[ $end -ge ${#_wifi_ssids[@]} ]] && end=$(( ${#_wifi_ssids[@]} - 1 )) && start=$(( end - max_show + 1 ))
             fi
-
-            [[ "$start" -gt 0 ]] && printf '  %b↑ more above%b\n' "$DIM" "$NC"
-
-            for (( i = start; i <= end; i++ )); do
-                local bar sig sec locked ssid_display
-                sig="${wifi_signals[$i]:-0}"
-                sec="${wifi_security[$i]:-}"
-                bar="$(_net_signal_bar "$sig")"
-                [[ -n "$sec" && "$sec" != "--" ]] && locked=" 🔒" || locked=""
-                ssid_display="${wifi_ssids[$i]}"
-
-                if [[ "$i" -eq "$selected" ]]; then
-                    printf '%b›  %s  %b%s%b%s\n' "$BLUE" "$bar" "$WHITE" "$ssid_display" "$NC" "$locked"
+            [[ $start -gt 0 ]] && { _cat $r 1 "  ${GY}↑ more above${NC}"; (( r++ )) || true; }
+            for (( i=start; i<=end; i++ )); do
+                local sig="${_wifi_signals[$i]:-0}"
+                local sec="${_wifi_security[$i]:-}"
+                local locked=""; [[ -n "$sec" && "$sec" != "--" ]] && locked=" 🔒"
+                local bar_str="" clr="$GY"
+                if   [[ "$sig" -ge 80 ]]; then bar_str="████"; clr="$G"
+                elif [[ "$sig" -ge 60 ]]; then bar_str="███░"; clr="$Y"
+                elif [[ "$sig" -ge 40 ]]; then bar_str="██░░"; clr="$Y"
+                elif [[ "$sig" -ge 20 ]]; then bar_str="█░░░"; clr="$RD"
+                else bar_str="░░░░"; fi
+                local ssid_display="${_wifi_ssids[$i]}"
+                if [[ $i -eq $sel ]]; then
+                    _cat $r 1 "  ${C}›  ${clr}${bar_str}${NC}  ${W}${ssid_display}${NC}${GY}${locked}${NC}"
                 else
-                    printf '   %b%s  %s%b%s\n' "$DIM" "$bar" "$ssid_display" "$NC" "$locked"
+                    _cat $r 1 "  ${GY}   ${bar_str}  ${ssid_display}${locked}${NC}"
                 fi
+                (( r++ )) || true
+            done
+            [[ $end -lt $(( ${#_wifi_ssids[@]} - 1 )) ]] && { _cat $r 1 "  ${GY}↓ more below${NC}"; (( r++ )) || true; }
+        fi
+
+        # status / message
+        if [[ -n "$msg" ]]; then
+            _status "$msg" "$msg_clr"
+        elif [[ $connected -eq 1 ]]; then
+            _status "Connected — you can continue." "$BG"
+        else
+            _status "Not connected. Select a network or skip." "$GY"
+        fi
+
+        if [[ $connected -eq 1 ]]; then
+            _actions "Rescan (R)" "Continue"
+        else
+            _actions "Rescan (R)   Skip" "Connect"
+        fi
+
+        read_key
+        case "$KEY_NAME" in
+            UP)   (( sel > 0 )) && (( sel-- )) || true ;;
+            DOWN) (( sel < ${#_wifi_ssids[@]} - 1 )) && (( sel++ )) || true ;;
+            ENTER)
+                if [[ $connected -eq 1 ]]; then
+                    _mark_done "network"; return "next"
+                fi
+                if [[ ${#_wifi_ssids[@]} -gt 0 ]]; then
+                    local chosen_ssid="${_wifi_ssids[$sel]}"
+                    local chosen_sec="${_wifi_security[$sel]:-}"
+                    if [[ -n "$chosen_sec" && "$chosen_sec" != "--" ]]; then
+                        _status "Enter WiFi password for: ${chosen_ssid}" "$W"
+                        _show
+                        local wpass=""
+                        _at $(( CT_R + CT_H - 3 )) "$CT_C"
+                        printf "${GY}  Password: ${W}[${NC}"
+                        local pw_col=$(( CT_C + 13 ))
+                        local pw_w=$(( CT_W - 16 ))
+                        IFS= read -rsp "" wpass
+                        printf "${W}]${NC}"
+                        _hide
+                        if [[ -n "$wpass" ]]; then
+                            _status "Connecting to ${chosen_ssid}…" "$GY"
+                            if nmcli device wifi connect "$chosen_ssid" password "$wpass" >/dev/null 2>&1; then
+                                connected=1; msg="Connected to ${chosen_ssid}"; msg_clr="$BG"
+                            else
+                                msg="Failed to connect. Check password."; msg_clr="$RD"
+                            fi
+                        fi
+                    else
+                        _status "Connecting to ${chosen_ssid}…" "$GY"
+                        if nmcli device wifi connect "$chosen_ssid" >/dev/null 2>&1; then
+                            connected=1; msg="Connected to ${chosen_ssid}"; msg_clr="$BG"
+                        else
+                            msg="Failed to connect."; msg_clr="$RD"
+                        fi
+                    fi
+                fi
+                ;;
+            CHAR)
+                case "${KEY_CHAR,,}" in
+                    r) _status "Rescanning…" "$GY"; _net_scan; msg=""; msg_clr="$GY" ;;
+                    s) _mark_done "network"; return "next" ;;
+                    c) [[ $connected -eq 1 ]] && { _mark_done "network"; return "next"; } ;;
+                esac
+                ;;
+            ESC|BACKSPACE) return "next" ;;  # can't go back from network
+        esac
+    done
+}
+
+# ── Step: Welcome ─────────────────────────────────────────────────────────────
+step_welcome() {
+    _chrome "welcome"
+    _content_title "Welcome to Abora OS" "A simpler path into NixOS."
+
+    local r=5
+    _cat $r 1 "${W}You're about to install Abora OS ${version}.${NC}"; (( r+=2 )) || true
+    _cat $r 1 "${GY}This installer will guide you through:${NC}"; (( r++ )) || true
+    _cat $r 3 "${C}◈${NC}  Choosing your desktop environment"; (( r++ )) || true
+    _cat $r 3 "${C}◈${NC}  Creating your user account"; (( r++ )) || true
+    _cat $r 3 "${C}◈${NC}  Selecting the install disk"; (( r++ )) || true
+    _cat $r 3 "${C}◈${NC}  Writing the system (usually 5–10 minutes)"; (( r+=2 )) || true
+
+    _cat $r 1 "${GY}The selected disk will be completely erased.${NC}"; (( r+=2 )) || true
+    _cat $r 1 "${GY}Make sure you are connected to the internet.${NC}"
+
+    _actions "" "Let's go"
+
+    while true; do
+        read_key
+        case "$KEY_NAME" in
+            ENTER|RIGHT) _mark_done "welcome"; return "next" ;;
+            ESC|BACKSPACE) return "back" ;;
+        esac
+    done
+}
+
+# ── Step: Desktop ─────────────────────────────────────────────────────────────
+step_desktop() {
+    _chrome "desktop"
+    _content_title "Choose Your Desktop" "Pick the environment you'll work in every day."
+
+    local opts=(
+        "gnome|GNOME|Modern, clean, and polished. Best for newcomers.|Gesture-friendly, great HiDPI support."
+        "plasma|KDE Plasma|Powerful and highly customizable.|Windows-like layout. Fine-grained control."
+        "hyprland|Hyprland|Minimal tiling compositor for advanced users.|Keyboard-driven, lightweight, fast."
+    )
+
+    radio_cards 5 opts "$desktop_profile"
+
+    if [[ "$RADIO_IDX" -ge 0 ]]; then
+        IFS='|' read -r key lbl _ _ <<< "${opts[$RADIO_IDX]}"
+        desktop_profile="$key"
+        abora_sync_desktop_label "$desktop_profile"
+        _mark_done "desktop"
+        return "next"
+    else
+        return "back"
+    fi
+}
+
+# ── Step: User / Names ────────────────────────────────────────────────────────
+step_names() {
+    local field=0  # 0=username 1=hostname 2=timezone
+
+    while true; do
+        _chrome "names"
+        _content_title "Your Account" "Set up your username and system identity."
+
+        local r=5
+
+        # ── Username
+        local u_col=$(( CT_C + 2 ))
+        _cat $r 1 "${W}Username${NC}"; (( r++ )) || true
+        _cat $r 1 "${GY}  Letters, numbers, and _ only. Lowercase.${NC}"; (( r+=2 )) || true
+        _at $(( CT_R + r - 1 )) "$u_col"
+        if [[ $field -eq 0 ]]; then
+            printf "${C}› ${NC}${GY}username:${NC} ${W}${username_value}${C}▌${NC}"
+        else
+            printf "  ${GY}username:${NC} ${BW}${username_value}${NC}"
+        fi
+        (( r+=2 )) || true
+
+        # ── Hostname
+        _cat $r 1 "${W}Hostname${NC}"; (( r++ )) || true
+        _cat $r 1 "${GY}  Network name of your machine.${NC}"; (( r+=2 )) || true
+        _at $(( CT_R + r - 1 )) "$u_col"
+        if [[ $field -eq 1 ]]; then
+            printf "${C}› ${NC}${GY}hostname: ${NC}${W}${hostname_value}${C}▌${NC}"
+        else
+            printf "  ${GY}hostname: ${NC}${BW}${hostname_value}${NC}"
+        fi
+        (( r+=2 )) || true
+
+        # ── Timezone
+        _cat $r 1 "${W}Timezone${NC}"; (( r++ )) || true
+        _cat $r 1 "${GY}  e.g. America/New_York, Europe/London${NC}"; (( r+=2 )) || true
+        _at $(( CT_R + r - 1 )) "$u_col"
+        if [[ $field -eq 2 ]]; then
+            printf "${C}› ${NC}${GY}timezone: ${NC}${W}${timezone_value}${C}▌${NC}"
+        else
+            printf "  ${GY}timezone: ${NC}${BW}${timezone_value}${NC}"
+        fi
+
+        _actions "Back" "Next (Tab to switch field)"
+        _show
+
+        IFS= read -rsn1 KEY_CHAR
+        case "$KEY_CHAR" in
+            $'\t')  field=$(( (field + 1) % 3 )); _hide; continue ;;
+            $'\r'|$'\n')
+                _hide
+                if [[ $field -eq 2 ]]; then
+                    _mark_done "names"; return "next"
+                else
+                    field=$(( field + 1 ))
+                fi
+                continue
+                ;;
+            $'\x1b') _hide; return "back" ;;
+            $'\x7f'|$'\x08')
+                case $field in
+                    0) [[ ${#username_value} -gt 0 ]] && username_value="${username_value%?}" ;;
+                    1) [[ ${#hostname_value}  -gt 0 ]] && hostname_value="${hostname_value%?}" ;;
+                    2) [[ ${#timezone_value}  -gt 0 ]] && timezone_value="${timezone_value%?}" ;;
+                esac
+                ;;
+            $'\x03') exit 0 ;;
+            *)
+                case $field in
+                    0)
+                        if [[ "$KEY_CHAR" =~ ^[a-z0-9_]$ ]]; then
+                            username_value="${username_value}${KEY_CHAR}"
+                            # auto-fill hostname if still default
+                            [[ "$hostname_value" == "abora" || "$hostname_value" == "${username_value%?}" ]] \
+                                && hostname_value="$username_value"
+                        fi
+                        ;;
+                    1) hostname_value="${hostname_value}${KEY_CHAR}" ;;
+                    2) timezone_value="${timezone_value}${KEY_CHAR}" ;;
+                esac
+                ;;
+        esac
+    done
+}
+
+# ── Step: Password ────────────────────────────────────────────────────────────
+_pw_strength() {
+    local p="$1" score=0
+    [[ ${#p} -ge 8  ]] && (( score++ )) || true
+    [[ ${#p} -ge 12 ]] && (( score++ )) || true
+    [[ "$p" =~ [A-Z] ]] && (( score++ )) || true
+    [[ "$p" =~ [0-9] ]] && (( score++ )) || true
+    [[ "$p" =~ [^a-zA-Z0-9] ]] && (( score++ )) || true
+    printf '%d' "$score"
+}
+
+step_password() {
+    local pass1="" pass2="" field=0
+
+    while true; do
+        _chrome "password"
+        _content_title "Set Your Password" "Choose a strong password for your account."
+
+        local r=5
+        _cat $r 1 "${W}Password${NC}"; (( r++ )) || true
+
+        # draw masked fields
+        local u_col=$(( CT_C + 2 ))
+        local fw=$(( CT_W - 20 ))
+        local stars1; stars1="$(printf '%*s' "${#pass1}" | tr ' ' '●')"
+        local stars2; stars2="$(printf '%*s' "${#pass2}" | tr ' ' '●')"
+        (( r++ )) || true
+
+        _at $(( CT_R + r - 1 )) "$u_col"
+        if [[ $field -eq 0 ]]; then
+            printf "${C}›${NC} ${GY}password:  ${NC}${W}[%-*s${C}▌${W}]${NC}" "$fw" "$stars1"
+        else
+            printf "  ${GY}password:  ${NC}[${BW}%-*s${NC}]" "$fw" "$stars1"
+        fi
+        (( r+=2 )) || true
+
+        _at $(( CT_R + r - 1 )) "$u_col"
+        if [[ $field -eq 1 ]]; then
+            printf "${C}›${NC} ${GY}confirm:   ${NC}${W}[%-*s${C}▌${W}]${NC}" "$fw" "$stars2"
+        else
+            printf "  ${GY}confirm:   ${NC}[${BW}%-*s${NC}]" "$fw" "$stars2"
+        fi
+        (( r+=2 )) || true
+
+        # strength meter
+        if [[ ${#pass1} -gt 0 ]]; then
+            local strength; strength="$(_pw_strength "$pass1")"
+            local s_colors=("$RD" "$RD" "$Y" "$Y" "$G" "$G")
+            local s_labels=("" "Too short" "Weak" "OK" "Good" "Strong")
+            local clr="${s_colors[$strength]}"
+            local lbl="${s_labels[$strength]}"
+            _cat $r 1 "  ${GY}Strength: ${NC}"
+            local sr=$(( CT_R + r - 1 ))
+            _at "$sr" $(( CT_C + 13 ))
+            local bar_w=20
+            local filled=$(( bar_w * strength / 5 ))
+            printf "${clr}"
+            [[ $filled -gt 0 ]] && printf '%*s' "$filled" | tr ' ' '█'
+            printf "${GY}"
+            [[ $(( bar_w - filled )) -gt 0 ]] && printf '%*s' $(( bar_w - filled )) | tr ' ' '░'
+            printf "${NC}  ${clr}%s${NC}" "$lbl"
+            (( r++ )) || true
+        fi
+
+        # match status
+        if [[ ${#pass1} -gt 0 && ${#pass2} -gt 0 ]]; then
+            if [[ "$pass1" == "$pass2" ]]; then
+                _status "Passwords match." "$BG"
+            else
+                _status "Passwords do not match." "$RD"
+            fi
+        fi
+
+        _actions "Back" "Next (Tab to switch field)"
+        _show
+
+        IFS= read -rsn1 KEY_CHAR
+        case "$KEY_CHAR" in
+            $'\t')  field=$(( (field + 1) % 2 )) ;;
+            $'\r'|$'\n')
+                if [[ $field -eq 0 ]]; then
+                    field=1
+                else
+                    if [[ -z "$pass1" ]]; then
+                        _status "Password cannot be empty." "$RD"
+                        sleep 1
+                    elif [[ "$pass1" != "$pass2" ]]; then
+                        _status "Passwords do not match." "$RD"
+                        sleep 1
+                        pass2=""
+                        field=1
+                    else
+                        if command -v mkpasswd >/dev/null 2>&1; then
+                            user_password_hash="$(mkpasswd -m yescrypt "$pass1")"
+                        elif command -v openssl >/dev/null 2>&1; then
+                            user_password_hash="$(printf '%s' "$pass1" | openssl passwd -6 -stdin)"
+                        else
+                            _status "No password hashing tool found (mkpasswd/openssl)." "$RD"
+                            sleep 2
+                            continue
+                        fi
+                        unset pass1 pass2
+                        _mark_done "password"
+                        return "next"
+                    fi
+                fi
+                ;;
+            $'\x1b') _hide; return "back" ;;
+            $'\x7f'|$'\x08')
+                [[ $field -eq 0 ]] && [[ ${#pass1} -gt 0 ]] && pass1="${pass1%?}"
+                [[ $field -eq 1 ]] && [[ ${#pass2} -gt 0 ]] && pass2="${pass2%?}"
+                ;;
+            $'\x03') exit 0 ;;
+            *)
+                [[ $field -eq 0 ]] && pass1="${pass1}${KEY_CHAR}"
+                [[ $field -eq 1 ]] && pass2="${pass2}${KEY_CHAR}"
+                ;;
+        esac
+    done
+}
+
+# ── Step: Options ─────────────────────────────────────────────────────────────
+step_options() {
+    local -A tstate=([anix]="$( [[ "$anix_enabled" == "yes" ]] && printf 'on' || printf 'off' )")
+    local topts=(
+        "anix|ANIX|The NixOS configuration layer — recommended for new users"
+    )
+    local apps_sel=0
+    local apps_list=("favorites" "essentials" "none")
+    local apps_labels=("Fan Favorites  — browser, media, productivity" \
+                       "Essentials     — minimal set" \
+                       "None           — bare system")
+    # find current
+    for (( i=0; i<${#apps_list[@]}; i++ )); do
+        [[ "${apps_list[$i]}" == "$starter_apps_bundle" ]] && apps_sel=$i && break
+    done
+
+    local section=0  # 0=toggles 1=apps
+
+    while true; do
+        _chrome "options"
+        _content_title "System Options" "Choose extras for your installation."
+
+        local r=5
+        _cat $r 1 "${W}Features${NC}"; (( r+=2 )) || true
+
+        # draw ANIX toggle
+        local on="${tstate[anix]}"
+        local cr=$(( CT_R + r - 1 ))
+        if [[ $section -eq 0 ]]; then
+            if [[ "$on" == "on" ]]; then
+                _at "$cr" "$CT_C"; printf "${C}  ◉  ${W}ANIX${NC}  ${GY}The NixOS configuration layer — recommended for new users${NC}"
+            else
+                _at "$cr" "$CT_C"; printf "${C}  ○  ${GY}ANIX  The NixOS configuration layer — recommended for new users${NC}"
+            fi
+        else
+            if [[ "$on" == "on" ]]; then
+                _at "$cr" "$CT_C"; printf "${BG}  ◉  ${BW}ANIX${NC}  ${GY}The NixOS configuration layer — recommended for new users${NC}"
+            else
+                _at "$cr" "$CT_C"; printf "${GY}  ○  ANIX  The NixOS configuration layer — recommended for new users${NC}"
+            fi
+        fi
+        (( r+=3 )) || true
+
+        _cat $r 1 "${W}Starter Apps${NC}"; (( r+=2 )) || true
+        for (( i=0; i<${#apps_list[@]}; i++ )); do
+            cr=$(( CT_R + r - 1 ))
+            if [[ $section -eq 1 && $i -eq $apps_sel ]]; then
+                _at "$cr" "$CT_C"; printf "${C}  ◉  ${W}%s${NC}" "${apps_labels[$i]}"
+            elif [[ "${apps_list[$i]}" == "$starter_apps_bundle" && $section -ne 1 ]]; then
+                _at "$cr" "$CT_C"; printf "${BG}  ◉  ${BW}%s${NC}" "${apps_labels[$i]}"
+            else
+                _at "$cr" "$CT_C"; printf "${GY}  ○  %s${NC}" "${apps_labels[$i]}"
+            fi
+            (( r++ )) || true
+        done
+
+        _actions "Back" "Next"
+
+        read_key
+        case "$KEY_NAME" in
+            UP)
+                if [[ $section -eq 0 ]]; then
+                    : # already at top
+                elif [[ $section -eq 1 ]]; then
+                    if [[ $apps_sel -gt 0 ]]; then (( apps_sel-- )) || true
+                    else section=0; fi
+                fi
+                ;;
+            DOWN)
+                if [[ $section -eq 0 ]]; then section=1
+                elif [[ $apps_sel -lt $(( ${#apps_list[@]} - 1 )) ]]; then (( apps_sel++ )) || true
+                fi
+                ;;
+            ENTER|CHAR)
+                if [[ "$KEY_NAME" == "CHAR" && "$KEY_CHAR" != " " && "$KEY_CHAR" != $'\r' ]]; then continue; fi
+                if [[ $section -eq 0 ]]; then
+                    [[ "${tstate[anix]}" == "on" ]] && tstate[anix]="off" || tstate[anix]="on"
+                else
+                    starter_apps_bundle="${apps_list[$apps_sel]}"
+                    sync_starter_apps_label
+                    _mark_done "options"
+                    [[ "${tstate[anix]}" == "on" ]] && anix_enabled="yes" || anix_enabled="no"
+                    return "next"
+                fi
+                ;;
+            RIGHT)
+                [[ "${tstate[anix]}" == "on" ]] && anix_enabled="yes" || anix_enabled="no"
+                starter_apps_bundle="${apps_list[$apps_sel]}"
+                sync_starter_apps_label
+                _mark_done "options"
+                return "next"
+                ;;
+            ESC|BACKSPACE) return "back" ;;
+        esac
+    done
+}
+
+# ── Step: Disk ────────────────────────────────────────────────────────────────
+step_disk() {
+    while true; do
+        _chrome "disk"
+        _content_title "Select Install Disk" "The selected disk will be completely erased."
+
+        local entries=() labels=() paths=()
+        while IFS='|' read -r name size model; do
+            labels+=("/dev/${name}  ${size}  ${model}")
+            paths+=("/dev/${name}")
+            entries+=("$name|$size|$model")
+        done < <(collect_disks)
+
+        local r=5
+        if [[ ${#paths[@]} -eq 0 ]]; then
+            _cat $r 1 "${RD}No installable disks found.${NC}"; (( r++ )) || true
+            _cat $r 1 "${GY}Press R to rescan.${NC}"
+            _actions "Back" "Rescan (R)"
+            while true; do
+                read_key
+                [[ "$KEY_NAME" == "CHAR" && "${KEY_CHAR,,}" == "r" ]] && break
+                [[ "$KEY_NAME" == "ESC" || "$KEY_NAME" == "BACKSPACE" ]] && return "back"
+            done
+            continue
+        fi
+
+        # disk table header
+        _cat $r 1 "${GY}  $(printf '%-12s %-8s %s' 'DEVICE' 'SIZE' 'MODEL')${NC}"; (( r++ )) || true
+        _cat $r 1 "${B}  $(printf '%*s' $(( CT_W - 4 )) | tr ' ' '─')${NC}"; (( r++ )) || true
+
+        local sel=0
+        while true; do
+            # draw disk list
+            local dr=$r
+            for (( i=0; i<${#paths[@]}; i++ )); do
+                IFS='|' read -r dname dsize dmodel <<< "${entries[$i]}"
+                local cr=$(( CT_R + dr - 1 ))
+                if [[ $i -eq $sel ]]; then
+                    _at "$cr" "$CT_C"
+                    printf "${C}  › %-12s ${W}%-8s ${GY}%s${NC}" "/dev/$dname" "$dsize" "$(_trunc "$dmodel" $(( CT_W - 26 )))"
+                else
+                    _at "$cr" "$CT_C"
+                    printf "${GY}    %-12s %-8s %s${NC}" "/dev/$dname" "$dsize" "$(_trunc "$dmodel" $(( CT_W - 26 )))"
+                fi
+                (( dr++ )) || true
             done
 
-            [[ "$end" -lt $(( ${#wifi_ssids[@]} - 1 )) ]] && printf '  %b↓ more below%b\n' "$DIM" "$NC"
-        fi
-
-        printf '\n'
-        draw_rule
-
-        # Bottom actions
-        local action_rescan="  [ R ] Rescan"
-        local action_continue
-        if [[ "$connected" -eq 1 ]]; then
-            action_continue="  [ C ] Continue  ›  (connected)"
-        else
-            action_continue="  [ S ] Skip (no internet)"
-        fi
-        printf '%b%s%b\n' "$DIM" "$action_rescan" "$NC"
-        printf '%b%s%b\n' "$DIM" "$action_continue" "$NC"
-        printf '\n'
-
-        if [[ -n "$status_msg" ]]; then
-            printf '  %s\n\n' "$status_msg"
-            status_msg=""
-        fi
-
-        printf '%b<↑↓> select  <enter> connect  <R> rescan  <C/S> continue  <esc> back%b\n' "$DIM" "$NC"
-
-        # ── Input ─────────────────────────────────────────────────────────────
-        key="$(read_key)"
-        case "$key" in
-            $'\033')
-                set_step_back; return 0
-                ;;
-            $'\033[A')   # up
-                if [[ "${#wifi_ssids[@]}" -gt 0 ]]; then
-                    selected=$(( selected - 1 ))
-                    [[ "$selected" -lt 0 ]] && selected=$(( ${#wifi_ssids[@]} - 1 ))
-                fi
-                ;;
-            $'\033[B')   # down
-                if [[ "${#wifi_ssids[@]}" -gt 0 ]]; then
-                    selected=$(( selected + 1 ))
-                    [[ "$selected" -ge "${#wifi_ssids[@]}" ]] && selected=0
-                fi
-                ;;
-            r|R)
-                status_msg="${DIM}Scanning…${NC}"
-                _net_scan_wifi
-                selected=0
-                _net_is_connected && connected=1
-                ;;
-            c|C|s|S)
-                set_step_next; return 0
-                ;;
-            "")   # enter — connect to selected network
-                if [[ "${#wifi_ssids[@]}" -eq 0 ]]; then
-                    status_msg="${DIM}No networks available.${NC}"
-                    continue
-                fi
-                local chosen_ssid="${wifi_ssids[$selected]}"
-                local chosen_sec="${wifi_security[$selected]}"
-                local password=""
-
-                if [[ -n "$chosen_sec" && "$chosen_sec" != "--" ]]; then
-                    prompt_input "Password for ${chosen_ssid}" "" \
-                        "Enter WiFi password and press Enter. Type /back to cancel."
-                    password="$prompt_result"
-                    [[ "$password" == "__back__" ]] && continue
-                fi
-
-                show_header "Connecting" "Joining ${chosen_ssid}…"
-                local ok=0
-                if [[ -z "$password" ]]; then
-                    nmcli device wifi connect "$chosen_ssid" 2>/dev/null && ok=1 || true
-                else
-                    nmcli device wifi connect "$chosen_ssid" password "$password" 2>/dev/null && ok=1 || true
-                fi
-
-                if [[ "$ok" -eq 1 ]]; then
-                    connected=1
-                    status_msg="${GREEN}✔ Connected to ${chosen_ssid}${NC}"
-                else
-                    status_msg="${RED}✘ Could not connect — check the password and try again${NC}"
-                fi
-                ;;
-        esac
-    done
-}
-
-show_installer_welcome() {
-    while true; do
-        menu_choose \
-            "Welcome to Abora OS ${version}" \
-            "Continue to installer setup" \
-            "View hardware summary" \
-            "Save support report" \
-            "Read about Abora" \
-            "Open live shell" \
-            "Reboot" \
-            "Power off" \
-            "Cancel"
-
-        case "$menu_result" in
-            "__back__"|7)
-                set_step_cancel
-                return 0
-                ;;
-            0)
-                set_step_next
-                return 0
-                ;;
-            1)
-                show_hardware_summary
-                ;;
-            2)
-                save_support_report
-                ;;
-            3)
-                show_about_abora
-                ;;
-            4)
-                open_live_shell_from_installer
-                ;;
-            5)
-                sync
-                reboot
-                ;;
-            6)
-                sync
-                poweroff
-                ;;
-        esac
-    done
-}
-
-show_extra_packages_setup() {
-    while true; do
-        menu_choose \
-            "Extra packages and setup" \
-            "Continue to install review" \
-            "Install target: ${disk:-Not selected}" \
-            "Desktop environment: ${desktop_label}" \
-            "Extra packages: ${starter_apps_label}" \
-            "View selected package bundle" \
-            "View hardware summary" \
-            "Save support report" \
-            "Open live shell" \
-            "Back" \
-            "Cancel"
-
-        case "$menu_result" in
-            "__back__"|8)
-                set_step_back
-                return 0
-                ;;
-            1)
-                prompt_disk || true
-                set_step_stay
-                ;;
-            2)
-                pick_desktop_environment
-                set_step_stay
-                ;;
-            3)
-                pick_starter_apps_bundle
-                set_step_stay
-                ;;
-            4)
-                show_starter_apps_preview
-                ;;
-            5)
-                show_hardware_summary
-                ;;
-            6)
-                save_support_report
-                ;;
-            7)
-                open_live_shell_from_installer
-                ;;
-            8)
-                set_step_back
-                return 0
-                ;;
-            9)
-                set_step_cancel
-                return 0
-                ;;
-            0)
-                if [[ -z "$disk" ]]; then
-                    error_msg "Choose an install target before continuing."
-                    pause_prompt
-                    set_step_stay
-                else
-                    set_step_next
-                    return 0
-                fi
-                ;;
-        esac
-    done
-}
-
-prompt_names() {
-    while true; do
-        prompt_hostname
-        if [[ "$step_action" == "back" ]]; then
-            set_step_back
-            return 0
-        fi
-
-        prompt_username
-        if [[ "$step_action" == "back" ]]; then
-            continue
-        fi
-
-        set_step_next
-        return 0
-    done
-}
-
-prompt_github_login() {
-    local continue_label=""
-
-    if ! command -v gh >/dev/null 2>&1; then
-        github_identity="GitHub CLI unavailable"
-        set_step_next
-        return 0
-    fi
-
-    while true; do
-        refresh_github_identity
-
-        if [[ "$github_identity" == "Skipped" ]]; then
-            continue_label="Skip GitHub for now"
-        else
-            continue_label="Use ${github_identity}"
-        fi
-
-        menu_choose \
-            "GitHub device login (optional)" \
-            "$continue_label" \
-            "Start device code login" \
-            "Back"
-
-        case "$menu_result" in
-            "__back__"|2)
-                set_step_back
-                return 0
-                ;;
-            0)
-                set_step_next
-                return 0
-                ;;
-            1)
-                show_header "GitHub device login" "This step is optional and can be skipped."
-                printf 'Abora will show a one-time device code in this installer.\n'
-                printf '\n'
-                printf 'Then you can finish the login from your phone or another computer at:\n'
-                printf '  github.com/login/device\n'
-                printf '\n'
-                printf 'If login succeeds, the GitHub auth config will be copied into the installed user account.\n'
-                printf 'If you do not want this, go back and skip the GitHub step.\n'
-                printf '\n'
-                pause_prompt
-                clear_screen
-                GH_ACCESSIBLE_PROMPTER=enabled \
-                GH_SPINNER_DISABLED=yes \
-                GH_BROWSER=/run/current-system/sw/bin/echo \
-                gh auth login --web --hostname github.com --git-protocol https || true
-                refresh_github_identity
-                if [[ "$github_identity" == "Skipped" ]]; then
-                    error_msg "GitHub device login did not complete. You can skip it or try again."
-                    pause_prompt
-                else
-                    success "$github_identity"
-                    pause_prompt
-                    set_step_next
-                    return 0
-                fi
-                ;;
-        esac
-    done
-}
-
-pick_desktop_environment() {
-    local labels=(
-        "GNOME          - polished, simple, modern"
-        "KDE Plasma     - flexible and feature-rich"
-        "Hyprland       - Wayland tiling compositor"
-        "Sway           - lightweight Wayland tiling"
-        "Niri           - scrollable Wayland tiling"
-        "River          - Wayland dynamic tiling"
-        "XFCE           - fast and familiar"
-        "Cinnamon       - traditional with modern polish"
-        "MATE           - classic GNOME 2 desktop"
-        "Budgie         - clean and focused"
-        "LXQt           - lightweight Qt desktop"
-        "Pantheon       - elementary OS look and feel"
-        "LXDE           - minimal traditional desktop"
-        "Enlightenment  - unique EFL-based desktop"
-        "i3             - keyboard-driven tiling"
-        "AwesomeWM      - highly configurable tiling"
-        "Openbox        - very minimal floating WM"
-        "Qtile          - Python-configured tiling"
-        "BSPWM          - binary space partitioning"
-        "Fluxbox        - fast and lightweight"
-        "IceWM          - very lightweight, retro feel"
-        "Herbstluftwm   - manual tiling WM"
-        "Back"
-    )
-    local values=(
-        "gnome"
-        "plasma"
-        "hyprland"
-        "sway"
-        "niri"
-        "river"
-        "xfce"
-        "cinnamon"
-        "mate"
-        "budgie"
-        "lxqt"
-        "pantheon"
-        "enlightenment"
-        "i3"
-        "awesome"
-        "openbox"
-        "qtile"
-        "bspwm"
-        "fluxbox"
-        "icewm"
-        "herbstluftwm"
-    )
-
-    menu_choose "Select desktop environment" "${labels[@]}"
-    if [[ "$menu_result" == "__back__" || "$menu_result" == "${#values[@]}" ]]; then
-        set_step_back
-        return 0
-    fi
-    desktop_profile="${values[$menu_result]}"
-    abora_sync_desktop_label "$desktop_profile"
-    set_step_next
-}
-
-collect_disks() {
-    lsblk -dn -e 7,11 -o NAME,SIZE,MODEL,TYPE | awk '
-        $NF == "disk" {
-            if ($1 ~ /^(fd|loop|ram|sr|zram)/) {
-                next
-            }
-            model = ""
-            for (i = 3; i < NF; i++) {
-                model = model (model ? " " : "") $i
-            }
-            if (model == "") {
-                model = "Unknown model"
-            }
-            print $1 "|" $2 "|" model
-        }
-    '
-}
-
-prompt_disk() {
-    local entries=()
-    local labels=()
-    local paths=()
-    local choice=""
-    local name=""
-    local size=""
-    local model=""
-    local entry=""
-
-    mapfile -t entries < <(collect_disks)
-    if [[ "${#entries[@]}" -eq 0 ]]; then
-        show_header "Select install target" "No installable disks were found."
-        printf '%bNo disks are visible to the installer right now.%b\n' "$RED" "$NC"
-        printf '\n'
-        menu_choose "Choose what to do next" "Rescan disks" "Back"
-        if [[ "$menu_result" == "__back__" || "$menu_result" == "1" ]]; then
-            set_step_back
-            return 0
-        fi
-        set_step_stay
-        return 0
-    fi
-
-    for entry in "${entries[@]}"; do
-        IFS='|' read -r name size model <<<"$entry"
-        labels+=( "/dev/${name}  ${size}  ${model}" )
-        paths+=( "/dev/${name}" )
-    done
-    labels+=( "Back" )
-
-    menu_choose "Select install target" "${labels[@]}"
-    if [[ "$menu_result" == "__back__" || "$menu_result" == "${#paths[@]}" ]]; then
-        set_step_back
-        return 0
-    fi
-    disk="${paths[$menu_result]}"
-    set_step_next
-}
-
-prompt_hostname() {
-    local input=""
-
-    while true; do
-        prompt_input "Choose a hostname" "$hostname_value"
-        input="$prompt_result"
-        if [[ "$input" == "__back__" ]]; then
-            set_step_back
-            return 0
-        fi
-        if [[ "$input" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]]; then
-            hostname_value="$input"
-            set_step_next
-            return
-        fi
-
-        error_msg "Hostname must use letters, numbers, or hyphens."
-        pause_prompt
-    done
-}
-
-prompt_username() {
-    local input=""
-
-    while true; do
-        prompt_input "Choose a username" "$username_value"
-        input="$prompt_result"
-        if [[ "$input" == "__back__" ]]; then
-            set_step_back
-            return 0
-        fi
-        if [[ "$input" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
-            username_value="$input"
-            set_step_next
-            return
-        fi
-
-        error_msg "Username must start with a lowercase letter or underscore."
-        pause_prompt
-    done
-}
-
-prompt_timezone() {
-    local input=""
-    local query=""
-    local zoneinfo_matches=()
-
-    menu_choose \
-        "Choose timezone method" \
-        "Search for a timezone" \
-        "Enter timezone directly" \
-        "Back"
-
-    if [[ "$menu_result" == "__back__" || "$menu_result" == "2" ]]; then
-        set_step_back
-        return 0
-    fi
-
-    if [[ "$menu_result" == "0" ]]; then
-        while true; do
-            prompt_input "Search timezone" "$timezone_value"
-            query="$prompt_result"
-            if [[ "$query" == "__back__" ]]; then
-                set_step_back
-                return 0
+            # warn if selected disk is live disk
+            local cur_disk="${paths[$sel]}"
+            local root_parent; root_parent="$(lsblk -no pkname "$(findmnt -n -o SOURCE /)" 2>/dev/null || true)"
+            if [[ -n "$root_parent" && "$cur_disk" == "/dev/${root_parent}" ]]; then
+                _status "⚠  This looks like your live USB — erasing it will destroy the installer!" "$Y"
+            else
+                _status "All data on ${cur_disk} will be erased." "$GY"
             fi
-            mapfile -t zoneinfo_matches < <(collect_timezones | grep -Fi -- "${query:-UTC}" | head -n 30)
+            _actions "Back" "Select"
 
-            if [[ "${#zoneinfo_matches[@]}" -eq 0 ]]; then
-                error_msg "No timezones matched. Try UTC, America, Europe, or Etc."
-                pause_prompt
-                continue
-            fi
-
-            zoneinfo_matches+=( "Back" )
-            menu_choose "Select timezone" "${zoneinfo_matches[@]}"
-            if [[ "$menu_result" == "__back__" || "$menu_result" == "$((${#zoneinfo_matches[@]} - 1))" ]]; then
-                continue
-            fi
-            timezone_value="${zoneinfo_matches[$menu_result]}"
-            set_step_next
-            return 0
+            read_key
+            case "$KEY_NAME" in
+                UP)    (( sel > 0 )) && (( sel-- )) || true ;;
+                DOWN)  (( sel < ${#paths[@]} - 1 )) && (( sel++ )) || true ;;
+                CHAR)  [[ "${KEY_CHAR,,}" == "r" ]] && break ;;
+                ENTER|RIGHT)
+                    disk="${paths[$sel]}"
+                    _mark_done "disk"
+                    return "next"
+                    ;;
+                ESC|BACKSPACE) return "back" ;;
+            esac
         done
-    fi
-
-    while true; do
-        prompt_input "Enter timezone directly" "$timezone_value"
-        input="${prompt_result:-$timezone_value}"
-        if [[ "$input" == "__back__" ]]; then
-            set_step_back
-            return 0
-        fi
-
-        if timezone_exists "$input"; then
-            timezone_value="$input"
-            set_step_next
-            return 0
-        fi
-
-        error_msg "Timezone not found. Try UTC, Etc/UTC, or use search."
-        pause_prompt
     done
 }
 
-prompt_password() {
-    local first=""
-    local second=""
+# ── Step: Confirm ─────────────────────────────────────────────────────────────
+step_confirm() {
+    _chrome "confirm"
+    _content_title "Ready to Install" "Review your choices. The disk will be wiped."
+
+    local r=5
+    local lw=14
+    local cw=$(( CT_W - lw - 4 ))
+
+    _box $(( CT_R + r - 1 )) "$CT_C" 12 $(( CT_W - 1 ))
+    (( r++ )) || true
+
+    _cat $r 2 "${GY}$(printf '%-*s' "$lw" 'Disk')${NC}${W}${disk}${NC}"         ; (( r++ )) || true
+    _cat $r 2 "${GY}$(printf '%-*s' "$lw" 'Desktop')${NC}${W}${desktop_label}${NC}"; (( r++ )) || true
+    _cat $r 2 "${GY}$(printf '%-*s' "$lw" 'Username')${NC}${W}${username_value}${NC}"; (( r++ )) || true
+    _cat $r 2 "${GY}$(printf '%-*s' "$lw" 'Hostname')${NC}${W}${hostname_value}${NC}"; (( r++ )) || true
+    _cat $r 2 "${GY}$(printf '%-*s' "$lw" 'Timezone')${NC}${W}${timezone_value}${NC}"; (( r++ )) || true
+    _cat $r 2 "${GY}$(printf '%-*s' "$lw" 'Keyboard')${NC}${W}${keyboard_value}${NC}"; (( r++ )) || true
+    _cat $r 2 "${GY}$(printf '%-*s' "$lw" 'ANIX')${NC}${W}${anix_enabled}${NC}"; (( r++ )) || true
+    _cat $r 2 "${GY}$(printf '%-*s' "$lw" 'Apps')${NC}${W}${starter_apps_label}${NC}"; (( r++ )) || true
+    _cat $r 2 "${GY}$(printf '%-*s' "$lw" 'GitHub')${NC}${W}${github_identity}${NC}"; (( r++ )) || true
+
+    (( r++ )) || true
+    _cat $r 1 "${RD}  ⚠  All data on ${disk} will be permanently erased.${NC}"
+
+    _actions "Back" "Install Now"
 
     while true; do
-        show_header "Set password" "Choose a password for ${username_value}. Type /back to return."
-
-        read -r -s -p "Password: " first
-        printf '\n'
-        if [[ "$first" == "/back" ]]; then
-            set_step_back
-            return 0
-        fi
-        read -r -s -p "Confirm password: " second
-        printf '\n'
-
-        if [[ -z "$first" ]]; then
-            error_msg "Password cannot be empty."
-            pause_prompt
-            continue
-        fi
-
-        if [[ "$first" != "$second" ]]; then
-            error_msg "Passwords did not match."
-            pause_prompt
-            continue
-        fi
-
-        if command -v mkpasswd >/dev/null 2>&1; then
-            user_password_hash="$(mkpasswd -m yescrypt "$first")"
-        elif command -v openssl >/dev/null 2>&1; then
-            user_password_hash="$(printf '%s' "$first" | openssl passwd -6 -stdin)"
-        else
-            error_msg "A password hashing tool is missing. Install mkpasswd or openssl."
-            pause_prompt
-            continue
-        fi
-
-        unset first second
-        set_step_next
-        return
+        read_key
+        case "$KEY_NAME" in
+            ENTER|RIGHT) return "install" ;;
+            ESC|BACKSPACE) return "back" ;;
+        esac
     done
 }
 
-confirm_install() {
-    local inner=42
-
-    show_header "Ready to install" "Review your choices before the disk is wiped."
-
-    printf '%b┌' "$BLUE"
-    repeat_char '─' $((inner + 2))
-    printf '┐%b\n' "$NC"
-
-    printf '%b│%b  %-*s %b│%b\n' "$BLUE" "$WHITE" "$inner" "Install Summary" "$BLUE" "$NC"
-
-    printf '%b├' "$BLUE"
-    repeat_char '─' $((inner + 2))
-    printf '┤%b\n' "$NC"
-
-    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Disk:"      "$CYAN" $((inner - 14)) "$(trunc "$disk" $((inner - 14)))"      "$NC" "$BLUE" "$NC"
-    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Desktop:"   "$CYAN" $((inner - 14)) "$(trunc "$desktop_label" $((inner - 14)))"   "$NC" "$BLUE" "$NC"
-    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Apps:"      "$CYAN" $((inner - 14)) "$(trunc "$starter_apps_label" $((inner - 14)))"      "$NC" "$BLUE" "$NC"
-    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "GitHub:"    "$CYAN" $((inner - 14)) "$(trunc "$github_identity" $((inner - 14)))"    "$NC" "$BLUE" "$NC"
-    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Hostname:"  "$CYAN" $((inner - 14)) "$(trunc "$hostname_value" $((inner - 14)))"  "$NC" "$BLUE" "$NC"
-    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "User:"      "$CYAN" $((inner - 14)) "$(trunc "$username_value" $((inner - 14)))"      "$NC" "$BLUE" "$NC"
-    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Timezone:"  "$CYAN" $((inner - 14)) "$(trunc "$timezone_value" $((inner - 14)))"  "$NC" "$BLUE" "$NC"
-    printf '%b│%b  %-12s %b%-*s%b %b│%b\n' "$BLUE" "$NC" "Keyboard:"  "$CYAN" $((inner - 14)) "$(trunc "$keyboard_value" $((inner - 14)))"  "$NC" "$BLUE" "$NC"
-
-    printf '%b└' "$BLUE"
-    repeat_char '─' $((inner + 2))
-    printf '┘%b\n' "$NC"
-
-    printf '\n'
-    preflight_warnings_text
-    printf '%bDisk layout that will be created:%b\n' "$WHITE" "$NC"
-    printf '  1 MiB BIOS boot  +  512 MiB EFI  +  ext4 root (remaining space)\n'
-    printf '\n'
-    printf '%bThe selected disk will be completely erased.%b\n' "$RED" "$NC"
-    printf '\n'
-
-    menu_choose "Continue with installation?" "Install now" "Back" "Cancel"
-    case "$menu_result" in
-        "__back__"|1)
-            set_step_back
-            ;;
-        2)
-            set_step_cancel
-            ;;
-        *)
-            set_step_install
-            ;;
-    esac
-}
-
-disk_part_suffix() {
-    case "$disk" in
-        *nvme*|*mmcblk*|*loop*)
-            printf 'p'
-            ;;
-        *)
-            printf ''
-            ;;
-    esac
-}
-
-partition_disk() {
-    local suffix=""
-
-    info "Partitioning ${disk}"
-    umount -R /mnt 2>/dev/null || true
-    wipefs -af "$disk" >/dev/null \
-        || { error_msg "Failed to wipe ${disk}. Check if disk is locked or in use."; return 1; }
-    parted -s "$disk" mklabel gpt \
-        || { error_msg "Failed to create partition table on ${disk}."; return 1; }
-    parted -s "$disk" unit MiB mkpart BIOSBOOT 1 3
-    parted -s "$disk" set 1 bios_grub on
-    parted -s "$disk" unit MiB mkpart ESP fat32 3 515
-    parted -s "$disk" set 2 esp on
-    parted -s "$disk" unit MiB mkpart primary ext4 515 100%
-    partprobe "$disk"
-    udevadm settle
-
-    suffix="$(disk_part_suffix)"
-    efi_part="${disk}${suffix}2"
-    root_part="${disk}${suffix}3"
-
-    mkfs.vfat -F 32 -n ABORA_EFI "$efi_part" >/dev/null \
-        || { error_msg "Failed to format EFI partition ${efi_part}."; return 1; }
-    mkfs.ext4 -F -L ABORA_ROOT "$root_part" >/dev/null \
-        || { error_msg "Failed to format root partition ${root_part}."; return 1; }
-    success "Disk prepared"
-}
-
-mount_target() {
-    info "Mounting target filesystem"
-    mkdir -p /mnt
-    mount "$root_part" /mnt \
-        || { error_msg "Failed to mount root partition ${root_part}. Disk may need repartitioning."; return 1; }
-    mkdir -p /mnt/boot
-    mount "$efi_part" /mnt/boot \
-        || { error_msg "Failed to mount EFI partition ${efi_part}."; return 1; }
-    success "Target mounted at /mnt"
-}
-
-desktop_config_block() {
-    abora_desktop_config_block "$desktop_profile" "$xkb_layout_value" "$username_value"
-}
-
-desktop_package_block() {
-    abora_desktop_package_block "$desktop_profile"
-}
-
-_cp_required() {
-    local src="$1" dst="$2"
-    if [[ ! -f "$src" ]]; then
-        error_msg "Required file missing from live ISO: ${src}"
-        return 1
-    fi
-    cp "$src" "$dst"
-}
-
-write_branding_assets() {
-    local live_background="/etc/abora/bootloader/background.png"
-    local live_limine_background="/etc/abora/bootloader/limine-background.png"
-    local live_theme="/etc/abora/bootloader/theme.txt"
-    local limine_source=""
-
-    mkdir -p /mnt/etc/nixos/abora/plymouth /mnt/etc/nixos/abora/bootloader /mnt/etc/nixos/abora/wallpapers /mnt/etc/nixos/abora/themes /mnt/etc/nixos/abora/effects
-    _cp_required "$title_file"                        /mnt/etc/nixos/abora/title.txt
-    _cp_required /etc/abora/VERSION                   /mnt/etc/nixos/abora/VERSION
-    _cp_required /etc/abora/abora.sh                  /mnt/etc/nixos/abora/abora.sh
-    _cp_required /etc/abora/ui.sh                     /mnt/etc/nixos/abora/ui.sh
-    _cp_required /etc/abora/config.sh                 /mnt/etc/nixos/abora/config.sh
-    _cp_required /etc/abora/desktop.sh                /mnt/etc/nixos/abora/desktop.sh
-    _cp_required /etc/abora/doctor.sh                 /mnt/etc/nixos/abora/doctor.sh
-    _cp_required /etc/abora/recovery.sh               /mnt/etc/nixos/abora/recovery.sh
-    _cp_required /etc/abora/welcome.sh                /mnt/etc/nixos/abora/welcome.sh
-    _cp_required /etc/abora/app-catalog.sh            /mnt/etc/nixos/abora/app-catalog.sh
-    _cp_required /etc/abora/apps.sh                   /mnt/etc/nixos/abora/apps.sh
-    _cp_required /etc/abora/support-report.sh         /mnt/etc/nixos/abora/support-report.sh
-    _cp_required /etc/abora/hardware-test.sh          /mnt/etc/nixos/abora/hardware-test.sh
-    _cp_required /etc/abora/default-wallpaper.png     /mnt/etc/nixos/abora/default-wallpaper.png
-    _cp_required /etc/abora/fastfetch-logo.txt        /mnt/etc/nixos/abora/fastfetch-logo.txt
-    _cp_required /etc/abora/fastfetch-config.jsonc    /mnt/etc/nixos/abora/fastfetch-config.jsonc
-    _cp_required /etc/abora/desktop-profiles.sh       /mnt/etc/nixos/abora/desktop-profiles.sh
-    _cp_required /etc/abora/installed-base.nix        /mnt/etc/nixos/abora/installed-base.nix
-    _cp_required /etc/abora/session-setup.sh          /mnt/etc/nixos/abora/session-setup.sh
-    _cp_required /etc/abora/theme-sync.sh             /mnt/etc/nixos/abora/theme-sync.sh
-    _cp_required /etc/abora/update.sh                 /mnt/etc/nixos/abora/update.sh
-    [[ -f /etc/abora/effects/v3StartingAbora.mp3 ]] && cp /etc/abora/effects/v3StartingAbora.mp3 /mnt/etc/nixos/abora/effects/v3StartingAbora.mp3 || true
-    _cp_required /etc/abora/plymouth/abora.plymouth   /mnt/etc/nixos/abora/plymouth/abora.plymouth
-    _cp_required /etc/abora/plymouth/abora.script     /mnt/etc/nixos/abora/plymouth/abora.script
-    if [[ ! -f "$live_background" ]]; then
-        show_failure_screen \
-            "Missing boot assets" \
-            "The live image is missing the bootloader background needed for install." \
-            "$config_log"
-        return 1
-    fi
-    if [[ ! -f "$live_theme" ]]; then
-        show_failure_screen \
-            "Missing boot assets" \
-            "The live image is missing the GRUB theme file needed for install." \
-            "$config_log"
-        return 1
-    fi
-
-    limine_source="$live_background"
-    if [[ -f "$live_limine_background" ]]; then
-        limine_source="$live_limine_background"
-    fi
-
-    install -Dm0644 "$live_background" /mnt/etc/nixos/abora/bootloader/background.png
-    install -Dm0644 "$limine_source" /mnt/etc/nixos/abora/bootloader/limine-background.png
-    install -Dm0644 "$live_theme" /mnt/etc/nixos/abora/bootloader/theme.txt
-
-    if [[ ! -f /mnt/etc/nixos/abora/bootloader/background.png || ! -f /mnt/etc/nixos/abora/bootloader/limine-background.png || ! -f /mnt/etc/nixos/abora/bootloader/theme.txt ]]; then
-        show_failure_screen \
-            "Missing boot assets" \
-            "The installer could not write the bootloader assets onto the target system." \
-            "$config_log"
-        return 1
-    fi
-
-    # Use find to avoid glob-expansion failures on empty directories
-    find /etc/abora/wallpapers -maxdepth 1 -type f \
-        -exec cp {} /mnt/etc/nixos/abora/wallpapers/ \; 2>/dev/null || true
-    find /etc/abora/themes -maxdepth 1 -type f \
-        -exec cp {} /mnt/etc/nixos/abora/themes/ \; 2>/dev/null || true
-    mkdir -p /mnt/etc/nixos/abora
-    : > /mnt/etc/nixos/abora/apps.list
-    cat > /mnt/etc/nixos/abora/apps.nix <<'EOF'
-{ pkgs, ... }:
-{
-  environment.systemPackages = with pkgs; [
-  ];
-}
-EOF
-    write_starter_apps_list /mnt/etc/nixos/abora/apps.list
-    render_apps_module_file /mnt/etc/nixos/abora/apps.nix /mnt/etc/nixos/abora/apps.list
-
-    if [[ ! -s /mnt/etc/nixos/abora/apps.nix ]]; then
-        show_failure_screen \
-            "Missing app module" \
-            "The installer could not create the Abora app module on the target system." \
-            "$config_log"
-        return 1
-    fi
-}
-
-write_starter_apps_list() {
-    local target_file="$1"
-
-    : > "$target_file"
-
-    if [[ "${starter_apps_bundle,,}" == "none" ]]; then
-        return 0
-    fi
-
-    abora_catalog_bundle_ids "$starter_apps_bundle" > "$target_file"
-}
-
-render_apps_module_file() {
-    local target_file="$1"
-    local app_list_file="$2"
-    local app_id=""
-    local app_expr=""
-
-    {
-        printf '{ pkgs, ... }:\n'
-        printf '{\n'
-        printf '  environment.systemPackages = with pkgs; [\n'
-        while IFS= read -r app_id; do
-            [[ -n "$app_id" ]] || continue
-            app_expr="$(abora_catalog_expr "$app_id" 2>/dev/null || true)"
-            [[ -n "$app_expr" ]] || continue
-            printf '    %s\n' "$app_expr"
-        done < "$app_list_file"
-        printf '  ];\n'
-        printf '}\n'
-    } > "$target_file"
-}
-
-copy_github_auth_to_target() {
-    local root_hosts="/root/.config/gh/hosts.yml"
-    local target_dir="/mnt/home/${username_value}/.config/gh"
-    local uid="1000"
-    local gid="100"
-
-    [[ -f "$root_hosts" ]] || return 0
-    [[ "$github_identity" != "Skipped" ]] || return 0
-
-    info "Copying GitHub login into the installed system"
-    mkdir -p "$target_dir"
-    cp "$root_hosts" "$target_dir/hosts.yml"
-    chmod 600 "$target_dir/hosts.yml"
-
-    if command -v nixos-enter >/dev/null 2>&1; then
-        uid="$(nixos-enter --root /mnt -c "id -u ${username_value}" 2>/dev/null || printf '1000')"
-        gid="$(nixos-enter --root /mnt -c "id -g ${username_value}" 2>/dev/null || printf '100')"
-    fi
-
-    chown -R "$uid:$gid" "/mnt/home/${username_value}/.config"
-    success "GitHub auth copied for ${username_value}"
-}
-
-write_install_assets() {
-    write_branding_assets
-
-    [[ -f /etc/abora/anix.sh ]]        && cp /etc/abora/anix.sh        /mnt/etc/nixos/abora/anix.sh        || true
-    [[ -f /etc/abora/anix-module.nix ]] && cp /etc/abora/anix-module.nix /mnt/etc/nixos/abora/anix-module.nix || true
-    [[ -f /etc/abora/abora-options.nix ]] && cp /etc/abora/abora-options.nix /mnt/etc/nixos/abora/abora-options.nix || true
-}
-
-ensure_target_install_files() {
-    mkdir -p /mnt/etc/nixos/abora
-
-    if [[ ! -f /mnt/etc/nixos/abora/apps.list ]]; then
-        : > /mnt/etc/nixos/abora/apps.list
-    fi
-
-    if [[ ! -f /mnt/etc/nixos/abora/apps.nix ]]; then
-        cat > /mnt/etc/nixos/abora/apps.nix <<'EOF'
-{ pkgs, ... }:
-{
-  environment.systemPackages = with pkgs; [
-  ];
-}
-EOF
-    fi
-
-    if [[ ! -s /mnt/etc/nixos/abora/apps.nix ]]; then
-        render_apps_module_file /mnt/etc/nixos/abora/apps.nix /mnt/etc/nixos/abora/apps.list
-    fi
-
-    if [[ ! -s /mnt/etc/nixos/abora/apps.nix ]]; then
-        error_msg "Target app module is missing: /mnt/etc/nixos/abora/apps.nix"
-        return 1
-    fi
-}
-
-generate_config() {
-    local desktop_block=""
-    local desktop_packages=""
-
-    info "Generating NixOS configuration"
-    info "Writing configuration log to ${config_log}"
-    printf '[*] Running nixos-generate-config --root /mnt\n' > "$config_log"
-    if ! nixos-generate-config --root /mnt >>"$config_log" 2>&1; then
-        show_failure_screen \
-            "Configuration failed" \
-            "Abora could not generate the base NixOS hardware config." \
-            "$config_log"
-        return 1
-    fi
-
-    write_install_assets
-    desktop_block="$(desktop_config_block)"
-    desktop_packages="$(desktop_package_block)"
-
-    if [[ -z "$user_password_hash" ]]; then
-        error_msg "Password hash is empty — go back and set a password before installing."
-        return 1
-    fi
-
-    if [[ -z "$desktop_block" ]]; then
-        error_msg "No desktop configuration found for '${desktop_profile}'. This is a bug — please report it."
-        return 1
-    fi
-
-    if [[ "$anix_enabled" == "yes" ]]; then
-        cat > /mnt/etc/nixos/anix.nix <<EOF
-# ANIX is the simple layer on top of Abora/NixOS.
-# Change the values below, save the file, then run: anix apply
-{ ... }:
-{
-  anix.enable = true;
-
-  # Your system name on the network.
-  anix.hostname = "${hostname_value}";
-
-  # Timezone example: America/New_York
-  anix.timezone = "${timezone_value}";
-
-  # Keyboard layouts for console and desktop sessions.
-  anix.keyboard.console = "${keyboard_value}";
-  anix.keyboard.xkb = "${xkb_layout_value}";
-
-  # Pick one desktop or use "none" for a console-only system.
-  anix.desktop = "${desktop_profile}";
-
-  # Wallpaper filename (Abora OS only).
-  anix.wallpaper = "${wallpaper_name}";
-}
-EOF
-    fi
-
-    cat > /mnt/etc/nixos/configuration.nix <<EOF
-{ lib, ... }:
-let
-  appModule = ./abora/apps.nix;
-in
-{
-  imports = [
-    ./hardware-configuration.nix
-    ./abora/installed-base.nix
-    ./abora-local.nix
-  ] ++ lib.optional (builtins.pathExists appModule) appModule;
-}
-EOF
-
-    cat > /mnt/etc/nixos/abora-local.nix <<EOF
-{ pkgs, lib, ... }:
-{
-  system.nixos.variantName = "Abora ${version} ${desktop_label} Edition";
-  system.nixos.variant_id = "${desktop_variant_id}";
-
-  boot.loader.grub.enable = lib.mkForce false;
-  boot.loader.limine = {
-    enable = true;
-    biosSupport = true;
-    biosDevice = "${disk}";
-    efiSupport = true;
-    efiInstallAsRemovable = true;
-  };
-
-  networking.hostName = "${hostname_value}";
-  time.timeZone = "${timezone_value}";
-  console.keyMap = "${keyboard_value}";
-
-${desktop_block}
-  users.users."${username_value}" = {
-    isNormalUser = true;
-    description = "Abora User";
-    createHome = true;
-    extraGroups = [ "wheel" "networkmanager" "audio" "video" ];
-    hashedPassword = "${user_password_hash}";
-  };
-
-  security.sudo.wheelNeedsPassword = true;
-
-  environment.systemPackages = with pkgs; [
-${desktop_packages}
-  ];
-
-  system.stateVersion = "26.05";
-}
-EOF
-
-    cat > /mnt/etc/nixos/flake.nix <<EOF
-{
-  description = "Abora installed system";
-
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-  };
-
-  outputs = { nixpkgs, ... }: {
-    nixosConfigurations.abora = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules =
-        let
-          lib       = nixpkgs.lib;
-          appModule  = ./abora/apps.nix;
-          anixModule = ./abora/anix-module.nix;
-          anixLayer  = ./anix.nix;
-        in
-        [
-          ./hardware-configuration.nix
-          ./abora/installed-base.nix
-          ./abora-local.nix
-        ] ++ lib.optional (builtins.pathExists appModule)  appModule
-          ++ lib.optional (builtins.pathExists anixModule) anixModule
-          ++ lib.optional (builtins.pathExists anixLayer)  anixLayer;
-    };
-  };
-}
-EOF
-    success "Configuration written"
-}
-
-install_system() {
-    local nixpkgs_path=""
-    local nix_path=""
-    local status=0
-    local install_pid=""
-    local start_time=0
-    local elapsed=0
-    local progress=45
-    local status_text=""
-
-    info "Installing Abora OS"
-    info "This usually takes 5-10 minutes depending on network speed."
-
-    # Require at least 15 GB free on the target to avoid out-of-space build failures
-    local free_kb
-    free_kb="$(df -k /mnt 2>/dev/null | awk 'NR==2{print $4}')"
-    if [[ -n "$free_kb" && "$free_kb" -lt 15728640 ]]; then
-        local free_gb
-        free_gb="$(( free_kb / 1024 / 1024 ))"
-        error_msg "Not enough disk space: ${free_gb} GB free, 15 GB required. Partition the disk with a larger root volume."
-        return 1
-    fi
-
-    ensure_target_install_files || return 1
-    nixpkgs_path="$(resolve_nixpkgs_path)" || {
-        error_msg "Could not locate nixpkgs for nixos-install."
-        return 1
+# ── Step: Install ─────────────────────────────────────────────────────────────
+step_install() {
+    _layout; _hide; _cls
+
+    # Full-screen install layout (no sidebar)
+    # Top bar
+    _at 1 1; printf "${B}╔%s╗${NC}" "$(printf '%*s' $((COLS-2)) | tr ' ' '═')"
+    _at 2 1; printf "${B}║${NC}${W}  ◈  INSTALLING ABORA OS${NC}"
+    local ipad=$(( COLS - 27 - ${#version} - 3 ))
+    [[ $ipad -lt 0 ]] && ipad=0
+    printf '%*s' "$ipad"; printf "${GY}  %s  ${NC}" "$version"
+    printf "${B}║${NC}"
+    _at 3 1; printf "${B}╠%s╣${NC}" "$(printf '%*s' $((COLS-2)) | tr ' ' '═')"
+
+    # Phase panel (left) | Log panel (right)
+    local phase_w=28
+    local log_w=$(( COLS - phase_w - 3 ))
+    local panel_h=$(( ROWS - 5 ))
+    local panel_top=4
+
+    # outer borders
+    for (( pr = panel_top; pr < panel_top + panel_h; pr++ )); do
+        _at "$pr" 1; printf "${B}║${NC}"
+        _at "$pr" $(( phase_w + 2 )); printf "${B}║${NC}"
+        _at "$pr" "$COLS"; printf "${B}║${NC}"
+    done
+
+    # phase/log divider header
+    _at "$panel_top" 2; printf "${GY}  PHASES${NC}"
+    _at "$panel_top" $(( phase_w + 3 )); printf "${GY}  RECENT OUTPUT${NC}"
+
+    # bottom
+    _at $(( panel_top + panel_h )) 1
+    printf "${B}╠%s╩%s╣${NC}" \
+        "$(printf '%*s' "$phase_w" | tr ' ' '═')" \
+        "$(printf '%*s' "$log_w" | tr ' ' '═')"
+    _at $(( panel_top + panel_h + 1 )) 1
+    printf "${B}║${NC}  ${GY}Full log: /tmp/abora-install.log${NC}"
+    local fpad=$(( COLS - 38 - 2 ))
+    [[ $fpad -lt 0 ]] && fpad=0
+    printf '%*s' "$fpad"
+    printf "${B}║${NC}"
+    _at $(( panel_top + panel_h + 2 )) 1
+    printf "${B}╚%s╝${NC}" "$(printf '%*s' $((COLS-2)) | tr ' ' '═')"
+
+    # Phase list
+    local phases=("Partitioning disk" "Mounting filesystem" "Generating config" "Downloading packages" "Activating system" "Installing bootloader")
+    local phase_row=$(( panel_top + 2 ))
+    for ph in "${phases[@]}"; do
+        _at "$phase_row" 3; printf "${GY}  ·  %s${NC}" "$ph"; (( phase_row++ )) || true
+    done
+
+    # progress bar row
+    local pbar_row=$(( panel_top + panel_h - 3 ))
+    _at "$pbar_row" 2; printf "${GY}  Progress${NC}"
+    (( pbar_row++ )) || true
+
+    _update_phase() {
+        local idx="$1"   # 0-based
+        local phrow=$(( panel_top + 2 ))
+        for (( pi=0; pi<${#phases[@]}; pi++ )); do
+            _at "$phrow" 3
+            if [[ $pi -lt $idx ]]; then
+                printf "${BG}  ✓  %s${NC}" "${phases[$pi]}"
+            elif [[ $pi -eq $idx ]]; then
+                printf "${C}  →  %s${NC}" "${phases[$pi]}"
+            else
+                printf "${GY}  ·  %s${NC}" "${phases[$pi]}"
+            fi
+            (( phrow++ )) || true
+        done
     }
-    nix_path="nixpkgs=${nixpkgs_path}:nixos-config=/mnt/etc/nixos/configuration.nix"
-    info "Writing install log to ${install_log}"
-    printf '[*] Running nixos-install\n' > "$install_log"
-    printf '[*] NIX_PATH=%s\n' "$nix_path" >> "$install_log"
+
+    _update_log() {
+        local lf="$1"
+        [[ ! -f "$lf" ]] && return
+        local log_top=$(( panel_top + 2 ))
+        local log_rows=$(( panel_h - 4 ))
+        local lc=0
+        while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            [[ "$line" =~ ETA[[:space:]]|^[[:space:]]*[0-9]+\.[0-9]+\ (GiB|MiB|KiB) ]] && continue
+            local lr=$(( log_top + lc ))
+            [[ $lr -ge $(( log_top + log_rows )) ]] && break
+            _at "$lr" $(( phase_w + 4 ))
+            printf '%*s' "$log_w"
+            _at "$lr" $(( phase_w + 4 ))
+            printf "${GY}%s${NC}" "$(_trunc "$line" $(( log_w - 2 )))"
+            (( lc++ )) || true
+        done < <(tail -n "$log_rows" "$lf" 2>/dev/null | grep -v '^$' | tail -n "$log_rows")
+    }
+
+    _update_elapsed() {
+        local el="$1" pct="$2"
+        local m=$(( el / 60 )) s=$(( el % 60 ))
+        _at $(( pbar_row - 1 )) 2
+        printf "${GY}  Progress${NC}"
+        _pbar "$pbar_row" 3 $(( phase_w - 2 )) "$pct"
+        _at "$pbar_row" $(( 3 + phase_w - 10 ))
+        printf "${W} %3d%%${NC}" "$pct"
+        _at $(( pbar_row + 1 )) 3
+        printf "${GY}Elapsed: %02dm %02ds${NC}" "$m" "$s"
+    }
+
+    # ── Run the actual install ────────────────────────────────────────────────
+    local start_ts; start_ts="$(date +%s)"
+
+    # Phase 0: Partition
+    _update_phase 0
+    _update_elapsed 0 5
+    partition_disk || {
+        _at $(( panel_top + panel_h - 1 )) 2
+        printf "${RD}  Partitioning failed. Press Enter.${NC}"
+        _show; read -r; return "fail"
+    }
+
+    # Phase 1: Mount
+    _update_phase 1
+    _update_elapsed 5 10
+    mount_target || {
+        _at $(( panel_top + panel_h - 1 )) 2
+        printf "${RD}  Mount failed. Press Enter.${NC}"
+        _show; read -r; return "fail"
+    }
+
+    # Phase 2: Generate config
+    _update_phase 2
+    _update_elapsed 10 18
+    generate_config || {
+        _at $(( panel_top + panel_h - 1 )) 2
+        printf "${RD}  Config generation failed. Press Enter.${NC}"
+        _show; read -r; return "fail"
+    }
+
+    # Phase 3-5: nixos-install (covers download, activate, bootloader)
+    _update_phase 3
+    printf '[*] Starting nixos-install\n' > "$install_log"
+
+    local nixpkgs_path
+    nixpkgs_path="$(resolve_nixpkgs_path)" || {
+        _at $(( panel_top + panel_h - 1 )) 2
+        printf "${RD}  Cannot locate nixpkgs. Press Enter.${NC}"
+        _show; read -r; return "fail"
+    }
+    local nix_path="nixpkgs=${nixpkgs_path}:nixos-config=/mnt/etc/nixos/configuration.nix"
 
     NIX_PATH="$nix_path" timeout 900 nixos-install \
         --root /mnt \
@@ -2087,90 +1313,327 @@ install_system() {
         -I "nixpkgs=${nixpkgs_path}" \
         -I "nixos-config=/mnt/etc/nixos/configuration.nix" \
         >>"$install_log" 2>&1 &
-    install_pid="$!"
-    start_time="$(date +%s)"
-    local last_log_size=0
-    local last_log_change_time="$start_time"
-    local stale_warn=0
+    local install_pid="$!"
 
     while kill -0 "$install_pid" 2>/dev/null; do
-        elapsed=$(( $(date +%s) - start_time ))
-        progress="$(install_progress_percent "$install_log" "$elapsed")"
-        status_text="$(install_status_summary "$install_log" "$elapsed")"
+        local elapsed=$(( $(date +%s) - start_ts ))
+        local pct=18
+        local cur_phase=3
 
-        # Detect log staleness: if no new output for 5 min after build completed, warn
-        local cur_log_size=0
-        [[ -f "$install_log" ]] && cur_log_size="$(wc -c < "$install_log" 2>/dev/null || printf '0')"
-        if [[ "$cur_log_size" -ne "$last_log_size" ]]; then
-            last_log_size="$cur_log_size"
-            last_log_change_time="$(date +%s)"
-            stale_warn=0
-        else
-            local stale_for=$(( $(date +%s) - last_log_change_time ))
-            # After build is done (symlinks created), warn if no new log for 5 min
-            if [[ "$stale_for" -gt 300 ]] && grep -qi 'symlinks in user environment' "$install_log" 2>/dev/null; then
-                stale_warn=1
-            fi
+        if grep -qi 'installing the boot loader' "$install_log" 2>/dev/null; then
+            cur_phase=5; pct=93
+        elif grep -qi 'setting up /etc\|activating the configuration\|running activation' "$install_log" 2>/dev/null; then
+            cur_phase=4; pct=88
+        elif grep -qi 'created.*symlinks in user environment' "$install_log" 2>/dev/null; then
+            cur_phase=4; pct=82
+        elif grep -qi "copying path '/nix/store" "$install_log" 2>/dev/null; then
+            cur_phase=3; pct=70
+        elif grep -qi 'building the configuration' "$install_log" 2>/dev/null; then
+            cur_phase=3; pct=60
         fi
 
-        if [[ "$stale_warn" -eq 1 ]]; then
-            status_text="Bootloader install (may take a few minutes)"
-        fi
+        # let time push pct up within current phase band, cap at 99
+        local time_bonus=$(( elapsed / 8 ))
+        pct=$(( pct + time_bonus ))
+        [[ $pct -gt 99 ]] && pct=99
 
-        show_install_progress_screen "$progress" "$status_text" "$elapsed" "$install_log"
+        _update_phase "$cur_phase"
+        _update_log "$install_log"
+        _update_elapsed "$elapsed" "$pct"
         sleep 1
     done
 
     if wait "$install_pid"; then
-        elapsed=$(( $(date +%s) - start_time ))
-        show_install_progress_screen 100 "Installation complete" "$elapsed" "$install_log"
-        success "Installation complete"
-        return 0
+        local elapsed=$(( $(date +%s) - start_ts ))
+        _update_phase 6
+        _update_elapsed "$elapsed" 100
+        _update_log "$install_log"
+        copy_github_auth_to_target
+        cleanup_target
+        return "done"
     else
-        status="$?"
-        printf '\n[x] nixos-install exited with status %s\n' "$status" >> "$install_log"
-        if [[ -x /etc/abora/support-report.sh ]]; then
-            /etc/abora/support-report.sh >/tmp/abora-last-support-report.txt 2>/dev/null || true
-        fi
-        show_failure_screen \
-            "Installation failed" \
-            "Abora could not finish writing the system." \
-            "$install_log"
-        return 1
+        printf '\n[x] nixos-install failed\n' >> "$install_log"
+        # show first error
+        local first_err; first_err="$(grep -m1 '^error:' "$install_log" 2>/dev/null || true)"
+        _at $(( panel_top + panel_h - 1 )) 2
+        printf "${RD}  Failed: %s${NC}" "$(_trunc "${first_err:-see log}" $(( COLS - 14 )))"
+        _show; read -r
+        return "fail"
     fi
 }
 
-finish_screen() {
-    show_header "Install complete" "Your machine is ready for first boot."
+step_finish() {
+    _chrome ""
+    _content_title "Installation Complete" "Abora OS is ready."
 
-    printf '%b[ok] Abora OS %s is installed successfully.%b\n' "$GREEN" "$version" "$NC"
-    printf '\n'
-    draw_rule
-    printf '%b  Next steps%b\n' "$WHITE" "$NC"
-    draw_rule
-    printf '  1. Remove the installation media (USB drive or ISO).\n'
-    printf '  2. Reboot — your drive will be selected automatically.\n'
-    printf '  3. Log in as %b%s%b on the %b%s%b desktop.\n' \
-        "$CYAN" "$username_value" "$NC" "$CYAN" "$desktop_label" "$NC"
-    draw_rule
-    printf '\n'
+    local r=5
+    _cat $r 1 "${G}  ✓  Abora OS ${version} installed successfully.${NC}"; (( r+=3 )) || true
+    _cat $r 1 "${W}Next steps:${NC}"; (( r++ )) || true
+    _cat $r 3 "${C}1.${NC}  Remove the USB / installation media."; (( r++ )) || true
+    _cat $r 3 "${C}2.${NC}  Reboot — your disk will be selected automatically."; (( r++ )) || true
+    _cat $r 3 "${C}3.${NC}  Log in as ${W}${username_value}${NC} on the ${W}${desktop_label}${NC} desktop."
 
-    menu_choose "What would you like to do?" "Reboot into Abora OS" "Power off"
+    (( r+=3 )) || true
+    local opts=("Reboot into Abora OS" "Power off")
+    local sel=0
 
-    case "$menu_result" in
-        0)
-            sync
-            reboot
-            ;;
-        *)
-            sync
-            poweroff
-            ;;
+    while true; do
+        for (( i=0; i<${#opts[@]}; i++ )); do
+            local cr=$(( CT_R + r + i - 1 ))
+            _at "$cr" "$CT_C"
+            if [[ $i -eq $sel ]]; then
+                printf "${C}  ›  ${W}%s${NC}" "${opts[$i]}"
+            else
+                printf "     ${GY}%s${NC}" "${opts[$i]}"
+            fi
+        done
+
+        read_key
+        case "$KEY_NAME" in
+            UP)    (( sel > 0 )) && (( sel-- )) || true ;;
+            DOWN)  (( sel < 1 )) && (( sel++ )) || true ;;
+            ENTER)
+                sync
+                [[ $sel -eq 0 ]] && reboot || poweroff
+                sleep 10
+                exit 0
+                ;;
+        esac
+    done
+}
+
+# ════════════════════════════════════════════════════════════════════
+#  BACKEND  (all bug fixes from audit applied)
+# ════════════════════════════════════════════════════════════════════
+
+sync_starter_apps_label() {
+    case "${starter_apps_bundle,,}" in
+        none)       starter_apps_label="No starter apps" ;;
+        favorites)  starter_apps_label="Fan Favorites" ;;
+        essentials) starter_apps_label="Essentials" ;;
+        social)     starter_apps_label="Social" ;;
+        creator)    starter_apps_label="Creator" ;;
+        developer)  starter_apps_label="Developer" ;;
+        *)          starter_apps_label="Custom" ;;
     esac
+}
 
-    # Should not be reached — reboot/poweroff is async, give it time then exit
-    sleep 10
-    exit 0
+refresh_github_identity() {
+    command -v gh >/dev/null 2>&1 || { github_identity="GitHub CLI unavailable"; return 0; }
+    if gh auth status --hostname github.com >/dev/null 2>&1; then
+        local login; login="$(gh api user --jq '.login' 2>/dev/null || true)"
+        github_identity="${login:+Signed in as ${login}}"
+        [[ -z "$github_identity" ]] && github_identity="Signed in"
+    else
+        github_identity="Skipped"
+    fi
+}
+
+auto_detect_timezone() {
+    local d; d="$(timedatectl show --property=Timezone --value 2>/dev/null || true)"
+    [[ -n "$d" ]] && timezone_value="$d"
+}
+
+auto_detect_keyboard() {
+    local d; d="$(localectl status 2>/dev/null | awk '/VC Keymap:/ { print $3 }' || true)"
+    [[ "$d" =~ ^[a-z][a-z0-9_-]*$ ]] && keyboard_value="$d" && sync_xkb_layout
+}
+
+require_root() {
+    [[ "${EUID:-$(id -u)}" -eq 0 ]] || { printf 'Run as root.\n' >&2; exit 1; }
+}
+
+resolve_nixpkgs_path() {
+    for candidate in \
+        "${ABORA_NIXPKGS_PATH:-}" \
+        /etc/abora/nixpkgs \
+        /etc/nix/path/nixpkgs \
+        "$(nix eval --raw 2>/dev/null --extra-experimental-features 'nix-command flakes' \
+            '(builtins.getFlake "path:/etc/nixos").inputs.nixpkgs.outPath' 2>/dev/null || true)" \
+        "$(nix eval --raw nixpkgs#path 2>/dev/null || true)" \
+        "$(nix-instantiate --eval -E '<nixpkgs>' 2>/dev/null || true)"; do
+        [[ -n "$candidate" && -d "$candidate" ]] && { printf '%s' "$candidate"; return 0; }
+    done
+    return 1
+}
+
+collect_disks() {
+    lsblk -dn -e 7,11 -o NAME,SIZE,MODEL,TYPE | awk '
+        $NF == "disk" {
+            if ($1 ~ /^(fd|loop|ram|sr|zram)/) next
+            model = ""
+            for (i = 3; i < NF; i++) model = model (model ? " " : "") $i
+            if (model == "") model = "Unknown model"
+            print $1 "|" $2 "|" model
+        }'
+}
+
+sync_xkb_layout() {
+    case "$keyboard_value" in
+        us) xkb_layout_value="us" ;;
+        uk) xkb_layout_value="gb" ;;
+        de) xkb_layout_value="de" ;;
+        fr) xkb_layout_value="fr" ;;
+        es) xkb_layout_value="es" ;;
+        it) xkb_layout_value="it" ;;
+        pt) xkb_layout_value="pt" ;;
+        ru) xkb_layout_value="ru" ;;
+        *)  xkb_layout_value="$keyboard_value" ;;
+    esac
+}
+
+disk_part_suffix() {
+    case "$disk" in *nvme*|*mmcblk*|*loop*) printf 'p' ;; *) printf '' ;; esac
+}
+
+partition_disk() {
+    local suffix=""
+    umount -R /mnt 2>/dev/null || true
+    wipefs -af "$disk" >/dev/null \
+        || { printf 'Failed to wipe %s\n' "$disk" >&2; return 1; }
+    parted -s "$disk" mklabel gpt \
+        || { printf 'Failed to create partition table\n' >&2; return 1; }
+    parted -s "$disk" unit MiB mkpart BIOSBOOT  1    3
+    parted -s "$disk" set 1 bios_grub on
+    parted -s "$disk" unit MiB mkpart ESP fat32 3    515
+    parted -s "$disk" set 2 esp on
+    parted -s "$disk" unit MiB mkpart primary ext4 515 100%
+    partprobe "$disk"
+    udevadm settle
+    suffix="$(disk_part_suffix)"
+    efi_part="${disk}${suffix}2"
+    root_part="${disk}${suffix}3"
+    mkfs.vfat -F 32 -n ABORA_EFI  "$efi_part"  >/dev/null \
+        || { printf 'Failed to format EFI partition\n' >&2; return 1; }
+    mkfs.ext4 -F -L ABORA_ROOT    "$root_part" >/dev/null \
+        || { printf 'Failed to format root partition\n' >&2; return 1; }
+}
+
+mount_target() {
+    mkdir -p /mnt
+    mount "$root_part" /mnt \
+        || { printf 'Failed to mount %s\n' "$root_part" >&2; return 1; }
+    mkdir -p /mnt/boot
+    mount "$efi_part" /mnt/boot \
+        || { printf 'Failed to mount %s\n' "$efi_part" >&2; return 1; }
+}
+
+_cp_required() {
+    local src="$1" dst="$2"
+    [[ -f "$src" ]] || { printf 'Required file missing: %s\n' "$src" >&2; return 1; }
+    cp "$src" "$dst"
+}
+
+write_branding_assets() {
+    local live_bg="/etc/abora/bootloader/background.png"
+    local live_limine="/etc/abora/bootloader/limine-background.png"
+    local live_theme="/etc/abora/bootloader/theme.txt"
+
+    mkdir -p /mnt/etc/nixos/abora/plymouth \
+             /mnt/etc/nixos/abora/bootloader \
+             /mnt/etc/nixos/abora/wallpapers \
+             /mnt/etc/nixos/abora/themes \
+             /mnt/etc/nixos/abora/effects
+
+    _cp_required "$title_file"                     /mnt/etc/nixos/abora/title.txt
+    _cp_required /etc/abora/VERSION                /mnt/etc/nixos/abora/VERSION
+    _cp_required /etc/abora/abora.sh               /mnt/etc/nixos/abora/abora.sh
+    _cp_required /etc/abora/ui.sh                  /mnt/etc/nixos/abora/ui.sh
+    _cp_required /etc/abora/config.sh              /mnt/etc/nixos/abora/config.sh
+    _cp_required /etc/abora/desktop.sh             /mnt/etc/nixos/abora/desktop.sh
+    _cp_required /etc/abora/doctor.sh              /mnt/etc/nixos/abora/doctor.sh
+    _cp_required /etc/abora/recovery.sh            /mnt/etc/nixos/abora/recovery.sh
+    _cp_required /etc/abora/welcome.sh             /mnt/etc/nixos/abora/welcome.sh
+    _cp_required /etc/abora/app-catalog.sh         /mnt/etc/nixos/abora/app-catalog.sh
+    _cp_required /etc/abora/apps.sh                /mnt/etc/nixos/abora/apps.sh
+    _cp_required /etc/abora/support-report.sh      /mnt/etc/nixos/abora/support-report.sh
+    _cp_required /etc/abora/hardware-test.sh       /mnt/etc/nixos/abora/hardware-test.sh
+    _cp_required /etc/abora/default-wallpaper.png  /mnt/etc/nixos/abora/default-wallpaper.png
+    _cp_required /etc/abora/fastfetch-logo.txt     /mnt/etc/nixos/abora/fastfetch-logo.txt
+    _cp_required /etc/abora/fastfetch-config.jsonc /mnt/etc/nixos/abora/fastfetch-config.jsonc
+    _cp_required /etc/abora/desktop-profiles.sh    /mnt/etc/nixos/abora/desktop-profiles.sh
+    _cp_required /etc/abora/installed-base.nix     /mnt/etc/nixos/abora/installed-base.nix
+    _cp_required /etc/abora/session-setup.sh       /mnt/etc/nixos/abora/session-setup.sh
+    _cp_required /etc/abora/theme-sync.sh          /mnt/etc/nixos/abora/theme-sync.sh
+    _cp_required /etc/abora/update.sh              /mnt/etc/nixos/abora/update.sh
+    _cp_required /etc/abora/plymouth/abora.plymouth /mnt/etc/nixos/abora/plymouth/abora.plymouth
+    _cp_required /etc/abora/plymouth/abora.script   /mnt/etc/nixos/abora/plymouth/abora.script
+    [[ -f /etc/abora/effects/v3StartingAbora.mp3 ]] && \
+        cp /etc/abora/effects/v3StartingAbora.mp3 /mnt/etc/nixos/abora/effects/v3StartingAbora.mp3 || true
+
+    [[ -f "$live_bg" ]]    || { printf 'Missing bootloader background\n' >&2; return 1; }
+    [[ -f "$live_theme" ]] || { printf 'Missing bootloader theme\n' >&2; return 1; }
+    local limine_src="$live_bg"
+    [[ -f "$live_limine" ]] && limine_src="$live_limine"
+    install -Dm0644 "$live_bg"     /mnt/etc/nixos/abora/bootloader/background.png
+    install -Dm0644 "$limine_src"  /mnt/etc/nixos/abora/bootloader/limine-background.png
+    install -Dm0644 "$live_theme"  /mnt/etc/nixos/abora/bootloader/theme.txt
+
+    find /etc/abora/wallpapers -maxdepth 1 -type f \
+        -exec cp {} /mnt/etc/nixos/abora/wallpapers/ \; 2>/dev/null || true
+    find /etc/abora/themes     -maxdepth 1 -type f \
+        -exec cp {} /mnt/etc/nixos/abora/themes/ \;     2>/dev/null || true
+
+    mkdir -p /mnt/etc/nixos/abora
+    : > /mnt/etc/nixos/abora/apps.list
+    cat > /mnt/etc/nixos/abora/apps.nix <<'EOF'
+{ pkgs, ... }: { environment.systemPackages = with pkgs; []; }
+EOF
+    write_starter_apps_list  /mnt/etc/nixos/abora/apps.list
+    render_apps_module_file  /mnt/etc/nixos/abora/apps.nix /mnt/etc/nixos/abora/apps.list
+
+    [[ -s /mnt/etc/nixos/abora/apps.nix ]] || { printf 'App module empty\n' >&2; return 1; }
+}
+
+write_starter_apps_list() {
+    local target_file="$1"
+    : > "$target_file"
+    [[ "${starter_apps_bundle,,}" == "none" ]] && return 0
+    abora_list_bundle_apps "${starter_apps_bundle}" > "$target_file" 2>/dev/null || true
+}
+
+render_apps_module_file() {
+    local target_nix="$1" app_list="$2"
+    [[ -s "$app_list" ]] || return 0
+    {
+        printf '{ pkgs, ... }:\n{\n  environment.systemPackages = with pkgs; [\n'
+        while IFS= read -r app_expr; do
+            [[ -n "$app_expr" ]] && printf '    %s\n' "$app_expr"
+        done < "$app_list"
+        printf '  ];\n}\n'
+    } > "$target_nix"
+}
+
+write_install_assets() {
+    write_branding_assets
+    [[ -f /etc/abora/anix.sh         ]] && cp /etc/abora/anix.sh         /mnt/etc/nixos/abora/anix.sh         || true
+    [[ -f /etc/abora/anix-module.nix ]] && cp /etc/abora/anix-module.nix /mnt/etc/nixos/abora/anix-module.nix || true
+    [[ -f /etc/abora/abora-options.nix ]] && cp /etc/abora/abora-options.nix /mnt/etc/nixos/abora/abora-options.nix || true
+}
+
+ensure_target_install_files() {
+    mkdir -p /mnt/etc/nixos/abora
+    [[ -f /mnt/etc/nixos/abora/apps.list ]] || : > /mnt/etc/nixos/abora/apps.list
+    if [[ ! -f /mnt/etc/nixos/abora/apps.nix ]]; then
+        printf '{ pkgs, ... }: { environment.systemPackages = with pkgs; []; }\n' \
+            > /mnt/etc/nixos/abora/apps.nix
+    fi
+}
+
+copy_github_auth_to_target() {
+    local root_hosts="/root/.config/gh/hosts.yml"
+    [[ -f "$root_hosts" ]] || return 0
+    [[ "$github_identity" != "Skipped" ]] || return 0
+    local target_dir="/mnt/home/${username_value}/.config/gh"
+    mkdir -p "$target_dir"
+    cp "$root_hosts" "$target_dir/hosts.yml"
+    chmod 600 "$target_dir/hosts.yml"
+    local uid="1000" gid="100"
+    if command -v nixos-enter >/dev/null 2>&1; then
+        uid="$(nixos-enter --root /mnt -c "id -u ${username_value}" 2>/dev/null || printf '1000')"
+        gid="$(nixos-enter --root /mnt -c "id -g ${username_value}" 2>/dev/null || printf '100')"
+    fi
+    chown -R "${uid}:${gid}" "/mnt/home/${username_value}/.config"
 }
 
 cleanup_target() {
@@ -2178,88 +1641,176 @@ cleanup_target() {
     umount -R /mnt 2>/dev/null || true
 }
 
-main() {
-    local step=0
+generate_config() {
+    printf '[*] nixos-generate-config\n' > "$config_log"
+    nixos-generate-config --root /mnt >> "$config_log" 2>&1 \
+        || { printf 'nixos-generate-config failed\n' >&2; return 1; }
 
+    write_install_assets
+
+    local desktop_block; desktop_block="$(abora_desktop_config_block "$desktop_profile" "$xkb_layout_value" "$username_value")"
+    local desktop_packages; desktop_packages="$(abora_desktop_package_block "$desktop_profile")"
+
+    [[ -n "$user_password_hash" ]] || { printf 'Password hash empty\n' >&2; return 1; }
+    [[ -n "$desktop_block" ]]      || { printf 'Desktop block empty for: %s\n' "$desktop_profile" >&2; return 1; }
+
+    if [[ "$anix_enabled" == "yes" ]]; then
+        cat > /mnt/etc/nixos/anix.nix <<EOF
+{ ... }:
+{
+  anix.enable   = true;
+  anix.hostname = "${hostname_value}";
+  anix.timezone = "${timezone_value}";
+  anix.keyboard.console = "${keyboard_value}";
+  anix.keyboard.xkb     = "${xkb_layout_value}";
+  anix.desktop          = "${desktop_profile}";
+  anix.wallpaper        = "${wallpaper_name}";
+}
+EOF
+    fi
+
+    cat > /mnt/etc/nixos/configuration.nix <<EOF
+{ lib, ... }:
+let appModule = ./abora/apps.nix; in
+{
+  imports = [
+    ./hardware-configuration.nix
+    ./abora/installed-base.nix
+    ./abora-local.nix
+  ] ++ lib.optional (builtins.pathExists appModule) appModule;
+}
+EOF
+
+    cat > /mnt/etc/nixos/abora-local.nix <<EOF
+{ pkgs, lib, ... }:
+{
+  system.nixos.variantName = "Abora ${version} ${desktop_label} Edition";
+  system.nixos.variant_id  = "${desktop_variant_id}";
+
+  boot.loader.grub.enable = lib.mkForce false;
+  boot.loader.limine = {
+    enable                = true;
+    biosSupport           = true;
+    biosDevice            = "${disk}";
+    efiSupport            = true;
+    efiInstallAsRemovable = true;
+  };
+
+  networking.hostName = "${hostname_value}";
+  time.timeZone       = "${timezone_value}";
+  console.keyMap      = "${keyboard_value}";
+
+${desktop_block}
+
+  users.users."${username_value}" = {
+    isNormalUser    = true;
+    description     = "${username_value}";
+    createHome      = true;
+    shell           = pkgs.bash;
+    extraGroups     = [ "wheel" "networkmanager" "audio" "video" ];
+    hashedPassword  = "${user_password_hash}";
+  };
+
+  security.sudo.wheelNeedsPassword = true;
+
+  environment.systemPackages = with pkgs; [
+${desktop_packages}
+  ];
+
+  system.stateVersion = "26.05";
+}
+EOF
+
+    cat > /mnt/etc/nixos/flake.nix <<EOF
+{
+  description = "Abora installed system";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  outputs = { nixpkgs, ... }: {
+    nixosConfigurations.abora = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules =
+        let
+          lib       = nixpkgs.lib;
+          appModule  = ./abora/apps.nix;
+          anixModule = ./abora/anix-module.nix;
+          anixLayer  = ./anix.nix;
+        in [
+          ./hardware-configuration.nix
+          ./abora/installed-base.nix
+          ./abora-local.nix
+        ]
+        ++ lib.optional (builtins.pathExists appModule)  appModule
+        ++ lib.optional (builtins.pathExists anixModule) anixModule
+        ++ lib.optional (builtins.pathExists anixLayer)  anixLayer;
+    };
+  };
+}
+EOF
+}
+
+# ════════════════════════════════════════════════════════════════════
+#  MAIN
+# ════════════════════════════════════════════════════════════════════
+main() {
     require_root
+
+    # check terminal size
+    local cols rows
+    cols=$(tput cols 2>/dev/null || printf '80')
+    rows=$(tput lines 2>/dev/null || printf '24')
+    if [[ $cols -lt 80 || $rows -lt 24 ]]; then
+        printf 'Terminal too small (%dx%d). Need at least 80x24.\n' "$cols" "$rows"
+        exit 1
+    fi
+
+    # disable echo, hide cursor, restore on exit
+    stty -echo 2>/dev/null || true
+    trap 'tput cnorm 2>/dev/null; stty echo 2>/dev/null || true; tput rmcup 2>/dev/null || true' EXIT
+    tput smcup 2>/dev/null || true
+
     sync_starter_apps_label
     refresh_github_identity
     auto_detect_timezone
     auto_detect_keyboard
-    if ! command -v mkpasswd >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then
-        error_msg "Password hashing is unavailable. Install mkpasswd or openssl."
+
+    command -v mkpasswd >/dev/null 2>&1 || command -v openssl >/dev/null 2>&1 || {
+        tput cnorm; stty echo 2>/dev/null || true
+        printf 'No password hashing tool found (mkpasswd or openssl required).\n' >&2
         exit 1
-    fi
+    }
+
+    local steps=("network" "welcome" "desktop" "names" "password" "options" "disk" "confirm")
+    local idx=0
 
     while true; do
-        set_step_next
+        local step="${steps[$idx]}"
+        local result=""
 
         case "$step" in
-            0)
-                prompt_network_connect
-                ;;
-            1)
-                show_installer_welcome
-                ;;
-            2)
-                prompt_anix_opt_in
-                ;;
-            3)
-                prompt_names
-                ;;
-            4)
-                prompt_locale
-                ;;
-            5)
-                prompt_password
-                ;;
-            6)
-                prompt_github_login
-                ;;
-            7)
-                show_extra_packages_setup
-                ;;
-            8)
-                confirm_install
-                ;;
+            network)  result="$(step_network)"  ;;
+            welcome)  result="$(step_welcome)"  ;;
+            desktop)  result="$(step_desktop)"  ;;
+            names)    result="$(step_names)"    ;;
+            password) result="$(step_password)" ;;
+            options)  result="$(step_options)"  ;;
+            disk)     result="$(step_disk)"     ;;
+            confirm)  result="$(step_confirm)"  ;;
         esac
 
-        case "$step_action" in
+        case "$result" in
+            next)
+                [[ $idx -lt $(( ${#steps[@]} - 1 )) ]] && (( idx++ )) || true
+                ;;
             back)
-                if [[ "$step" -gt 0 ]]; then
-                    step=$((step - 1))
-                fi
-                ;;
-            cancel)
-                info "Install cancelled."
-                return 0
-                ;;
-            stay)
+                [[ $idx -gt 0 ]] && (( idx-- )) || true
                 ;;
             install)
-                show_install_progress_screen 5 "Preparing the target disk" 0
-                partition_disk
-                show_install_progress_screen 18 "Mounting the target filesystem" 0
-                mount_target
-                show_install_progress_screen 32 "Generating the Abora system configuration" 0 "$config_log"
-                generate_config || {
-                    pause_prompt
-                    return 1
-                }
-                show_install_progress_screen 40 "Starting nixos-install" 0 "$install_log"
-                install_system || {
-                    pause_prompt
-                    return 1
-                }
-                copy_github_auth_to_target
-                cleanup_target
-                finish_screen
-                exit 0
-                ;;
-            *)
-                if [[ "$step" -lt 8 ]]; then
-                    step=$((step + 1))
+                local install_result; install_result="$(step_install)"
+                if [[ "$install_result" == "done" ]]; then
+                    step_finish
+                    exit 0
                 fi
+                # on fail, go back to confirm
                 ;;
         esac
     done
