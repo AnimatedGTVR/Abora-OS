@@ -46,6 +46,7 @@ starter_apps_label="Fan Favorites"
 github_identity="Skipped"
 user_password_hash=""
 title_file="/etc/abora/title.txt"
+_CUSTOM_APPS=()   # filled by step_apps
 config_log="/tmp/abora-config.log"
 install_log="/tmp/abora-install.log"
 version="${ABORA_VERSION:-}"
@@ -65,12 +66,11 @@ NC='\033[0m'
 
 # ── ASCII art banner ──────────────────────────────────────────────────────────
 _ART=(
-'  ██████╗ ██████╗  ██████╗ ██████╗  █████╗ '
-' ██╔════╝ ██╔══██╗██╔═══██╗██╔══██╗██╔══██╗'
-' ███████╗ ██████╔╝██║   ██║██████╔╝███████║'
-' ██╔═══██╗██╔══██╗██║   ██║██╔══██╗██╔══██║'
-' ╚██████╔╝██████╔╝╚██████╔╝██║  ██║██║  ██║'
-'  ╚═════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝'
+'  ▄▄▄▄   ██████   ████  ██████   ▄▄▄▄    ████  ███████'
+' ██  ██  ██   ██ ██  ██ ██  ██  ██  ██  ██  ██ ██     '
+' ██████  ██████  ██  ██ █████   ██████  ██  ██  █████  '
+' ██  ██  ██   ██ ██  ██ ██  ██  ██  ██  ██  ██     ██  '
+' ██  ██  ██████   ████  ██  ██  ██  ██   ████  ██████  '
 )
 
 # ── Terminal helpers ──────────────────────────────────────────────────────────
@@ -228,6 +228,15 @@ _pbar() {
     printf '%b %3d%%%b' "$W" "$pct" "$NC"
 }
 
+# ── Inline spinner for blocking ops — call in a loop ─────────────────────────
+_SPIN_IDX=0
+_SPIN_FRAMES=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+_spin() {
+    local msg="${1:-Working…}"
+    printf '\r  %b%s%b  %b%s%b' "$C" "${_SPIN_FRAMES[$_SPIN_IDX]}" "$NC" "$GY" "$msg" "$NC"
+    _SPIN_IDX=$(( (_SPIN_IDX + 1) % ${#_SPIN_FRAMES[@]} ))
+}
+
 # ════════════════════════════════════════════════════════════════════
 #  STEPS
 # ════════════════════════════════════════════════════════════════════
@@ -249,8 +258,11 @@ step_network() {
     while true; do
         _screen "Network Connection" "An internet connection is needed to download packages."
 
+        # Check connection with spinner
+        printf '  %bChecking connection…%b' "$GY" "$NC"
         local connected=0
         nmcli -t networking connectivity check 2>/dev/null | grep -q "^full$" && connected=1 || true
+        printf '\r%*s\r' 40 ''   # clear the checking line
 
         if [[ $connected -eq 1 ]]; then
             local iface; iface="$(nmcli -t -f NAME,TYPE connection show --active 2>/dev/null \
@@ -268,7 +280,11 @@ step_network() {
             printf '  %b✗  No internet connection detected%b\n\n' "$RD" "$NC"
         fi
 
-        # WiFi list
+        # WiFi scan with spinner
+        printf '  %bScanning for networks…%b' "$GY" "$NC"
+        nmcli device wifi rescan 2>/dev/null || true
+        printf '\r%*s\r' 40 ''
+
         local ssids=() signals=() secs=()
         while IFS=: read -r ssid sig sec; do
             [[ -z "$ssid" || "$ssid" == "--" ]] && continue
@@ -428,27 +444,105 @@ step_password() {
     done
 }
 
+step_apps() {
+    # Parse the catalog: id|Name|pkg|Category|Description|default
+    local ids=() names=() cats=() descs=() sel=()
+    while IFS='|' read -r id name pkg cat desc def; do
+        [[ -z "$id" || "$id" == '#'* ]] && continue
+        ids+=("$id"); names+=("$name"); cats+=("$cat")
+        descs+=("$desc"); sel+=("${def:-no}")
+    done < <(abora_app_catalog 2>/dev/null || true)
+
+    local count=${#ids[@]}
+    if [[ $count -eq 0 ]]; then
+        STEP_RESULT="next"; return
+    fi
+
+    local cur=0   # cursor index
+    local rows; rows=$(_rows)
+    local art_lines=$(( ${#_ART[@]} + 5 ))  # art + margins + header
+    local footer_lines=4
+    local visible=$(( rows - art_lines - footer_lines ))
+    [[ $visible -lt 4 ]] && visible=4
+
+    while true; do
+        _screen "Choose Your Apps" "Space toggle  ·  ↑↓ navigate  ·  A all  ·  N none  ·  ↵ done"
+
+        # scroll window
+        local win_start=0
+        if [[ $count -gt $visible ]]; then
+            win_start=$(( cur - visible / 2 ))
+            [[ $win_start -lt 0 ]] && win_start=0
+            [[ $(( win_start + visible )) -ge $count ]] && win_start=$(( count - visible ))
+        fi
+        local win_end=$(( win_start + visible - 1 ))
+        [[ $win_end -ge $count ]] && win_end=$(( count - 1 ))
+
+        [[ $win_start -gt 0 ]] && printf '  %b  ↑ %d more above%b\n' "$GY" "$win_start" "$NC"
+
+        local prev_cat=""
+        local i
+        for (( i = win_start; i <= win_end; i++ )); do
+            # Category header
+            if [[ "${cats[$i]}" != "$prev_cat" ]]; then
+                prev_cat="${cats[$i]}"
+                printf '\n  %b─── %s%b\n' "$C" "$prev_cat" "$NC"
+            fi
+
+            local check="  "; [[ "${sel[$i]}" == "yes" ]] && check="✓ "
+            if [[ $i -eq $cur ]]; then
+                printf '%b  › [%s] %-24s%b  %b%s%b\n' \
+                    "$W" "$check" "${names[$i]}" "$NC" "$GY" "${descs[$i]}" "$NC"
+            else
+                local clr="$GY"; [[ "${sel[$i]}" == "yes" ]] && clr="$W"
+                printf '%b    [%s] %s%b\n' "$clr" "$check" "${names[$i]}" "$NC"
+            fi
+        done
+
+        local remaining=$(( count - 1 - win_end ))
+        [[ $remaining -gt 0 ]] && printf '\n  %b  ↓ %d more below%b\n' "$GY" "$remaining" "$NC"
+
+        local n_sel=0
+        for s in "${sel[@]+"${sel[@]}"}"; do [[ "$s" == "yes" ]] && (( n_sel++ )) || true; done
+        printf '\n  %b%d / %d apps selected%b\n' "$C" "$n_sel" "$count" "$NC"
+
+        read_key
+        case "$KEY_NAME" in
+            UP)    [[ $cur -gt 0 ]] && (( cur-- )) ;;
+            DOWN)  [[ $cur -lt $((count-1)) ]] && (( cur++ )) ;;
+            ENTER) break ;;
+            ESC)   STEP_RESULT="back"; return ;;
+            CHAR)
+                case "$KEY_CHAR" in
+                    ' ') [[ "${sel[$cur]}" == "yes" ]] && sel[$cur]="no" || sel[$cur]="yes" ;;
+                    a|A) for (( i=0; i<count; i++ )); do sel[$i]="yes"; done ;;
+                    n|N) for (( i=0; i<count; i++ )); do sel[$i]="no";  done ;;
+                esac
+                ;;
+        esac
+    done
+
+    # Store selection
+    starter_apps_bundle="custom"
+    starter_apps_label="Custom (${n_sel} apps)"
+    _CUSTOM_APPS=()
+    for i in "${!ids[@]}"; do
+        [[ "${sel[$i]}" == "yes" ]] && _CUSTOM_APPS+=("${ids[$i]}")
+    done
+
+    STEP_RESULT="next"
+}
+
 step_options() {
-    _screen "Installation Options" "Customize what gets installed."
+    _screen "Installation Options" "Finalize how Abora is set up."
 
-    printf '  %bStarter app bundle:%b\n\n' "$W" "$NC"
-    _menu 0 \
-        "Fan Favorites|Recommended apps: browser, media, office" \
-        "Essentials|Core tools only" \
-        "None|Install apps yourself later"
-    case $MENU_IDX in
-        0) starter_apps_bundle="favorites";  starter_apps_label="Fan Favorites" ;;
-        1) starter_apps_bundle="essentials"; starter_apps_label="Essentials"    ;;
-        2) starter_apps_bundle="none";       starter_apps_label="None"          ;;
-        *) STEP_RESULT="back"; return ;;
-    esac
-
-    printf '\n  %bAnix — graphical app manager (recommended):%b\n\n' "$W" "$NC"
+    printf '  %bAnix — graphical app manager:%b\n\n' "$W" "$NC"
     local anix_default=0
     [[ "$anix_enabled" == "no" ]] && anix_default=1
     _menu $anix_default \
-        "Enable Anix|Recommended" \
+        "Enable Anix|Recommended — browse and install apps from a GUI" \
         "Disable Anix"
+    if [[ $MENU_IDX -eq -1 ]]; then STEP_RESULT="back"; return; fi
     [[ $MENU_IDX -eq 0 ]] && anix_enabled="yes" || anix_enabled="no"
 
     STEP_RESULT="next"
@@ -506,7 +600,7 @@ step_confirm() {
         "Timezone|$timezone_value" \
         "Keyboard|$keyboard_value" \
         "Disk|$disk" \
-        "Starter apps|$starter_apps_label" \
+        "Apps|$starter_apps_label" \
         "Anix|$anix_enabled"
 
     printf '\n  %b⚠  All data on %s will be permanently and irreversibly erased.%b\n\n' "$RD" "$disk" "$NC"
@@ -531,14 +625,16 @@ step_install() {
     )
 
     _draw_install() {
-        local cur="$1" pct="$2" elapsed="$3" logline="${4:-}"
+        local cur="$1" pct="$2" elapsed="$3"
         clear
         printf '\n'
         local line; for line in "${_ART[@]}"; do printf '%b  %s%b\n' "$G" "$line" "$NC"; done
-        printf '\n%b  %s%b\n' "$GY" "$(_div)" "$NC"
-        printf '%b  Installing Abora OS — please wait…%b\n' "$W" "$NC"
-        printf '%b  %s%b\n\n' "$GY" "$(_div)" "$NC"
+        local d; d="$(_div)"
+        printf '\n%b  %s%b\n' "$GY" "$d" "$NC"
+        printf '%b  Installing Abora OS — do not power off%b\n' "$W" "$NC"
+        printf '%b  %s%b\n\n' "$GY" "$d" "$NC"
 
+        # Phase list
         local i
         for i in "${!phases[@]}"; do
             if   [[ $i -lt $cur ]]; then printf '  %b  ✓  %s%b\n' "$BG" "${phases[$i]}" "$NC"
@@ -547,14 +643,25 @@ step_install() {
             fi
         done
 
+        # Progress bar + timer
         local m=$(( elapsed/60 )) s=$(( elapsed%60 ))
         printf '\n  '; _pbar "$pct" 48
-        printf '   %b%02d:%02d%b\n' "$GY" "$m" "$s" "$NC"
-        if [[ -n "$logline" ]]; then
-            local cols; cols=$(_cols)
-            printf '\n  %b%.'"$((cols-6))"'s%b\n' "$GY" "$logline" "$NC"
-        fi
-        printf '\n  %b  Full log: %s%b\n' "$GY" "$install_log" "$NC"
+        printf '   %b%02d:%02d%b\n\n' "$GY" "$m" "$s" "$NC"
+
+        # Live log — last 6 lines stripped of ANSI
+        printf '%b  ── Recent output ──────────────────────────────────────────%b\n' "$GY" "$NC"
+        local cols; cols=$(_cols)
+        local max_w=$(( cols - 6 ))
+        local lc=0
+        while IFS= read -r ln; do
+            [[ -z "$ln" ]] && continue
+            ln="$(printf '%s' "$ln" | sed 's/\x1b\[[0-9;]*[mGKH]//g' | tr -d '\r')"
+            [[ -z "$ln" ]] && continue
+            printf '  %b%-*.*s%b\n' "$GY" "$max_w" "$max_w" "$ln" "$NC"
+            (( lc++ )) || true
+            [[ $lc -ge 5 ]] && break
+        done < <(tail -10 "$install_log" 2>/dev/null | grep -v '^[[:space:]]*$' | tail -5)
+        printf '%b  ── Full log: %s%b\n' "$GY" "$install_log" "$NC"
     }
 
     _fail() {
@@ -614,11 +721,7 @@ step_install() {
         pct=$(( pct + bonus ))
         [[ $pct -gt 99 ]] && pct=99
 
-        local lastline=""
-        lastline="$(tail -1 "$install_log" 2>/dev/null \
-            | sed 's/\x1b\[[0-9;]*[mGKH]//g' | tr -d '\r' || true)"
-
-        _draw_install "$phase" "$pct" "$elapsed" "$lastline"
+        _draw_install "$phase" "$pct" "$elapsed"
         sleep 1
     done
 
@@ -836,8 +939,17 @@ NIXEOF
 write_starter_apps_list() {
     local target_file="$1"
     : > "$target_file"
-    [[ "${starter_apps_bundle,,}" == "none" ]] && return 0
-    abora_list_bundle_apps "${starter_apps_bundle}" > "$target_file" 2>/dev/null || true
+    if [[ "${starter_apps_bundle,,}" == "none" ]]; then
+        return 0
+    elif [[ "${starter_apps_bundle,,}" == "custom" ]]; then
+        local id
+        for id in "${_CUSTOM_APPS[@]+"${_CUSTOM_APPS[@]}"}"; do
+            abora_app_catalog 2>/dev/null \
+                | awk -F'|' -v id="$id" '$1==id{print $3}' >> "$target_file" || true
+        done
+    else
+        abora_list_bundle_apps "${starter_apps_bundle}" > "$target_file" 2>/dev/null || true
+    fi
 }
 
 render_apps_module_file() {
@@ -1028,7 +1140,7 @@ main() {
         exit 1
     }
 
-    local steps=("welcome" "network" "desktop" "names" "password" "options" "disk" "confirm")
+    local steps=("welcome" "network" "desktop" "names" "password" "apps" "options" "disk" "confirm")
     local idx=0
 
     while true; do
@@ -1041,6 +1153,7 @@ main() {
             desktop)  step_desktop  ;;
             names)    step_names    ;;
             password) step_password ;;
+            apps)     step_apps     ;;
             options)  step_options  ;;
             disk)     step_disk     ;;
             confirm)  step_confirm  ;;
