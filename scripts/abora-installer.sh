@@ -331,7 +331,7 @@ show_install_progress_screen() {
     local elapsed="$3"
     local logfile="${4:-}"
 
-    show_header "Installing Abora OS" "Writing the system — usually 5–15 min on a typical connection."
+    show_header "Installing Abora OS" "Writing the system — usually 5–10 min on a fast connection."
     printf '%bProgress%b\n' "$WHITE" "$NC"
     draw_progress_bar "$percent"
     printf '\n'
@@ -2023,7 +2023,7 @@ install_system() {
     local status_text=""
 
     info "Installing Abora OS"
-    info "This usually takes 5-15 minutes depending on network speed."
+    info "This usually takes 5-10 minutes depending on network speed."
 
     # Require at least 15 GB free on the target to avoid out-of-space build failures
     local free_kb
@@ -2045,7 +2045,7 @@ install_system() {
     printf '[*] Running nixos-install\n' > "$install_log"
     printf '[*] NIX_PATH=%s\n' "$nix_path" >> "$install_log"
 
-    NIX_PATH="$nix_path" timeout 3600 nixos-install \
+    NIX_PATH="$nix_path" timeout 900 nixos-install \
         --root /mnt \
         --no-root-passwd \
         --show-trace \
@@ -2054,6 +2054,7 @@ install_system() {
         --option max-substitution-jobs 32 \
         --option http-connections 128 \
         --option max-jobs auto \
+        --option max-silent-time 300 \
         --cores 0 \
         -I "nixpkgs=${nixpkgs_path}" \
         -I "nixos-config=/mnt/etc/nixos/configuration.nix" \
