@@ -2016,6 +2016,17 @@ install_system() {
 
     info "Installing Abora OS"
     info "This usually takes 5-15 minutes depending on network speed."
+
+    # Require at least 15 GB free on the target to avoid out-of-space build failures
+    local free_kb
+    free_kb="$(df -k /mnt 2>/dev/null | awk 'NR==2{print $4}')"
+    if [[ -n "$free_kb" && "$free_kb" -lt 15728640 ]]; then
+        local free_gb
+        free_gb="$(( free_kb / 1024 / 1024 ))"
+        error_msg "Not enough disk space: ${free_gb} GB free, 15 GB required. Partition the disk with a larger root volume."
+        return 1
+    fi
+
     ensure_target_install_files || return 1
     nixpkgs_path="$(resolve_nixpkgs_path)" || {
         error_msg "Could not locate nixpkgs for nixos-install."
@@ -2030,6 +2041,8 @@ install_system() {
         --root /mnt \
         --no-root-passwd \
         --show-trace \
+        --option substituters "https://cache.nixos.org" \
+        --option trusted-public-keys "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" \
         --option max-substitution-jobs 32 \
         --option http-connections 128 \
         --option max-jobs auto \
