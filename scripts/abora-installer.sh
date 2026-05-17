@@ -3,16 +3,37 @@
 #  ABORA OS INSTALLER  ·  v3
 #  Two-panel TUI — sidebar step tracker + content area
 # ════════════════════════════════════════════════════════════════════
-set -euo pipefail
+set -uo pipefail
 
 export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-desktop_profiles_lib="${ABORA_DESKTOP_PROFILES_LIB:-$script_dir/abora-desktop-profiles.sh}"
-app_catalog_lib="${ABORA_APP_CATALOG_LIB:-$script_dir/abora-app-catalog.sh}"
-[[ ! -f "$desktop_profiles_lib" && -f /etc/abora/desktop-profiles.sh ]] && desktop_profiles_lib="/etc/abora/desktop-profiles.sh"
-[[ ! -f "$app_catalog_lib"      && -f /etc/abora/app-catalog.sh      ]] && app_catalog_lib="/etc/abora/app-catalog.sh"
+
+_find_lib() {
+    local name="$1"
+    local candidates=(
+        "${2:-}"
+        "$script_dir/$name"
+        "$script_dir/abora-$name"
+        "/etc/abora/$name"
+        "/etc/abora/abora-$name"
+    )
+    for f in "${candidates[@]}"; do
+        [[ -n "$f" && -f "$f" ]] && printf '%s' "$f" && return 0
+    done
+    return 1
+}
+
+desktop_profiles_lib="$(_find_lib "desktop-profiles.sh" "${ABORA_DESKTOP_PROFILES_LIB:-}")" || {
+    printf 'abora-installer: desktop-profiles.sh not found\n' >&2; exit 1
+}
+app_catalog_lib="$(_find_lib "app-catalog.sh" "${ABORA_APP_CATALOG_LIB:-}")" || {
+    printf 'abora-installer: app-catalog.sh not found\n' >&2; exit 1
+}
+
+# shellcheck source=/dev/null
 source "$desktop_profiles_lib"
+# shellcheck source=/dev/null
 source "$app_catalog_lib"
 
 # ── State ────────────────────────────────────────────────────────────────────
@@ -564,7 +585,7 @@ step_network() {
 
     local sel=0 msg="" msg_clr="$GY"
     local connected=0
-    _net_connected && connected=1
+    _net_connected && connected=1 || true
 
     while true; do
         _layout
@@ -1757,27 +1778,40 @@ EOF
 main() {
     require_root
 
-    # check terminal size
-    local cols rows
-    cols=$(tput cols 2>/dev/null || printf '80')
-    rows=$(tput lines 2>/dev/null || printf '24')
-    if [[ $cols -lt 80 || $rows -lt 24 ]]; then
-        printf 'Terminal too small (%dx%d). Need at least 80x24.\n' "$cols" "$rows"
-        exit 1
-    fi
+    # Ensure TERM is set for tput
+    export TERM="${TERM:-xterm-256color}"
 
-    # disable echo, hide cursor, restore on exit
+    # check terminal size — wait up to 3s for terminal to report correct size
+    local cols rows attempts=0
+    while true; do
+        cols=$(tput cols  2>/dev/null || printf '80')
+        rows=$(tput lines 2>/dev/null || printf '24')
+        [[ "$cols" =~ ^[0-9]+$ ]] || cols=80
+        [[ "$rows" =~ ^[0-9]+$ ]] || rows=24
+        if [[ $cols -ge 80 && $rows -ge 24 ]]; then
+            break
+        fi
+        (( attempts++ )) || true
+        if [[ $attempts -ge 3 ]]; then
+            printf 'Terminal too small (%dx%d). Need at least 80x24.\n' "$cols" "$rows"
+            printf 'Try resizing your terminal window and running abora-install again.\n'
+            exit 1
+        fi
+        sleep 1
+    done
+
+    # restore terminal on any exit
+    trap 'tput cnorm 2>/dev/null || true; stty echo 2>/dev/null || true; tput rmcup 2>/dev/null || true' EXIT
     stty -echo 2>/dev/null || true
-    trap 'tput cnorm 2>/dev/null; stty echo 2>/dev/null || true; tput rmcup 2>/dev/null || true' EXIT
     tput smcup 2>/dev/null || true
 
     sync_starter_apps_label
-    refresh_github_identity
-    auto_detect_timezone
-    auto_detect_keyboard
+    refresh_github_identity || true
+    auto_detect_timezone    || true
+    auto_detect_keyboard    || true
 
     command -v mkpasswd >/dev/null 2>&1 || command -v openssl >/dev/null 2>&1 || {
-        tput cnorm; stty echo 2>/dev/null || true
+        tput rmcup 2>/dev/null || true; tput cnorm 2>/dev/null || true; stty echo 2>/dev/null || true
         printf 'No password hashing tool found (mkpasswd or openssl required).\n' >&2
         exit 1
     }
