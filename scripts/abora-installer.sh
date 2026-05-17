@@ -57,6 +57,9 @@ Y='\033[1;33m'
 MG='\033[1;35m'
 GY='\033[90m'
 
+# ── Step result (set by step functions, read by main) ────────────────────────
+STEP_RESULT=""
+
 # ── Layout constants ─────────────────────────────────────────────────────────
 SB_W=22          # sidebar width (includes its right border)
 HDR_H=3          # header rows
@@ -644,7 +647,7 @@ step_network() {
             DOWN) (( sel < ${#_wifi_ssids[@]} - 1 )) && (( sel++ )) || true ;;
             ENTER)
                 if [[ $connected -eq 1 ]]; then
-                    _mark_done "network"; return "next"
+                    _mark_done "network"; STEP_RESULT="next"; return
                 fi
                 if [[ ${#_wifi_ssids[@]} -gt 0 ]]; then
                     local chosen_ssid="${_wifi_ssids[$sel]}"
@@ -681,11 +684,11 @@ step_network() {
             CHAR)
                 case "${KEY_CHAR,,}" in
                     r) _status "Rescanning…" "$GY"; _net_scan; msg=""; msg_clr="$GY" ;;
-                    s) _mark_done "network"; return "next" ;;
-                    c) [[ $connected -eq 1 ]] && { _mark_done "network"; return "next"; } ;;
+                    s) _mark_done "network"; STEP_RESULT="next"; return ;;
+                    c) [[ $connected -eq 1 ]] && { _mark_done "network"; STEP_RESULT="next"; return; } ;;
                 esac
                 ;;
-            ESC|BACKSPACE) return "next" ;;  # can't go back from network
+            ESC|BACKSPACE) STEP_RESULT="next"; return ;;  # can't go back from network
         esac
     done
 }
@@ -711,8 +714,8 @@ step_welcome() {
     while true; do
         read_key
         case "$KEY_NAME" in
-            ENTER|RIGHT) _mark_done "welcome"; return "next" ;;
-            ESC|BACKSPACE) return "back" ;;
+            ENTER|RIGHT) _mark_done "welcome"; STEP_RESULT="next"; return ;;
+            ESC|BACKSPACE) STEP_RESULT="back"; return ;;
         esac
     done
 }
@@ -735,9 +738,9 @@ step_desktop() {
         desktop_profile="$key"
         abora_sync_desktop_label "$desktop_profile"
         _mark_done "desktop"
-        return "next"
+        STEP_RESULT="next"; return
     else
-        return "back"
+        STEP_RESULT="back"; return
     fi
 }
 
@@ -793,13 +796,13 @@ step_names() {
             $'\r'|$'\n')
                 _hide
                 if [[ $field -eq 2 ]]; then
-                    _mark_done "names"; return "next"
+                    _mark_done "names"; STEP_RESULT="next"; return
                 else
                     field=$(( field + 1 ))
                 fi
                 continue
                 ;;
-            $'\x1b') _hide; return "back" ;;
+            $'\x1b') _hide; STEP_RESULT="back"; return ;;
             $'\x7f'|$'\x08')
                 case $field in
                     0) [[ ${#username_value} -gt 0 ]] && username_value="${username_value%?}" ;;
@@ -929,11 +932,11 @@ step_password() {
                         fi
                         unset pass1 pass2
                         _mark_done "password"
-                        return "next"
+                        STEP_RESULT="next"; return
                     fi
                 fi
                 ;;
-            $'\x1b') _hide; return "back" ;;
+            $'\x1b') _hide; STEP_RESULT="back"; return ;;
             $'\x7f'|$'\x08')
                 [[ $field -eq 0 ]] && [[ ${#pass1} -gt 0 ]] && pass1="${pass1%?}"
                 [[ $field -eq 1 ]] && [[ ${#pass2} -gt 0 ]] && pass2="${pass2%?}"
@@ -1029,7 +1032,7 @@ step_options() {
                     sync_starter_apps_label
                     _mark_done "options"
                     [[ "${tstate[anix]}" == "on" ]] && anix_enabled="yes" || anix_enabled="no"
-                    return "next"
+                    STEP_RESULT="next"; return
                 fi
                 ;;
             RIGHT)
@@ -1037,9 +1040,9 @@ step_options() {
                 starter_apps_bundle="${apps_list[$apps_sel]}"
                 sync_starter_apps_label
                 _mark_done "options"
-                return "next"
+                STEP_RESULT="next"; return
                 ;;
-            ESC|BACKSPACE) return "back" ;;
+            ESC|BACKSPACE) STEP_RESULT="back"; return ;;
         esac
     done
 }
@@ -1065,7 +1068,7 @@ step_disk() {
             while true; do
                 read_key
                 [[ "$KEY_NAME" == "CHAR" && "${KEY_CHAR,,}" == "r" ]] && break
-                [[ "$KEY_NAME" == "ESC" || "$KEY_NAME" == "BACKSPACE" ]] && return "back"
+                [[ "$KEY_NAME" == "ESC" || "$KEY_NAME" == "BACKSPACE" ]] && STEP_RESULT="back"; return
             done
             continue
         fi
@@ -1109,9 +1112,9 @@ step_disk() {
                 ENTER|RIGHT)
                     disk="${paths[$sel]}"
                     _mark_done "disk"
-                    return "next"
+                    STEP_RESULT="next"; return
                     ;;
-                ESC|BACKSPACE) return "back" ;;
+                ESC|BACKSPACE) STEP_RESULT="back"; return ;;
             esac
         done
     done
@@ -1147,8 +1150,8 @@ step_confirm() {
     while true; do
         read_key
         case "$KEY_NAME" in
-            ENTER|RIGHT) return "install" ;;
-            ESC|BACKSPACE) return "back" ;;
+            ENTER|RIGHT) STEP_RESULT="install"; return ;;
+            ESC|BACKSPACE) STEP_RESULT="back"; return ;;
         esac
     done
 }
@@ -1266,7 +1269,7 @@ step_install() {
     partition_disk || {
         _at $(( panel_top + panel_h - 1 )) 2
         printf "${RD}  Partitioning failed. Press Enter.${NC}"
-        _show; read -r; return "fail"
+        _show; read -r; STEP_RESULT="fail"; return
     }
 
     # Phase 1: Mount
@@ -1275,7 +1278,7 @@ step_install() {
     mount_target || {
         _at $(( panel_top + panel_h - 1 )) 2
         printf "${RD}  Mount failed. Press Enter.${NC}"
-        _show; read -r; return "fail"
+        _show; read -r; STEP_RESULT="fail"; return
     }
 
     # Phase 2: Generate config
@@ -1284,7 +1287,7 @@ step_install() {
     generate_config || {
         _at $(( panel_top + panel_h - 1 )) 2
         printf "${RD}  Config generation failed. Press Enter.${NC}"
-        _show; read -r; return "fail"
+        _show; read -r; STEP_RESULT="fail"; return
     }
 
     # Phase 3-5: nixos-install (covers download, activate, bootloader)
@@ -1295,7 +1298,7 @@ step_install() {
     nixpkgs_path="$(resolve_nixpkgs_path)" || {
         _at $(( panel_top + panel_h - 1 )) 2
         printf "${RD}  Cannot locate nixpkgs. Press Enter.${NC}"
-        _show; read -r; return "fail"
+        _show; read -r; STEP_RESULT="fail"; return
     }
     local nix_path="nixpkgs=${nixpkgs_path}:nixos-config=/mnt/etc/nixos/configuration.nix"
 
@@ -1350,7 +1353,7 @@ step_install() {
         _update_log "$install_log"
         copy_github_auth_to_target
         cleanup_target
-        return "done"
+        STEP_RESULT="done"; return
     else
         printf '\n[x] nixos-install failed\n' >> "$install_log"
         # show first error
@@ -1358,7 +1361,7 @@ step_install() {
         _at $(( panel_top + panel_h - 1 )) 2
         printf "${RD}  Failed: %s${NC}" "$(_trunc "${first_err:-see log}" $(( COLS - 14 )))"
         _show; read -r
-        return "fail"
+        STEP_RESULT="fail"; return
     fi
 }
 
@@ -1784,20 +1787,20 @@ main() {
 
     while true; do
         local step="${steps[$idx]}"
-        local result=""
+        STEP_RESULT=""
 
         case "$step" in
-            network)  result="$(step_network)"  ;;
-            welcome)  result="$(step_welcome)"  ;;
-            desktop)  result="$(step_desktop)"  ;;
-            names)    result="$(step_names)"    ;;
-            password) result="$(step_password)" ;;
-            options)  result="$(step_options)"  ;;
-            disk)     result="$(step_disk)"     ;;
-            confirm)  result="$(step_confirm)"  ;;
+            network)  step_network  ;;
+            welcome)  step_welcome  ;;
+            desktop)  step_desktop  ;;
+            names)    step_names    ;;
+            password) step_password ;;
+            options)  step_options  ;;
+            disk)     step_disk     ;;
+            confirm)  step_confirm  ;;
         esac
 
-        case "$result" in
+        case "$STEP_RESULT" in
             next)
                 [[ $idx -lt $(( ${#steps[@]} - 1 )) ]] && (( idx++ )) || true
                 ;;
@@ -1805,8 +1808,8 @@ main() {
                 [[ $idx -gt 0 ]] && (( idx-- )) || true
                 ;;
             install)
-                local install_result; install_result="$(step_install)"
-                if [[ "$install_result" == "done" ]]; then
+                step_install
+                if [[ "$STEP_RESULT" == "done" ]]; then
                     step_finish
                     exit 0
                 fi
