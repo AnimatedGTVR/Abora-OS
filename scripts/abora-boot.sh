@@ -115,7 +115,20 @@ show_stage_loading() {
 boot_sequence() {
     show_stage_loading
     clear_screen
-    exec "$BASH_BIN" --login
+
+    if "$BASH_BIN" /etc/abora/installer.sh; then
+        # installer exited cleanly (user chose reboot/poweroff from finish screen)
+        exit 0
+    else
+        # installer crashed or was aborted — drop to live shell
+        printf '\n'
+        draw_rule
+        printf '  %bInstaller exited. You are now in the live shell.%b\n' "$WHITE" "$NC"
+        printf '  %bRun %babora-install%b to restart it.%b\n' "$DIM" "$WHITE" "$DIM" "$NC"
+        draw_rule
+        printf '\n'
+        exec "$BASH_BIN" --login
+    fi
 }
 
 boot_sequence
