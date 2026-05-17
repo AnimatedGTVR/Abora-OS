@@ -2139,6 +2139,10 @@ finish_screen() {
             poweroff
             ;;
     esac
+
+    # Should not be reached — reboot/poweroff is async, give it time then exit
+    sleep 10
+    exit 0
 }
 
 cleanup_target() {
@@ -2222,7 +2226,7 @@ main() {
                 copy_github_auth_to_target
                 cleanup_target
                 finish_screen
-                return 0
+                exit 0
                 ;;
             *)
                 if [[ "$step" -lt 8 ]]; then

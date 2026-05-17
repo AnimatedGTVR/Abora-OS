@@ -422,8 +422,8 @@ in
     serviceConfig = {
       Type = "simple";
       ExecStart = "${pkgs.bashInteractive}/bin/bash /etc/abora/boot.sh";
-      Restart = "always";
-      RestartSec = "0";
+      Restart = "on-failure";
+      RestartSec = "1";
       StandardInput = "tty-force";
       StandardOutput = "tty";
       StandardError = "tty";
