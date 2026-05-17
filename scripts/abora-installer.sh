@@ -53,6 +53,9 @@ version="${ABORA_VERSION:-}"
 [[ -z "$version" && -f /etc/abora/VERSION ]] && version="$(tr -d '\n' < /etc/abora/VERSION)"
 [[ -z "$version" ]] && version="v4"
 STEP_RESULT=""
+_STEP_IDX=0
+_TOTAL_STEPS=9
+_STEP_NAMES=("Welcome" "Network" "Desktop" "Account" "Password" "Apps" "Options" "Disk" "Review")
 
 # ── Colors ────────────────────────────────────────────────────────────────────
 G='\033[1;32m'
@@ -78,16 +81,44 @@ _cols() { tput cols  2>/dev/null || printf '80'; }
 _rows() { tput lines 2>/dev/null || printf '24'; }
 _div()  { local c; c=$(_cols); printf '%*s' "$((c-4))" '' | tr ' ' '─'; }
 
-# ── Screen header: clear + art + divider + title ──────────────────────────────
+# ── Screen header: clear + compact brand + step tracker + title ───────────────
 _screen() {
-    local title="$1" sub="${2:-}"
+    local title="$1" sub="${2:-}" show_art="${3:-0}"
     clear
     printf '\n'
-    local line
-    for line in "${_ART[@]}"; do
-        printf '%b  %s%b\n' "$G" "$line" "$NC"
+
+    if [[ "$show_art" == "1" ]]; then
+        local line
+        for line in "${_ART[@]}"; do
+            printf '%b  %s%b\n' "$G" "$line" "$NC"
+        done
+        printf '\n'
+    fi
+
+    # Brand + step location
+    printf '  %bABORA%b %bOS%b' "$C" "$NC" "$W" "$NC"
+    if [[ $_STEP_IDX -lt $_TOTAL_STEPS ]]; then
+        local cur_name="${_STEP_NAMES[$_STEP_IDX]}"
+        printf '  %b│%b  Step %d of %d  —  %b%s%b' \
+            "$GY" "$NC" "$((_STEP_IDX+1))" "$_TOTAL_STEPS" "$W" "$cur_name" "$NC"
+    fi
+    printf '\n'
+
+    # Progress dots: ✓ = done, ● = current, ○ = todo
+    printf '  '
+    local _pi
+    for (( _pi=0; _pi<_TOTAL_STEPS; _pi++ )); do
+        if   [[ $_STEP_IDX -ge $_TOTAL_STEPS || $_pi -lt $_STEP_IDX ]]; then
+            printf '%b✓%b' "$BG" "$NC"
+        elif [[ $_pi -eq $_STEP_IDX ]]; then
+            printf '%b●%b' "$C"  "$NC"
+        else
+            printf '%b○%b' "$GY" "$NC"
+        fi
+        [[ $_pi -lt $((_TOTAL_STEPS-1)) ]] && printf '%b─%b' "$GY" "$NC"
     done
     printf '\n'
+
     local d; d="$(_div)"
     printf '%b  %s%b\n' "$GY" "$d" "$NC"
     printf '%b  %s%b\n' "$W" "$title" "$NC"
@@ -143,10 +174,10 @@ _menu() {
             local dsc="${items[$i]#*|}"
             [[ "$dsc" == "$lbl" ]] && dsc=""
             if [[ $i -eq $sel ]]; then
-                printf '%b  ›  %-30s%b' "$C" "$lbl" "$NC"
+                printf '%b  ──▶  %-26s%b' "$C" "$lbl" "$NC"
                 [[ -n "$dsc" ]] && printf '  %b%s%b' "$GY" "$dsc" "$NC"
             else
-                printf '%b     %s%b' "$GY" "$lbl" "$NC"
+                printf '%b    ·  %s%b' "$GY" "$lbl" "$NC"
             fi
             printf '\n'
         done
@@ -242,7 +273,7 @@ _spin() {
 # ════════════════════════════════════════════════════════════════════
 
 step_welcome() {
-    _screen "Welcome to Abora OS  ${version}" "Let's get your system installed."
+    _screen "Welcome to Abora OS  ${version}" "Let's get your system installed." 1
     printf '  %bAbora OS is a NixOS-based distribution focused on usability.%b\n' "$GY" "$NC"
     printf '  %bThis installer will guide you through setup in a few steps.%b\n\n' "$GY" "$NC"
     printf '  %bWhat you will need:%b\n' "$W" "$NC"
@@ -628,10 +659,16 @@ step_install() {
         local cur="$1" pct="$2" elapsed="$3"
         clear
         printf '\n'
-        local line; for line in "${_ART[@]}"; do printf '%b  %s%b\n' "$G" "$line" "$NC"; done
+        printf '  %bABORA%b %bOS%b  %b│%b  Installing — do not power off\n' \
+            "$C" "$NC" "$W" "$NC" "$GY" "$NC"
+        printf '  '
+        local _di
+        for (( _di=0; _di<_TOTAL_STEPS; _di++ )); do
+            printf '%b✓%b' "$BG" "$NC"
+            [[ $_di -lt $((_TOTAL_STEPS-1)) ]] && printf '%b─%b' "$GY" "$NC"
+        done
+        printf '\n'
         local d; d="$(_div)"
-        printf '\n%b  %s%b\n' "$GY" "$d" "$NC"
-        printf '%b  Installing Abora OS — do not power off%b\n' "$W" "$NC"
         printf '%b  %s%b\n\n' "$GY" "$d" "$NC"
 
         # Phase list
@@ -736,6 +773,7 @@ step_install() {
 }
 
 step_finish() {
+    _STEP_IDX=$((_TOTAL_STEPS))   # all steps done — show ✓✓✓✓✓✓✓✓✓
     _screen "Installation Complete" "Abora OS has been installed successfully."
 
     printf '  %b✓  %s installed successfully%b\n\n' "$BG" "Abora OS ${version}" "$NC"
@@ -1145,6 +1183,7 @@ main() {
 
     while true; do
         local step="${steps[$idx]}"
+        _STEP_IDX=$idx
         STEP_RESULT=""
 
         case "$step" in
