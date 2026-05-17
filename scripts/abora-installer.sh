@@ -2045,7 +2045,7 @@ install_system() {
     printf '[*] Running nixos-install\n' > "$install_log"
     printf '[*] NIX_PATH=%s\n' "$nix_path" >> "$install_log"
 
-    NIX_PATH="$nix_path" nixos-install \
+    NIX_PATH="$nix_path" timeout 3600 nixos-install \
         --root /mnt \
         --no-root-passwd \
         --show-trace \
