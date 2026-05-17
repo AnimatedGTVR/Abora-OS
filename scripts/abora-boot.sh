@@ -250,13 +250,36 @@ show_stage_loading() {
 
 launch_installer() {
     show_stage_loading
-    ABORA_SKIP_INSTALLER_LOADING=1 "$BASH_BIN" /etc/abora/installer.sh || pause_prompt
+    if ABORA_SKIP_INSTALLER_LOADING=1 "$BASH_BIN" /etc/abora/installer.sh; then
+        return 0
+    else
+        pause_prompt
+        return 1
+    fi
 }
 
 pause_prompt() {
     printf '\n'
     printf '%bPress ENTER to continue...%b' "$DIM" "$NC"
     read -r
+}
+
+install_complete_screen() {
+    clear_screen
+    printf '\n'
+    draw_rule
+    printf '  %b✓ Installation complete%b\n' "$ACCENT" "$NC"
+    printf '  %bAbora OS has been installed. Remove the live media and reboot.%b\n' "$DIM" "$NC"
+    draw_rule
+    printf '\n'
+    printf '  %b[r]%b Reboot now   %b[s]%b Open shell\n' "$ACCENT" "$NC" "$ACCENT" "$NC"
+    printf '\n'
+    local key=""
+    IFS= read -rsn1 key || true
+    case "$key" in
+        s|S) open_shell ;;
+        *)   reboot ;;
+    esac
 }
 
 autoboot_installer() {
@@ -268,7 +291,10 @@ autoboot_installer() {
 
     IFS= read -rsn1 -t 3 key || true
     if [[ -z "$key" ]]; then
-        launch_installer
+        if launch_installer; then
+            install_complete_screen
+            exit 0
+        fi
     fi
 }
 
@@ -306,7 +332,10 @@ boot_menu() {
 
         case "$choice" in
             0)
-                start_installer_now
+                if start_installer_now; then
+                    install_complete_screen
+                    exit 0
+                fi
                 ;;
             1)
                 open_shell
