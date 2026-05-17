@@ -139,6 +139,7 @@ in
     "nixpkgs=${pkgs.path}"
     "nixos-config=/etc/nixos/configuration.nix"
   ];
+  boot.kernelPackages = pkgs.linuxPackages_6_6;
   boot.initrd.systemd.enable = true;
   boot.initrd.verbose = false;
   boot.consoleLogLevel = 3;
