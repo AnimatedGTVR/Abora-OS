@@ -1,10 +1,38 @@
 Firefox	Web	flatpak	org.mozilla.firefox	Fast and private web browser
-Blender	Creative	flatpak	org.blender.Blender	3D creation suite
-GIMP	Creative	flatpak	org.gimp.GIMP	Image editor
-Krita	Creative	flatpak	org.kde.krita	Digital painting app
-Musescore	Creative	flatpak	org.musescore.MuseScore	Sheet music editor
-VLC	Media	flatpak	org.videolan.VLC	Media player
-OBS Studio	Creator	flatpak	com.obsproject.Studio	Streaming and recording
+Zen Browser	Web	flatpak	io.github.zen_browser.zen	Firefox-based browser with a clean, focused UI
+Brave	Web	flatpak	com.brave.Browser	Privacy-first Chromium browser
+Librewolf	Web	flatpak	io.gitlab.librewolf-community.LibreWolf	Hardened Firefox fork
+Chromium	Web	flatpak	org.chromium.Chromium	Open-source web browser
+Thunderbird	Productivity	flatpak	org.mozilla.Thunderbird	Email and calendar client
+Bitwarden	Productivity	flatpak	com.bitwarden.desktop	Password manager
+LibreOffice	Productivity	flatpak	org.libreoffice.LibreOffice	Full office suite
+Obsidian	Productivity	flatpak	md.obsidian.Obsidian	Markdown knowledge base
+Nextcloud	Productivity	flatpak	com.nextcloud.desktopclient.nextcloud	Sync files with Nextcloud
+Flameshot	Productivity	flatpak	org.flameshot.Flameshot	Screenshot tool with markup
+Signal	Social	flatpak	org.signal.Signal	Secure encrypted messaging
+Telegram	Social	flatpak	org.telegram.desktop	Fast messaging app
 Discord	Social	flatpak	com.discordapp.Discord	Voice and chat client
-Thunderbird	Productivity	flatpak	org.mozilla.Thunderbird	Mail client
-Kate	Development	flatpak	org.kde.kate	Text editor
+Slack	Social	flatpak	com.slack.Slack	Team communication
+Element	Social	flatpak	im.riot.Riot	Matrix/Element chat client
+VLC	Media	flatpak	org.videolan.VLC	Media player
+Spotify	Media	flatpak	com.spotify.Client	Music streaming
+Audacity	Media	flatpak	org.audacityteam.Audacity	Audio editor
+Clapper	Media	flatpak	com.github.rafostar.Clapper	Minimal GTK media player
+Mousai	Media	flatpak	io.github.seadve.Mousai	Song identifier
+OBS Studio	Creator	flatpak	com.obsproject.Studio	Streaming and recording
+Kdenlive	Creator	flatpak	org.kde.kdenlive	Video editor
+Handbrake	Creator	flatpak	fr.handbrake.ghb	Video transcoder
+GIMP	Creative	flatpak	org.gimp.GIMP	Image editor
+Inkscape	Creative	flatpak	org.inkscape.Inkscape	Vector graphics editor
+Krita	Creative	flatpak	org.kde.krita	Digital painting app
+Blender	Creative	flatpak	org.blender.Blender	3D creation suite
+Musescore	Creative	flatpak	org.musescore.MuseScore	Sheet music editor
+Darktable	Creative	flatpak	org.darktable.Darktable	Photo workflow and RAW editor
+VSCodium	Development	flatpak	com.vscodium.codium	Open-source VS Code build
+Zed	Development	flatpak	dev.zed.Zed	Fast collaborative code editor
+Kate	Development	flatpak	org.kde.kate	Feature-rich text editor
+Gitg	Development	flatpak	org.gnome.gitg	GNOME Git repository viewer
+Bottles	Gaming	flatpak	com.usebottles.bottles	Run Windows apps with Wine
+Steam	Gaming	flatpak	com.valvesoftware.Steam	Gaming platform
+Heroic	Gaming	flatpak	com.heroicgameslauncher.hgl	Epic/GOG/Amazon game launcher
+Lutris	Gaming	flatpak	net.lutris.Lutris	Open gaming platform

@@ -74,7 +74,7 @@ package_in_apt() {
             fi
             ;;
         brew) backend_run brew list --formula "$resolved" >/dev/null 2>&1 || backend_run brew list "$resolved" >/dev/null 2>&1 ;;
-        nix) backend_run nix-env -q "$resolved" >/dev/null 2>&1 ;;
+        nix) backend_run nix profile list 2>/dev/null | grep -qE "(packages\.[^.]+\.|#)$resolved($| )" ;;
     esac
 }
 
@@ -111,7 +111,7 @@ apt_install() {
             native_run_with_error "$pm" "install $resolved" run_with_spinner "Installing $resolved with Homebrew" backend_run brew install "$resolved"
             ;;
         nix)
-            native_run_with_error "$pm" "install $resolved" run_with_spinner "Installing $resolved with Nix" backend_run nix-env -iA "nixpkgs.$resolved"
+            native_run_with_error "$pm" "install $resolved" run_with_spinner "Installing $resolved with Nix" backend_run nix profile install "nixpkgs#$resolved"
             ;;
     esac
 }
@@ -168,7 +168,7 @@ apt_remove() {
             native_run_with_error "$pm" "remove $resolved" run_with_spinner "Removing $resolved from Homebrew" backend_run brew uninstall "$resolved"
             ;;
         nix)
-            native_run_with_error "$pm" "remove $resolved" run_with_spinner "Removing $resolved from Nix" backend_run nix-env -e "$resolved"
+            native_run_with_error "$pm" "remove $resolved" run_with_spinner "Removing $resolved from Nix" backend_run nix profile remove "nixpkgs#$resolved"
             ;;
     esac
 }
@@ -193,7 +193,7 @@ apt_list() {
             fi
             ;;
         brew) backend_run brew list || die "native[$pm] list failed" ;;
-        nix) backend_run nix-env -q || die "native[$pm] list failed" ;;
+        nix) backend_run nix profile list || die "native[$pm] list failed" ;;
     esac
 }
 
@@ -233,8 +233,7 @@ apt_update() {
             native_run_with_error "$pm" upgrade run_with_spinner "Upgrading Homebrew packages" backend_run brew upgrade
             ;;
         nix)
-            native_run_with_error "$pm" update run_with_spinner "Updating Nix channels" backend_run nix-channel --update
-            native_run_with_error "$pm" upgrade run_with_spinner "Upgrading Nix profile" backend_run nix-env -u '*'
+            native_run_with_error "$pm" upgrade run_with_spinner "Upgrading Nix profile packages" backend_run nix profile upgrade '.*'
             ;;
     esac
 }

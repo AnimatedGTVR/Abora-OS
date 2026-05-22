@@ -8,21 +8,33 @@ disk_path="${ABORA_QEMU_DISK:-$out_dir/abora-qemu.qcow2}"
 memory_mb="${ABORA_QEMU_MEMORY_MB:-4096}"
 cpu_count="${ABORA_QEMU_CPUS:-4}"
 disk_size="${ABORA_QEMU_DISK_SIZE:-32G}"
+boot_mode="${ABORA_QEMU_BOOT:-iso}"
+nographic="${ABORA_QEMU_NOGRAPHIC:-0}"
+fresh="${ABORA_QEMU_FRESH:-0}"
 firmware_code=""
 firmware_vars=""
 
 if ! command -v qemu-system-x86_64 >/dev/null 2>&1; then
-    echo "qemu-system-x86_64 is required to run the ISO in QEMU." >&2
+    echo "qemu-system-x86_64 is required. Install qemu on your host." >&2
     exit 1
 fi
-
 if ! command -v qemu-img >/dev/null 2>&1; then
-    echo "qemu-img is required to create the QEMU disk image." >&2
+    echo "qemu-img is required. Install qemu on your host." >&2
     exit 1
 fi
 
-if [[ -z "$iso_path" ]]; then
-    latest_iso="$(find "$out_dir" -maxdepth 1 -type f -name '*.iso' -printf '%T@ %p\n' | sort -n | tail -n 1 | cut -d' ' -f2-)"
+case "$boot_mode" in
+    iso|live|install) boot_mode="iso" ;;
+    disk|installed|hard-drive|harddrive) boot_mode="disk" ;;
+    *)
+        echo "Invalid ABORA_QEMU_BOOT: $boot_mode (use iso or disk)." >&2
+        exit 1
+        ;;
+esac
+
+if [[ "$boot_mode" == "iso" && -z "$iso_path" ]]; then
+    latest_iso="$(find "$out_dir" -maxdepth 1 -type f -name '*.iso' -printf '%T@ %p\n' \
+        | sort -n | tail -n 1 | cut -d' ' -f2-)"
     if [[ -z "${latest_iso:-}" ]]; then
         echo "No ISO found in $out_dir. Build one first with \`make iso\` or set ABORA_ISO_PATH." >&2
         exit 1
@@ -30,53 +42,125 @@ if [[ -z "$iso_path" ]]; then
     iso_path="$latest_iso"
 fi
 
-if [[ ! -f "$iso_path" ]]; then
+if [[ "$boot_mode" == "iso" && ! -f "$iso_path" ]]; then
     echo "ISO not found: $iso_path" >&2
     exit 1
 fi
 
 mkdir -p "$out_dir"
 
+# Fresh disk: wipe old image so installation starts clean
+if [[ "$fresh" == "1" && -f "$disk_path" ]]; then
+    echo "  Removing old disk image for fresh start…"
+    rm -f "$disk_path"
+fi
+
 if [[ ! -f "$disk_path" ]]; then
     qemu-img create -f qcow2 "$disk_path" "$disk_size" >/dev/null
 fi
 
-if [[ -f /usr/share/OVMF/OVMF_CODE.fd ]]; then
-    firmware_code="/usr/share/OVMF/OVMF_CODE.fd"
-    firmware_vars="/usr/share/OVMF/OVMF_VARS.fd"
-elif [[ -f /usr/share/edk2/x64/OVMF_CODE.fd ]]; then
-    firmware_code="/usr/share/edk2/x64/OVMF_CODE.fd"
-    firmware_vars="/usr/share/edk2/x64/OVMF_VARS.fd"
-fi
+# UEFI firmware (optional — enables UEFI boot, mirrors real hardware better)
+for d in \
+    /usr/share/OVMF \
+    /usr/share/edk2/x64 \
+    /run/current-system/sw/share/OVMF \
+    /nix/var/nix/profiles/system/sw/share/OVMF
+do
+    if [[ -f "$d/OVMF_CODE.fd" ]]; then
+        firmware_code="$d/OVMF_CODE.fd"
+        firmware_vars="$d/OVMF_VARS.fd"
+        break
+    fi
+done
 
+# Base QEMU arguments
 qemu_args=(
     -m "$memory_mb"
     -smp "$cpu_count"
-    -boot "order=c,once=d,menu=on"
-    -cdrom "$iso_path"
     -drive "file=$disk_path,format=qcow2,if=virtio"
     -netdev user,id=n1
     -device virtio-net-pci,netdev=n1
 )
 
+# KVM acceleration
 if [[ -c /dev/kvm && -r /dev/kvm && -w /dev/kvm ]]; then
     qemu_args+=( -enable-kvm -cpu host )
+else
+    echo "  Note: /dev/kvm not available — running without hardware acceleration (slow)." >&2
+    qemu_args+=( -cpu qemu64 )
 fi
 
-if [[ -n "$firmware_code" && -n "$firmware_vars" && -f "$firmware_vars" ]]; then
+# UEFI firmware
+if [[ -n "$firmware_code" && -f "${firmware_vars:-}" ]]; then
     vars_copy="$out_dir/OVMF_VARS.fd"
     if [[ ! -f "$vars_copy" ]]; then
         cp "$firmware_vars" "$vars_copy"
     fi
-
     qemu_args+=(
         -drive "if=pflash,format=raw,readonly=on,file=$firmware_code"
         -drive "if=pflash,format=raw,file=$vars_copy"
     )
 fi
 
-echo "Booting ISO in QEMU:"
-echo "  ISO:  $iso_path"
-echo "  Disk: $disk_path"
+# Boot device
+if [[ "$boot_mode" == "iso" ]]; then
+    # once=d  →  boot from CD this run, fall back to disk on next run (no menu pop-up)
+    qemu_args+=(
+        -boot once=d
+        -cdrom "$iso_path"
+    )
+else
+    qemu_args+=( -boot once=c )
+fi
 
-exec qemu-system-x86_64 "${qemu_args[@]}"
+# Display
+if [[ "$nographic" == "1" ]]; then
+    # Headless: all output (serial + monitor) in this terminal
+    qemu_args+=( -nographic -serial mon:stdio )
+else
+    # Graphical: prefer GTK, fall back to SDL, then sdl2
+    if qemu-system-x86_64 -display gtk,help >/dev/null 2>&1 || \
+       qemu-system-x86_64 -display help 2>&1 | grep -q '^gtk'; then
+        qemu_args+=( -display gtk,show-cursor=on,grab-on-hover=off )
+    else
+        qemu_args+=( -display sdl,grab-on-hover=off )
+    fi
+    qemu_args+=(
+        -vga virtio
+        -usb
+        -device usb-tablet
+    )
+    # Also pipe serial to a log file so boot messages are accessible
+    qemu_args+=( -serial "file:$out_dir/abora-serial.log" )
+fi
+
+# Print launch info
+if [[ "$boot_mode" == "iso" ]]; then
+    echo "Booting Abora installer ISO in QEMU:"
+    echo "  ISO:  $iso_path"
+else
+    echo "Booting installed Abora disk in QEMU:"
+fi
+echo "  Disk: $disk_path"
+if [[ "$nographic" != "1" ]]; then
+    echo "  Serial log: $out_dir/abora-serial.log"
+fi
+echo "  Close the QEMU window or press Ctrl+C here to stop the VM."
+echo ""
+
+trap 'echo; echo "QEMU stopped."; exit 0' INT
+set +e
+qemu-system-x86_64 "${qemu_args[@]}"
+rc=$?
+set -e
+
+case "$rc" in
+    0|130)
+        echo "QEMU stopped."
+        exit 0
+        ;;
+    *)
+        echo "QEMU exited with status $rc." >&2
+        exit "$rc"
+        ;;
+esac

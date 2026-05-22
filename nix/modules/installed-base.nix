@@ -63,13 +63,17 @@ let
   optionsModule =
     if builtins.pathExists ./abora-options.nix then
       ./abora-options.nix
+    else if builtins.pathExists ../../nix/modules/abora-options.nix then
+      ../../nix/modules/abora-options.nix
     else
-      ../../nix/modules/abora-options.nix;
+      null;
   anixModule =
     if builtins.pathExists ./anix-module.nix then
       ./anix-module.nix
+    else if builtins.pathExists ../../nix/modules/anix.nix then
+      ../../nix/modules/anix.nix
     else
-      ../../nix/modules/anix.nix;
+      null;
   appCatalogScript =
     if builtins.pathExists ./app-catalog.sh then
       ./app-catalog.sh
@@ -125,6 +129,21 @@ let
       ./desktop-profiles.sh
     else
       ../../scripts/abora-desktop-profiles.sh;
+  installerScript =
+    if builtins.pathExists ./installer.sh then
+      ./installer.sh
+    else
+      ../../scripts/abora-installer.sh;
+  setupLauncherScript =
+    if builtins.pathExists ./setup-launcher.sh then
+      ./setup-launcher.sh
+    else
+      ../../scripts/abora-setup-launcher.sh;
+  setupDesktopFile =
+    if builtins.pathExists ./setup.desktop then
+      ./setup.desktop
+    else
+      ../../scripts/abora-setup.desktop;
   plymouthDir =
     if builtins.pathExists ./plymouth then
       ./plymouth
@@ -145,7 +164,22 @@ let
       bootloaderDir + "/limine-background.png"
     else
       bootloaderDir + "/background.png";
+  tinypmDir =
+    if builtins.pathExists ./tinypm then
+      ./tinypm
+    else
+      ../../vendor/tinypm;
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
+  tinypmPackage = pkgs.runCommandLocal "abora-tinypm" { } ''
+    cp -r ${tinypmDir}/. $out
+    chmod -R u+w $out
+    for cmd in grab search term start supdate tinypm; do
+      [ -f "$out/$cmd" ] && chmod +x "$out/$cmd"
+    done
+  '';
+  mkGrabCmd = name: pkgs.writeShellScriptBin name ''
+    exec env TINYPM_FLAVOR=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/tinypm/${name} "$@"
+  '';
   aboraApps = pkgs.writeShellScriptBin "abora-apps" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/apps.sh "$@"
   '';
@@ -176,6 +210,18 @@ let
   aboraHardwareTest = pkgs.writeShellScriptBin "abora-hardware-test" ''
     exec env ABORA_SUPPORT_REPORT_SCRIPT=/etc/abora/support-report.sh ${pkgs.bashInteractive}/bin/bash /etc/abora/hardware-test.sh "$@"
   '';
+  aboraInstaller = pkgs.writeShellScriptBin "abora-installer" ''
+    exec env ABORA_INSTALLER=/etc/abora/installer.sh \
+      ${pkgs.bashInteractive}/bin/bash /etc/abora/installer.sh "$@"
+  '';
+  aboraSetup = pkgs.writeShellScriptBin "abora-setup" ''
+    exec env ABORA_INSTALLER=/etc/abora/installer.sh \
+      ${pkgs.bashInteractive}/bin/bash /etc/abora/setup-launcher.sh "$@"
+  '';
+  aboraSetupDesktopPkg = pkgs.runCommandLocal "abora-setup-desktop" { } ''
+    mkdir -p "$out/share/applications"
+    cp ${setupDesktopFile} "$out/share/applications/abora-setup.desktop"
+  '';
   aboraUpdate = pkgs.writeShellScriptBin "abora-update" ''
     exec env ABORA_UPDATE_COMMAND=abora-update ${pkgs.bashInteractive}/bin/bash /etc/abora/update.sh "$@"
   '';
@@ -199,8 +245,8 @@ let
   '';
   aboraWallpapersPackage = pkgs.runCommandLocal "abora-wallpapers" { } ''
     mkdir -p "$out/share/backgrounds/abora" "$out/share/abora/themes" "$out/share/gnome-background-properties"
-    cp ${wallpaperDir}/* "$out/share/backgrounds/abora/"
-    cp ${wallpaperThemeDir}/* "$out/share/abora/themes/"
+    find ${wallpaperDir} -maxdepth 1 -type f -exec cp {} "$out/share/backgrounds/abora/" \;
+    find ${wallpaperThemeDir} -maxdepth 1 -type f -exec cp {} "$out/share/abora/themes/" \;
     cat >"$out/share/gnome-background-properties/abora.xml" <<'EOF'
     <?xml version="1.0"?>
     <!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd">
@@ -299,6 +345,8 @@ in
   };
 
   services.flatpak.enable = lib.mkDefault true;
+  xdg.portal.enable = lib.mkDefault true;
+  xdg.portal.extraPortals = lib.mkDefault (with pkgs; [ xdg-desktop-portal-gtk ]);
 
   # Add Flathub automatically once the network is up.
   systemd.services.abora-flatpak-setup = {
@@ -326,13 +374,15 @@ in
   fonts.packages = with pkgs; [
     noto-fonts
     noto-fonts-color-emoji
+    inter
+    jetbrains-mono
   ];
   fonts.fontconfig = {
     enable = lib.mkDefault true;
     defaultFonts = {
-      sansSerif = lib.mkDefault [ "Noto Sans" ];
+      sansSerif = lib.mkDefault [ "Inter" "Noto Sans" ];
       serif     = lib.mkDefault [ "Noto Serif" ];
-      monospace = lib.mkDefault [ "Noto Sans Mono" ];
+      monospace = lib.mkDefault [ "JetBrains Mono" "Noto Sans Mono" ];
       emoji     = lib.mkDefault [ "Noto Color Emoji" ];
     };
   };
@@ -343,6 +393,11 @@ in
   };
 
   environment.systemPackages = with pkgs; [
+    (mkGrabCmd "grab")
+    (mkGrabCmd "search")
+    (mkGrabCmd "term")
+    (mkGrabCmd "start")
+    (mkGrabCmd "supdate")
     aboraApps
     aboraCommand
     anixCommand
@@ -355,6 +410,9 @@ in
     aboraUpdate
     aboraWelcome
     aboraWallpapersPackage
+    aboraInstaller
+    aboraSetup
+    aboraSetupDesktopPkg
     aboraSessionSetup
     aboraThemeSync
     bashInteractive
@@ -419,8 +477,6 @@ in
         source = anixScript;
         mode = "0755";
       };
-      "abora/abora-options.nix".source = optionsModule;
-      "abora/anix-module.nix".source = anixModule;
       "abora/app-catalog.sh" = {
         source = appCatalogScript;
         mode = "0755";
@@ -446,6 +502,16 @@ in
         source = desktopProfilesScript;
         mode = "0755";
       };
+      "abora/tinypm".source = tinypmPackage;
+      "abora/installer.sh" = {
+        source = installerScript;
+        mode = "0755";
+      };
+      "abora/setup-launcher.sh" = {
+        source = setupLauncherScript;
+        mode = "0755";
+      };
+      "abora/setup.desktop".source = setupDesktopFile;
       "abora/session-setup.sh" = {
         source = sessionSetupScript;
         mode = "0755";
@@ -459,13 +525,17 @@ in
         mode = "0755";
       };
       "motd".text = ''
-        Abora OS ${version}
+        Abora OS ${version} — Denali
+
+          grab <app>          install an app  (flatpak, nix, or snap)
+          search <app>        find apps across all sources
+          term <app>          remove an installed app
+          supdate             upgrade all installed apps
 
           abora welcome       first steps and quick actions
           abora doctor        check system health
           abora recovery      rollback and repair tools
-          anix doctor         check the Nix/ANIX layer
-          sudo nixos update   update the system
+          sudo nixos update   rebuild and switch the system
       '';
       "profile.d/abora-welcome.sh".text = ''
         if [ -n "''${PS1:-}" ] && [ -z "''${ABORA_WELCOME_SHOWN:-}" ] && command -v abora-welcome >/dev/null 2>&1; then
@@ -551,7 +621,13 @@ in
         name = "abora/themes/${name}";
         value.source = wallpaperThemeDir + "/${name}";
       }) (builtins.attrNames (builtins.readDir wallpaperThemeDir))
-    );
+    )
+    // lib.optionalAttrs (optionsModule != null) {
+      "abora/abora-options.nix".source = optionsModule;
+    }
+    // lib.optionalAttrs (anixModule != null) {
+      "abora/anix-module.nix".source = anixModule;
+    };
 
   environment.shellAliases.fastfetch = "fastfetch -c /etc/xdg/fastfetch/config.jsonc";
 }

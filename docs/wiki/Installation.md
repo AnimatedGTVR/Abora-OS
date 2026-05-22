@@ -1,6 +1,6 @@
 # Installation
 
-This page covers the normal Abora OS install flow.
+This page covers the normal Abora OS install flow for v2.5+ and v3 Denali.
 
 ## Build The ISO
 
@@ -14,54 +14,54 @@ make iso
 To boot the newest ISO in QEMU:
 
 ```sh
-make qemc
+make qemu-fresh
 ```
 
 ## Live Boot
 
-When the ISO starts, Abora should take you to the terminal-first boot flow.
+When the ISO starts, Abora should take over `tty1` and launch the live boot flow.
 
-From there you can:
+The live image should:
 
-- start the installer
-- open a live shell
-- reboot or power off
+- start NetworkManager
+- open the Denali installer
+- allow Wi-Fi setup through `nmtui` or `nmcli`
+- provide a fallback live shell if the installer exits
 
 ## Installer Flow
 
-The installer is interactive.
+The installer is interactive and keyboard-first.
 
-It begins with:
+The current flow includes:
 
-- a welcome step before any disk action
-- a pre-install setup screen for keyboard, desktop, and starter app bundle
-
-You will be asked for:
-
-- install target disk
-- hostname
-- username
-- password
-- desktop choice
-- any optional install settings exposed by the current release
+- network setup
+- hostname, username, timezone, keyboard, and password setup
+- desktop profile selection
+- starter app bundle selection
+- ANIX and GitHub options
+- disk selection
+- final review
+- generated-config validation before `nixos-install`
+- install progress and clear logs
 
 ## After Install
 
-When the installation finishes:
+When installation finishes:
 
-1. remove the ISO
-2. reboot the VM or machine
+1. reboot or power off from the installer
+2. remove the ISO or boot the VM with `make qemu-disk`
 3. boot into the installed system
 4. confirm networking works
-5. run `sudo nixos update`
+5. run `abora doctor`
+6. run `sudo nixos update` when ready to test updates
 
 ## VM Notes
 
-Abora is tested mainly in QEMU first, but Windows-host VM checks also matter.
-
-- VMware and Hyper-V are worth checking on Windows hosts
-- if testing Hyper-V Generation 2, disable secure boot first
-- if testing VirtualBox, test default graphics settings before changing anything
+- `make qemu-fresh` deletes the old QEMU disk and starts a clean install test.
+- `make qemu-disk` boots only the installed virtual hard drive.
+- VMware and Hyper-V are worth checking on Windows hosts.
+- If testing Hyper-V Generation 2, disable secure boot first.
+- If testing VirtualBox, test default graphics settings before changing anything.
 
 ## Validation
 
