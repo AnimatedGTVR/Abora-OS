@@ -1,134 +1,106 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Abora OS — live boot script
+# Runs on tty1 via systemd.  Plymouth is quit by ExecStartPre before this runs.
 
 export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+export TERM="${TERM:-linux}"
 
-version="${ABORA_VERSION:-v2.5.0}"
-product_name="${ABORA_PRODUCT_NAME:-Abora OS}"
+# Env vars the installer looks for — set here so the child process inherits them
+export ABORA_DESKTOP_PROFILES_LIB="${ABORA_DESKTOP_PROFILES_LIB:-/etc/abora/desktop-profiles.sh}"
+export ABORA_APP_CATALOG_LIB="${ABORA_APP_CATALOG_LIB:-/etc/abora/app-catalog.sh}"
+export ABORA_NIXPKGS_PATH="${ABORA_NIXPKGS_PATH:-/etc/abora/nixpkgs}"
 
-BLUE=$'\033[38;5;33m'
-ACCENT=$'\033[38;5;87m'
-WHITE=$'\033[1;97m'
-DIM=$'\033[38;5;242m'
-FAINT=$'\033[38;5;237m'
-NC=$'\033[0m'
+# ── Find bash binary ───────────────────────────────────────────────────────────
+BASH_BIN="/run/current-system/sw/bin/bash"
+for _b in "${BASH:-}" /run/current-system/sw/bin/bash /usr/bin/bash /bin/bash; do
+    [ -n "$_b" ] && [ -x "$_b" ] && { BASH_BIN="$_b"; break; }
+done
 
-bash_bin() {
-    local candidate=""
+# ── Colors ─────────────────────────────────────────────────────────────────────
+BL=$'\033[38;5;33m'    # Abora blue
+WH=$'\033[1;97m'       # bright white
+DM=$'\033[38;5;242m'   # dim
+CY=$'\033[38;5;87m'    # cyan / accent
+NC=$'\033[0m'          # reset
 
-    for candidate in "${BASH:-}" /run/current-system/sw/bin/bash /usr/bin/bash /bin/bash; do
-        if [[ -n "$candidate" && -x "$candidate" ]]; then
-            printf '%s' "$candidate"
-            return 0
-        fi
-    done
+# ── Boot stage display ────────────────────────────────────────────────────────
+# Box inner width: 54 chars.  No arithmetic that can return exit-code 1.
 
-    return 1
+BAR_W=40
+
+_boot_frame() {
+    # args: spinner  message  percent(0-100)
+    local spin="$1"
+    local msg="$2"
+    local pct="$3"
+
+    local filled=$(( pct * BAR_W / 100 ))
+    local empty=$(( BAR_W - filled ))
+    local bar
+    bar="$(printf '%*s' "$filled" '' | tr ' ' '█')$(printf '%*s' "$empty" '' | tr ' ' '░')"
+
+    # Hard-reset the VT so nothing bleeds in from Plymouth
+    printf '\033c'
+    printf '\n'
+    printf '  %b╔══════════════════════════════════════════════════════╗%b\n' "$BL" "$NC"
+    printf '  %b║%b  %-54s%b║%b\n' "$BL" "$WH" "ABORA OS  —  DENALI  ·  Starting" "$BL" "$NC"
+    printf '  %b╠══════════════════════════════════════════════════════╣%b\n' "$BL" "$NC"
+    printf '  %b║%b  %-54s%b║%b\n' "$BL" "$DM" "$msg" "$BL" "$NC"
+    printf '  %b║%b  [%s] %b%s%b  %b%3d%%%b\n' \
+        "$BL" "$NC" \
+        "$spin" \
+        "$CY" "$bar" "$NC" \
+        "$WH" "$pct" "$NC"
+    printf '  %b╚══════════════════════════════════════════════════════╝%b\n' "$BL" "$NC"
+    printf '\n'
 }
 
-BASH_BIN="$(bash_bin)"
-
-clear_screen() {
-    clear || printf '\033c'
-}
-
-draw_rule() {
-    local cols
-    cols="$(tput cols 2>/dev/null || printf '80')"
-    printf '%b' "$FAINT"
-    local i
-    for ((i = 0; i < cols - 4; i++)); do
-        printf '─'
-    done
-    printf '%b\n' "$NC"
-}
-
-
-show_stage_loading() {
-    local phase_one=(
-        "Checking the live environment"
-        "Loading Abora tools"
-        "Mounting filesystems"
+show_loader() {
+    local step pct i total
+    local msgs=(
+        "Checking live media"
+        "Starting network services"
+        "Loading installer files"
+        "Preparing setup environment"
+        "Launching installer"
     )
-    local phase_two=(
-        "Starting live services"
-        "Preparing the shell environment"
-        "Ready"
-    )
-    local frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
-    local idx=0
-    local message=""
-    local total_steps=$(( ${#phase_one[@]} + ${#phase_two[@]} ))
-    local completed=0
-    local progress=0
-    local bar_width=34
-    local filled=0
-    local empty=0
-    local bar=""
+    total=${#msgs[@]}
+    i=0
 
-    draw_stage_frame() {
-        local stage_label="$1"
-        local status_label="$2"
-        local spinner_frame="$3"
-
-        progress=$(( completed * 100 / total_steps ))
-        filled=$(( progress * bar_width / 100 ))
-        empty=$(( bar_width - filled ))
-        bar="$(printf '%*s' "$filled" '' | tr ' ' '█')$(printf '%*s' "$empty" '' | tr ' ' '░')"
-
-        clear_screen
-        printf '\n'
-        draw_rule
-        printf '  %b%s%b\n' "$WHITE" "Launching ${product_name}" "$NC"
-        printf '  %b%s%b\n' "$DIM" "Preparing the live environment." "$NC"
-        draw_rule
-        printf '\n'
-        printf '  %b%s%b\n' "$WHITE" "$stage_label" "$NC"
-        printf '  %b%s%b %s\n' "$ACCENT" "$spinner_frame" "$NC" "$status_label"
-        printf '\n'
-        printf '  %b[%s]%b %b%3d%%%b\n' "$BLUE" "$bar" "$NC" "$WHITE" "$progress" "$NC"
-        printf '\n'
-        printf '  %bStage 1%b  live boot checks, core tooling, filesystems\n' "$FAINT" "$NC"
-        printf '  %bStage 2%b  live services, shell environment\n' "$FAINT" "$NC"
-    }
-
-    for message in "${phase_one[@]}"; do
-        for idx in "${!frames[@]}"; do
-            draw_stage_frame "Abora Stage 1" "$message" "${frames[$idx]}"
-            sleep 0.06
-        done
-        completed=$((completed + 1))
+    for step in "${msgs[@]}"; do
+        pct=$(( i * 100 / total ))
+        _boot_frame '/' "$step" "$pct"; sleep 0.06
+        _boot_frame '-' "$step" "$pct"; sleep 0.06
+        _boot_frame '\' "$step" "$pct"; sleep 0.06
+        _boot_frame '|' "$step" "$pct"; sleep 0.06
+        i=$(( i + 1 ))
     done
 
-    for message in "${phase_two[@]}"; do
-        for idx in "${!frames[@]}"; do
-            draw_stage_frame "Abora Stage 2" "$message" "${frames[$idx]}"
-            sleep 0.06
-        done
-        completed=$((completed + 1))
-    done
-
-    draw_stage_frame "Abora Stage 2" "Ready" "✓"
-    sleep 0.30
+    _boot_frame '✓' "Ready" 100
+    sleep 0.4
 }
 
-boot_sequence() {
-    show_stage_loading
-    clear_screen
+# ── Entry ──────────────────────────────────────────────────────────────────────
+# Plymouth was already quit by ExecStartPre= in the service unit.
+# Do a hard VT reset so any framebuffer residue is cleared.
+printf '\033c'
 
-    if "$BASH_BIN" /etc/abora/installer.sh; then
-        # installer exited cleanly (user chose reboot/poweroff from finish screen)
-        exit 0
-    else
-        # installer crashed or was aborted — drop to live shell
-        printf '\n'
-        draw_rule
-        printf '  %bInstaller exited. You are now in the live shell.%b\n' "$WHITE" "$NC"
-        printf '  %bRun %babora-install%b to restart it.%b\n' "$DIM" "$WHITE" "$DIM" "$NC"
-        draw_rule
-        printf '\n'
-        exec "$BASH_BIN" --login
-    fi
-}
+show_loader
 
-boot_sequence
+printf '\033c'
+
+# Launch the installer.
+# We never exit 0 here — if the user chose Reboot/Poweroff, the installer
+# calls systemctl reboot/poweroff directly and we never reach this point.
+# If the installer exits for any other reason (clean exit after "Stay in live
+# shell", or a crash), drop to the live shell so the service keeps running and
+# tty1 stays ours (prevents autovt@tty1 from taking over).
+"$BASH_BIN" /etc/abora/installer.sh "$@" || true
+
+printf '\n'
+printf '  %b━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%b\n' "$DM" "$NC"
+printf '  %bInstaller exited.  You are now in the live shell.%b\n'      "$WH" "$NC"
+printf '  %bType %babora-install%b to restart the installer.%b\n'       "$DM" "$WH" "$DM" "$NC"
+printf '  %b━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%b\n' "$DM" "$NC"
+printf '\n'
+exec "$BASH_BIN" --login

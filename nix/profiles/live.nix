@@ -31,7 +31,18 @@ let
     exec env ABORA_SUPPORT_REPORT_SCRIPT=/etc/abora/support-report.sh ${pkgs.bashInteractive}/bin/bash /etc/abora/hardware-test.sh "$@"
   '';
   aboraInstall = pkgs.writeShellScriptBin "abora-install" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/installer.sh "$@"
+    if [ "$(id -u)" -ne 0 ]; then
+      exec sudo \
+        TERM="''${TERM:-linux}" \
+        ABORA_DESKTOP_PROFILES_LIB=/etc/abora/desktop-profiles.sh \
+        ABORA_APP_CATALOG_LIB=/etc/abora/app-catalog.sh \
+        ${pkgs.bashInteractive}/bin/bash /etc/abora/installer.sh "$@"
+    fi
+    exec env \
+      TERM="''${TERM:-linux}" \
+      ABORA_DESKTOP_PROFILES_LIB=/etc/abora/desktop-profiles.sh \
+      ABORA_APP_CATALOG_LIB=/etc/abora/app-catalog.sh \
+      ${pkgs.bashInteractive}/bin/bash /etc/abora/installer.sh "$@"
   '';
   aboraUpdate = pkgs.writeShellScriptBin "abora-update" ''
     exec env ABORA_UPDATE_COMMAND=abora-update ${pkgs.bashInteractive}/bin/bash /etc/abora/update.sh "$@"
@@ -70,8 +81,8 @@ let
   wallpaperThemeDir = ../../assets/wallpaper-themes;
   aboraWallpapersPackage = pkgs.runCommandLocal "abora-wallpapers" { } ''
     mkdir -p "$out/share/backgrounds/abora" "$out/share/abora/themes" "$out/share/gnome-background-properties"
-    cp ${wallpaperDir}/* "$out/share/backgrounds/abora/"
-    cp ${wallpaperThemeDir}/* "$out/share/abora/themes/"
+    find ${wallpaperDir} -maxdepth 1 -type f -exec cp {} "$out/share/backgrounds/abora/" \;
+    find ${wallpaperThemeDir} -maxdepth 1 -type f -exec cp {} "$out/share/abora/themes/" \;
     cat >"$out/share/gnome-background-properties/abora.xml" <<'EOF'
     <?xml version="1.0"?>
     <!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd">
@@ -119,7 +130,11 @@ in
 {
   system.stateVersion = "26.05";
   networking.hostName = "abora";
-  networking.networkmanager.enable = true;
+  networking.wireless.enable = lib.mkForce false;
+  networking.networkmanager = {
+    enable = lib.mkForce true;
+    wifi.backend = "wpa_supplicant";
+  };
   system.nixos.tags = [ "abora" "nixos-base" ];
   system.nixos = {
     distroId = "abora";
@@ -195,6 +210,9 @@ in
     iproute2
     iw
     kbd
+    networkmanager
+    newt
+    iputils
     pciutils
     nixosCommand
     openssl
@@ -315,6 +333,11 @@ in
         source = ../../scripts/abora-installer.sh;
         mode = "0755";
       };
+      "abora/setup-launcher.sh" = {
+        source = ../../scripts/abora-setup-launcher.sh;
+        mode = "0755";
+      };
+      "abora/setup.desktop".source = ../../scripts/abora-setup.desktop;
       "abora/installed-base.nix".source = ../../nix/modules/installed-base.nix;
       "abora/abora-options.nix".source  = ../../nix/modules/abora-options.nix;
       "abora/ui.sh" = {
@@ -426,34 +449,59 @@ in
   environment.shellAliases.fastfetch = "fastfetch -c /etc/xdg/fastfetch/config.jsonc";
 
   systemd.services."getty@tty1".enable = lib.mkForce false;
+  systemd.services.NetworkManager = {
+    enable = lib.mkForce true;
+    wantedBy = lib.mkForce [ "multi-user.target" ];
+  };
   systemd.services.abora-boot = {
-    description = "Abora live boot menu";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "systemd-user-sessions.service" ];
-    conflicts = [ "getty@tty1.service" ];
-    before = [ "getty@tty1.service" ];
+    description = "Abora OS installer boot";
+    wantedBy    = [ "multi-user.target" ];
+    wants       = [ "NetworkManager.service" ];
+    # Conflict with both the static and auto-vt getty on tty1 so neither
+    # can race with us for the terminal.
+    conflicts = [ "getty@tty1.service" "autovt@tty1.service" ];
+    # Start after network is up and sessions are ready.
+    # plymouth-quit.service sends the quit signal to Plymouth;
+    # we also call `plymouth quit` in ExecStartPre as a belt-and-suspenders.
+    after = [
+      "NetworkManager.service"
+      "systemd-user-sessions.service"
+      "plymouth-quit.service"
+      "getty@tty1.service"
+      "autovt@tty1.service"
+    ];
     environment = {
-      ABORA_NIXPKGS_PATH = "/etc/abora/nixpkgs";
-      ABORA_ZONEINFO_PATH = "${pkgs.tzdata}/share/zoneinfo";
+      TERM                         = "linux";
+      ABORA_VERSION                = version;
+      ABORA_NIXPKGS_PATH           = "/etc/abora/nixpkgs";
+      ABORA_ZONEINFO_PATH          = "${pkgs.tzdata}/share/zoneinfo";
+      ABORA_DESKTOP_PROFILES_LIB   = "/etc/abora/desktop-profiles.sh";
+      ABORA_APP_CATALOG_LIB        = "/etc/abora/app-catalog.sh";
     };
-
     serviceConfig = {
-      Type = "simple";
-      ExecStart = "${pkgs.bashInteractive}/bin/bash /etc/abora/boot.sh";
-      Restart = "on-failure";
-      RestartSec = "1";
-      StandardInput = "tty-force";
+      Type   = "simple";
+      # Quit Plymouth before we take the TTY — avoids framebuffer race.
+      # The leading '-' tells systemd to ignore a non-zero exit code.
+      ExecStartPre  = "-${pkgs.plymouth}/bin/plymouth quit --wait";
+      ExecStart     = "${pkgs.bashInteractive}/bin/bash /etc/abora/boot.sh";
+      # Restart only on crash, not on clean installer exit (exit 0).
+      Restart       = "on-failure";
+      RestartSec    = "2";
+      StandardInput  = "tty-force";
       StandardOutput = "tty";
-      StandardError = "tty";
-      TTYPath = "/dev/tty1";
-      TTYReset = true;
-      TTYVHangup = true;
-      TTYVTDisallocate = true;
+      StandardError  = "tty";
+      TTYPath        = "/dev/tty1";
+      TTYReset       = true;
+      TTYVHangup     = true;
+      # Do NOT set TTYVTDisallocate — it releases the VT on exit which breaks
+      # the fallback live shell and makes restarts unable to re-acquire tty1.
     };
   };
 
   image.fileName = lib.mkForce "abora-${version}-x86_64.iso";
   isoImage.makeEfiBootable = true;
+  isoImage.makeUsbBootable = true;
+  isoImage.squashfsCompression = lib.mkForce "zstd -Xcompression-level 3";
   isoImage.prependToMenuLabel = "";
   isoImage.appendToMenuLabel = "";
   isoImage.configurationName = null;

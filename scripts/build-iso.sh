@@ -37,9 +37,6 @@ nix build "$nix_target" \
     --show-trace \
     --out-link "$build_link" \
     --option substituters "https://cache.nixos.org" \
-    --option trusted-public-keys "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" \
-    --option max-substitution-jobs 64 \
-    --option http-connections 128 \
     --option max-jobs auto \
     --cores 0
 
@@ -72,7 +69,3 @@ rm -f "$out_dir/${artifact_prefix}-"*"-${version_tag}.iso"
 cp -f "$iso_src" "$target_iso"
 
 echo "ISO output: $target_iso"
-rm -f "$out_dir/SHA256SUMS-${version_tag}.txt"
-rm -f "$out_dir/RELEASE_MANIFEST-${version_tag}.txt"
-rm -f "$out_dir/RELEASE_NOTES-${version_tag}.md"
-ABORA_OUT_DIR="$out_dir" "$repo_dir/scripts/release-metadata.sh" >/dev/null

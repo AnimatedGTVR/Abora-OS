@@ -23,6 +23,7 @@ bash_scripts=(
   "scripts/abora-installer.sh"
   "scripts/abora-recovery.sh"
   "scripts/abora-session-setup.sh"
+  "scripts/abora-setup-launcher.sh"
   "scripts/abora-support-report.sh"
   "scripts/abora-ui.sh"
   "scripts/abora-welcome.sh"
@@ -46,6 +47,10 @@ nix_files=(
   "nix/modules/anix.nix"
   "nix/modules/installed-base.nix"
   "nix/profiles/live.nix"
+)
+
+required_files=(
+  "scripts/abora-setup.desktop"
 )
 
 failed=0
@@ -79,6 +84,14 @@ for file in "${bash_scripts[@]}"; do
 done
 
 for file in "${nix_files[@]}"; do
+  if [[ -f "$file" ]]; then
+    pass "exists: $file"
+  else
+    fail "Missing file: $file"
+  fi
+done
+
+for file in "${required_files[@]}"; do
   if [[ -f "$file" ]]; then
     pass "exists: $file"
   else
@@ -208,6 +221,23 @@ if PATH="$tmp_anix_bin:$PATH" \
   pass "runtime: anix generation rollback"
 else
   fail "runtime: anix generation rollback"
+fi
+
+if [[ "$failed" -ne 0 ]]; then
+  printf '\nOne or more checks failed.\n' >&2
+  exit 1
+fi
+
+# shellcheck source=/dev/null
+source "$repo_dir/scripts/abora-desktop-profiles.sh"
+gnome_config_block="$(abora_desktop_config_block gnome us abora)"
+gnome_package_block="$(abora_desktop_package_block gnome)"
+if printf '%s\n' "$gnome_config_block" | grep -q "environment.systemPackages"; then
+  fail "runtime: desktop config block contains environment.systemPackages"
+elif ! printf '%s\n' "$gnome_package_block" | grep -q "gnomeExtensions.dash-to-dock"; then
+  fail "runtime: GNOME package block missing extension packages"
+else
+  pass "runtime: desktop package/config split"
 fi
 
 if [[ "$failed" -ne 0 ]]; then

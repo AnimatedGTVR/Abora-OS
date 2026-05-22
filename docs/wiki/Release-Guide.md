@@ -2,27 +2,40 @@
 
 This page covers the normal Abora release flow.
 
-## Local Release Build
+## Local ISO Build
 
 ```sh
 cd /home/animated/abora-os
+make iso
+```
+
+Use this for fast installer and live-image iteration.
+
+## Local Release Build
+
+```sh
 make release
 ```
+
+Use this when preparing a full release bundle.
 
 ## What To Publish
 
 The normal release bundle includes:
 
 - `abora-<date>-x86_64-<version>.iso`
+- `tinypm-*-abora-<version>.tar.gz`
 - `SHA256SUMS-<version>.txt`
 - `RELEASE_MANIFEST-<version>.txt`
 - `RELEASE_NOTES-<version>.md`
 
 ## Tagging A Release
 
+For the current v3 line:
+
 ```sh
-git tag v2.0.0-dev
-git push origin v2.0.0-dev
+git tag v3.0.0
+git push origin v3.0.0
 ```
 
 That triggers the GitHub release workflow for the tagged version.
@@ -31,10 +44,13 @@ That triggers the GitHub release workflow for the tagged version.
 
 Make sure these checks are done:
 
+- `./scripts/check-scripts.sh`
+- `./scripts/check-desktops.sh`
 - the ISO builds successfully
 - the live image boots
 - the installer completes one real install
 - the installed system boots without the ISO attached
+- `abora doctor` works on the installed system
 - `sudo nixos update` works on the installed system
 
 More detailed lists:

@@ -1,17 +1,17 @@
 # TinyPM V3
 
-TinyPM V3 is still part of the wider Abora ecosystem, but it is separate from the main `v2.0.0-dev` boot and installer flow.
+TinyPM V3 is part of the wider Abora ecosystem.
 
-## What It Is
+In the v2.5 and v3 Denali work, TinyPM is vendored into the repo and packaged with Abora release bundles. Installed systems expose the Abora-flavored commands when the installed base module is present.
 
-TinyPM V3 is a beginner-friendly package wrapper powered by Parcel.
-
-Main commands:
+## Main Commands
 
 - `grab`
+- `search`
+- `term`
+- `start`
+- `supdate`
 - `tinypm`
-- `Parcel --version`
-- `syspm`
 
 ## Project Location
 
@@ -21,9 +21,9 @@ The vendored repo inside Abora lives here:
 
 ## Current NixOS Reality
 
-TinyPM does work on NixOS, but not as a full declarative system-package manager.
+TinyPM works as a friendlier package/app command layer. It is not a full replacement for declarative NixOS configuration.
 
-Right now it is better understood as a user-side tool that can work with the Nix backend, rather than a full replacement for editing declarative NixOS configuration.
+For permanent system-level changes, Abora still uses NixOS modules, the local flake, ANIX helpers, and `sudo nixos update`.
 
 ## Local Checks
 
@@ -32,5 +32,10 @@ To check the current repo copy:
 ```sh
 cd /home/animated/abora-os
 vendor/tinypm/tinypm --version
-vendor/tinypm/scripts/e2e-smoke.sh
+```
+
+Release packaging is handled by:
+
+```sh
+make tinypm-package
 ```

@@ -2,7 +2,7 @@
 
 Welcome to the Abora OS wiki.
 
-Abora is a distro project built on top of NixOS with one main goal: make NixOS easier to approach without flattening out what makes it powerful in the first place.
+Abora is a distro project built on top of NixOS with one main goal: make NixOS easier to approach without hiding the power underneath.
 
 ## Start Here
 
@@ -13,20 +13,21 @@ Abora is a distro project built on top of NixOS with one main goal: make NixOS e
 - [TinyPM V3](TinyPM-V3.md)
 - [FAQ](FAQ.md)
 
-## What Abora Is Trying To Do
+## Current Version Direction
 
-Abora is meant to feel more welcoming than a raw NixOS setup.
+Current repo version: `v3.0.0`
 
-That means:
+- v2.5 delivered the installer reliability, NetworkManager, desktop matrix, QEMU, and release-command cleanup work.
+- v3 Denali is the current design direction: an Omarchy-inspired TUI installer, stronger install validation, and a more distinctive Abora identity.
 
-- a cleaner live boot flow
-- a simpler install path
-- a branded bootloader, wallpaper, and fastfetch setup
-- a distro-style `sudo nixos update` command for installed systems
+## What Abora Adds To NixOS
 
-## Current Development Snapshot
-
-`v2.0.0-dev`
+- a focused live boot flow
+- a guided installer with network setup and desktop selection
+- branded bootloader, Plymouth, wallpaper, and Fastfetch defaults
+- installed commands for welcome, doctor, recovery, config, desktop selection, setup, and updates
+- TinyPM-flavored app commands: `grab`, `search`, `term`, `start`, and `supdate`
+- ANIX helper workflows for snapshots, rollback, and profile switching
 
 ## Useful Links
 

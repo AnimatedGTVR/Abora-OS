@@ -5,35 +5,54 @@ This page covers local builds for Abora OS.
 ## Requirements
 
 - Nix with `nix-command` and `flakes`
+- QEMU for local VM tests
 
-## Build The ISO
+## Build Only The ISO
 
 ```sh
 cd /home/animated/abora-os
 make iso
 ```
 
+`make iso` only builds the ISO and copies it into `out/`.
+
 ## Boot The ISO In QEMU
 
 ```sh
-cd /home/animated/abora-os
-make qemc
+make qemu
+```
+
+For clean install testing, use a fresh disk:
+
+```sh
+make qemu-fresh
+```
+
+After installing, boot the virtual hard drive without attaching the ISO:
+
+```sh
+make qemu-disk
+```
+
+For terminal-only QEMU output:
+
+```sh
+make qemu-serial
 ```
 
 ## Build The Full Release Bundle
 
 ```sh
-cd /home/animated/abora-os
 make release
 ```
 
-That writes the release bundle into `out/`, including:
+`make release` builds:
 
 - the ISO
+- the TinyPM release tarball
 - checksums
 - release manifest
-- release notes
-- the TinyPM V3 release tarball
+- generated release notes
 
 ## Refresh Only Metadata
 
@@ -45,8 +64,5 @@ make metadata
 
 ```sh
 ./scripts/check-scripts.sh
-```
-
-```sh
-./scripts/rebuild-vm.sh
+./scripts/check-desktops.sh
 ```

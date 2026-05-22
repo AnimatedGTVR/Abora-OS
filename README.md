@@ -42,7 +42,7 @@
 </p>
 
 <p align="center">
-  <strong>v2.5.0</strong>
+  <strong>v3.0.0 Denali</strong>
 </p>
 
 ---
@@ -62,7 +62,7 @@ Instead of dropping people into a system that feels like it was only built for p
 ## What You Get
 
 - Terminal-first live boot and installer with a full welcome flow
-- 23 desktop environments to choose from at install time
+- 21 desktop environments to choose from at install time
 - Curated starter app bundles: Fan Favorites, Essentials, Social, Creator, Developer, Gaming, System
 - 52 apps in the catalog across 6 categories
 - Flatpak + Flathub enabled out of the box on every install
@@ -74,7 +74,7 @@ Instead of dropping people into a system that feels like it was only built for p
 - `sudo nixos update` / `rollback` flow on installed systems
 - Update channels: track `stable` releases or `unstable` (main branch)
 - `abora config` command to view and change system settings without editing Nix
-- Consistent ocean-themed terminal UI across all Abora tools
+- Omarchy-inspired Denali installer TUI
 - Optional GitHub CLI integration for repos, dotfiles, and support workflows
 - Abora branding across boot, desktop, and fastfetch
 
@@ -82,7 +82,7 @@ Instead of dropping people into a system that feels like it was only built for p
 
 ## Desktop Environments
 
-Abora v2.5 ships with **23 desktop environments** selectable at install time:
+Abora v3 ships with **21 desktop environments** selectable at install time:
 
 | Desktop | Type | Display Manager |
 |---|---|---|
@@ -98,17 +98,17 @@ Abora v2.5 ships with **23 desktop environments** selectable at install time:
 | Budgie | Full DE | LightDM |
 | LXQt | Lightweight DE | SDDM |
 | Pantheon | Full DE | LightDM |
-| LXDE | Lightweight DE | LightDM |
 | Enlightenment | Full DE | LightDM |
 | i3 | Tiling WM | LightDM |
 | AwesomeWM | Tiling WM | LightDM |
 | Openbox | Floating WM | LightDM |
+| Niri | Wayland compositor | SDDM (Wayland) |
+| River | Wayland compositor | SDDM (Wayland) |
 | Qtile | Tiling WM | LightDM |
 | BSPWM | Tiling WM | LightDM |
 | Fluxbox | Floating WM | LightDM |
 | IceWM | Floating WM | LightDM |
 | Herbstluftwm | Tiling WM | LightDM |
-| DWM | Tiling WM | LightDM |
 
 ---
 
@@ -125,7 +125,8 @@ The installer is a terminal-first, keyboard-driven setup flow that runs directly
 - Optional GitHub CLI login step for post-install workflows
 - Shows a bordered install summary before wiping the disk
 - Displays live progress during `nixos-install`
-- Dumps a full support report on failure
+- validates generated config before `nixos-install`
+- shows useful logs on failure
 
 ### Keyboard shortcuts
 
@@ -146,14 +147,20 @@ Build the ISO, then boot it in QEMU:
 
 ```sh
 make iso
-make qemc
+make qemu-fresh
+```
+
+After installing in QEMU, boot the virtual hard drive without the ISO:
+
+```sh
+make qemu-disk
 ```
 
 ---
 
 ## Configuring an Installed System
 
-After installation, your system settings live in `/etc/nixos/abora/abora-local.nix`:
+After installation, local system settings live in `/etc/nixos/abora-local.nix`:
 
 ```nix
 abora.hostname = "my-pc";
@@ -210,12 +217,13 @@ ANIX still writes simple settings to `/etc/nixos/anix.nix` and rebuilds the norm
 
 ## Abora Management Tools
 
-Abora v2.5 also includes a small OS management layer:
+Abora also includes a small OS management layer:
 
 ```sh
 abora welcome          # first-step status and quick actions
 abora doctor           # check Flatpak, themes, boot assets, updates, ANIX
 abora recovery         # rollback, rebuild, repair Flathub, collect reports
+abora setup            # installed reconfiguration launcher
 abora desktop list     # list desktop profiles
 abora desktop set gnome
 make preflight         # maintainer release checks
@@ -298,6 +306,13 @@ To publish a release:
 ```sh
 git tag v2.5.0
 git push origin v2.5.0
+```
+
+For the v3 line:
+
+```sh
+git tag v3.0.0
+git push origin v3.0.0
 ```
 
 ---

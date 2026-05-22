@@ -1,6 +1,6 @@
 # Updating Abora
 
-Abora keeps the NixOS base, but gives installed systems a simpler update command.
+Abora keeps the NixOS base, but gives installed systems simpler update commands.
 
 ## Normal Update Command
 
@@ -23,8 +23,17 @@ The Abora update flow:
 
 - syncs the latest Abora project files into `/etc/nixos/abora/`
 - updates the local flake
+- can offer a local ANIX snapshot before rebuilding
 - rebuilds the system
-- migrates older installer-generated Abora installs into the current layout
+- keeps older installer-generated Abora installs closer to the current layout
+
+## Related Tools
+
+- `abora doctor`: check system health
+- `abora recovery`: rollback, rebuild, repair, and support actions
+- `abora setup`: installed reconfiguration launcher
+- `anix save`: local `/etc/nixos` snapshot
+- `anix rollback nix`: rollback through NixOS generations
 
 ## Notes
 
