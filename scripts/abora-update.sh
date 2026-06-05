@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+
 script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 desktop_profiles_lib="${ABORA_DESKTOP_PROFILES_LIB:-$script_dir/abora-desktop-profiles.sh}"
 ui_lib="${ABORA_UI_LIB:-$script_dir/abora-ui.sh}"
@@ -395,7 +397,7 @@ sync_abora_files() {
     cp "$upstream_dir/scripts/abora-apps.sh" "$abora_dir/apps.sh"
     cp "$upstream_dir/scripts/abora-support-report.sh" "$abora_dir/support-report.sh"
     cp "$upstream_dir/scripts/abora-hardware-test.sh" "$abora_dir/hardware-test.sh"
-    cp "$upstream_dir/assets/wallpapers/collection/oceandusk.png" "$abora_dir/default-wallpaper.png"
+    cp "$upstream_dir/assets/wallpapers/collection/Daytime-MNT.jpg" "$abora_dir/default-wallpaper.png"
     cp "$upstream_dir/scripts/abora-desktop-profiles.sh" "$abora_dir/desktop-profiles.sh"
     cp "$upstream_dir/nix/modules/installed-base.nix" "$abora_dir/installed-base.nix"
     cp "$upstream_dir/scripts/abora-session-setup.sh" "$abora_dir/session-setup.sh"

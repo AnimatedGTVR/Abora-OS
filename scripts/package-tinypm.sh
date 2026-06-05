@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 out_dir="${ABORA_OUT_DIR:-$repo_dir/out}"
+package_dir="${ABORA_PACKAGE_DIR:-$out_dir/packages}"
 tinypm_dir="$repo_dir/vendor/tinypm"
 version_id="${ABORA_VERSION_ID:-}"
 tinypm_version=""
@@ -33,10 +34,10 @@ case "$tinypm_version" in
   *) tinypm_tag="v$tinypm_version" ;;
 esac
 
-mkdir -p "$out_dir"
+mkdir -p "$package_dir"
 
 package_name="tinypm-${tinypm_tag}-abora-${version_tag}.tar.gz"
-package_path="$out_dir/$package_name"
+package_path="$package_dir/$package_name"
 rm -f "$package_path"
 
 tar \

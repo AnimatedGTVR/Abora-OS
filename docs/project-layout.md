@@ -76,7 +76,7 @@ Important files:
 
 Vendored external code that Abora uses directly.
 
-- `vendor/tinypm/`: TinyPM V3 source used for Abora `grab`, `search`, `term`, `start`, and `supdate`
+- `vendor/tinypm/`: TinyPM v4 source used for Abora `grab`, `search`, `term`, `start`, `supdate`, and Abora/ANIX/Nix system bridges
 
 ## Generated Output
 
@@ -86,10 +86,9 @@ Generated build output. Do not treat this as source.
 
 It can contain:
 
-- built ISO files
-- checksum files
-- release manifests
-- generated release notes
-- TinyPM release tarballs
-- QEMU disks
-- QEMU serial logs
+- `out/iso/`: built ISO files
+- `out/packages/`: TinyPM release tarballs and other generated packages
+- `out/release/`: checksum files, release manifests, and generated release notes
+- `out/qemu/`: QEMU disks and firmware state
+- `out/logs/`: QEMU serial logs and build logs
+- `out/nix/`: Nix build result symlinks

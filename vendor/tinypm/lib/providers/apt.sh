@@ -111,7 +111,7 @@ apt_install() {
             native_run_with_error "$pm" "install $resolved" run_with_spinner "Installing $resolved with Homebrew" backend_run brew install "$resolved"
             ;;
         nix)
-            native_run_with_error "$pm" "install $resolved" run_with_spinner "Installing $resolved with Nix" backend_run nix profile install "nixpkgs#$resolved"
+            native_run_with_error "$pm" "install $resolved" run_with_spinner "Installing $resolved with Nix" backend_run env NIXPKGS_ALLOW_UNFREE=1 nix profile install --impure "nixpkgs#$resolved"
             ;;
     esac
 }

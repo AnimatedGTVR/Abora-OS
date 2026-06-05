@@ -19,6 +19,7 @@ prog_name="${TINYPM_ENTRYPOINT:-$(basename "$0")}"
 for module in \
     "$script_dir/lib/core/config.sh" \
     "$script_dir/lib/core/common.sh" \
+    "$script_dir/lib/core/system.sh" \
     "$script_dir/lib/core/state.sh" \
     "$script_dir/lib/core/ui.sh" \
     "$script_dir/lib/core/apps.sh" \
@@ -61,6 +62,12 @@ case "$action" in
     managed)
         managed_pkgs
         ;;
+    sources)
+        sources_report
+        ;;
+    repair)
+        repair_runtime
+        ;;
     apps)
         installed_apps
         ;;
@@ -85,6 +92,15 @@ case "$action" in
         ;;
     import-state)
         state_import "$package"
+        ;;
+    system|status)
+        system_print_report
+        ;;
+    anix)
+        system_bridge_command anix "${passthrough_args[@]}"
+        ;;
+    abora)
+        system_bridge_command abora "${passthrough_args[@]}"
         ;;
     help|"")
         usage

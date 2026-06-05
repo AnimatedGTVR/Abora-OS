@@ -62,11 +62,11 @@ After install, boot the virtual disk with:
 make qemu-disk
 ```
 
-## Does TinyPM V3 install permanent NixOS system packages?
+## Does TinyPM v4 install permanent NixOS system packages?
 
 TinyPM is part of the Abora ecosystem, but it is not a full replacement for declarative NixOS configuration.
 
-In Abora it provides friendly app commands such as `grab`, `search`, `term`, `start`, and `supdate`.
+In Abora it provides friendly app commands such as `grab`, `search`, `term`, `start`, and `supdate`, plus helpers such as `tinypm sources`, `tinypm system`, `tinypm anix <command>`, and `tinypm abora <command>`.
 
 ## Where are the project docs?
 

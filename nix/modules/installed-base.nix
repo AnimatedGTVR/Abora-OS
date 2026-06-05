@@ -45,6 +45,11 @@ let
       ./doctor.sh
     else
       ../../scripts/abora-doctor.sh;
+  checkFullScript =
+    if builtins.pathExists ./check-full.sh then
+      ./check-full.sh
+    else
+      ../../scripts/abora-check-full.sh;
   recoveryScript =
     if builtins.pathExists ./recovery.sh then
       ./recovery.sh
@@ -74,6 +79,13 @@ let
       ../../nix/modules/anix.nix
     else
       null;
+  docsDir =
+    if builtins.pathExists ./docs then
+      ./docs
+    else if builtins.pathExists ../../docs then
+      ../../docs
+    else
+      null;
   appCatalogScript =
     if builtins.pathExists ./app-catalog.sh then
       ./app-catalog.sh
@@ -98,7 +110,14 @@ let
     if builtins.pathExists ./default-wallpaper.png then
       ./default-wallpaper.png
     else
-      ../../assets/wallpapers/collection/oceandusk.png;
+      ../../assets/wallpapers/collection/Daytime-MNT.jpg;
+  aboraLogoFile =
+    if builtins.pathExists ./Abora-LOGO.png then
+      ./Abora-LOGO.png
+    else if builtins.pathExists ../../assets/Abora-LOGO.png then
+      ../../assets/Abora-LOGO.png
+    else
+      null;
   wallpaperDir =
     if builtins.pathExists ./wallpapers then
       ./wallpapers
@@ -167,16 +186,11 @@ let
   tinypmDir =
     if builtins.pathExists ./tinypm then
       ./tinypm
+    else if builtins.pathExists ../../vendor/tinypm then
+      ../../vendor/tinypm
     else
-      ../../vendor/tinypm;
+      throw "Abora TinyPM payload is missing. Expected ./tinypm beside installed-base.nix or ../../vendor/tinypm in the source tree.";
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
-  tinypmPackage = pkgs.runCommandLocal "abora-tinypm" { } ''
-    cp -r ${tinypmDir}/. $out
-    chmod -R u+w $out
-    for cmd in grab search term start supdate tinypm; do
-      [ -f "$out/$cmd" ] && chmod +x "$out/$cmd"
-    done
-  '';
   mkGrabCmd = name: pkgs.writeShellScriptBin name ''
     exec env TINYPM_FLAVOR=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/tinypm/${name} "$@"
   '';
@@ -194,6 +208,9 @@ let
   '';
   aboraDoctor = pkgs.writeShellScriptBin "abora-doctor" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/doctor.sh "$@"
+  '';
+  aboraCheckFull = pkgs.writeShellScriptBin "abora-check-full" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/check-full.sh "$@"
   '';
   aboraRecovery = pkgs.writeShellScriptBin "abora-recovery" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/recovery.sh "$@"
@@ -252,6 +269,15 @@ let
     <!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd">
     <wallpapers>
       <wallpaper deleted="false">
+        <name>Mountain (Day/Night)</name>
+        <filename>/run/current-system/sw/share/backgrounds/abora/Daytime-MNT.jpg</filename>
+        <filename-dark>/run/current-system/sw/share/backgrounds/abora/NightTime-MNT.png</filename-dark>
+        <options>zoom</options>
+        <shade_type>solid</shade_type>
+        <pcolor>#1a2a1a</pcolor>
+        <scolor>#0a0e1a</scolor>
+      </wallpaper>
+      <wallpaper deleted="false">
         <name>Ocean Dusk</name>
         <filename>/run/current-system/sw/share/backgrounds/abora/oceandusk.png</filename>
         <filename-dark>/run/current-system/sw/share/backgrounds/abora/oceandusk.png</filename-dark>
@@ -303,7 +329,18 @@ in
     vendorName = "Abora OS";
     label = version;
     variant_id = lib.mkDefault "system";
-    variantName = lib.mkDefault "Abora ${version}";
+    variantName = lib.mkDefault "Abora OS 3.0 (Denali)";
+    extraOSReleaseArgs = {
+      LOGO = "abora";
+      VERSION = "3.0 (Denali)";
+      VERSION_ID = "3.0";
+      VERSION_CODENAME = "denali";
+      PRETTY_NAME = "Abora OS 3.0 (Denali)";
+      HOME_URL = "https://aboraos.github.io/";
+      SUPPORT_URL = "https://github.com/Animated-io/abora-os/issues";
+      BUG_REPORT_URL = "https://github.com/Animated-io/abora-os/issues";
+      ANSI_COLOR = "0;38;2;80;220;255";
+    };
   };
 
   nixpkgs.config.allowUnfree = lib.mkDefault true;
@@ -324,6 +361,38 @@ in
     "systemd.show_status=auto"
   ];
   boot.consoleLogLevel = lib.mkDefault 3;
+  boot.initrd.availableKernelModules = lib.mkDefault [
+    "ahci"
+    "ata_piix"
+    "nvme"
+    "sd_mod"
+    "sr_mod"
+    "usb_storage"
+    "uas"
+    "xhci_pci"
+    "ehci_pci"
+    "virtio_pci"
+    "virtio_blk"
+    "virtio_scsi"
+    "virtio_net"
+  ];
+  boot.kernelModules = lib.mkDefault [
+    "btusb"
+    "bluetooth"
+    "iwlwifi"
+    "ath9k"
+    "ath10k_pci"
+    "ath11k_pci"
+    "brcmfmac"
+    "rtw88_pci"
+    "rtw89_pci"
+    "r8169"
+    "e1000e"
+    "igb"
+    "tg3"
+    "atlantic"
+    "alx"
+  ];
   boot.loader.efi.canTouchEfiVariables = lib.mkDefault false;
   boot.loader.limine.style.wallpapers = [ limineWallpaperFile ];
   boot.plymouth = {
@@ -332,9 +401,25 @@ in
     themePackages = [ aboraPlymouthTheme ];
   };
 
-  networking.networkmanager.enable = lib.mkDefault true;
+  hardware.enableAllFirmware = lib.mkDefault true;
+  hardware.enableRedistributableFirmware = lib.mkDefault true;
+  hardware.cpu.intel.updateMicrocode = lib.mkDefault true;
+  hardware.cpu.amd.updateMicrocode = lib.mkDefault true;
+  hardware.bluetooth = {
+    enable = lib.mkDefault true;
+    powerOnBoot = lib.mkDefault true;
+  };
+  networking.networkmanager = {
+    enable = lib.mkDefault true;
+    wifi.powersave = lib.mkDefault false;
+    ethernet.macAddress = lib.mkDefault "preserve";
+    wifi.macAddress = lib.mkDefault "preserve";
+  };
+  networking.modemmanager.enable = lib.mkDefault true;
   security.polkit.enable = lib.mkDefault true;
   services.udisks2.enable = lib.mkDefault true;
+  services.blueman.enable = lib.mkDefault true;
+  services.fwupd.enable = lib.mkDefault true;
   services.openssh.enable = lib.mkDefault false;
   security.rtkit.enable = lib.mkDefault true;
   services.pipewire = {
@@ -376,6 +461,7 @@ in
     noto-fonts-color-emoji
     inter
     jetbrains-mono
+    nerd-fonts.jetbrains-mono
   ];
   fonts.fontconfig = {
     enable = lib.mkDefault true;
@@ -390,9 +476,14 @@ in
   environment.variables = {
     XCURSOR_THEME = lib.mkDefault "Adwaita";
     XCURSOR_SIZE  = lib.mkDefault "24";
+    TERMINAL      = lib.mkDefault "konsole";
+    TERM_PROGRAM  = lib.mkDefault "konsole";
   };
 
   environment.systemPackages = with pkgs; [
+    (mkGrabCmd "tinypm")
+    (mkGrabCmd "tiny")
+    (mkGrabCmd "Parcel")
     (mkGrabCmd "grab")
     (mkGrabCmd "search")
     (mkGrabCmd "term")
@@ -400,6 +491,7 @@ in
     (mkGrabCmd "supdate")
     aboraApps
     aboraCommand
+    aboraCheckFull
     anixCommand
     aboraConfig
     aboraDesktop
@@ -425,6 +517,9 @@ in
     git
     htop
     iw
+    kdePackages.konsole
+    linux-firmware
+    modemmanager
     nixosCommand
     pciutils
     mpg123
@@ -432,6 +527,8 @@ in
     updateCommand
     upgradeCommand
     rollbackCommand
+    spaceship-prompt
+    starship
     usbutils
     wget
     papirus-icon-theme
@@ -439,8 +536,59 @@ in
     qt6Packages.qt6ct
     xdg-utils
     xterm
+    zenity
     swaybg
+    zsh
   ];
+
+  programs.zsh = {
+    enable = true;
+    shellInit = ''
+      if [[ -o interactive ]]; then
+        abora_zdotdir="''${ZDOTDIR:-''${HOME:-}}"
+        if [[ -n "$abora_zdotdir" && -d "$abora_zdotdir" && -w "$abora_zdotdir" \
+          && ! -e "$abora_zdotdir/.zshenv" \
+          && ! -e "$abora_zdotdir/.zprofile" \
+          && ! -e "$abora_zdotdir/.zshrc" \
+          && ! -e "$abora_zdotdir/.zlogin" ]]; then
+          {
+            print -r -- "# Abora OS zsh profile."
+            print -r -- "# System-wide prompt and fastfetch setup live in /etc/zshrc."
+          } > "$abora_zdotdir/.zshrc" 2>/dev/null || true
+        fi
+        unset abora_zdotdir
+      fi
+    '';
+    interactiveShellInit = ''
+      export FASTFETCH_CONFIG="/etc/xdg/fastfetch/config.jsonc"
+      export ABORA_FASTFETCH_LOGO="/etc/xdg/fastfetch/abora-logo.txt"
+
+      if [[ -o interactive && -z "''${ABORA_FASTFETCH_SHOWN:-}" && "''${SHLVL:-1}" -eq 1 ]]; then
+        export ABORA_FASTFETCH_SHOWN=1
+        command fastfetch --logo-type file --logo-source "$ABORA_FASTFETCH_LOGO" -c "$FASTFETCH_CONFIG" 2>/dev/null || true
+        print
+      fi
+    '';
+    promptInit = ''
+      fpath=(${pkgs.spaceship-prompt}/share/zsh/site-functions $fpath)
+      autoload -Uz promptinit
+      promptinit
+
+      SPACESHIP_PROMPT_ORDER=(
+        user host dir git package node python rust golang docker nix_shell
+        exec_time line_sep jobs exit_code char
+      )
+      SPACESHIP_USER_SHOW=always
+      SPACESHIP_HOST_SHOW=always
+      SPACESHIP_DIR_TRUNC=3
+      SPACESHIP_PROMPT_ADD_NEWLINE=true
+      SPACESHIP_CHAR_SYMBOL="➜"
+      SPACESHIP_CHAR_SUFFIX=" "
+      prompt spaceship
+    '';
+  };
+
+  users.defaultUserShell = pkgs.zsh;
 
   environment.etc =
     {
@@ -463,6 +611,10 @@ in
       };
       "abora/doctor.sh" = {
         source = doctorScript;
+        mode = "0755";
+      };
+      "abora/check-full.sh" = {
+        source = checkFullScript;
         mode = "0755";
       };
       "abora/recovery.sh" = {
@@ -502,7 +654,7 @@ in
         source = desktopProfilesScript;
         mode = "0755";
       };
-      "abora/tinypm".source = tinypmPackage;
+      "abora/tinypm".source = tinypmDir;
       "abora/installer.sh" = {
         source = installerScript;
         mode = "0755";
@@ -562,17 +714,19 @@ in
         [Settings]
         gtk-application-prefer-dark-theme=1
         gtk-theme-name=Adwaita-dark
+        gtk-icon-theme-name=Papirus-Dark
       '';
       "xdg/gtk-4.0/settings.ini".text = ''
         [Settings]
         gtk-application-prefer-dark-theme=1
         gtk-theme-name=Adwaita-dark
+        gtk-icon-theme-name=Papirus-Dark
       '';
       "xdg/qt5ct/qt5ct.conf".text = ''
         [Appearance]
         color_scheme_path=/run/current-system/sw/share/qt5ct/colors/darker.conf
         custom_palette=true
-        icon_theme=Adwaita
+        icon_theme=Papirus-Dark
         standard_dialogs=default
         style=Fusion
       '';
@@ -580,7 +734,7 @@ in
         [Appearance]
         color_scheme_path=/run/current-system/sw/share/qt6ct/colors/darker.conf
         custom_palette=true
-        icon_theme=Adwaita
+        icon_theme=Papirus-Dark
         standard_dialogs=default
         style=Fusion
       '';
@@ -596,12 +750,80 @@ in
       "abora/plymouth/abora.plymouth".source = plymouthDir + "/abora.plymouth";
       "abora/plymouth/abora.script".source = plymouthDir + "/abora.script";
       "xdg/fastfetch/config.jsonc".source = fastfetchConfigFile;
+      "xdg/fastfetch/abora-logo.txt".source = fastfetchLogoFile;
       "skel/.config/fastfetch/config.jsonc".source = fastfetchConfigFile;
+      "skel/.config/fastfetch/abora-logo.txt".source = fastfetchLogoFile;
+      "skel/.zshrc".text = ''
+        # Abora OS terminal profile. System-wide setup lives in /etc/zshrc.
+      '';
+      "skel/.config/konsolerc".text = ''
+        [Desktop Entry]
+        DefaultProfile=Abora.profile
+
+        [KonsoleWindow]
+        RememberWindowSize=false
+      '';
+      "skel/.local/share/konsole/Abora.profile".text = ''
+        [Appearance]
+        ColorScheme=Abora
+        Font=JetBrainsMono Nerd Font,11,-1,5,50,0,0,0,0,0
+
+        [General]
+        Command=${pkgs.zsh}/bin/zsh
+        Name=Abora
+        Parent=FALLBACK/
+
+        [Scrolling]
+        HistoryMode=2
+      '';
+      "skel/.local/share/konsole/Abora.colorscheme".text = ''
+        [Background]
+        Color=5,10,18
+
+        [BackgroundIntense]
+        Color=8,18,30
+
+        [Color0]
+        Color=8,13,22
+
+        [Color1]
+        Color=255,90,113
+
+        [Color2]
+        Color=88,214,141
+
+        [Color3]
+        Color=255,214,102
+
+        [Color4]
+        Color=71,168,255
+
+        [Color5]
+        Color=181,137,255
+
+        [Color6]
+        Color=78,226,232
+
+        [Color7]
+        Color=226,238,248
+
+        [Foreground]
+        Color=232,244,255
+
+        [ForegroundIntense]
+        Color=255,255,255
+
+        [General]
+        Blur=true
+        ColorRandomization=false
+        Description=Abora
+        Opacity=0.84
+      '';
       "issue".text = ''
-        Abora OS ${version}
+        Abora OS 3.0 (Denali)
       '';
       "issue.net".text = ''
-        Abora OS ${version}
+        Abora OS 3.0 (Denali)
       '';
     }
     // builtins.listToAttrs (
@@ -627,7 +849,17 @@ in
     }
     // lib.optionalAttrs (anixModule != null) {
       "abora/anix-module.nix".source = anixModule;
+    }
+    // lib.optionalAttrs (docsDir != null) {
+      "abora/docs".source = docsDir;
+    }
+    // lib.optionalAttrs (aboraLogoFile != null) {
+      "abora/Abora-LOGO.png".source = aboraLogoFile;
     };
 
   environment.shellAliases.fastfetch = "fastfetch -c /etc/xdg/fastfetch/config.jsonc";
+
+  programs.bash.interactiveShellInit = ''
+    [[ $SHLVL -eq 1 ]] && fastfetch -c /etc/xdg/fastfetch/config.jsonc
+  '';
 }

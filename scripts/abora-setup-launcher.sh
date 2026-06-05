@@ -29,13 +29,21 @@ fi
 
 already_root() { [[ "${EUID:-$(id -u)}" -eq 0 ]]; }
 
+sudo_cmd() {
+    if [[ -x /run/wrappers/bin/sudo ]]; then
+        printf '%s\n' /run/wrappers/bin/sudo
+        return 0
+    fi
+    command -v sudo 2>/dev/null
+}
+
 # ── Terminal detection (ordered by preference) ────────────────────────────────
 # Each entry: "command|launch args that run a program"
 TERMINALS=(
+    "konsole|konsole -e"
     "kgx|kgx --"
     "gnome-terminal|gnome-terminal --"
     "ptyxis|ptyxis --"
-    "konsole|konsole -e"
     "xfce4-terminal|xfce4-terminal -x"
     "alacritty|alacritty -e"
     "kitty|kitty"
@@ -64,8 +72,9 @@ RUNNER=()
 if already_root; then
     RUNNER=(bash "$INSTALLER" --reconfig)
 else
-    if command -v sudo >/dev/null 2>&1; then
-        RUNNER=(sudo bash "$INSTALLER" --reconfig)
+    sudo_bin="$(sudo_cmd || true)"
+    if [[ -n "$sudo_bin" ]]; then
+        RUNNER=("$sudo_bin" bash "$INSTALLER" --reconfig)
     elif command -v pkexec >/dev/null 2>&1; then
         RUNNER=(pkexec bash "$INSTALLER" --reconfig)
     else

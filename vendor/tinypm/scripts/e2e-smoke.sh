@@ -27,11 +27,14 @@ tinypm_output="$(mktemp)"
 TINYPM_FLAVOR=abora "$repo_root/Parcel" --version >"$parcel_output"
 TINYPM_FLAVOR=abora "$repo_root/tinypm" --version >"$tinypm_output"
 cmp -s <(normalize_version_output "$parcel_output") <(normalize_version_output "$tinypm_output")
-grep -q 'Abora TinyPM V3 / Parcel v3.0.0' "$parcel_output"
+grep -q 'Abora Package Manager / Parcel v4.0.0' "$parcel_output"
 grep -q '\[Runtime\]' "$parcel_output"
+grep -q '\[System Layer\]' "$parcel_output"
 rm -f "$parcel_output" "$tinypm_output"
 "$repo_root/tinypm" help >/dev/null
 "$repo_root/tinypm" doctor >/dev/null
+"$repo_root/tinypm" system >/dev/null
+"$repo_root/tinypm" sources >/dev/null
 "$repo_root/grab" --version >/dev/null
 "$repo_root/tinypm" search -n yq >/dev/null
 "$repo_root/version" >/dev/null
@@ -61,6 +64,8 @@ tinypm_output="$(mktemp)"
 cmp -s <(normalize_version_output "$parcel_output") <(normalize_version_output "$tinypm_output")
 rm -f "$parcel_output" "$tinypm_output"
 "$HOME/.local/bin/tinypm" help >/dev/null
+"$HOME/.local/bin/tinypm" system >/dev/null
+"$HOME/.local/bin/tinypm" sources >/dev/null
 "$HOME/.local/bin/tiny" --version >/dev/null
 "$HOME/.local/bin/grab" help >/dev/null
 "$HOME/.local/bin/syspm" help >/dev/null
@@ -75,7 +80,7 @@ tinypm_output="$(mktemp)"
 "$HOME/.local/bin/Parcel" --version >"$parcel_output"
 "$HOME/.local/bin/tinypm" --version >"$tinypm_output"
 cmp -s <(normalize_version_output "$parcel_output") <(normalize_version_output "$tinypm_output")
-grep -q 'Abora TinyPM V3 / Parcel v3.0.0' "$parcel_output"
+grep -q 'Abora Package Manager / Parcel v4.0.0' "$parcel_output"
 grep -q '\[Project\]' "$parcel_output"
 rm -f "$parcel_output" "$tinypm_output"
 "$HOME/.local/bin/tiny" --version >/dev/null

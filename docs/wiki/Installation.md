@@ -53,7 +53,28 @@ When installation finishes:
 3. boot into the installed system
 4. confirm networking works
 5. run `abora doctor`
-6. run `sudo nixos update` when ready to test updates
+6. run `anix quickstart`
+7. run `tinypm sources`
+8. run `sudo nixos update` when ready to test updates
+
+## First Installed Commands
+
+Use these after the first boot:
+
+```sh
+abora doctor
+anix status
+anix doctor
+anix --gui
+tinypm system
+tinypm sources
+```
+
+If ANIX basics are missing:
+
+```sh
+anix doctor --fix
+```
 
 ## VM Notes
 
@@ -68,3 +89,7 @@ When installation finishes:
 Use the install checklist after a build:
 
 - [Install Checklist](../install-checklist.md)
+
+For recovery after install:
+
+- [Recovery](Recovery.md)

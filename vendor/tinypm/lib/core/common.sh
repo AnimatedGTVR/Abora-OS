@@ -4,9 +4,9 @@
 spinner="$script_dir/_spinner"
 version_cmd="$script_dir/version"
 use_host_backend=0
-tinypm_system_name="TinyPM V3"
+tinypm_system_name="TinyPM v4"
 tinypm_engine_name="Parcel"
-tinypm_version="3.0.0"
+tinypm_version="4.0.0"
 tinypm_tagline=""
 
 tinypm_active_flavor() {
@@ -22,7 +22,7 @@ tinypm_active_flavor() {
 tinypm_load_flavor_metadata() {
     local config_file
 
-    tinypm_system_name="TinyPM V3"
+    tinypm_system_name="TinyPM v4"
     tinypm_engine_name="Parcel"
     tinypm_tagline=""
 
@@ -226,7 +226,13 @@ backend_is_nixos() {
         flatpak-spawn --host sh -lc '
             if [ -r /etc/os-release ]; then
                 . /etc/os-release
-                [ "${ID:-}" = "nixos" ]
+                case "${ID:-}" in
+                    nixos|abora) exit 0 ;;
+                esac
+                case " ${ID_LIKE:-} " in
+                    *" nixos "*) exit 0 ;;
+                esac
+                exit 1
             else
                 exit 1
             fi
@@ -236,7 +242,7 @@ backend_is_nixos() {
 
     if [[ -r /etc/os-release ]]; then
         . /etc/os-release
-        [[ "${ID:-}" == "nixos" ]]
+        [[ "${ID:-}" == "nixos" || "${ID:-}" == "abora" || " ${ID_LIKE:-} " == *" nixos "* ]]
         return
     fi
 

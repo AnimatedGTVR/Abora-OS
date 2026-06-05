@@ -15,6 +15,9 @@ let
   aboraDoctor = pkgs.writeShellScriptBin "abora-doctor" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/doctor.sh "$@"
   '';
+  aboraCheckFull = pkgs.writeShellScriptBin "abora-check-full" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/check-full.sh "$@"
+  '';
   aboraRecovery = pkgs.writeShellScriptBin "abora-recovery" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/recovery.sh "$@"
   '';
@@ -32,7 +35,11 @@ let
   '';
   aboraInstall = pkgs.writeShellScriptBin "abora-install" ''
     if [ "$(id -u)" -ne 0 ]; then
-      exec sudo \
+      sudo_bin=/run/wrappers/bin/sudo
+      if [ ! -x "$sudo_bin" ]; then
+        sudo_bin=sudo
+      fi
+      exec "$sudo_bin" \
         TERM="''${TERM:-linux}" \
         ABORA_DESKTOP_PROFILES_LIB=/etc/abora/desktop-profiles.sh \
         ABORA_APP_CATALOG_LIB=/etc/abora/app-catalog.sh \
@@ -79,6 +86,7 @@ let
   '';
   wallpaperDir = ../../assets/wallpapers/collection;
   wallpaperThemeDir = ../../assets/wallpaper-themes;
+  tinypmDir = ../../vendor/tinypm;
   aboraWallpapersPackage = pkgs.runCommandLocal "abora-wallpapers" { } ''
     mkdir -p "$out/share/backgrounds/abora" "$out/share/abora/themes" "$out/share/gnome-background-properties"
     find ${wallpaperDir} -maxdepth 1 -type f -exec cp {} "$out/share/backgrounds/abora/" \;
@@ -87,6 +95,15 @@ let
     <?xml version="1.0"?>
     <!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd">
     <wallpapers>
+      <wallpaper deleted="false">
+        <name>Mountain (Day/Night)</name>
+        <filename>/run/current-system/sw/share/backgrounds/abora/Daytime-MNT.jpg</filename>
+        <filename-dark>/run/current-system/sw/share/backgrounds/abora/NightTime-MNT.png</filename-dark>
+        <options>zoom</options>
+        <shade_type>solid</shade_type>
+        <pcolor>#1a2a1a</pcolor>
+        <scolor>#0a0e1a</scolor>
+      </wallpaper>
       <wallpaper deleted="false">
         <name>Ocean Dusk</name>
         <filename>/run/current-system/sw/share/backgrounds/abora/oceandusk.png</filename>
@@ -126,15 +143,44 @@ let
     </wallpapers>
     EOF
   '';
+  mkGrabCmd = name: pkgs.writeShellScriptBin name ''
+    exec env TINYPM_FLAVOR=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/tinypm/${name} "$@"
+  '';
 in
 {
   system.stateVersion = "26.05";
+  nixpkgs.config.allowUnfree = true;
   networking.hostName = "abora";
   networking.wireless.enable = lib.mkForce false;
   networking.networkmanager = {
     enable = lib.mkForce true;
     wifi.backend = "wpa_supplicant";
+    wifi.powersave = false;
+    ethernet.macAddress = "preserve";
+    wifi.macAddress = "preserve";
   };
+  networking.modemmanager.enable = true;
+  hardware.enableAllFirmware = true;
+  hardware.enableRedistributableFirmware = true;
+  hardware.cpu.intel.updateMicrocode = lib.mkDefault true;
+  hardware.cpu.amd.updateMicrocode = lib.mkDefault true;
+  hardware.bluetooth = {
+    enable = true;
+    powerOnBoot = true;
+  };
+  security.sudo.enable = true;
+  security.polkit.enable = true;
+  services.blueman.enable = true;
+  services.dbus.enable = true;
+  services.udisks2.enable = true;
+  services.fwupd.enable = true;
+  services.avahi = {
+    enable = true;
+    nssmdns4 = true;
+    openFirewall = true;
+  };
+  services.printing.enable = true;
+  hardware.sane.enable = true;
   system.nixos.tags = [ "abora" "nixos-base" ];
   system.nixos = {
     distroId = "abora";
@@ -142,8 +188,19 @@ in
     vendorId = "abora";
     vendorName = "Abora OS";
     variant_id = "live";
-    variantName = "Abora OS ${version} Live Image";
+    variantName = "Abora OS 3.0 (Denali) Live Image";
     label = version;
+    extraOSReleaseArgs = {
+      LOGO = "abora";
+      VERSION = "3.0 (Denali)";
+      VERSION_ID = "3.0";
+      VERSION_CODENAME = "denali";
+      PRETTY_NAME = "Abora OS 3.0 (Denali)";
+      HOME_URL = "https://aboraos.github.io/";
+      SUPPORT_URL = "https://github.com/Animated-io/abora-os/issues";
+      BUG_REPORT_URL = "https://github.com/Animated-io/abora-os/issues";
+      ANSI_COLOR = "0;38;2;80;220;255";
+    };
   };
 
   nix.settings = {
@@ -160,6 +217,38 @@ in
   boot.kernelPackages = pkgs.linuxPackages_6_6;
   boot.initrd.systemd.enable = true;
   boot.initrd.verbose = false;
+  boot.initrd.availableKernelModules = [
+    "ahci"
+    "ata_piix"
+    "nvme"
+    "sd_mod"
+    "sr_mod"
+    "usb_storage"
+    "uas"
+    "xhci_pci"
+    "ehci_pci"
+    "virtio_pci"
+    "virtio_blk"
+    "virtio_scsi"
+    "virtio_net"
+  ];
+  boot.kernelModules = [
+    "btusb"
+    "bluetooth"
+    "iwlwifi"
+    "ath9k"
+    "ath10k_pci"
+    "ath11k_pci"
+    "brcmfmac"
+    "rtw88_pci"
+    "rtw89_pci"
+    "r8169"
+    "e1000e"
+    "igb"
+    "tg3"
+    "atlantic"
+    "alx"
+  ];
   boot.consoleLogLevel = 3;
   boot.kernelParams = [
     "quiet"
@@ -180,8 +269,18 @@ in
   };
 
   environment.systemPackages = with pkgs; [
+    # ── Abora installer toolchain ────────────────────────────────────────────
+    (mkGrabCmd "tinypm")
+    (mkGrabCmd "tiny")
+    (mkGrabCmd "Parcel")
+    (mkGrabCmd "grab")
+    (mkGrabCmd "search")
+    (mkGrabCmd "term")
+    (mkGrabCmd "start")
+    (mkGrabCmd "supdate")
     aboraApps
     aboraCommand
+    aboraCheckFull
     aboraInstall
     anixCommand
     aboraConfig
@@ -195,52 +294,49 @@ in
     aboraWelcome
     aboraWallpapersPackage
     aboraThemeSync
-    bashInteractive
-    dosfstools
-    e2fsprogs
-    feh
-    fastfetch
-    git
-    curl
-    dmidecode
-    ethtool
-    wget
-    gh
-    htop
-    iproute2
-    iw
-    kbd
-    networkmanager
-    newt
-    iputils
-    pciutils
     nixosCommand
-    openssl
-    parted
-    smartmontools
-    usbutils
-    util-linux
     updateCommand
     upgradeCommand
     rollbackCommand
-    whois
-    libsForQt5.qt5ct
-    qt6Packages.qt6ct
+
+    # ── Shell / UI ───────────────────────────────────────────────────────────
+    bashInteractive
+    fastfetch   # shown in the live welcome banner
+    htop
+    newt        # provides nmtui for Wi-Fi setup
+    zenity      # graphical ANIX helper when launched from a desktop
+
+    # ── Disk & filesystem ────────────────────────────────────────────────────
+    dosfstools  # mkfs.vfat
+    e2fsprogs   # mkfs.ext4
+    parted
+    util-linux  # wipefs, lsblk, mount …
+
+    # ── Boot management ──────────────────────────────────────────────────────
+    efibootmgr
+    eject
+
+    # ── Networking ───────────────────────────────────────────────────────────
+    curl
+    iproute2
+    iputils
+    iw
+    networkmanager
+    wget
+
+    # ── Crypto / security ────────────────────────────────────────────────────
+    openssl
+
+    # ── Hardware inspection ──────────────────────────────────────────────────
+    pciutils
+    usbutils
+
+    # ── Nix tooling (needed by nixos-install / flake ops) ───────────────────
+    git
     xdg-utils
-    swaybg
-    # Pre-seeded so nixos-install copies locally instead of downloading
-    mpg123
-    papirus-icon-theme
-    xterm
-    noto-fonts
-    noto-fonts-color-emoji
-    flatpak
-    polkit
-    pipewire
-    wireplumber
-    plymouth
-    udisks2
-    rtkit
+
+    # ── Keyboard ─────────────────────────────────────────────────────────────
+    kbd
   ];
 
   environment.variables = {
@@ -275,6 +371,10 @@ in
         source = ../../scripts/abora-doctor.sh;
         mode = "0755";
       };
+      "abora/check-full.sh" = {
+        source = ../../scripts/abora-check-full.sh;
+        mode = "0755";
+      };
       "abora/recovery.sh" = {
         source = ../../scripts/abora-recovery.sh;
         mode = "0755";
@@ -283,7 +383,8 @@ in
         source = ../../scripts/abora-welcome.sh;
         mode = "0755";
       };
-      "abora/default-wallpaper.png".source = ../../assets/wallpapers/collection/oceandusk.png;
+      "abora/default-wallpaper.png".source = ../../assets/wallpapers/collection/Daytime-MNT.jpg;
+      "abora/Abora-LOGO.png".source = ../../assets/Abora-LOGO.png;
       "abora/title.txt".source = ../../assets/abora-title.txt;
       "abora/VERSION".source = ../../VERSION;
       "abora/fastfetch-logo.txt".source = ../../assets/fastfetch-logo.txt;
@@ -305,11 +406,12 @@ in
       "abora/plymouth/abora.script".source = ../../assets/plymouth/abora.script;
       "abora/nixpkgs".source = pkgs.path;
       "xdg/fastfetch/config.jsonc".source = ../../assets/fastfetch-config.jsonc;
+      "xdg/fastfetch/abora-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "issue".text = ''
-        Abora OS ${version}
+        Abora OS 3.0 (Denali)
       '';
       "issue.net".text = ''
-        Abora OS ${version}
+        Abora OS 3.0 (Denali)
       '';
       "profile.d/abora-live.sh".text = ''
         if [ -z "$ABORA_LIVE_GREETED" ]; then
@@ -339,6 +441,8 @@ in
       };
       "abora/setup.desktop".source = ../../scripts/abora-setup.desktop;
       "abora/installed-base.nix".source = ../../nix/modules/installed-base.nix;
+      "abora/tinypm".source = tinypmDir;
+      "abora/docs".source = ../../docs;
       "abora/abora-options.nix".source  = ../../nix/modules/abora-options.nix;
       "abora/ui.sh" = {
         source = ../../scripts/abora-ui.sh;
@@ -379,17 +483,19 @@ in
         [Settings]
         gtk-application-prefer-dark-theme=1
         gtk-theme-name=Adwaita-dark
+        gtk-icon-theme-name=Papirus-Dark
       '';
       "xdg/gtk-4.0/settings.ini".text = ''
         [Settings]
         gtk-application-prefer-dark-theme=1
         gtk-theme-name=Adwaita-dark
+        gtk-icon-theme-name=Papirus-Dark
       '';
       "xdg/qt5ct/qt5ct.conf".text = ''
         [Appearance]
         color_scheme_path=/run/current-system/sw/share/qt5ct/colors/darker.conf
         custom_palette=true
-        icon_theme=Adwaita
+        icon_theme=Papirus-Dark
         standard_dialogs=default
         style=Fusion
       '';
@@ -397,7 +503,7 @@ in
         [Appearance]
         color_scheme_path=/run/current-system/sw/share/qt6ct/colors/darker.conf
         custom_palette=true
-        icon_theme=Adwaita
+        icon_theme=Papirus-Dark
         standard_dialogs=default
         style=Fusion
       '';
@@ -437,6 +543,10 @@ in
     );
 
   services.xserver.enable = false;
+  systemd.services.ModemManager = {
+    enable = lib.mkForce true;
+    wantedBy = lib.mkForce [ "multi-user.target" ];
+  };
   services.qemuGuest.enable = true;
   services.spice-vdagentd.enable = true;
   virtualisation.vmware.guest.enable = pkgs.stdenv.hostPlatform.isx86;
@@ -448,10 +558,29 @@ in
   };
   environment.shellAliases.fastfetch = "fastfetch -c /etc/xdg/fastfetch/config.jsonc";
 
+  programs.bash.interactiveShellInit = ''
+    [[ $SHLVL -eq 1 ]] && fastfetch -c /etc/xdg/fastfetch/config.jsonc
+  '';
+
   systemd.services."getty@tty1".enable = lib.mkForce false;
   systemd.services.NetworkManager = {
     enable = lib.mkForce true;
     wantedBy = lib.mkForce [ "multi-user.target" ];
+  };
+  systemd.services.abora-unblock-radios = {
+    description = "Unblock wireless and Bluetooth radios for the Abora installer";
+    wantedBy = [ "multi-user.target" ];
+    before = [ "NetworkManager.service" "bluetooth.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      ${pkgs.util-linux}/bin/rfkill unblock all || true
+      ${pkgs.systemd}/bin/udevadm trigger --action=add --subsystem-match=net || true
+      ${pkgs.systemd}/bin/udevadm trigger --action=add --subsystem-match=bluetooth || true
+      ${pkgs.systemd}/bin/udevadm settle || true
+    '';
   };
   systemd.services.abora-boot = {
     description = "Abora OS installer boot";
@@ -484,8 +613,10 @@ in
       # The leading '-' tells systemd to ignore a non-zero exit code.
       ExecStartPre  = "-${pkgs.plymouth}/bin/plymouth quit --wait";
       ExecStart     = "${pkgs.bashInteractive}/bin/bash /etc/abora/boot.sh";
-      # Restart only on crash, not on clean installer exit (exit 0).
-      Restart       = "on-failure";
+      # Never restart automatically. If the installer exits or crashes, the
+      # boot script drops to a live shell; restarting this service can relaunch
+      # the installer and feel like an install loop.
+      Restart       = "no";
       RestartSec    = "2";
       StandardInput  = "tty-force";
       StandardOutput = "tty";
@@ -501,7 +632,7 @@ in
   image.fileName = lib.mkForce "abora-${version}-x86_64.iso";
   isoImage.makeEfiBootable = true;
   isoImage.makeUsbBootable = true;
-  isoImage.squashfsCompression = lib.mkForce "zstd -Xcompression-level 3";
+  isoImage.squashfsCompression = lib.mkForce "zstd -Xcompression-level 15";
   isoImage.prependToMenuLabel = "";
   isoImage.appendToMenuLabel = "";
   isoImage.configurationName = null;
