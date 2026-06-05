@@ -18,6 +18,10 @@ case "${1:-help}" in
         shift
         exec abora-doctor "$@"
         ;;
+    check-full)
+        shift
+        exec abora-check-full "$@"
+        ;;
     recovery)
         shift
         exec abora-recovery "$@"
@@ -43,6 +47,7 @@ case "${1:-help}" in
 Abora commands:
   abora welcome          first-boot welcome and quick actions
   abora doctor           check Abora system health
+  abora check-full       collect full ANIX, TinyPM, desktop, driver, and Nix logs
   abora recovery         rollback, repair, and diagnostics menu
   abora desktop          view or switch desktop profiles
   abora apps             install curated apps

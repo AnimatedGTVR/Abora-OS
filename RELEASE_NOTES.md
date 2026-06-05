@@ -1,190 +1,131 @@
-# Abora OS v2.5.0
+# Abora OS v3.0.0 Denali
 
-Abora OS v2.5.0 is about making the system feel easier to live with after install.
+Abora OS v3.0.0 is the Denali release: a reliability, installer, hardware, and identity pass that turns the v2 base into a more complete Abora experience.
 
-The big theme for this release is management: clearer commands, safer updates, better rollback paths, a real first-run welcome, and less need to remember raw Nix commands just to take care of the machine.
+The focus for this release is simple: the installer should work, the installed system should boot, the terminal and desktop should look like Abora, and the release artifacts should be easy to publish.
 
 ---
 
 ## Highlights
 
-### A Real Abora Command Layer
+### Remade Denali Installer
 
-Abora now has a friendlier command front door:
+The installer has been rebuilt around a calmer terminal UI with bounded log output, clearer status messages, and safer failure handling.
 
-```sh
-abora welcome
-abora doctor
-abora recovery
-abora desktop list
-abora desktop set gnome
+- recent logs are kept compact so they do not run off screen
+- long installs expose the current step and log path
+- failed installs drop to a live shell with `/tmp/abora-install.log`
+- config validation runs before `nixos-install`
+- install completion verifies the system profile before declaring success
+- the boot guard now detects an installed disk and guides users to boot it instead of relaunching the ISO
+
+### Hardware Comes Up In The Live ISO
+
+The live installer now enables the services and firmware users expect before install:
+
+- NetworkManager
+- Bluetooth and Blueman
+- ModemManager
+- redistributable and unfree firmware
+- Intel and AMD microcode
+- common Wi-Fi, Ethernet, Bluetooth, storage, and VM driver modules
+- radio unblock at boot
+
+### Abora OS 3.0 Branding
+
+The installed system now reports itself as:
+
+```text
+Abora OS 3.0 (Denali)
 ```
 
-`abora welcome` gives users a first-step status screen with the current desktop, wallpaper, update channel, Flathub state, and ANIX state.
+This updates visible OS release metadata, issue text, installer copy, and the welcome surfaces that previously exposed NixOS/Yarara branding.
 
-`abora doctor` checks the installed Abora tooling, Flatpak/Flathub, update channel, desktop config, boot assets, theme sync files, and ANIX health.
+### Desktop And Terminal Polish
 
-`abora recovery` gathers the scary stuff in one place: rollback, rebuild, Flathub repair, support reports, and doctor checks.
+Denali adds the first pass of the Abora desktop identity:
 
-### ANIX Is Becoming The Human Layer
+- day/night mountain wallpapers
+- dark-mode wallpaper pairing
+- Papirus dark icon defaults
+- larger app-grid icon sizing
+- Konsole as the preferred terminal
+- zsh with Spaceship prompt
+- fastfetch with the Abora logo
+- first-run zsh setup suppression so users do not see the zsh wizard
 
-ANIX now wraps common NixOS workflows in commands that read more like normal OS management:
+### Release Folder Cleanup
 
-```sh
-anix switch nix gaming
-anix rollback nix
-anix rollback nix minimal
-anix save
-anix doctor
-```
+Generated files now land in a cleaner `out/` layout:
 
-Named profiles now point to real flake outputs:
+- `out/iso/`
+- `out/packages/`
+- `out/release/`
+- `out/qemu/`
+- `out/logs/`
+- `out/nix/`
 
-- `stable`
-- `minimal`
-- `gaming`
-- `creator`
-- `developer`
+Release scripts, QEMU helpers, package generation, and metadata generation were updated for that layout.
 
-Snapshots stay local by default. ANIX also warns if it sees possible secrets before saving, and recommends moving real secrets to `sops-nix` or `agenix`.
+### TinyPM v4 And ANIX v1
 
-### Safer Updates
+TinyPM remains vendored and packaged with the release. The v4 bundle includes the Abora-flavored TinyPM package, portable relative `vendor/tinypm/bin/` symlinks instead of machine-local absolute symlinks, package source reporting, repair shortcuts, and Abora/ANIX bridges.
 
-Installed systems can track either `stable` or `unstable`:
-
-```sh
-nixos channel
-nixos channel list
-nixos channel set stable
-nixos channel set unstable
-```
-
-Before an update rebuilds the system, Abora now offers to save a local ANIX snapshot first. That gives users a cleaner recovery point before changing the system.
-
-### Easier System Configuration
-
-`abora-local.nix` now uses simple `abora.*` options:
-
-```nix
-abora.hostname = "my-pc";
-abora.timezone = "America/New_York";
-abora.desktop  = "gnome";
-```
-
-And `abora config` can edit the safe settings without opening the Nix file by hand:
-
-```sh
-abora config
-abora config set hostname my-pc
-abora config set timezone America/New_York
-abora config set desktop hyprland
-abora config apply
-```
-
-`user` and `disk` stay read-only through the command for safety.
-
-### Shared Terminal UI
-
-The Abora terminal tools now share the same ocean-themed UI library. Headers, cards, progress bars, warnings, and success messages should feel like they belong to the same OS instead of a pile of unrelated scripts.
-
-### Flatpak + Flathub
-
-Flatpak is enabled on installed systems, and Flathub is added automatically on first boot when networking is available.
-
-### App Catalog
-
-The app catalog is now **52 apps across 6 categories**.
-
-New categories:
-
-- **Gaming:** Steam, Lutris, Heroic Games Launcher, Bottles, MangoHud, GameMode
-- **System:** GParted, Disks, Timeshift, Flameshot, btop, Mission Center
-
-Other new picks include Chromium, Bitwarden, Discord, Slack, Zoom, RawTherapee, Zed, tmux, Alacritty, Ghostty, Lazygit, and Docker.
-
-Bundles:
-
-- `favorites`
-- `essentials`
-- `social`
-- `creator`
-- `developer`
-- `gaming`
-- `system`
-
----
-
-## Changed Files
-
-| Area | What Changed |
-|---|---|
-| `scripts/abora.sh` | New top-level command router |
-| `scripts/abora-welcome.sh` | First-step status and quick actions |
-| `scripts/abora-doctor.sh` | Abora health checker |
-| `scripts/abora-recovery.sh` | Rollback, repair, rebuild, and diagnostics menu |
-| `scripts/abora-desktop.sh` | Desktop profile helper |
-| `scripts/anix.sh` | Profile switching, rollback, snapshots, config, and doctor |
-| `scripts/abora-config.sh` | Installed-system settings editor |
-| `scripts/abora-update.sh` | Update channels, snapshots before rebuilds, profile-aware flakes |
-| `scripts/abora-apps.sh` | Styled catalog and installed-app views |
-| `scripts/abora-app-catalog.sh` | 52 apps across 6 categories |
-| `scripts/abora-hardware-test.sh` | Shared UI styling |
-| `scripts/abora-installer.sh` | New config format and named profile outputs |
-| `scripts/abora-ui.sh` | Shared terminal UI library |
-| `nix/modules/abora-options.nix` | `abora.*` NixOS option namespace |
-| `nix/modules/installed-base.nix` | Management commands, Flatpak, MOTD, first-shell welcome |
-| `nix/profiles/live.nix` | New commands included in the ISO |
-| `Makefile` | New `make preflight` target |
-
----
-
-## Upgrade Notes
-
-Existing v2.5 installs can update with:
-
-```sh
-sudo nixos update
-```
-
-The updater syncs the new Abora files into `/etc/nixos/abora/`, updates the flake, and rebuilds.
-
-Older installs that still use the pre-v2.5 config format will not automatically become full `abora.*` systems. For those, reinstalling from the v2.5 ISO is the cleanest path. Manual migration is possible by rewriting `abora-local.nix` to use the new options format.
+ANIX is now shaped as a v1 profile manager with status, quickstart, docs, profile discovery, generation listing, diff/test/boot/switch/rollback workflows, local snapshots, doctor repair, and NixOS module options for packages, trusted users, store optimisation, and scheduled garbage collection.
 
 ---
 
 ## Release Assets
 
-- `abora-v2.5.0-x86_64.iso`
-- `SHA256SUMS-v2.5.0.txt`
-- `RELEASE_MANIFEST-v2.5.0.txt`
+- `abora-2026.05.30-x86_64-v3.0.0.iso`
+- `tinypm-v4.0.0-abora-v3.0.0.tar.gz`
+- `SHA256SUMS-v3.0.0.txt`
+- `RELEASE_MANIFEST-v3.0.0.txt`
+- `RELEASE_NOTES-v3.0.0.md`
+
+---
+
+## Upgrade Notes
+
+Existing Abora installs can try:
+
+```sh
+sudo nixos update
+```
+
+For the cleanest v3 Denali experience, especially from older installer builds, a fresh install is recommended.
+
+After install in QEMU, boot the installed disk with:
+
+```sh
+make qemu-disk
+```
+
+For a clean installer test, use:
+
+```sh
+make qemu-fresh
+```
 
 ---
 
 ## Known Limits
 
-- `abora config` does not edit `user` or `disk`.
-- Flathub setup needs network after first boot.
-- ANIX snapshots are local unless `anix config set snapshots.push true` is enabled.
-- Named ANIX profiles are flake configs, not raw `/nix/var/nix/profiles` symlinks.
+- The ISO is larger than earlier v2 builds because it now includes broader firmware and hardware support.
+- Hardware support still depends on Linux kernel support for the exact device.
+- Flatpak and app installs need network after first boot.
+- Manual removal of the ISO may still be required on some VM setups if virtual media eject is blocked.
 
 ---
 
-## Validation Focus
+## Validation
 
-Before tagging, run:
+Completed for this release:
 
-```sh
-make preflight
-```
+- `./scripts/preflight.sh`
+- `vendor/tinypm/scripts/e2e-smoke.sh`
+- fresh ISO build for `2026.05.30`
+- v4 TinyPM package generation
+- v3 release manifest, release notes, and checksums
 
-For hardware testing, focus on:
-
-1. Live ISO boots and the installer completes cleanly.
-2. Fresh install writes the new `abora.*` config format.
-3. `abora welcome`, `abora doctor`, `abora recovery`, and `abora desktop list` work.
-4. `abora config` can read and change safe settings.
-5. `nixos channel set unstable` followed by `nixos update` tracks main.
-6. `abora-apps add <id>` works for Gaming and System catalog entries.
-7. Flatpak and Flathub are available after first boot.
-8. `anix switch nix gaming --now` targets `/etc/nixos#gaming`.
-9. `anix rollback nix` uses `nixos-rebuild switch --rollback`.
+Before publishing broadly, still do one real boot/install smoke test in the target VM or hardware environment.

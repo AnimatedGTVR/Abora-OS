@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 abora_default_wallpaper_name() {
-    printf 'oceandusk.png\n'
+    printf 'Daytime-MNT.jpg\n'
 }
 
 abora_default_wallpaper_uri() {
@@ -10,6 +10,8 @@ abora_default_wallpaper_uri() {
 
 abora_supported_wallpapers() {
     cat <<'EOF'
+Daytime-MNT.jpg
+NightTime-MNT.png
 oceandusk.png
 bluehorizon.png
 astronautwallpaper.png
@@ -19,6 +21,12 @@ EOF
 
 abora_sync_wallpaper_label() {
     case "$1" in
+        Daytime-MNT.jpg)
+            wallpaper_label="Mountain — Day/Night"
+            ;;
+        NightTime-MNT.png)
+            wallpaper_label="Mountain — Night"
+            ;;
         oceandusk.png)
             wallpaper_label="Ocean Dusk"
             ;;
@@ -239,8 +247,8 @@ EOF
   services.desktopManager.gnome.enable = true;
   services.desktopManager.gnome.extraGSettingsOverrides = ''
     [org.gnome.desktop.background]
-    picture-uri='${default_wallpaper_uri}'
-    picture-uri-dark='${default_wallpaper_uri}'
+    picture-uri='file:///run/current-system/sw/share/backgrounds/abora/Daytime-MNT.jpg'
+    picture-uri-dark='file:///run/current-system/sw/share/backgrounds/abora/NightTime-MNT.png'
     picture-options='zoom'
     color-shading-type='solid'
     primary-color='#081223'
@@ -266,7 +274,11 @@ EOF
 
     [org.gnome.shell]
     enabled-extensions=['dash-to-dock@micxgx.gmail.com', 'blur-my-shell@aunetx', 'appindicatorsupport@rgcjonas.gmail.com', 'caffeine@patapon.info']
-    favorite-apps=['org.gnome.Nautilus.desktop', 'org.gnome.Terminal.desktop', 'org.mozilla.firefox.desktop', 'org.gnome.Settings.desktop']
+    favorite-apps=['org.gnome.Nautilus.desktop', 'org.kde.konsole.desktop', 'org.mozilla.firefox.desktop', 'org.gnome.Settings.desktop']
+
+    [org.gnome.desktop.default-applications.terminal]
+    exec='konsole'
+    exec-arg='-e'
 
     [org.gnome.shell.extensions.dash-to-dock]
     dock-position='BOTTOM'
@@ -277,11 +289,11 @@ EOF
     intellihide=true
     transparency-mode='FIXED'
     background-opacity=0.75
-    dash-max-icon-size=44
+    dash-max-icon-size=56
     show-apps-at-top=false
     show-trash=false
     show-mounts=false
-    custom-theme-shrink=true
+    custom-theme-shrink=false
     running-indicator-style='DOTS'
 
     [org.gnome.shell.extensions.blur-my-shell]

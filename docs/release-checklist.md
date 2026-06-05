@@ -6,9 +6,9 @@ Use this after a local release build or after the GitHub ISO workflow succeeds.
 
 - run `make iso` for ISO-only validation
 - run `make release` only when preparing the full release bundle
-- verify the ISO exists in `out/`
-- verify the checksum in `SHA256SUMS-<version>.txt`
-- confirm `RELEASE_MANIFEST-<version>.txt` matches the published ISO and TinyPM package
+- verify the ISO exists in `out/iso/`
+- verify the checksum in `out/release/SHA256SUMS-<version>.txt`
+- confirm `out/release/RELEASE_MANIFEST-<version>.txt` matches the published ISO and TinyPM package
 - confirm the artifact name and ISO filename match the intended version
 
 ## Repository Checks

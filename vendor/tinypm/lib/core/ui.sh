@@ -20,6 +20,11 @@ Usage:
   tinypm update [-f|-flat|-flatpak|-s|-n|--brew|--nix]
   tinypm info <package>
   tinypm managed
+  tinypm sources
+  tinypm repair
+  tinypm system
+  tinypm anix <command>
+  tinypm abora <command>
   tinypm export-state [file]
   tinypm import-state <file>
   tinypm selftest
@@ -39,6 +44,10 @@ Quick aliases:
   tinypm u               # update
   tinypm ls              # list
   tinypm v               # version
+  tinypm src             # package source status
+  tinypm fix             # doctor --fix shortcut
+  tinypm sys             # Abora/Nix/ANIX system status
+  tinypm ax doctor       # run ANIX through TinyPM
 
 Primary command:
   grab [-f|-flat|-flatpak|-s|-n] <package>
@@ -57,6 +66,7 @@ Notes:
   If multiple backends are installed, grab asks which source to use.
   discover is a curated catalog, not every package everywhere.
   syspm routes TinyPM through the native system package manager only.
+  system/anix/abora make TinyPM cooperate with Abora and NixOS management tools.
 EOF2
 }
 

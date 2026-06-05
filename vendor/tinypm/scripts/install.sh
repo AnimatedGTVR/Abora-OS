@@ -41,7 +41,7 @@ resolved_catalog_file() {
 load_flavor_metadata() {
     local config_file
 
-    FLAVOR_NAME="TinyPM V3"
+    FLAVOR_NAME="TinyPM v4"
     FLAVOR_ENGINE_NAME="Parcel"
     FLAVOR_TAGLINE=""
 
@@ -56,6 +56,16 @@ print_logo() {
 }
 
 detect_native_pm() {
+    if [[ -r /etc/os-release ]]; then
+        # shellcheck disable=SC1091
+        . /etc/os-release
+        if [[ "${ID:-}" == "nixos" || "${ID:-}" == "abora" || " ${ID_LIKE:-} " == *" nixos "* ]] \
+            && command -v nix-env >/dev/null 2>&1; then
+            echo nix
+            return
+        fi
+    fi
+
     command -v apt-get >/dev/null 2>&1 && { echo apt; return; }
     command -v dnf >/dev/null 2>&1 && { echo dnf; return; }
     command -v pacman >/dev/null 2>&1 && { echo pacman; return; }
@@ -108,7 +118,7 @@ parse_cli_options() {
                 ;;
             -h|--help)
                 cat <<'EOH'
-TinyPM V3 / Parcel installer
+TinyPM v4 / Parcel installer
 
 Usage:
   ./install.sh [--auto] [--native <pm>] [--flavor <name>] [--yes]
@@ -234,8 +244,10 @@ main() {
     printf "  export PATH=\"\$HOME/.local/bin:\$PATH\"\n"
     printf '\nThen test:\n'
     printf "  \"\$HOME/.tinypm/bin/tinypm\" help\n"
+    printf "  \"\$HOME/.tinypm/bin/tinypm\" system\n"
     printf "  \"\$HOME/.tinypm/bin/tinypm\" selftest\n"
     printf "  \"\$HOME/.tinypm/bin/tinypm\" doctor --fix\n"
+    printf '  tinypm anix doctor\n'
     printf '  grab firefox\n'
     printf '  syspm update\n'
 }

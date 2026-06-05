@@ -3,6 +3,8 @@ set -euo pipefail
 
 repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 out_dir="${ABORA_OUT_DIR:-$repo_dir/out}"
+iso_dir="${ABORA_ISO_DIR:-$out_dir/iso}"
+nix_out_dir="${ABORA_NIX_OUT_DIR:-$out_dir/nix}"
 version_id="${ABORA_VERSION_ID:-}"
 build_date="$(date +%Y.%m.%d)"
 
@@ -21,7 +23,7 @@ case "$version_id" in
     *) version_tag="v$version_id" ;;
 esac
 
-mkdir -p "$out_dir"
+mkdir -p "$iso_dir" "$nix_out_dir"
 
 export NIX_CONFIG="${NIX_CONFIG:-experimental-features = nix-command flakes}"
 
@@ -29,7 +31,7 @@ nix_target="$repo_dir#packages.x86_64-linux.iso"
 artifact_prefix="abora"
 echo "Building target: $nix_target"
 
-build_link="$out_dir/nix-iso-result"
+build_link="$nix_out_dir/iso-result"
 rm -f "$build_link"
 
 nix build "$nix_target" \
@@ -64,8 +66,8 @@ if [[ -z "${iso_src:-}" || ! -f "$iso_src" ]]; then
     exit 1
 fi
 
-target_iso="$out_dir/${artifact_prefix}-${build_date}-x86_64-${version_tag}.iso"
-rm -f "$out_dir/${artifact_prefix}-"*"-${version_tag}.iso"
+target_iso="$iso_dir/${artifact_prefix}-${build_date}-x86_64-${version_tag}.iso"
+rm -f "$iso_dir/${artifact_prefix}-"*"-${version_tag}.iso"
 cp -f "$iso_src" "$target_iso"
 
 echo "ISO output: $target_iso"

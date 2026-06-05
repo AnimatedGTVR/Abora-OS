@@ -13,8 +13,30 @@ let
       ./wallpapers
     else
       ../../assets/wallpapers/collection;
+  bundledWallpaperNames = [
+    "Daytime-MNT.jpg"
+    "NightTime-MNT.png"
+    "oceandusk.png"
+    "bluehorizon.png"
+    "astronautwallpaper.png"
+    "glacierreflection.png"
+  ];
+  discoveredWallpaperNames =
+    if builtins.pathExists wallpaperDir then
+      builtins.attrNames (builtins.readDir wallpaperDir)
+    else
+      [ ];
+  wallpaperNames =
+    lib.unique (bundledWallpaperNames ++ discoveredWallpaperNames);
   defaultWallpaperPath = "/run/current-system/sw/share/backgrounds/abora/${cfg.wallpaper}";
   defaultWallpaperUri = "file://${defaultWallpaperPath}";
+  defaultDarkWallpaper =
+    if cfg.wallpaper == "Daytime-MNT.jpg" then
+      "NightTime-MNT.png"
+    else
+      cfg.wallpaper;
+  defaultDarkWallpaperPath = "/run/current-system/sw/share/backgrounds/abora/${defaultDarkWallpaper}";
+  defaultDarkWallpaperUri = "file://${defaultDarkWallpaperPath}";
 
   desktopLabel = {
     none         = "No desktop";
@@ -124,8 +146,8 @@ in
     };
 
     wallpaper = lib.mkOption {
-      type = lib.types.enum (builtins.attrNames (builtins.readDir wallpaperDir));
-      default = "oceandusk.png";
+      type = lib.types.enum wallpaperNames;
+      default = "Daytime-MNT.jpg";
       description = "Default wallpaper file shipped with Abora.";
     };
   };
@@ -149,6 +171,15 @@ in
 
       # ── Common ─────────────────────────────────────────────────────────
       {
+        system.nixos.extraOSReleaseArgs = {
+          LOGO = "abora";
+          VERSION = "3.0 (Denali)";
+          VERSION_ID = "3.0";
+          VERSION_CODENAME = "denali";
+          PRETTY_NAME = "Abora OS 3.0 (Denali)";
+          ANSI_COLOR = "0;38;2;80;220;255";
+        };
+
         system.nixos.variantName = lib.mkOverride 900 "Abora ${desktopLabel} Edition";
         system.nixos.variant_id  = lib.mkOverride 900 cfg.desktop;
 
@@ -160,6 +191,7 @@ in
           isNormalUser = true;
           description  = "Abora User";
           createHome   = true;
+          shell        = pkgs.zsh;
           extraGroups  = [ "wheel" "networkmanager" "audio" "video" ];
           hashedPassword = cfg.user.hashedPassword;
         };
@@ -193,7 +225,7 @@ in
         services.desktopManager.gnome.extraGSettingsOverrides = ''
           [org.gnome.desktop.background]
           picture-uri='${defaultWallpaperUri}'
-          picture-uri-dark='${defaultWallpaperUri}'
+          picture-uri-dark='${defaultDarkWallpaperUri}'
           picture-options='zoom'
           color-shading-type='solid'
           primary-color='#081223'
@@ -202,6 +234,7 @@ in
           [org.gnome.desktop.interface]
           accent-color='blue'
           color-scheme='prefer-dark'
+          icon-theme='Papirus-Dark'
         '';
         services.displayManager.autoLogin.enable = true;
         services.displayManager.autoLogin.user   = cfg.user.name;

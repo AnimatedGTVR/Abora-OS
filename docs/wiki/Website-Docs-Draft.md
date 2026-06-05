@@ -166,7 +166,10 @@ Wiki docs:
 - `docs/wiki/Updating-Abora.md`
 - `docs/wiki/Building-Abora.md`
 - `docs/wiki/Release-Guide.md`
-- `docs/wiki/TinyPM-V3.md`
+- `docs/wiki/Abora-Tools.md`
+- `docs/wiki/Recovery.md`
+- `docs/wiki/TinyPM-V4.md`
+- `docs/wiki/ANIX-V1.md`
 - `docs/wiki/FAQ.md`
 
 ## Short Version

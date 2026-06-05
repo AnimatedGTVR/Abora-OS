@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 default_wallpaper="${ABORA_DEFAULT_WALLPAPER:-/etc/abora/default-wallpaper.png}"
+default_dark_wallpaper="${ABORA_DEFAULT_DARK_WALLPAPER:-/etc/abora/wallpapers/NightTime-MNT.png}"
+if [[ ! -f "$default_dark_wallpaper" ]]; then
+    default_dark_wallpaper="$default_wallpaper"
+fi
 default_wallpaper_uri="file://${default_wallpaper}"
+default_dark_wallpaper_uri="file://${default_dark_wallpaper}"
 gsettings_bin="${ABORA_GSETTINGS_BIN:-gsettings}"
 theme_sync_script="${ABORA_THEME_SYNC_SCRIPT:-/etc/abora/theme-sync.sh}"
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/abora"
@@ -12,6 +17,7 @@ marker_file="${state_dir}/wallpaper-seed"
 theme_marker_file="${state_dir}/dark-theme-seed"
 swaybg_pid_file="${XDG_RUNTIME_DIR:-/tmp}/abora-swaybg.pid"
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+icon_theme="${ABORA_ICON_THEME:-Papirus-Dark}"
 qt5ct_colors="${ABORA_QT5CT_COLORS:-/run/current-system/sw/share/qt5ct/colors/darker.conf}"
 qt6ct_colors="${ABORA_QT6CT_COLORS:-/run/current-system/sw/share/qt6ct/colors/darker.conf}"
 launch_sound="${ABORA_LAUNCH_SOUND:-/etc/abora/effects/v3StartingAbora.mp3}"
@@ -45,18 +51,33 @@ play_launch_sound_once() {
     fi
 }
 
+ensure_zsh_profile() {
+    local zdotdir="${ZDOTDIR:-${HOME:-}}"
+    local target=""
+
+    [[ -n "$zdotdir" ]] || return 0
+    target="${zdotdir}/.zshrc"
+    [[ -e "$target" ]] && return 0
+
+    mkdir -p "$(dirname "$target")"
+    cat > "$target" <<'EOF'
+# Abora OS zsh profile.
+# System-wide prompt and fastfetch setup live in /etc/zshrc.
+EOF
+}
+
 desktop_signature() {
     printf '%s:%s\n' "${XDG_CURRENT_DESKTOP:-}" "${DESKTOP_SESSION:-}"
 }
 
 mark_seeded() {
     mkdir -p "$state_dir"
-    printf '%s\n' "$(basename "$default_wallpaper")" > "$marker_file"
+    printf '%s|%s\n' "$(basename "$default_wallpaper")" "$(basename "$default_dark_wallpaper")" > "$marker_file"
 }
 
 already_seeded() {
     [[ -f "$marker_file" ]] || return 1
-    [[ "$(cat "$marker_file" 2>/dev/null || true)" == "$(basename "$default_wallpaper")" ]]
+    [[ "$(cat "$marker_file" 2>/dev/null || true)" == "$(basename "$default_wallpaper")|$(basename "$default_dark_wallpaper")" ]]
 }
 
 mark_theme_seeded() {
@@ -94,16 +115,18 @@ write_dark_gtk_settings() {
 
     mkdir -p "$gtk3_dir" "$gtk4_dir"
 
-    cat > "${gtk3_dir}/settings.ini" <<'EOF'
+    cat > "${gtk3_dir}/settings.ini" <<EOF
 [Settings]
 gtk-application-prefer-dark-theme=1
 gtk-theme-name=Adwaita-dark
+gtk-icon-theme-name=${icon_theme}
 EOF
 
-    cat > "${gtk4_dir}/settings.ini" <<'EOF'
+    cat > "${gtk4_dir}/settings.ini" <<EOF
 [Settings]
 gtk-application-prefer-dark-theme=1
 gtk-theme-name=Adwaita-dark
+gtk-icon-theme-name=${icon_theme}
 EOF
 }
 
@@ -117,7 +140,7 @@ write_dark_qt_settings() {
 [Appearance]
 color_scheme_path=${qt5ct_colors}
 custom_palette=true
-icon_theme=Adwaita
+icon_theme=${icon_theme}
 standard_dialogs=default
 style=Fusion
 EOF
@@ -126,7 +149,7 @@ EOF
 [Appearance]
 color_scheme_path=${qt6ct_colors}
 custom_palette=true
-icon_theme=Adwaita
+icon_theme=${icon_theme}
 standard_dialogs=default
 style=Fusion
 EOF
@@ -137,9 +160,9 @@ write_lxqt_dark_settings() {
 
     mkdir -p "$lxqt_dir"
 
-    cat > "${lxqt_dir}/lxqt.conf" <<'EOF'
+    cat > "${lxqt_dir}/lxqt.conf" <<EOF
 [General]
-icon_theme=Adwaita
+icon_theme=${icon_theme}
 theme=dark
 
 [Qt]
@@ -169,21 +192,22 @@ export_dark_environment() {
 seed_gnome_dark() {
     set_gsettings_string org.gnome.desktop.interface color-scheme "'prefer-dark'" || true
     set_gsettings_string org.gnome.desktop.interface gtk-theme "'Adwaita-dark'" || true
+    set_gsettings_string org.gnome.desktop.interface icon-theme "'${icon_theme}'" || true
 }
 
 seed_cinnamon_dark() {
     set_gsettings_string org.cinnamon.desktop.interface gtk-theme "'Adwaita-dark'" || true
-    set_gsettings_string org.cinnamon.desktop.interface icon-theme "'Adwaita'" || true
+    set_gsettings_string org.cinnamon.desktop.interface icon-theme "'${icon_theme}'" || true
 }
 
 seed_mate_dark() {
     set_gsettings_string org.mate.interface gtk-theme "'Adwaita-dark'" || true
-    set_gsettings_string org.mate.interface icon-theme "'Adwaita'" || true
+    set_gsettings_string org.mate.interface icon-theme "'${icon_theme}'" || true
 }
 
 seed_xfce_dark() {
     set_xfconf_string xsettings /Net/ThemeName "Adwaita-dark" || true
-    set_xfconf_string xsettings /Net/IconThemeName "Adwaita" || true
+    set_xfconf_string xsettings /Net/IconThemeName "$icon_theme" || true
 }
 
 seed_plasma_dark() {
@@ -269,7 +293,7 @@ seed_gnome_like() {
     local schema="$1"
 
     set_gsettings_string "$schema" picture-uri "'${default_wallpaper_uri}'" || return 1
-    set_gsettings_string "$schema" picture-uri-dark "'${default_wallpaper_uri}'" || true
+    set_gsettings_string "$schema" picture-uri-dark "'${default_dark_wallpaper_uri}'" || true
     set_gsettings_string "$schema" picture-options "'zoom'" || true
 }
 
@@ -339,6 +363,8 @@ run_theme_sync_once() {
 
 main() {
     local signature=""
+
+    ensure_zsh_profile
 
     [[ -f "$default_wallpaper" ]] || exit 0
     [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || exit 0

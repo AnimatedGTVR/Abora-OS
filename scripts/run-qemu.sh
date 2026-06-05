@@ -3,8 +3,11 @@ set -euo pipefail
 
 repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 out_dir="${ABORA_OUT_DIR:-$repo_dir/out}"
+iso_dir="${ABORA_ISO_DIR:-$out_dir/iso}"
+qemu_dir="${ABORA_QEMU_DIR:-$out_dir/qemu}"
+log_dir="${ABORA_LOG_DIR:-$out_dir/logs}"
 iso_path="${ABORA_ISO_PATH:-}"
-disk_path="${ABORA_QEMU_DISK:-$out_dir/abora-qemu.qcow2}"
+disk_path="${ABORA_QEMU_DISK:-$qemu_dir/abora-qemu.qcow2}"
 memory_mb="${ABORA_QEMU_MEMORY_MB:-4096}"
 cpu_count="${ABORA_QEMU_CPUS:-4}"
 disk_size="${ABORA_QEMU_DISK_SIZE:-32G}"
@@ -33,7 +36,7 @@ case "$boot_mode" in
 esac
 
 if [[ "$boot_mode" == "iso" && -z "$iso_path" ]]; then
-    latest_iso="$(find "$out_dir" -maxdepth 1 -type f -name '*.iso' -printf '%T@ %p\n' \
+    latest_iso="$(find "$iso_dir" "$out_dir" -maxdepth 1 -type f -name '*.iso' -printf '%T@ %p\n' 2>/dev/null \
         | sort -n | tail -n 1 | cut -d' ' -f2-)"
     if [[ -z "${latest_iso:-}" ]]; then
         echo "No ISO found in $out_dir. Build one first with \`make iso\` or set ABORA_ISO_PATH." >&2
@@ -47,7 +50,7 @@ if [[ "$boot_mode" == "iso" && ! -f "$iso_path" ]]; then
     exit 1
 fi
 
-mkdir -p "$out_dir"
+mkdir -p "$out_dir" "$iso_dir" "$qemu_dir" "$log_dir"
 
 # Fresh disk: wipe old image so installation starts clean
 if [[ "$fresh" == "1" && -f "$disk_path" ]]; then
@@ -57,6 +60,19 @@ fi
 
 if [[ ! -f "$disk_path" ]]; then
     qemu-img create -f qcow2 "$disk_path" "$disk_size" >/dev/null
+fi
+
+# Auto-switch to disk boot when the qcow2 file is large enough to contain
+# a real installation (> 200 MiB).  A freshly-created empty disk is ~200 KB.
+# This lets "make qemu" work correctly after installation without the user
+# having to remember "make qemu-disk".
+if [[ "$boot_mode" == "iso" && -f "$disk_path" ]]; then
+    _disk_bytes="$(stat -c '%s' "$disk_path" 2>/dev/null || echo 0)"
+    if (( _disk_bytes > 209715200 )); then
+        echo "  Found existing installation on $disk_path ($(( _disk_bytes / 1073741824 )) GiB) — booting disk."
+        echo "  Use 'make qemu-fresh' to wipe and reinstall from scratch."
+        boot_mode="disk"
+    fi
 fi
 
 # UEFI firmware (optional — enables UEFI boot, mirrors real hardware better)
@@ -92,7 +108,7 @@ fi
 
 # UEFI firmware
 if [[ -n "$firmware_code" && -f "${firmware_vars:-}" ]]; then
-    vars_copy="$out_dir/OVMF_VARS.fd"
+    vars_copy="$qemu_dir/OVMF_VARS.fd"
     if [[ ! -f "$vars_copy" ]]; then
         cp "$firmware_vars" "$vars_copy"
     fi
@@ -104,13 +120,17 @@ fi
 
 # Boot device
 if [[ "$boot_mode" == "iso" ]]; then
-    # once=d  →  boot from CD this run, fall back to disk on next run (no menu pop-up)
+    # order=c  → HDD is the persistent default (warm reboots go to disk)
+    # once=d   → override to CD-ROM for this cold boot only
+    # Without order=c, SeaBIOS may still try the CD on warm reboots because
+    # it sees a bootable disc present — order=c prevents that.
     qemu_args+=(
-        -boot once=d
+        -boot order=c,once=d
         -cdrom "$iso_path"
     )
 else
-    qemu_args+=( -boot once=c )
+    # Disk-only boot: no ISO attached at all, hard disk is the only device.
+    qemu_args+=( -boot order=c )
 fi
 
 # Display
@@ -131,7 +151,7 @@ else
         -device usb-tablet
     )
     # Also pipe serial to a log file so boot messages are accessible
-    qemu_args+=( -serial "file:$out_dir/abora-serial.log" )
+    qemu_args+=( -serial "file:$log_dir/abora-serial.log" )
 fi
 
 # Print launch info
@@ -143,7 +163,7 @@ else
 fi
 echo "  Disk: $disk_path"
 if [[ "$nographic" != "1" ]]; then
-    echo "  Serial log: $out_dir/abora-serial.log"
+    echo "  Serial log: $log_dir/abora-serial.log"
 fi
 echo "  Close the QEMU window or press Ctrl+C here to stop the VM."
 echo ""

@@ -76,6 +76,13 @@ selftest() {
         failures=$((failures+1))
     fi
 
+    if system_print_report >/dev/null 2>&1; then
+        echo '[ok] system layer works'
+    else
+        echo '[fail] system layer failed'
+        failures=$((failures+1))
+    fi
+
     if [[ "$failures" -eq 0 ]]; then
         echo '[ok] selftest passed'
         return 0
@@ -125,6 +132,12 @@ doctor() {
     printf '  %-16s %s\n' 'backend_mode' "$([[ "$use_host_backend" -eq 1 ]] && echo host || echo local)"
     printf '  %-16s %s\n' 'auth_mode' "$(backend_auth_mode)"
     printf '  %-16s %s\n' 'native_pm' "$native_pm"
+    printf '  %-16s %s\n' 'system' "$(system_layer_name)"
+    printf '  %-16s %s\n' 'config_dir' "$(system_config_dir)"
+    printf '  %-16s %s\n' 'flake' "$(system_flake_state)"
+    printf '  %-16s %s\n' 'generation' "$(system_generation_state)"
+    printf '  %-16s %s\n' 'abora' "$(system_command_state abora)"
+    printf '  %-16s %s\n' 'anix' "$(system_command_state anix)"
     printf '  %-16s %s\n' 'state_db' "$(active_state_db)"
     printf '  %-16s %s\n' 'flatpak' "$flatpak_state"
     printf '  %-16s %s\n' 'snap' "$snap_state"

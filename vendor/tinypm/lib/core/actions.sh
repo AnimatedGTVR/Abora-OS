@@ -198,6 +198,42 @@ managed_pkgs() {
     print_tracked_packages
 }
 
+sources_report() {
+    local native_pm native_status flatpak_status snap_status
+
+    native_pm="$(detect_native_pm 2>/dev/null || true)"
+    if [[ -n "$native_pm" ]]; then
+        native_status="$(native_pm_label "$native_pm")"
+    else
+        native_status="missing"
+    fi
+
+    if backend_has_cmd flatpak; then
+        flatpak_status="available"
+    else
+        flatpak_status="missing"
+    fi
+
+    if backend_has_cmd snap; then
+        snap_status="available"
+    else
+        snap_status="missing"
+    fi
+
+    printf '%s sources\n' "$tinypm_engine_name"
+    printf '%s\n' '------------------------------------------------------------'
+    printf '  %-12s %s\n' 'native' "$native_status"
+    printf '  %-12s %s\n' 'flatpak' "$flatpak_status"
+    printf '  %-12s %s\n' 'snap' "$snap_status"
+    printf '  %-12s %s\n' 'system' "$(system_layer_name)"
+    printf '  %-12s %s\n' 'strategy' "$(system_native_strategy)"
+}
+
+repair_runtime() {
+    doctor_fix=1
+    doctor
+}
+
 info_pkg() {
     local package="$1"
     local tracked_provider="untracked"

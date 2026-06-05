@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 gsettings_bin="${ABORA_GSETTINGS_BIN:-gsettings}"
 theme_dir="${ABORA_THEME_DIR:-/etc/abora/themes}"
@@ -23,11 +23,25 @@ read_setting() {
     "$gsettings_bin" get "$schema" "$key" 2>/dev/null || true
 }
 
+current_color_scheme() {
+    local value=""
+
+    value="$(read_setting org.gnome.desktop.interface color-scheme)"
+    value="${value#\'}"
+    value="${value%\'}"
+    printf '%s\n' "$value"
+}
+
 current_wallpaper_basename() {
     local value=""
     local path=""
+    local scheme=""
 
-    value="$(read_setting org.gnome.desktop.background picture-uri-dark)"
+    scheme="$(current_color_scheme)"
+    if [[ "$scheme" == "prefer-dark" ]]; then
+        value="$(read_setting org.gnome.desktop.background picture-uri-dark)"
+    fi
+
     if [[ -z "$value" || "$value" == "''" ]]; then
         value="$(read_setting org.gnome.desktop.background picture-uri)"
     fi

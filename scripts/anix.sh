@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ui_lib="${ABORA_UI_LIB:-$script_dir/abora-ui.sh}"
+anix_version="1.0.0"
 
 if [[ ! -f "$ui_lib" && -f /etc/abora/ui.sh ]]; then
     ui_lib="/etc/abora/ui.sh"
@@ -58,11 +59,16 @@ valid_desktops=(
 )
 
 default_wallpapers=(
+    Daytime-MNT.jpg
+    NightTime-MNT.png
     oceandusk.png
     bluehorizon.png
     astronautwallpaper.png
     glacierreflection.png
 )
+
+current_system_link="${ANIX_CURRENT_SYSTEM:-/run/current-system}"
+system_profile_link="${ANIX_SYSTEM_PROFILE:-/nix/var/nix/profiles/system}"
 
 run_as_root() {
     if is_yes "${ANIX_NO_SUDO:-}"; then
@@ -93,6 +99,72 @@ read_abora_option() {
     local escaped_key="${key//./\\.}"
     [[ -f "$abora_local_file" ]] || return 0
     sed -nE "s|^[[:space:]]*abora\\.${escaped_key}[[:space:]]*=[[:space:]]*\"([^\"]+)\";.*|\1|p" "$abora_local_file" | head -n1
+}
+
+current_configured_desktop() {
+    local value=""
+    value="$(read_abora_option "desktop")"
+    if [[ -z "$value" ]]; then
+        value="$(read_anix_option "desktop")"
+    fi
+    printf '%s' "${value:-unknown}"
+}
+
+write_anix_raw_option() {
+    local key="$1"
+    local value="$2"
+    local escaped_key="${key//./\\.}"
+
+    ensure_anix_file
+    if grep -Eq "^[[:space:]]*anix\\.${escaped_key}[[:space:]]*=" "$anix_file"; then
+        run_as_root sed -i -E \
+            "s|^([[:space:]]*anix\\.${escaped_key}[[:space:]]*=).*$|\\1 ${value};|" \
+            "$anix_file"
+    else
+        run_as_root sed -i -E \
+            "/^[[:space:]]*}$/i\\  anix.${key} = ${value};" \
+            "$anix_file"
+    fi
+}
+
+quote_nix_string() {
+    local value="$1"
+    value="${value//\\/\\\\}"
+    value="${value//\"/\\\"}"
+    printf '"%s"' "$value"
+}
+
+explain_nix_failure() {
+    local log_file="$1"
+    local line=""
+
+    [[ -s "$log_file" ]] || return 0
+
+    printf '\n'
+    abora_error "Nix stopped before applying the config."
+
+    if grep -q "The option .* does not exist" "$log_file"; then
+        line="$(grep -m1 "The option .* does not exist" "$log_file" || true)"
+        abora_warn "Unknown option in your config."
+        printf '  %b%s%b\n' "$ABORA_DIM" "$line" "$ABORA_NC"
+        if grep -q "The option \`abora'" "$log_file"; then
+            abora_dim_line "Use nested options like 'abora.desktop = \"gnome\";', not 'abora = ...'."
+        fi
+    elif grep -qi "unfree" "$log_file"; then
+        abora_warn "This looks like an unfree package block."
+        abora_dim_line "ANIX normally sets 'anix.allowUnfree = true;'. Run: anix enable allowUnfree"
+        abora_dim_line "Then retry the command. For one TinyPM install: NIXPKGS_ALLOW_UNFREE=1 grab --nix discord"
+    elif grep -q "syntax error" "$log_file"; then
+        line="$(grep -m1 -B2 -A3 "syntax error" "$log_file" || true)"
+        abora_warn "This looks like a Nix syntax error."
+        printf '%s\n' "$line" | sed 's/^/    /'
+    else
+        abora_warn "Last lines from the Nix error:"
+        tail -n 14 "$log_file" | sed 's/^/    /'
+    fi
+
+    abora_dim_line "Full log: ${log_file}"
+    printf '\n'
 }
 
 validate_desktop() {
@@ -342,25 +414,90 @@ maybe_snapshot_dirty_config() {
 run_rebuild() {
     local action="$1"
     local target="${2:-}"
+    local log_file=""
+    local rc=0
+
+    log_file="$(mktemp "${TMPDIR:-/tmp}/anix-${action}.XXXXXX.log")"
 
     case "$action" in
         dry-build)
-            run_as_root nixos-rebuild dry-build --flake "$target"
+            run_as_root nixos-rebuild dry-build --flake "$target" 2> >(tee "$log_file" >&2) || rc=$?
             ;;
         switch)
-            run_as_root nixos-rebuild switch --flake "$target"
+            run_as_root nixos-rebuild switch --flake "$target" 2> >(tee "$log_file" >&2) || rc=$?
             ;;
         build)
-            run_as_root nixos-rebuild build --flake "$target"
+            run_as_root nixos-rebuild build --flake "$target" 2> >(tee "$log_file" >&2) || rc=$?
+            ;;
+        test)
+            run_as_root nixos-rebuild test --flake "$target" 2> >(tee "$log_file" >&2) || rc=$?
+            ;;
+        boot)
+            run_as_root nixos-rebuild boot --flake "$target" 2> >(tee "$log_file" >&2) || rc=$?
             ;;
         rollback)
-            run_as_root nixos-rebuild switch --rollback
+            run_as_root nixos-rebuild switch --rollback 2> >(tee "$log_file" >&2) || rc=$?
             ;;
         *)
             abora_error "Unknown rebuild action: ${action}"
             exit 1
             ;;
     esac
+
+    if [[ "$rc" -ne 0 ]]; then
+        explain_nix_failure "$log_file"
+        return "$rc"
+    fi
+}
+
+git_branch_name() {
+    config_is_git_repo || {
+        printf 'none'
+        return 0
+    }
+    git -C "$config_dir" branch --show-current 2>/dev/null | sed 's/^$/detached/' || printf 'unknown'
+}
+
+git_snapshot_count() {
+    config_is_git_repo || {
+        printf '0'
+        return 0
+    }
+    git -C "$config_dir" rev-list --count HEAD 2>/dev/null || printf '0'
+}
+
+flake_profile_candidates() {
+    local flake_file="$config_dir/flake.nix"
+    local profiles=""
+
+    if command -v nix >/dev/null 2>&1 && [[ -f "$flake_file" ]]; then
+        profiles="$(nix --extra-experimental-features "nix-command flakes" \
+            eval --json "$config_dir#nixosConfigurations" --apply 'builtins.attrNames' 2>/dev/null \
+            | tr -d '[]",' \
+            | tr ' ' '\n' \
+            | sed '/^$/d' \
+            || true)"
+        if [[ -n "$profiles" ]]; then
+            printf '%s\n' "$profiles"
+            return 0
+        fi
+    fi
+
+    if [[ -f "$flake_file" ]]; then
+        sed -nE 's|^[[:space:]]*([A-Za-z0-9._-]+)[[:space:]]*=[[:space:]]*nixpkgs\.lib\.nixosSystem.*|\1|p' "$flake_file" | sort -u
+    fi
+}
+
+generation_lines() {
+    if command -v nix-env >/dev/null 2>&1 && [[ -e "$system_profile_link" || -e "${system_profile_link}-1-link" ]]; then
+        nix-env --list-generations --profile "$system_profile_link" 2>/dev/null || true
+        return 0
+    fi
+
+    local generation
+    { compgen -G "${system_profile_link}-*-link" 2>/dev/null || true; } | sort -V | while IFS= read -r generation; do
+        printf '%s\n' "$(basename "$generation")"
+    done
 }
 
 show_package_changes() {
@@ -418,30 +555,77 @@ render_template() {
     keyboard_console="$(seed_value "keyboard.console" "us")"
     keyboard_xkb="$(seed_value "keyboard.xkb" "$keyboard_console")"
     desktop="$(seed_value "desktop" "gnome")"
-    wallpaper="$(seed_value "wallpaper" "oceandusk.png")"
+    wallpaper="$(seed_value "wallpaper" "Daytime-MNT.jpg")"
 
     cat <<EOF
-# ANIX is the simple layer on top of Abora/NixOS.
-# Change the values below, save the file, then run: anix apply
-{ ... }:
+## ANIX is the simple layer on top of Abora/NixOS.
+## Change values here, save the file, then run: anix apply
+{ pkgs, ... }:
 {
+  ## Turns ANIX on.
   anix.enable = true;
 
-  # Your system name on the network.
+  ## Your system name on the network.
+  ## Command: anix set hostname <name>
   anix.hostname = "${hostname}";
 
-  # Timezone example: America/New_York
+  ## Timezone example: America/New_York
+  ## Command: anix set timezone America/New_York
   anix.timezone = "${timezone}";
 
-  # Keyboard layouts for console and desktop sessions.
+  ## Keyboard layouts for console and desktop sessions.
+  ## Commands: anix set keyboard us ; anix set keyboard.xkb us
   anix.keyboard.console = "${keyboard_console}";
   anix.keyboard.xkb = "${keyboard_xkb}";
 
-  # Pick one desktop or use "none" for a console-only system.
+  ## Pick one desktop or use "none" for a console-only system.
+  ## Command: anix set desktop gnome
   anix.desktop = "${desktop}";
 
-  # Wallpaper filename (Abora OS only).
+  ## Wallpaper filename (Abora OS only).
+  ## Command: anix set wallpaper Daytime-MNT.jpg
   anix.wallpaper = "${wallpaper}";
+
+  ## Allow unfree apps like Discord and Steam.
+  ## Command: anix enable allowUnfree
+  anix.allowUnfree = true;
+
+  ## Modern Nix CLI and flakes.
+  ## Command: anix enable experimentalNix
+  anix.experimentalNix = true;
+
+  ## Default shell for normal users: "bash", "zsh", or "fish".
+  ## Command: anix set shell zsh
+  anix.shell = "zsh";
+
+  ## TinyPM installs per-user on first login (grab, search, term, start, supdate).
+  ## Command: anix tinypm install
+  anix.tinypm.enable = true;
+
+  ## System services.
+  ## Commands: anix enable bluetooth ; anix disable openssh
+  anix.services.bluetooth = true;
+  anix.services.printing = true;
+  anix.services.flatpak = true;
+  anix.services.audio = true;
+  anix.services.openssh = false;
+
+  ## Laptop and power helpers.
+  ## Commands: anix enable thermald ; anix enable tlp
+  anix.power.thermald = true;
+  anix.power.tlp = false;
+
+  ## Extra packages and fonts.
+  ## Commands: anix package add vim ; anix package remove vim
+  anix.packages = with pkgs; [ ];
+  anix.fonts = with pkgs; [ inter nerd-fonts.jetbrains-mono ];
+
+  ## Trusted Nix users and scheduled cleanup.
+  ## Commands: anix enable garbageCollect ; anix set gc.days 14d
+  anix.trustedUsers = [ "root" "@wheel" ];
+  anix.garbageCollect.enable = true;
+  anix.garbageCollect.dates = "weekly";
+  anix.garbageCollect.options = "--delete-older-than 14d";
 }
 EOF
 }
@@ -464,12 +648,21 @@ show_config() {
     fi
 
     local hostname timezone kb_console kb_xkb desktop wallpaper
+    local allow_unfree tinypm bluetooth flatpak audio openssh gc shell
     hostname="$(read_anix_option "hostname")"
     timezone="$(read_anix_option "timezone")"
     kb_console="$(read_anix_option "keyboard.console")"
     kb_xkb="$(read_anix_option "keyboard.xkb")"
     desktop="$(read_anix_option "desktop")"
     wallpaper="$(read_anix_option "wallpaper")"
+    shell="$(read_anix_option "shell")"
+    allow_unfree="$(sed -nE 's|^[[:space:]]*anix\.allowUnfree[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
+    tinypm="$(sed -nE 's|^[[:space:]]*anix\.tinypm\.enable[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
+    bluetooth="$(sed -nE 's|^[[:space:]]*anix\.services\.bluetooth[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
+    flatpak="$(sed -nE 's|^[[:space:]]*anix\.services\.flatpak[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
+    audio="$(sed -nE 's|^[[:space:]]*anix\.services\.audio[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
+    openssh="$(sed -nE 's|^[[:space:]]*anix\.services\.openssh[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
+    gc="$(sed -nE 's|^[[:space:]]*anix\.garbageCollect\.enable[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
 
     abora_banner "ANIX" "${anix_file}"
 
@@ -484,7 +677,18 @@ show_config() {
         "$ABORA_DIM" "${kb_xkb:-—}" "$ABORA_NC"
     abora_kv "desktop"     "${desktop:-—}"
     abora_kv "wallpaper"   "${wallpaper:-—}"
+    abora_kv "shell"       "${shell:-—}"
+    abora_kv "allowUnfree" "${allow_unfree:-—}"
 
+    abora_card_end
+
+    abora_card_start "Services"
+    abora_kv "TinyPM"      "${tinypm:-—}"
+    abora_kv "Bluetooth"   "${bluetooth:-—}"
+    abora_kv "Flatpak"     "${flatpak:-—}"
+    abora_kv "Audio"       "${audio:-—}"
+    abora_kv "OpenSSH"     "${openssh:-—}"
+    abora_kv "GC"          "${gc:-—}"
     abora_card_end
 
     printf '\n'
@@ -539,12 +743,36 @@ do_set() {
         wallpaper)
             validate_wallpaper "$value"
             ;;
+        shell)
+            case "$value" in bash|zsh|fish) ;; *) abora_error "Shell must be bash, zsh, or fish."; exit 1 ;; esac
+            ;;
+        gc.days)
+            key="garbageCollect.options"
+            value="--delete-older-than ${value}"
+            ;;
+        garbageCollect.dates|gc.dates)
+            key="garbageCollect.dates"
+            ;;
         *)
             abora_error "Unknown key: ${key}"
-            printf '  %bSettable keys:%b hostname timezone keyboard keyboard.xkb desktop wallpaper\n\n' "$ABORA_DIM" "$ABORA_NC"
+            printf '  %bSettable keys:%b hostname timezone keyboard keyboard.xkb desktop wallpaper shell gc.days gc.dates\n\n' "$ABORA_DIM" "$ABORA_NC"
             exit 1
             ;;
     esac
+
+    if [[ "$key" == "desktop" ]]; then
+        local current=""
+        current="$(current_configured_desktop)"
+        if [[ "$current" != "unknown" && "$current" != "$value" ]]; then
+            abora_warn "Desktop change: ${current} -> ${value}"
+            abora_dim_line "This can download a large desktop stack and boot into ${value} after apply."
+            if ! confirm "Keep this desktop change?" "no"; then
+                abora_warn "Desktop change cancelled."
+                printf '\n'
+                return 0
+            fi
+        fi
+    fi
 
     escaped_key="${key//./\\.}"
     if grep -Eq "^[[:space:]]*anix\\.${escaped_key}[[:space:]]*=" "$anix_file"; then
@@ -562,10 +790,194 @@ do_set() {
     printf '\n'
 }
 
+do_toggle() {
+    local wanted="$1"
+    local name="${2:-}"
+    local key=""
+
+    if [[ -z "$name" ]]; then
+        abora_error "Usage: anix enable <feature> OR anix disable <feature>"
+        exit 1
+    fi
+
+    case "$name" in
+        allowUnfree|unfree) key="allowUnfree" ;;
+        experimentalNix|flakes) key="experimentalNix" ;;
+        bluetooth) key="services.bluetooth" ;;
+        printing|printers) key="services.printing" ;;
+        flatpak) key="services.flatpak" ;;
+        audio|sound) key="services.audio" ;;
+        openssh|ssh) key="services.openssh" ;;
+        thermald) key="power.thermald" ;;
+        tlp) key="power.tlp" ;;
+        tinypm) key="tinypm.enable" ;;
+        garbageCollect|gc) key="garbageCollect.enable" ;;
+        *)
+            abora_error "Unknown feature: ${name}"
+            abora_dim_line "Known: allowUnfree experimentalNix bluetooth printing flatpak audio openssh thermald tlp tinypm garbageCollect"
+            exit 1
+            ;;
+    esac
+
+    write_anix_raw_option "$key" "$wanted"
+    abora_success "'anix.${key}' set to '${wanted}'"
+    abora_dim_line "Run 'anix apply' to rebuild."
+    printf '\n'
+}
+
+do_package() {
+    local action="${1:-}"
+    local pkg="${2:-}"
+    local file=""
+
+    if [[ -z "$action" || -z "$pkg" ]]; then
+        abora_error "Usage: anix package add <pkg> OR anix package remove <pkg>"
+        exit 1
+    fi
+    if [[ ! "$pkg" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+        abora_error "Invalid package name: ${pkg}"
+        exit 1
+    fi
+
+    ensure_anix_file
+    file="$anix_file"
+    case "$action" in
+        add)
+            if grep -Eq "anix\\.packages = with pkgs; \\[[^]]*(^|[[:space:]])${pkg}($|[[:space:]])" "$file"; then
+                abora_warn "${pkg} is already in anix.packages"
+            elif grep -Eq "^[[:space:]]*anix\\.packages[[:space:]]*=[[:space:]]*with pkgs; \\[" "$file"; then
+                run_as_root sed -i -E "s|^([[:space:]]*anix\\.packages[[:space:]]*=[[:space:]]*with pkgs; \\[)(.*)(\\];)|\\1\\2 ${pkg} \\3|" "$file"
+            else
+                write_anix_raw_option "packages" "with pkgs; [ ${pkg} ]"
+            fi
+            abora_success "Added package: ${pkg}"
+            ;;
+        remove|rm)
+            run_as_root sed -i -E "s|([[:space:][])${pkg}([[:space:]]|\\])|\\1\\2|g; s|[[:space:]]+\\]| \\]|g" "$file"
+            abora_success "Removed package if present: ${pkg}"
+            ;;
+        *)
+            abora_error "Usage: anix package add <pkg> OR anix package remove <pkg>"
+            exit 1
+            ;;
+    esac
+    abora_dim_line "Run 'anix apply' to rebuild."
+    printf '\n'
+}
+
+do_service() {
+    local action="${1:-status}"
+    local service="${2:-}"
+
+    if [[ -z "$service" ]]; then
+        abora_error "Usage: anix service <start|stop|restart|status|enable|disable> <unit>"
+        exit 1
+    fi
+
+    case "$action" in
+        start|stop|restart|status)
+            run_as_root systemctl "$action" "$service"
+            ;;
+        enable|disable)
+            run_as_root systemctl "$action" --now "$service"
+            ;;
+        *)
+            abora_error "Unknown service action: ${action}"
+            exit 1
+            ;;
+    esac
+}
+
+do_ringtone() {
+    local action="${1:-start}"
+    local sound="/etc/abora/effects/v3StartingAbora.mp3"
+
+    case "$action" in
+        start|play)
+            if command -v mpg123 >/dev/null 2>&1 && [[ -f "$sound" ]]; then
+                mpg123 -q "$sound" &
+                abora_success "Played Abora start sound."
+            elif systemctl --user list-unit-files abora-ringtone.service >/dev/null 2>&1; then
+                systemctl --user start abora-ringtone.service
+            else
+                abora_warn "No ringtone/start sound player was found."
+            fi
+            ;;
+        stop)
+            pkill -f "mpg123 .*v3StartingAbora.mp3" 2>/dev/null || true
+            systemctl --user stop abora-ringtone.service 2>/dev/null || true
+            ;;
+        status)
+            pgrep -af "mpg123 .*v3StartingAbora.mp3" || systemctl --user status abora-ringtone.service
+            ;;
+        *)
+            abora_error "Usage: anix ringtone [start|stop|status]"
+            exit 1
+            ;;
+    esac
+}
+
+preflight_anix_config() {
+    local prompt_desktop="${1:-yes}"
+    local failures=0
+    local bad_line=""
+    local desktop=""
+    local current=""
+
+    [[ -f "$anix_file" ]] || return 0
+
+    bad_line="$(grep -nE '^[[:space:]]*abora[[:space:]]*=' "$anix_file" | head -1 || true)"
+    if [[ -n "$bad_line" ]]; then
+        abora_error "ANIX config has a top-level 'abora =' assignment."
+        abora_dim_line "Line ${bad_line%%:*}: use 'abora.desktop = \"gnome\";' or ANIX options instead."
+        failures=$((failures + 1))
+    fi
+
+    if grep -nE '^[[:space:]]*anix\.[A-Za-z0-9_.-]+[[:space:]]*=[[:space:]]*"[^"]*"[[:space:]]*$' "$anix_file" >/dev/null; then
+        abora_warn "Some ANIX lines may be missing a semicolon."
+        grep -nE '^[[:space:]]*anix\.[A-Za-z0-9_.-]+[[:space:]]*=[[:space:]]*"[^"]*"[[:space:]]*$' "$anix_file" | head -4 | sed 's/^/    /'
+        failures=$((failures + 1))
+    fi
+
+    desktop="$(read_anix_option "desktop")"
+    if [[ -n "$desktop" ]]; then
+        local valid=""
+        local known="false"
+        for valid in "${valid_desktops[@]}"; do
+            [[ "$desktop" == "$valid" ]] && known="true"
+        done
+        if [[ "$known" != "true" ]]; then
+            abora_error "Invalid desktop in ANIX config: ${desktop}"
+            abora_dim_line "Valid desktops: ${valid_desktops[*]}"
+            failures=$((failures + 1))
+        fi
+        current="$(read_abora_option "desktop")"
+        if [[ -n "$current" && "$current" != "$desktop" ]]; then
+            abora_warn "ANIX desktop differs from installed Abora desktop: ${current} -> ${desktop}"
+            abora_dim_line "This can download a large DE and make ${desktop} the next desktop."
+            if [[ "$prompt_desktop" != "yes" ]]; then
+                return 1
+            fi
+            if ! confirm "Apply this desktop change?" "no"; then
+                abora_warn "Apply cancelled."
+                printf '\n'
+                return 1
+            fi
+        fi
+    fi
+
+    [[ "$failures" -eq 0 ]]
+}
+
 do_apply() {
     ensure_anix_file
 
     abora_banner "ANIX Apply" "Rebuilding with ${anix_file}"
+    if ! preflight_anix_config yes; then
+        abora_error "Fix the ANIX config before applying."
+        printf '\n'
+        exit 1
+    fi
     abora_step "Running nixos-rebuild switch"
     printf '\n'
 
@@ -573,6 +985,448 @@ do_apply() {
 
     printf '\n'
     abora_success "Done. The ANIX layer is now active."
+    printf '\n'
+}
+
+do_version() {
+    abora_banner "ANIX v${anix_version}" "Abora/NixOS profile manager."
+    abora_card_start "Runtime"
+    abora_kv "config_dir" "$config_dir"
+    abora_kv "config" "$anix_file"
+    abora_kv "flake_config" "$flake_config_name"
+    abora_kv "git_branch" "$(git_branch_name)"
+    abora_kv "snapshots" "$(git_snapshot_count)"
+    abora_card_end
+    printf '\n'
+}
+
+do_status() {
+    local dirty="no"
+    local flake="missing"
+    local generation="unknown"
+
+    config_is_dirty && dirty="yes"
+    [[ -f "$config_dir/flake.nix" ]] && flake="present"
+    if [[ -e "$current_system_link" ]]; then
+        generation="$(readlink "$current_system_link" 2>/dev/null || printf 'active')"
+    fi
+
+    abora_banner "ANIX Status" "What ANIX sees right now."
+    abora_card_start "System"
+    abora_kv "version" "$anix_version"
+    abora_kv "config_dir" "$config_dir"
+    abora_kv "anix_config" "$([[ -f "$anix_file" ]] && printf present || printf missing)"
+    abora_kv "flake" "$flake"
+    abora_kv "default_profile" "$flake_config_name"
+    abora_kv "generation" "$generation"
+    abora_card_end
+
+    abora_card_start "Snapshots"
+    abora_kv "git_repo" "$(config_is_git_repo && printf yes || printf no)"
+    abora_kv "branch" "$(git_branch_name)"
+    abora_kv "dirty" "$dirty"
+    abora_kv "commits" "$(git_snapshot_count)"
+    abora_kv "push" "$(anix_config_get "snapshots.push" "false")"
+    abora_card_end
+
+    abora_card_start "TinyPM"
+    if tinypm_installed; then
+        abora_kv "installed" "yes"
+        local _ver=""
+        _ver="$("${HOME}/.tinypm/bin/version" 2>/dev/null | head -1 || true)"
+        abora_kv "version" "${_ver:-unknown}"
+    else
+        abora_kv "installed" "no — run: anix tinypm install"
+    fi
+    abora_card_end
+    printf '\n'
+}
+
+tinypm_stamp() {
+    printf '%s' "${XDG_STATE_HOME:-${HOME}/.local/state}/tinypm/anix-init-done"
+}
+
+tinypm_installed() {
+    [[ -f "$(tinypm_stamp)" ]] && [[ -d "${HOME}/.tinypm/bin" ]]
+}
+
+do_tinypm() {
+    local sub="${1:-status}"
+    shift 2>/dev/null || true
+
+    case "$sub" in
+        status)
+            abora_banner "TinyPM" "Abora Package Manager"
+            abora_card_start "Status"
+            if tinypm_installed; then
+                abora_kv "installed"  "yes (${HOME}/.tinypm)"
+                local ver=""
+                ver="$("${HOME}/.tinypm/bin/version" 2>/dev/null | head -1 || true)"
+                abora_kv "version"    "${ver:-unknown}"
+                abora_kv "commands"   "grab  search  term  start  supdate"
+            else
+                abora_kv "installed"  "no"
+                abora_kv "stamp"      "$(tinypm_stamp)"
+            fi
+            abora_kv "system src" "/etc/abora/tinypm"
+            abora_card_end
+            printf '\n'
+            if ! tinypm_installed; then
+                abora_dim_line "Run 'anix tinypm install' to set up TinyPM now."
+                printf '\n'
+            fi
+            ;;
+        install|setup|reinstall)
+            local src="/etc/abora/tinypm"
+            if [[ ! -f "${src}/install.sh" ]]; then
+                abora_error "TinyPM source not found at ${src}/install.sh"
+                exit 1
+            fi
+            if tinypm_installed && [[ "$sub" != "reinstall" ]]; then
+                abora_warn "TinyPM is already installed at ${HOME}/.tinypm"
+                abora_dim_line "Use 'anix tinypm reinstall' to force a fresh install."
+                printf '\n'
+                return 0
+            fi
+            abora_step "Installing TinyPM (flavor: abora)…"
+            TINYPM_FLAVOR=abora bash "${src}/install.sh" \
+                --flavor abora --yes --native nix
+            local stamp_dir
+            stamp_dir="$(dirname "$(tinypm_stamp)")"
+            mkdir -p "${stamp_dir}"
+            touch "$(tinypm_stamp)"
+            printf '\n'
+            abora_success "TinyPM installed. Open a new shell or run: hash -r"
+            printf '\n'
+            ;;
+        *)
+            abora_error "Usage: anix tinypm [status|install|reinstall]"
+            exit 1
+            ;;
+    esac
+}
+
+do_docs() {
+    abora_banner "ANIX Docs" "Local documentation for the Abora toolchain."
+    abora_card_start "Docs"
+    abora_kv "ANIX" "/etc/abora/docs/wiki/ANIX-V1.md"
+    abora_kv "TinyPM" "/etc/abora/docs/wiki/TinyPM-V4.md"
+    abora_kv "Abora tools" "/etc/abora/docs/wiki/Abora-Tools.md"
+    abora_kv "Recovery" "/etc/abora/docs/wiki/Recovery.md"
+    abora_card_end
+    printf '\n'
+    abora_dim_line "Source tree copies live under docs/wiki/ when developing Abora."
+    printf '\n'
+}
+
+gui_available() {
+    [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1
+}
+
+gui_show_file() {
+    local title="$1"
+    local file="$2"
+
+    if gui_available; then
+        zenity --text-info --width=820 --height=560 --title="$title" --filename="$file" 2>/dev/null || true
+    else
+        printf '\n%s\n' "$title"
+        sed -n '1,220p' "$file"
+    fi
+}
+
+gui_capture() {
+    local title="$1"
+    shift
+    local tmp rc
+
+    tmp="$(mktemp)"
+    if "$@" >"$tmp" 2>&1; then
+        rc=0
+    else
+        rc=$?
+    fi
+
+    gui_show_file "$title" "$tmp"
+    rm -f "$tmp"
+    return "$rc"
+}
+
+gui_pick_profile() {
+    local profiles profile
+    profiles="$(flake_profile_candidates)"
+    [[ -n "$profiles" ]] || profiles="$flake_config_name"
+
+    if gui_available; then
+        profile="$(printf '%s\n' "$profiles" \
+            | zenity --list --width=360 --height=320 --title="ANIX Profiles" \
+                --column="Profile" 2>/dev/null || true)"
+        printf '%s\n' "${profile:-$flake_config_name}"
+        return 0
+    fi
+
+    printf '\nAvailable profiles:\n'
+    printf '%s\n' "$profiles" | sed 's/^/  /'
+    printf 'Profile [%s]: ' "$flake_config_name"
+    read -r profile || profile=""
+    printf '%s\n' "${profile:-$flake_config_name}"
+}
+
+do_gui_terminal() {
+    local choice profile key value
+
+    while true; do
+        abora_banner "ANIX GUI" "Graphical toolkit unavailable; using menu mode."
+        printf '  1  Status\n'
+        printf '  2  Quickstart\n'
+        printf '  3  Doctor\n'
+        printf '  4  Profiles\n'
+        printf '  5  Generations\n'
+        printf '  6  Diff profile\n'
+        printf '  7  Test profile\n'
+        printf '  8  Boot profile\n'
+        printf '  9  Switch profile\n'
+        printf '  10 Set value\n'
+        printf '  11 Docs\n'
+        printf '  0  Exit\n\n'
+        printf '  Select: '
+        read -r choice || choice="0"
+        case "$choice" in
+            1) do_status ;;
+            2) do_quickstart ;;
+            3) do_doctor ;;
+            4) do_profiles ;;
+            5) do_generations ;;
+            6) profile="$(gui_pick_profile)"; do_diff nix "$profile" ;;
+            7) profile="$(gui_pick_profile)"; do_test nix "$profile" ;;
+            8) profile="$(gui_pick_profile)"; do_boot nix "$profile" ;;
+            9) profile="$(gui_pick_profile)"; do_switch nix "$profile" ;;
+            10)
+                printf 'Key: '; read -r key || key=""
+                printf 'Value: '; read -r value || value=""
+                do_set "$key" "$value"
+                ;;
+            11) do_docs ;;
+            0|"") return 0 ;;
+            *) abora_warn "Choose a menu number." ;;
+        esac
+        printf '\nPress Enter to return to ANIX menu.'
+        read -r _ || true
+    done
+}
+
+do_gui() {
+    local action profile key value
+
+    if ! gui_available; then
+        do_gui_terminal
+        return
+    fi
+
+    while true; do
+        action="$(zenity --list --width=620 --height=470 \
+            --title="ANIX v${anix_version}" \
+            --text="Choose an ANIX action" \
+            --column="Action" --column="What it does" \
+            "status" "Show config, flake, generation, and snapshot state" \
+            "quickstart" "Create ANIX config and prepare snapshots" \
+            "doctor" "Check the ANIX/NixOS management layer" \
+            "doctor --fix" "Create missing safe basics" \
+            "profiles" "List flake profiles" \
+            "generations" "Show recent system generations" \
+            "show" "Show current ANIX settings" \
+            "set" "Set hostname/timezone/keyboard/desktop/wallpaper" \
+            "diff" "Dry-build and compare a profile" \
+            "test" "Test-activate a profile" \
+            "boot" "Prepare a profile for next boot" \
+            "switch" "Switch to a profile after confirmation" \
+            "docs" "Show local docs paths" \
+            "exit" "Close ANIX GUI" \
+            2>/dev/null || true)"
+
+        case "$action" in
+            status) gui_capture "ANIX Status" do_status ;;
+            quickstart) gui_capture "ANIX Quickstart" do_quickstart ;;
+            doctor) gui_capture "ANIX Doctor" do_doctor ;;
+            "doctor --fix") gui_capture "ANIX Doctor Repair" do_doctor --fix ;;
+            profiles) gui_capture "ANIX Profiles" do_profiles ;;
+            generations) gui_capture "ANIX Generations" do_generations ;;
+            show) gui_capture "ANIX Settings" show_config ;;
+            set)
+                key="$(zenity --list --width=360 --height=320 --title="ANIX Setting" \
+                    --column="Key" hostname timezone keyboard keyboard.xkb desktop wallpaper 2>/dev/null || true)"
+                [[ -n "$key" ]] || continue
+                value="$(zenity --entry --width=420 --title="Set ${key}" --text="New value for ${key}" 2>/dev/null || true)"
+                [[ -n "$value" ]] || continue
+                gui_capture "ANIX Set ${key}" do_set "$key" "$value"
+                ;;
+            diff)
+                profile="$(gui_pick_profile)"
+                gui_capture "ANIX Diff ${profile}" do_diff nix "$profile"
+                ;;
+            test)
+                profile="$(gui_pick_profile)"
+                gui_capture "ANIX Test ${profile}" do_test nix "$profile"
+                ;;
+            boot)
+                profile="$(gui_pick_profile)"
+                gui_capture "ANIX Boot ${profile}" do_boot nix "$profile"
+                ;;
+            switch)
+                profile="$(gui_pick_profile)"
+                if zenity --question --width=460 --title="Switch profile" \
+                    --text="Switch to profile '${profile}' now?\n\nThis runs nixos-rebuild switch." 2>/dev/null; then
+                    gui_capture "ANIX Switch ${profile}" do_switch nix "$profile" --now
+                fi
+                ;;
+            docs) gui_capture "ANIX Docs" do_docs ;;
+            exit|"") return 0 ;;
+        esac
+    done
+}
+
+do_quickstart() {
+    abora_banner "ANIX Quickstart" "Prepare the friendly NixOS layer."
+
+    ensure_anix_file
+    abora_success "ANIX config is present: ${anix_file}"
+
+    if config_is_git_repo; then
+        abora_success "Snapshot repo is ready: ${config_dir}"
+    else
+        abora_warn "Snapshot repo is not initialized."
+        if confirm "Initialize local snapshot history now?" "yes"; then
+            ensure_config_git_repo
+            abora_success "Snapshot repo is ready."
+        fi
+    fi
+
+    printf '\n'
+    do_status
+    abora_dim_line "Next: run 'anix diff nix ${flake_config_name}' or 'anix switch nix ${flake_config_name}'."
+    printf '\n'
+}
+
+do_profiles() {
+    local profiles=""
+
+    profiles="$(flake_profile_candidates)"
+    abora_banner "ANIX Profiles" "${config_dir}/flake.nix"
+
+    if [[ -z "$profiles" ]]; then
+        abora_warn "No flake profiles were discovered."
+        abora_dim_line "Expected outputs under nixosConfigurations."
+        printf '\n'
+        return 0
+    fi
+
+    abora_card_start "Available Profiles"
+    printf '%s\n' "$profiles" | while IFS= read -r profile; do
+        [[ -n "$profile" ]] || continue
+        printf '  %b│%b  %b%s%b\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "$profile" "$ABORA_NC"
+    done
+    abora_card_end
+    printf '\n'
+}
+
+do_generations() {
+    local lines=""
+
+    lines="$(generation_lines)"
+    abora_banner "ANIX Generations" "$system_profile_link"
+    if [[ -z "$lines" ]]; then
+        abora_warn "No system generations were found."
+        printf '\n'
+        return 0
+    fi
+
+    abora_card_start "System Generations"
+    printf '%s\n' "$lines" | tail -n "${ANIX_GENERATION_LIMIT:-12}" | while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        printf '  %b│%b  %b%s%b\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "$line" "$ABORA_NC"
+    done
+    abora_card_end
+    printf '\n'
+}
+
+do_diff() {
+    local family="${1:-nix}"
+    local profile="${2:-$flake_config_name}"
+    local target=""
+
+    target="$(profile_target "$family" "$profile")"
+    abora_banner "ANIX Diff" "${family}/${profile}"
+    run_rebuild dry-build "$target"
+    printf '\n'
+    show_package_changes "$target"
+    printf '\n'
+}
+
+do_test() {
+    local family="${1:-nix}"
+    local profile="${2:-$flake_config_name}"
+    local target=""
+
+    target="$(profile_target "$family" "$profile")"
+    abora_banner "ANIX Test" "${family}/${profile}"
+    maybe_snapshot_dirty_config "anix: snapshot before testing ${profile}"
+    run_rebuild test "$target"
+    printf '\n'
+    abora_success "Test activation finished for ${profile}."
+    printf '\n'
+}
+
+do_boot() {
+    local family="${1:-nix}"
+    local profile="${2:-$flake_config_name}"
+    local target=""
+
+    target="$(profile_target "$family" "$profile")"
+    abora_banner "ANIX Boot" "${family}/${profile}"
+    maybe_snapshot_dirty_config "anix: snapshot before boot profile ${profile}"
+    run_rebuild boot "$target"
+    printf '\n'
+    abora_success "Boot profile prepared for ${profile}. Reboot when ready."
+    printf '\n'
+}
+
+do_edit() {
+    local editor="${EDITOR:-${VISUAL:-nano}}"
+
+    ensure_anix_file
+    if ! command -v "$editor" >/dev/null 2>&1; then
+        abora_error "Editor not found: ${editor}"
+        abora_dim_line "Set EDITOR or VISUAL, then run anix edit again."
+        printf '\n'
+        exit 1
+    fi
+    "$editor" "$anix_file"
+}
+
+do_gc() {
+    local mode="${1:-old}"
+
+    require_command nix-collect-garbage
+    case "$mode" in
+        old)
+            if ! confirm "Delete old Nix generations and garbage collect?" "no"; then
+                abora_warn "Garbage collection cancelled."
+                printf '\n'
+                return 0
+            fi
+            run_as_root nix-collect-garbage -d
+            ;;
+        user)
+            nix-collect-garbage
+            ;;
+        *)
+            abora_error "Usage: anix gc [old|user]"
+            exit 1
+            ;;
+    esac
+
+    printf '\n'
+    abora_success "Garbage collection complete."
     printf '\n'
 }
 
@@ -760,6 +1614,20 @@ doctor_check() {
 }
 
 do_doctor() {
+    local fix="false"
+    while [[ "$#" -gt 0 ]]; do
+        case "$1" in
+            --fix|--repair)
+                fix="true"
+                ;;
+            *)
+                abora_error "Unknown doctor option: $1"
+                exit 1
+                ;;
+        esac
+        shift
+    done
+
     local failures=0
     local warnings=0
     local desktop=""
@@ -783,8 +1651,13 @@ do_doctor() {
     if [[ -d "$config_dir" ]]; then
         doctor_check ok "config directory exists: ${config_dir}"
     else
-        doctor_check fail "config directory is missing: ${config_dir}"
-        failures=$((failures + 1))
+        if [[ "$fix" == "true" ]]; then
+            run_as_root mkdir -p "$config_dir"
+            doctor_check ok "created config directory: ${config_dir}"
+        else
+            doctor_check fail "config directory is missing: ${config_dir}"
+            failures=$((failures + 1))
+        fi
     fi
 
     if [[ -f "$config_dir/flake.nix" ]]; then
@@ -810,12 +1683,23 @@ do_doctor() {
             doctor_check ok "config repo is clean"
         fi
     else
-        doctor_check warn "config directory is not a Git repo; snapshots will initialize one"
-        warnings=$((warnings + 1))
+        if [[ "$fix" == "true" ]]; then
+            ensure_config_git_repo
+            doctor_check ok "initialized config Git repo"
+        else
+            doctor_check warn "config directory is not a Git repo; snapshots will initialize one"
+            warnings=$((warnings + 1))
+        fi
     fi
 
     if [[ -f "$anix_file" ]]; then
         doctor_check ok "ANIX config exists: ${anix_file}"
+        if preflight_anix_config no; then
+            doctor_check ok "ANIX config preflight passed"
+        else
+            doctor_check fail "ANIX config preflight failed"
+            failures=$((failures + 1))
+        fi
         desktop="$(read_anix_option "desktop")"
         if [[ -n "$desktop" ]]; then
             local valid=""
@@ -831,8 +1715,13 @@ do_doctor() {
             fi
         fi
     else
-        doctor_check warn "ANIX config does not exist yet; run 'anix init'"
-        warnings=$((warnings + 1))
+        if [[ "$fix" == "true" ]]; then
+            ensure_anix_file
+            doctor_check ok "created ANIX config: ${anix_file}"
+        else
+            doctor_check warn "ANIX config does not exist yet; run 'anix init'"
+            warnings=$((warnings + 1))
+        fi
     fi
 
     if [[ -e /nix/var/nix/profiles/system ]]; then
@@ -856,10 +1745,34 @@ do_doctor() {
 }
 
 usage() {
-    abora_banner "ANIX" "Nix without the homework."
+    abora_banner "ANIX v${anix_version}" "Nix without the homework."
     printf '  %bUsage%b\n\n' "$ABORA_WHITE" "$ABORA_NC"
+    printf '  %banix status%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Show profile, generation, flake, Git, and snapshot state."
+    printf '\n'
+    printf '  %banix quickstart%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Create the ANIX config and prepare local snapshots."
+    printf '\n'
+    printf '  %banix docs%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Show local docs paths for ANIX, TinyPM, and Abora."
+    printf '\n'
+    printf '  %banix profiles%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  List flake profiles under nixosConfigurations."
+    printf '\n'
+    printf '  %banix generations%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Show recent NixOS system generations."
+    printf '\n'
     printf '  %banix switch nix <profile>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Safely switch to a named flake config."
+    printf '\n'
+    printf '  %banix test nix [profile]%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Test-activate a profile without making it the boot default."
+    printf '\n'
+    printf '  %banix boot nix [profile]%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Build a profile for the next boot without switching now."
+    printf '\n'
+    printf '  %banix diff nix [profile]%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Dry-build and compare package closure changes."
     printf '\n'
     printf '  %banix rollback nix [profile] [--now]%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Roll back to the previous generation or a named profile."
@@ -869,12 +1782,17 @@ usage() {
     printf '\n'
     printf '  %banix doctor%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Check flakes, Git state, generations, and ANIX settings."
+    printf '  %banix doctor --fix%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Create missing config and snapshot basics where safe."
     printf '\n'
     printf '  %banix init%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Create ${anix_file} with sensible defaults."
     printf '\n'
     printf '  %banix show%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Show the current ANIX settings."
+    printf '\n'
+    printf '  %banix edit%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Open the ANIX config in your editor."
     printf '\n'
     printf '  %banix set hostname <value>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     printf '  %banix set timezone <value>%b\n' "$ABORA_CYAN" "$ABORA_NC"
@@ -884,14 +1802,33 @@ usage() {
     printf '  %banix set wallpaper <value>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Update a simple ANIX setting."
     printf '\n'
+    printf '  %banix enable <feature>%b / %banix disable <feature>%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Toggle bluetooth, flatpak, audio, openssh, allowUnfree, tinypm, gc, and power helpers."
+    printf '\n'
+    printf '  %banix package add <pkg>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %banix package remove <pkg>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Add or remove Nix packages from the ANIX system package list."
+    printf '\n'
+    printf '  %banix service restart <unit>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Control a systemd service through ANIX."
+    printf '\n'
+    printf '  %banix ringtone start%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Play the Abora start sound when available."
+    printf '\n'
     printf '  %banix wallpapers%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  List the wallpapers you can switch to."
     printf '\n'
     printf '  %banix config set snapshots.push true%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Opt in to pushing snapshots after local commits."
     printf '\n'
+    printf '  %banix gc old%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Remove old generations after confirmation."
+    printf '\n'
     printf '  %banix apply%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Rebuild the system using the ANIX layer."
+    printf '\n'
+    printf '  %banix tinypm [status|install|reinstall]%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Manage the TinyPM per-user installation."
     printf '\n'
 }
 
@@ -913,16 +1850,34 @@ main() {
     local command="${1:-show}"
 
     case "$command" in
-        init) shift; do_init "$@" ;;
-        show|"") shift; show_config "$@" ;;
-        wallpapers) shift; show_wallpapers "$@" ;;
-        set) shift; do_set "$@" ;;
-        apply) shift; do_apply "$@" ;;
-        switch) shift; do_switch "$@" ;;
-        rollback) shift; do_rollback "$@" ;;
-        save) shift; do_save "$@" ;;
-        config) shift; do_tool_config "$@" ;;
-        doctor) shift; do_doctor "$@" ;;
+        version|--version|-v) shift || true; do_version "$@" ;;
+        --gui|gui) shift || true; do_gui "$@" ;;
+        status) shift || true; do_status "$@" ;;
+        quickstart|start) shift || true; do_quickstart "$@" ;;
+        docs|doc) shift || true; do_docs "$@" ;;
+        profiles|profile|ls) shift || true; do_profiles "$@" ;;
+        generations|gens) shift || true; do_generations "$@" ;;
+        init) shift || true; do_init "$@" ;;
+        show|"") shift || true; show_config "$@" ;;
+        edit) shift || true; do_edit "$@" ;;
+        wallpapers) shift || true; show_wallpapers "$@" ;;
+        set) shift || true; do_set "$@" ;;
+        enable) shift || true; do_toggle true "$@" ;;
+        disable) shift || true; do_toggle false "$@" ;;
+        package|pkg) shift || true; do_package "$@" ;;
+        service) shift || true; do_service "$@" ;;
+        ringtone) shift || true; do_ringtone "$@" ;;
+        apply) shift || true; do_apply "$@" ;;
+        test) shift || true; do_test "$@" ;;
+        boot) shift || true; do_boot "$@" ;;
+        diff) shift || true; do_diff "$@" ;;
+        switch) shift || true; do_switch "$@" ;;
+        rollback) shift || true; do_rollback "$@" ;;
+        save) shift || true; do_save "$@" ;;
+        config) shift || true; do_tool_config "$@" ;;
+        gc|clean) shift || true; do_gc "$@" ;;
+        doctor) shift || true; do_doctor "$@" ;;
+        tinypm) shift || true; do_tinypm "$@" ;;
         help|--help|-h) usage ;;
         *)
             abora_error "Unknown ANIX command: ${command}"

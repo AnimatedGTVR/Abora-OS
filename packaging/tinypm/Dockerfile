@@ -9,8 +9,8 @@ ENV TINYPM_PROJECT_DIR=/opt/tinypm/project
 ENV TINYPM_FLAVOR=abora
 ENV PATH=/opt/tinypm/project:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-LABEL org.opencontainers.image.title="TinyPM V3" \
-      org.opencontainers.image.description="TinyPM V3 CLI container published from the Abora OS repository." \
+LABEL org.opencontainers.image.title="TinyPM v4" \
+      org.opencontainers.image.description="TinyPM v4 CLI container published from the Abora OS repository." \
       org.opencontainers.image.licenses="GPL-3.0-or-later" \
       org.opencontainers.image.source="${IMAGE_SOURCE}" \
       org.opencontainers.image.version="${TINYPM_VERSION}" \

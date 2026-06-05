@@ -74,6 +74,8 @@ Instead of dropping people into a system that feels like it was only built for p
 - `sudo nixos update` / `rollback` flow on installed systems
 - Update channels: track `stable` releases or `unstable` (main branch)
 - `abora config` command to view and change system settings without editing Nix
+- ANIX v1 profile management with status, snapshots, diff/test/boot/switch/rollback workflows
+- TinyPM v4 app layer with source status, repair, and Abora/ANIX bridges
 - Omarchy-inspired Denali installer TUI
 - Optional GitHub CLI integration for repos, dotfiles, and support workflows
 - Abora branding across boot, desktop, and fastfetch
@@ -190,12 +192,21 @@ Use it like this:
 
 ```sh
 anix init
+anix quickstart
+anix --gui
+anix status
+anix profiles
+anix generations
 anix show
+anix diff nix gaming
+anix test nix gaming
+anix boot nix gaming
 anix switch nix gaming
 anix rollback nix
 anix rollback nix minimal
 anix save
 anix doctor
+anix doctor --fix
 anix set hostname my-pc
 anix set wallpaper bluehorizon.png
 anix set desktop none
@@ -215,6 +226,23 @@ ANIX still writes simple settings to `/etc/nixos/anix.nix` and rebuilds the norm
 
 ---
 
+## TinyPM v4
+
+TinyPM is the app/package layer. Use it for installs, source checks, and app updates:
+
+```sh
+grab firefox
+tinypm sources
+tinypm system
+tinypm repair
+tinypm anix status
+tinypm abora doctor
+```
+
+TinyPM v4 prefers Nix on Abora and NixOS-family systems, while still supporting Flatpak, Snap, and common native package managers.
+
+---
+
 ## Abora Management Tools
 
 Abora also includes a small OS management layer:
@@ -226,6 +254,8 @@ abora recovery         # rollback, rebuild, repair Flathub, collect reports
 abora setup            # installed reconfiguration launcher
 abora desktop list     # list desktop profiles
 abora desktop set gnome
+anix status            # profile, generation, and snapshot state
+tinypm sources         # package source status
 make preflight         # maintainer release checks
 ```
 
@@ -291,7 +321,7 @@ Build the full release bundle:
 make release
 ```
 
-That writes the ISO, TinyPM package, checksums, release manifest, and release notes into `out/`.
+That writes the ISO, TinyPM package, checksums, release manifest, and release notes into the organized `out/` folders.
 
 Other targets:
 
@@ -301,14 +331,7 @@ make tinypm-package  # TinyPM package by itself
 make tinypm-image    # TinyPM container image locally
 ```
 
-To publish a release:
-
-```sh
-git tag v2.5.0
-git push origin v2.5.0
-```
-
-For the v3 line:
+To publish the v3 line:
 
 ```sh
 git tag v3.0.0
@@ -344,6 +367,10 @@ Rebuild in the VM workspace:
 - [Wiki home](docs/wiki/Home.md)
 - [Installation guide](docs/wiki/Installation.md)
 - [Updating Abora](docs/wiki/Updating-Abora.md)
+- [Abora tools](docs/wiki/Abora-Tools.md)
+- [Recovery](docs/wiki/Recovery.md)
+- [ANIX v1](docs/wiki/ANIX-V1.md)
+- [TinyPM v4](docs/wiki/TinyPM-V4.md)
 - [Building Abora](docs/wiki/Building-Abora.md)
 - [Release notes](RELEASE_NOTES.md)
 - [Security policy](SECURITY.md)

@@ -2,6 +2,7 @@
 # shellcheck disable=SC2034,SC2154
 
 doctor_fix=0
+passthrough_args=()
 
 dispatch_multicall() {
     case "$prog_name" in
@@ -35,8 +36,12 @@ parse_action_args() {
                 esac
             done
             ;;
-        selftest|managed|apps|help|version|-v|--version)
+        selftest|managed|apps|help|version|-v|--version|system|status|sources|repair)
             [[ $# -eq 0 ]] || die "too many arguments"
+            ;;
+        anix|abora)
+            passthrough_args=("$@")
+            package="${1:-}"
             ;;
         list|update)
             if [[ $# -gt 0 ]] && provider="$(provider_from_flag "$1")"; then
@@ -102,6 +107,11 @@ init_cli_context() {
             l|ls) action="list" ;;
             v) action="version" ;;
             st) action="start" ;;
+            sys) action="system" ;;
+            status) action="system" ;;
+            src) action="sources" ;;
+            fix) action="repair" ;;
+            ax) action="anix" ;;
         esac
         shift || true
         parse_action_args "auto" "$@"
