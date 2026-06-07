@@ -136,6 +136,44 @@ system_print_report() {
     printf '  tinypm doctor\n'
 }
 
+# --- ANIX declarative package routing -------------------------------------
+# On Abora the package set is declarative (/etc/nixos/anix.nix, applied with
+# `anix apply`). When the anix tool is present, TinyPM edits that config instead
+# of running an imperative nix-env install, so `grab` changes survive rebuilds.
+#
+# Env overrides:
+#   TINYPM_NO_ANIX=1     ignore anix even if installed (use nix-env directly)
+#   TINYPM_ANIX_APPLY=0  update the config but do NOT run `anix apply`
+
+anix_auto_enabled() {
+    [[ "${TINYPM_NO_ANIX:-0}" == "1" ]] && return 1
+    backend_has_cmd anix
+}
+
+anix_apply() {
+    if [[ "${TINYPM_ANIX_APPLY:-1}" != "1" ]]; then
+        printf 'ANIX config updated. Run "anix apply" to rebuild the system.\n'
+        return 0
+    fi
+    ANIX_ASSUME_YES=1 backend_run anix apply || die "anix apply failed"
+}
+
+anix_install_pkg() {
+    local pkg="$1"
+
+    ANIX_ASSUME_YES=1 backend_run anix package add "$pkg" \
+        || die "anix could not add $pkg to the config"
+    anix_apply
+}
+
+anix_remove_pkg() {
+    local pkg="$1"
+
+    ANIX_ASSUME_YES=1 backend_run anix package remove "$pkg" \
+        || die "anix could not remove $pkg from the config"
+    anix_apply
+}
+
 system_bridge_command() {
     local tool="$1"
     shift

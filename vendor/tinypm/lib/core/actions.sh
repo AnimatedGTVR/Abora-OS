@@ -12,7 +12,11 @@ install_pkg() {
         snap) snap_install "$package" ;;
         *)
             if is_native_provider "$provider"; then
-                apt_install "$package" "$provider"
+                if [[ "$provider" == "nix" ]] && anix_auto_enabled; then
+                    anix_install_pkg "$package"
+                else
+                    apt_install "$package" "$provider"
+                fi
             else
                 die "unknown provider: $provider"
             fi
@@ -84,7 +88,11 @@ remove_pkg() {
         snap) snap_remove "$package" ;;
         *)
             if is_native_provider "$provider"; then
-                apt_remove "$package" "$provider"
+                if [[ "$provider" == "nix" ]] && anix_auto_enabled; then
+                    anix_remove_pkg "$package"
+                else
+                    apt_remove "$package" "$provider"
+                fi
             else
                 die "unknown provider: $provider"
             fi
