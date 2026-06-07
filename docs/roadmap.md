@@ -42,7 +42,7 @@ v3 Denali is the current design and stabilization track.
 - keep the Omarchy-inspired installer style: large Abora wordmark, compact boxed fields, and minimal prompts
 - keep install validation strict enough to fail early before expensive `nixos-install` work
 - make the installed desktop setup app useful for post-install reconfiguration
-- keep the desktop matrix green across GNOME, Plasma, Hyprland, Sway, XFCE, Cinnamon, MATE, Budgie, LXQt, Pantheon, Enlightenment, i3, AwesomeWM, Openbox, Niri, River, Qtile, BSPWM, Fluxbox, IceWM, and Herbstluftwm
+- keep the desktop matrix green across GNOME, Plasma, Hyprland, Sway, XFCE, Cinnamon, MATE, Budgie, LXQt, Pantheon, i3, AwesomeWM, Openbox, Niri, River, Qtile, BSPWM, Fluxbox, IceWM, and Herbstluftwm
 - make Abora stand apart from SnowflakeOS, Guix System, and GNOME-over-Nix by focusing on a distro-like NixOS onboarding path, strong branding, and friendly system management commands
 - add more automated VM install smoke tests after ISO build
 - keep QEMU install tests focused on clean disks with `make qemu-fresh`

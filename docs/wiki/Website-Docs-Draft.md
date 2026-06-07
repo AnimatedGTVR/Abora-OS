@@ -41,7 +41,7 @@ The installer owns:
 
 Abora v2 expanded beyond a single desktop target.
 
-The desktop matrix now includes GNOME, Plasma, Hyprland, Sway, XFCE, Cinnamon, MATE, Budgie, LXQt, Pantheon, Enlightenment, i3, AwesomeWM, Openbox, Niri, River, Qtile, BSPWM, Fluxbox, IceWM, and Herbstluftwm.
+The desktop matrix now includes GNOME, Plasma, Hyprland, Sway, XFCE, Cinnamon, MATE, Budgie, LXQt, Pantheon, i3, AwesomeWM, Openbox, Niri, River, Qtile, BSPWM, Fluxbox, IceWM, and Herbstluftwm.
 
 `scripts/check-desktops.sh` evaluates these profiles before release so broken profile options are caught early.
 

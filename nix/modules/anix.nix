@@ -34,9 +34,9 @@ in
     desktop = lib.mkOption {
       type = lib.types.nullOr (lib.types.enum [
         "none" "gnome" "plasma" "hyprland" "sway" "xfce" "cinnamon" "mate"
-        "budgie" "lxqt" "pantheon" "enlightenment" "i3" "awesome"
+        "budgie" "lxqt" "pantheon" "i3" "awesome"
         "openbox" "niri" "river" "qtile" "bspwm" "fluxbox" "icewm"
-        "herbstluftwm"
+        "herbstluftwm" "cosmic"
       ]);
       default = null;
       description = "Optional desktop override (requires Abora OS for full effect).";

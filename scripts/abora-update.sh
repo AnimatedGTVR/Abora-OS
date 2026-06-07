@@ -338,8 +338,8 @@ write_local_module() {
 
   # ── Desktop ───────────────────────────────────────────────────────────────
   # Options: none gnome plasma hyprland sway niri xfce cinnamon mate budgie
-  #          lxqt pantheon lxde enlightenment i3 awesome openbox
-  #          river qtile bspwm fluxbox icewm herbstluftwm
+  #          lxqt pantheon lxde i3 awesome openbox
+  #          river qtile bspwm fluxbox icewm herbstluftwm cosmic
   abora.desktop = "${desktop_profile}";
 
   # ── Hardware ──────────────────────────────────────────────────────────────

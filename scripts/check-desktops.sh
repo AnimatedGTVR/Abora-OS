@@ -11,6 +11,7 @@ version="$(tr -d '\n' < "$repo_dir/VERSION")"
 bootloader_background="$repo_dir/assets/bootloader/limine-background.png"
 tmpdir="$(mktemp -d)"
 failed=0
+pkgs_path=""
 
 cleanup() {
   rm -rf "$tmpdir"
@@ -26,8 +27,31 @@ fail() {
   failed=1
 }
 
-if ! nix-instantiate --find-file nixpkgs >/dev/null 2>&1; then
-  printf 'The nixpkgs NIX_PATH entry is not available for desktop checks.\n' >&2
+resolve_nixpkgs_path() {
+  if [[ -n "${ABORA_NIXPKGS_PATH:-}" && -d "${ABORA_NIXPKGS_PATH:-}" ]]; then
+    printf '%s\n' "$ABORA_NIXPKGS_PATH"
+    return 0
+  fi
+
+  nix-instantiate --find-file nixpkgs 2>/dev/null
+}
+
+assert_supported_everywhere() {
+  local profile="$1"
+  local file
+  for file in \
+    "$repo_dir/scripts/anix.sh" \
+    "$repo_dir/scripts/abora-config.sh" \
+    "$repo_dir/nix/modules/abora-options.nix" \
+    "$repo_dir/nix/modules/anix.nix"; do
+    if ! grep -Eq "\"?${profile}\"?([[:space:]]|$)" "$file"; then
+      fail "desktop list missing ${profile}: ${file#$repo_dir/}"
+    fi
+  done
+}
+
+if ! pkgs_path="$(resolve_nixpkgs_path)"; then
+  printf 'No nixpkgs source is available. Set ABORA_NIXPKGS_PATH or NIX_PATH.\n' >&2
   exit 1
 fi
 
@@ -38,9 +62,11 @@ while IFS= read -r desktop_profile; do
   desktop_block="$(abora_desktop_config_block "$desktop_profile" "us" "abora" "$(abora_default_wallpaper_uri)")"
   desktop_packages="$(abora_desktop_package_block "$desktop_profile")"
 
+  assert_supported_everywhere "$desktop_profile"
+
   cat > "$tmpdir/${desktop_profile}.nix" <<EOF
 let
-  pkgsPath = <nixpkgs>;
+  pkgsPath = ${pkgs_path};
   evalConfig = import (pkgsPath + "/nixos/lib/eval-config.nix");
   installedBase = import ${repo_dir}/nix/modules/installed-base.nix;
   desktopModule = { pkgs, lib, ... }: {
@@ -92,16 +118,20 @@ ${desktop_packages}
     modules = [ installedBase desktopModule ];
   }).config;
 in
-  config.system.nixos.variantName
+  {
+    inherit (config.system.nixos) variantName variant_id;
+    defaultSession = config.services.displayManager.defaultSession or null;
+    toplevel = config.system.build.toplevel.drvPath;
+  }
 EOF
 done < <(abora_supported_desktop_profiles)
 
 while IFS= read -r desktop_profile; do
-  printf '[..]  evaluating: %s\n' "$desktop_profile"
+  printf '[..]  instantiating: %s\n' "$desktop_profile"
   if nix-instantiate --eval --strict "$tmpdir/${desktop_profile}.nix" >/dev/null 2>&1; then
-    pass "desktop eval: ${desktop_profile}"
+    pass "desktop toplevel: ${desktop_profile}"
   else
-    fail "desktop eval: ${desktop_profile}"
+    fail "desktop toplevel: ${desktop_profile}"
     nix-instantiate --eval --strict "$tmpdir/${desktop_profile}.nix" || true
   fi
 done < <(abora_supported_desktop_profiles)

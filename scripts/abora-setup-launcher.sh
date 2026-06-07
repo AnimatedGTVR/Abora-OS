@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Abora OS Setup Launcher
-# Launched from the desktop app menu — opens the installer TUI in the best
-# available terminal emulator, running in --reconfig mode so it reconfigures
-# the installed system without touching the bootloader or partitions.
+# Launched from the desktop app menu. On the live ISO it starts the installer;
+# on an installed system it opens the reconfiguration flow.
 
 set -euo pipefail
 
 INSTALLER="${ABORA_INSTALLER:-/etc/abora/installer.sh}"
+MODE="${ABORA_SETUP_MODE:-auto}"
 
 # Fall back to well-known install paths if the env var isn't set
 if [[ ! -f "$INSTALLER" ]]; then
@@ -28,6 +28,36 @@ fi
 # run directly. Otherwise use sudo inside the chosen terminal.
 
 already_root() { [[ "${EUID:-$(id -u)}" -eq 0 ]]; }
+
+is_live_iso() {
+    [[ -f /iso-image/iso-info || -e /run/current-system/iso-image ]] && return 0
+    grep -qi 'live image' /etc/abora/README 2>/dev/null && return 0
+    [[ ! -f /etc/nixos/configuration.nix ]] && return 0
+    return 1
+}
+
+installer_args() {
+    case "$MODE" in
+        install|live)
+            return 0
+            ;;
+        reconfig|installed)
+            printf '%s\n' --reconfig
+            return 0
+            ;;
+        auto|"")
+            if is_live_iso; then
+                return 0
+            fi
+            printf '%s\n' --reconfig
+            return 0
+            ;;
+        *)
+            printf 'abora-setup: unknown ABORA_SETUP_MODE: %s\n' "$MODE" >&2
+            exit 1
+            ;;
+    esac
+}
 
 sudo_cmd() {
     if [[ -x /run/wrappers/bin/sudo ]]; then
@@ -69,14 +99,15 @@ find_terminal() {
 # ── Build the command to run inside the terminal ──────────────────────────────
 
 RUNNER=()
+mapfile -t INSTALLER_ARGS < <(installer_args)
 if already_root; then
-    RUNNER=(bash "$INSTALLER" --reconfig)
+    RUNNER=(bash "$INSTALLER" "${INSTALLER_ARGS[@]}")
 else
     sudo_bin="$(sudo_cmd || true)"
     if [[ -n "$sudo_bin" ]]; then
-        RUNNER=("$sudo_bin" bash "$INSTALLER" --reconfig)
+        RUNNER=("$sudo_bin" bash "$INSTALLER" "${INSTALLER_ARGS[@]}")
     elif command -v pkexec >/dev/null 2>&1; then
-        RUNNER=(pkexec bash "$INSTALLER" --reconfig)
+        RUNNER=(pkexec bash "$INSTALLER" "${INSTALLER_ARGS[@]}")
     else
         printf 'abora-setup: neither sudo nor pkexec found\n' >&2
         exit 1

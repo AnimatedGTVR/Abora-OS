@@ -1137,8 +1137,11 @@ NIXEOF
 
   boot.loader.grub.enable = lib.mkForce false;
   boot.loader.efi.efiSysMountPoint = "/boot";
+  boot.loader.timeout = 5;
   boot.loader.limine = {
     enable = true;
+    enableEditor = false;
+    maxGenerations = 8;
     biosSupport = true;
     biosDevice = "${disk}";
     partitionIndex = 1;
@@ -1228,6 +1231,87 @@ validate_boot() {
         \( -iname '*limine*.efi' -o -iname 'limine-bios.sys' \) 2>/dev/null \
         | grep -q . && return 0
     die "Bootloader not found after nixos-install. See ${install_log}."
+}
+
+limine_first_bootable_entry() {
+    local conf="$1"
+    awk '
+        function escape_entry(s) {
+            gsub(/\\/, "\\\\", s)
+            gsub(/\//, "\\/", s)
+            gsub(/#/, "\\#", s)
+            return s
+        }
+        function finish_entry(    i, path) {
+            if (entry_depth > 0 && protocol != "" && boot_path != "") {
+                path = ""
+                for (i = 1; i <= entry_depth; i++) {
+                    if (stack[i] == "") {
+                        continue
+                    }
+                    path = path (path == "" ? "" : "/") escape_entry(stack[i])
+                }
+                print path
+                found = 1
+                exit
+            }
+        }
+        /^[[:space:]]*\/+/ {
+            finish_entry()
+            line = $0
+            sub(/^[[:space:]]*/, "", line)
+            match(line, /^\/+/)
+            depth = RLENGTH
+            title = substr(line, depth + 1)
+            if (substr(title, 1, 1) == "+") {
+                title = substr(title, 2)
+            }
+            sub(/[[:space:]]+$/, "", title)
+            stack[depth] = title
+            for (i = depth + 1; i <= 32; i++) {
+                delete stack[i]
+            }
+            entry_depth = depth
+            protocol = ""
+            boot_path = ""
+            next
+        }
+        /^[[:space:]]*protocol:[[:space:]]*(linux|limine|multiboot|multiboot1|multiboot2)[[:space:]]*$/ {
+            protocol = $0
+            next
+        }
+        /^[[:space:]]*(kernel_path|path):[[:space:]]*/ {
+            boot_path = $0
+            next
+        }
+        END {
+            if (!found) {
+                finish_entry()
+            }
+        }
+    ' "$conf"
+}
+
+repair_limine_boot_menu() {
+    local root="${1:-/mnt}"
+    local conf="${root}/boot/limine/limine.conf"
+    local entry tmp
+
+    [[ -f "$conf" ]] || return 0
+
+    entry="$(limine_first_bootable_entry "$conf" | head -n 1 || true)"
+    [[ -n "$entry" ]] || die "Limine config has no bootable entry. See ${install_log}."
+
+    tmp="${conf}.abora-tmp"
+    {
+        printf 'timeout: 5\n'
+        printf 'default_entry: %s\n' "$entry"
+        printf 'editor_enabled: no\n'
+        awk 'tolower($0) !~ /^[[:space:]]*(timeout|default_entry|editor_enabled)[[:space:]]*:/' "$conf"
+    } > "$tmp"
+    mv "$tmp" "$conf"
+    sync || true
+    printf '[installer] repaired limine default_entry=%s timeout=5\n' "$entry" >>"$install_log"
 }
 
 target_has_system_profile() {
@@ -1618,6 +1702,7 @@ run_install() {
     progress_line 90 "System installed"
 
     validate_installed_system "/mnt"
+    repair_limine_boot_menu "/mnt"
     validate_boot
 
     msg "Registering EFI boot entry…"

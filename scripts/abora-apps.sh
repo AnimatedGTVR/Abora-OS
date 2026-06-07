@@ -133,7 +133,7 @@ render_apps_module() {
 rebuild_system() {
     abora_step "Rebuilding Abora with the updated app selection"
     printf '\n'
-    nixos-rebuild switch --flake "${config_dir}#${flake_target}"
+    run_as_root nixos-rebuild switch --flake "${config_dir}#${flake_target}"
 }
 
 validate_ids() {
@@ -440,12 +440,12 @@ main() {
             ;;
         set)
             validate_ids "$@"
-            ensure_layout
-            abora_banner "App Manager" "Replacing app selection."
             if [[ "$dry_run" == "true" ]]; then
                 show_dry_run "set" "$no_rebuild" "$@"
                 return 0
             fi
+            ensure_layout
+            abora_banner "App Manager" "Replacing app selection."
             write_selected_ids "$@"
             render_apps_module
             if [[ "$no_rebuild" == "false" ]]; then
@@ -462,6 +462,10 @@ main() {
                 exit 1
             fi
             validate_ids "$@"
+            if [[ "$dry_run" == "true" ]]; then
+                show_dry_run "add" "$no_rebuild" "$@"
+                return 0
+            fi
             ensure_layout
             abora_banner "App Manager" "Adding apps to your system."
             while IFS= read -r app_id; do
@@ -469,10 +473,6 @@ main() {
                 current+=("$app_id")
             done < <(read_selected_ids)
             new_list=("${current[@]+"${current[@]}"}" "$@")
-            if [[ "$dry_run" == "true" ]]; then
-                show_dry_run "add" "$no_rebuild" "$@"
-                return 0
-            fi
             write_selected_ids "${new_list[@]}"
             render_apps_module
             if [[ "$no_rebuild" == "false" ]]; then
@@ -489,6 +489,10 @@ main() {
                 exit 1
             fi
             validate_ids "$@"
+            if [[ "$dry_run" == "true" ]]; then
+                show_dry_run "remove" "$no_rebuild" "$@"
+                return 0
+            fi
             ensure_layout
             abora_banner "App Manager" "Removing apps from your system."
             local removing_set=" $* "
@@ -499,10 +503,6 @@ main() {
                     *) keeping+=("$app_id") ;;
                 esac
             done < <(read_selected_ids)
-            if [[ "$dry_run" == "true" ]]; then
-                show_dry_run "remove" "$no_rebuild" "$@"
-                return 0
-            fi
             write_selected_ids "${keeping[@]+"${keeping[@]}"}"
             render_apps_module
             if [[ "$no_rebuild" == "false" ]]; then
@@ -519,21 +519,21 @@ main() {
                 exit 1
             fi
             validate_bundle "$1"
+            while IFS= read -r app_id; do
+                [[ -n "$app_id" ]] || continue
+                bundle_ids+=("$app_id")
+            done < <(abora_catalog_bundle_ids "$1")
+            if [[ "$dry_run" == "true" ]]; then
+                show_dry_run "add" "$no_rebuild" "${bundle_ids[@]}"
+                return 0
+            fi
             ensure_layout
             abora_banner "App Manager" "Installing the '${1}' bundle."
             while IFS= read -r app_id; do
                 [[ -n "$app_id" ]] || continue
                 current+=("$app_id")
             done < <(read_selected_ids)
-            while IFS= read -r app_id; do
-                [[ -n "$app_id" ]] || continue
-                bundle_ids+=("$app_id")
-            done < <(abora_catalog_bundle_ids "$1")
             new_list=("${current[@]+"${current[@]}"}" "${bundle_ids[@]}")
-            if [[ "$dry_run" == "true" ]]; then
-                show_dry_run "add" "$no_rebuild" "${bundle_ids[@]}"
-                return 0
-            fi
             write_selected_ids "${new_list[@]}"
             render_apps_module
             if [[ "$no_rebuild" == "false" ]]; then
