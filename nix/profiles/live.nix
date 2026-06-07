@@ -51,6 +51,15 @@ let
       ABORA_APP_CATALOG_LIB=/etc/abora/app-catalog.sh \
       ${pkgs.bashInteractive}/bin/bash /etc/abora/installer.sh "$@"
   '';
+  aboraSetup = pkgs.writeShellScriptBin "abora-setup" ''
+    exec env ABORA_INSTALLER=/etc/abora/installer.sh \
+      ABORA_SETUP_MODE=install \
+      ${pkgs.bashInteractive}/bin/bash /etc/abora/setup-launcher.sh "$@"
+  '';
+  aboraSetupDesktopPkg = pkgs.runCommandLocal "abora-setup-desktop" { } ''
+    mkdir -p "$out/share/applications"
+    cp ${../../scripts/abora-setup.desktop} "$out/share/applications/abora-setup.desktop"
+  '';
   aboraUpdate = pkgs.writeShellScriptBin "abora-update" ''
     exec env ABORA_UPDATE_COMMAND=abora-update ${pkgs.bashInteractive}/bin/bash /etc/abora/update.sh "$@"
   '';
@@ -289,6 +298,8 @@ in
     aboraHardwareTest
     aboraRecovery
     aboraSessionSetup
+    aboraSetup
+    aboraSetupDesktopPkg
     aboraSupportReport
     aboraUpdate
     aboraWelcome
@@ -303,7 +314,9 @@ in
     bashInteractive
     fastfetch   # shown in the live welcome banner
     htop
+    kdePackages.konsole
     newt        # provides nmtui for Wi-Fi setup
+    xterm       # tiny fallback so the Start Abora launcher can always open
     zenity      # graphical ANIX helper when launched from a desktop
 
     # ── Disk & filesystem ────────────────────────────────────────────────────

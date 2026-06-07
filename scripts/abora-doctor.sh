@@ -82,6 +82,8 @@ detect_desktop_from_local_config() {
         printf 'lxqt\n'
     elif grep -q 'desktopManager\.pantheon\.enable = true;' "$file"; then
         printf 'pantheon\n'
+    elif grep -q 'desktopManager\.cosmic\.enable = true;' "$file"; then
+        printf 'cosmic\n'
     elif grep -q 'desktopManager\.enlightenment\.enable = true;' "$file"; then
         printf 'enlightenment\n'
     elif grep -q 'windowManager\.i3\.enable = true;' "$file"; then

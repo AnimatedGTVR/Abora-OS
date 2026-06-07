@@ -655,6 +655,11 @@ in
         mode = "0755";
       };
       "abora/tinypm".source = tinypmDir;
+      # The generated /etc/nixos/flake.nix pins its nixpkgs input to
+      # "path:/etc/abora/nixpkgs". Expose the build-time nixpkgs source here so
+      # that path resolves on the installed system (the live ISO does the same).
+      # Without this, `anix apply` / nixos-rebuild fail to fetch the flake input.
+      "abora/nixpkgs".source = pkgs.path;
       "abora/installer.sh" = {
         source = installerScript;
         mode = "0755";

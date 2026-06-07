@@ -58,7 +58,6 @@ mate
 budgie
 lxqt
 pantheon
-enlightenment
 i3
 awesome
 openbox
@@ -69,6 +68,7 @@ bspwm
 fluxbox
 icewm
 herbstluftwm
+cosmic
 EOF
 }
 
@@ -118,10 +118,6 @@ abora_sync_desktop_label() {
             desktop_label="LXQt"
             desktop_variant_id="lxqt"
             ;;
-        enlightenment)
-            desktop_label="Enlightenment"
-            desktop_variant_id="enlightenment"
-            ;;
         awesome)
             desktop_label="AwesomeWM"
             desktop_variant_id="awesome"
@@ -166,6 +162,10 @@ abora_sync_desktop_label() {
             desktop_label="Herbstluftwm"
             desktop_variant_id="herbstluftwm"
             ;;
+        cosmic)
+            desktop_label="COSMIC"
+            desktop_variant_id="cosmic"
+            ;;
         *)
             desktop_label="GNOME"
             desktop_variant_id="gnome"
@@ -194,6 +194,8 @@ abora_detect_desktop_profile() {
         printf 'lxqt\n'
     elif grep -q 'desktopManager\.pantheon\.enable = true;' "$file"; then
         printf 'pantheon\n'
+    elif grep -q 'desktopManager\.cosmic\.enable = true;' "$file"; then
+        printf 'cosmic\n'
     elif grep -q 'programs\.sway\.enable = true;' "$file"; then
         printf 'sway\n'
     elif grep -q 'desktopManager\.lxde\.enable = true;' "$file"; then
@@ -439,7 +441,9 @@ EOF
     autoLogin.user = "${username_value}";
   };
   services.xserver.displayManager.lightdm.enable = true;
-  services.xserver.desktopManager.pantheon.enable = true;
+  services.desktopManager.pantheon.enable = true;
+  environment.etc."xdg/gtk-4.0/settings.ini".source =
+    lib.mkForce "\${pkgs.pantheon.elementary-default-settings}/etc/gtk-4.0/settings.ini";
 EOF
             ;;
         sway)
@@ -474,21 +478,6 @@ EOF
   };
   services.displayManager = {
     defaultSession = "lxqt";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-EOF
-            ;;
-        enlightenment)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    desktopManager.enlightenment.enable = true;
-  };
-  services.displayManager = {
-    defaultSession = "enlightenment";
     autoLogin.enable = true;
     autoLogin.user = "${username_value}";
   };
@@ -595,7 +584,7 @@ EOF
   };
   services.xserver.desktopManager.runXdgAutostartIfNone = true;
   services.displayManager = {
-    defaultSession = "none+qtile";
+    defaultSession = "qtile";
     autoLogin.enable = true;
     autoLogin.user = "${username_value}";
   };
@@ -627,7 +616,7 @@ EOF
   };
   services.xserver.desktopManager.runXdgAutostartIfNone = true;
   services.displayManager = {
-    defaultSession = "fluxbox";
+    defaultSession = "none+fluxbox";
     autoLogin.enable = true;
     autoLogin.user = "${username_value}";
   };
@@ -643,7 +632,7 @@ EOF
   };
   services.xserver.desktopManager.runXdgAutostartIfNone = true;
   services.displayManager = {
-    defaultSession = "icewm-session";
+    defaultSession = "none+icewm";
     autoLogin.enable = true;
     autoLogin.user = "${username_value}";
   };
@@ -664,6 +653,17 @@ EOF
     autoLogin.user = "${username_value}";
   };
   services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
+        cosmic)
+            cat <<EOF
+  services.desktopManager.cosmic.enable = true;
+  services.displayManager.cosmic-greeter.enable = true;
+  services.displayManager = {
+    defaultSession = "cosmic";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
 EOF
             ;;
     esac

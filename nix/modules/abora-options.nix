@@ -50,7 +50,6 @@ let
     budgie       = "Budgie";
     lxqt         = "LXQt";
     pantheon     = "Pantheon";
-    enlightenment = "Enlightenment";
     i3           = "i3";
     awesome      = "AwesomeWM";
     openbox      = "Openbox";
@@ -61,6 +60,7 @@ let
     fluxbox      = "Fluxbox";
     icewm        = "IceWM";
     herbstluftwm = "Herbstluftwm";
+    cosmic       = "COSMIC";
   }.${cfg.desktop} or "Abora";
 
   is = d: active && cfg.desktop == d;
@@ -122,9 +122,9 @@ in
     desktop = lib.mkOption {
       type = lib.types.enum [
         "none" "gnome" "plasma" "hyprland" "sway" "xfce" "cinnamon" "mate"
-        "budgie" "lxqt" "pantheon" "enlightenment" "i3"
+        "budgie" "lxqt" "pantheon" "i3"
         "awesome" "openbox" "niri" "river" "qtile" "bspwm" "fluxbox"
-        "icewm" "herbstluftwm"
+        "icewm" "herbstluftwm" "cosmic"
       ];
       default     = "gnome";
       description = "Desktop environment or window manager to enable.";
@@ -200,8 +200,11 @@ in
       # ── Bootloader ─────────────────────────────────────────────────────
       (lib.mkIf (cfg.disk != null) {
         boot.loader.grub.enable = lib.mkForce false;
+        boot.loader.timeout = lib.mkDefault 5;
         boot.loader.limine = {
           enable              = true;
+          enableEditor        = false;
+          maxGenerations      = lib.mkDefault 8;
           biosSupport         = true;
           biosDevice          = cfg.disk;
           efiSupport          = true;
@@ -390,23 +393,10 @@ in
           autoLogin.enable = true;
           autoLogin.user   = cfg.user.name;
         };
-        services.xserver.displayManager.lightdm.enable      = true;
-        services.xserver.desktopManager.pantheon.enable     = true;
-      })
-
-      # ── Enlightenment ──────────────────────────────────────────────────
-      (lib.mkIf (is "enlightenment") {
-        services.xserver = {
-          enable                              = true;
-          xkb.layout                          = cfg.keyboard.xkb;
-          desktopManager.enlightenment.enable = true;
-        };
-        services.displayManager = {
-          defaultSession   = "enlightenment";
-          autoLogin.enable = true;
-          autoLogin.user   = cfg.user.name;
-        };
         services.xserver.displayManager.lightdm.enable = true;
+        services.desktopManager.pantheon.enable        = true;
+        environment.etc."xdg/gtk-4.0/settings.ini".source =
+          lib.mkForce "${pkgs.pantheon.elementary-default-settings}/etc/gtk-4.0/settings.ini";
       })
 
       # ── AwesomeWM ──────────────────────────────────────────────────────
@@ -509,7 +499,7 @@ in
           desktopManager.runXdgAutostartIfNone = true;
         };
         services.displayManager = {
-          defaultSession   = "none+qtile";
+          defaultSession   = "qtile";
           autoLogin.enable = true;
           autoLogin.user   = cfg.user.name;
         };
@@ -542,7 +532,7 @@ in
           desktopManager.runXdgAutostartIfNone = true;
         };
         services.displayManager = {
-          defaultSession   = "fluxbox";
+          defaultSession   = "none+fluxbox";
           autoLogin.enable = true;
           autoLogin.user   = cfg.user.name;
         };
@@ -558,7 +548,7 @@ in
           desktopManager.runXdgAutostartIfNone = true;
         };
         services.displayManager = {
-          defaultSession   = "icewm-session";
+          defaultSession   = "none+icewm";
           autoLogin.enable = true;
           autoLogin.user   = cfg.user.name;
         };
@@ -579,6 +569,17 @@ in
           autoLogin.user   = cfg.user.name;
         };
         services.xserver.displayManager.lightdm.enable = true;
+      })
+
+      # ── COSMIC ─────────────────────────────────────────────────────────
+      (lib.mkIf (is "cosmic") {
+        services.desktopManager.cosmic.enable     = true;
+        services.displayManager.cosmic-greeter.enable = true;
+        services.displayManager = {
+          defaultSession   = "cosmic";
+          autoLogin.enable = true;
+          autoLogin.user   = cfg.user.name;
+        };
       })
 
     ])) # end mkIf active

@@ -84,7 +84,7 @@ Instead of dropping people into a system that feels like it was only built for p
 
 ## Desktop Environments
 
-Abora v3 ships with **21 desktop environments** selectable at install time:
+Abora v3 ships with **20 desktop environments/window managers**, plus a no-desktop install, selectable at install time:
 
 | Desktop | Type | Display Manager |
 |---|---|---|
@@ -100,17 +100,15 @@ Abora v3 ships with **21 desktop environments** selectable at install time:
 | Budgie | Full DE | LightDM |
 | LXQt | Lightweight DE | SDDM |
 | Pantheon | Full DE | LightDM |
-| Enlightenment | Full DE | LightDM |
 | i3 | Tiling WM | LightDM |
 | AwesomeWM | Tiling WM | LightDM |
 | Openbox | Floating WM | LightDM |
-| Niri | Wayland compositor | SDDM (Wayland) |
-| River | Wayland compositor | SDDM (Wayland) |
 | Qtile | Tiling WM | LightDM |
 | BSPWM | Tiling WM | LightDM |
 | Fluxbox | Floating WM | LightDM |
 | IceWM | Floating WM | LightDM |
 | Herbstluftwm | Tiling WM | LightDM |
+| No desktop | Console-only | TTY |
 
 ---
 

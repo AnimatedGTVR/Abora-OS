@@ -9,7 +9,7 @@ mpv|MPV|mpv|Essentials|Lightweight media player for video and audio|yes
 libreoffice|LibreOffice|libreoffice-qt6-fresh|Essentials|Office suite for documents, sheets, and slides|yes
 thunderbird|Thunderbird|thunderbird|Essentials|Email and calendar client|yes
 keepassxc|KeePassXC|keepassxc|Essentials|Offline password manager with browser integration|yes
-bitwarden|Bitwarden|bitwarden|Essentials|Cloud password manager with cross-device sync|no
+bitwarden|Bitwarden|bitwarden-desktop|Essentials|Cloud password manager with cross-device sync|no
 qbittorrent|qBittorrent|qbittorrent|Essentials|BitTorrent client with a clean interface|no
 calibre|Calibre|calibre|Essentials|E-book library manager and reader|no
 telegram|Telegram Desktop|telegram-desktop|Social|Cloud messaging app with desktop sync|yes
