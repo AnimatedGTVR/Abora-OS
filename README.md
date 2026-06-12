@@ -2,9 +2,6 @@
   <img src="assets/Github/ReadME%20background.png" alt="Abora OS banner" width="94%">
 </p>
 
-<p align="center">
-  <img src="assets/Github/Abora-Logo.png" alt="Abora OS logo" width="110">
-</p>
 
 <h1 align="center">Abora OS</h1>
 
