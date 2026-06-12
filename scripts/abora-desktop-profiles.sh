@@ -114,10 +114,6 @@ abora_sync_desktop_label() {
             desktop_label="Sway"
             desktop_variant_id="sway"
             ;;
-        lxde)
-            desktop_label="LXQt"
-            desktop_variant_id="lxqt"
-            ;;
         awesome)
             desktop_label="AwesomeWM"
             desktop_variant_id="awesome"
@@ -469,21 +465,6 @@ EOF
   xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
 EOF
             ;;
-        lxde)
-            cat <<EOF
-  services.xserver = {
-    enable = true;
-    xkb.layout = "${xkb_layout_value}";
-    desktopManager.lxqt.enable = true;
-  };
-  services.displayManager = {
-    defaultSession = "lxqt";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-EOF
-            ;;
         awesome)
             cat <<EOF
   services.xserver = {
@@ -659,11 +640,6 @@ EOF
             cat <<EOF
   services.desktopManager.cosmic.enable = true;
   services.displayManager.cosmic-greeter.enable = true;
-  services.displayManager = {
-    defaultSession = "cosmic";
-    autoLogin.enable = true;
-    autoLogin.user = "${username_value}";
-  };
 EOF
             ;;
     esac

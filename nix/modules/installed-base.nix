@@ -336,9 +336,9 @@ in
       VERSION_ID = "3.0";
       VERSION_CODENAME = "denali";
       PRETTY_NAME = "Abora OS 3.0 (Denali)";
-      HOME_URL = "https://aboraos.github.io/";
-      SUPPORT_URL = "https://github.com/Animated-io/abora-os/issues";
-      BUG_REPORT_URL = "https://github.com/Animated-io/abora-os/issues";
+      HOME_URL = "https://www.aboraos.org/";
+      SUPPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
+      BUG_REPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
       ANSI_COLOR = "0;38;2;80;220;255";
     };
   };

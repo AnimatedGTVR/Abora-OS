@@ -1,21 +1,12 @@
-# Abora OS v2.5 and v3 Denali Overview Draft
+# Abora OS v3.0.0 Denali — Overview
 
-This file is a temporary all-in-one draft for the Abora website and public docs.
+This file is an overview of the Abora project covering what each release delivered and where the project stands now.
 
-It answers:
+## Current Version
 
-- what the v2 era added
-- what v2.5 finished
-- what v3 Denali is aiming to become
-- what docs exist around the project
+**v3.0.0 Denali** — the current stable release.
 
-## Current Snapshot
-
-Current repo version:
-
-`v3.0.0`
-
-Abora OS is still built on top of NixOS. The goal is not to hide NixOS; the goal is to make NixOS feel approachable from the first boot onward.
+Abora OS is built on top of NixOS. The goal is not to hide NixOS; the goal is to make NixOS feel approachable from the first boot onward.
 
 ## What v2 Added
 
@@ -41,7 +32,7 @@ The installer owns:
 
 Abora v2 expanded beyond a single desktop target.
 
-The desktop matrix now includes GNOME, Plasma, Hyprland, Sway, XFCE, Cinnamon, MATE, Budgie, LXQt, Pantheon, i3, AwesomeWM, Openbox, Niri, River, Qtile, BSPWM, Fluxbox, IceWM, and Herbstluftwm.
+The desktop matrix includes GNOME, Plasma, Hyprland, Sway, XFCE, Cinnamon, MATE, Budgie, LXQt, Pantheon, i3, AwesomeWM, Openbox, Niri, River, Qtile, BSPWM, Fluxbox, IceWM, Herbstluftwm, and COSMIC.
 
 `scripts/check-desktops.sh` evaluates these profiles before release so broken profile options are caught early.
 
@@ -76,7 +67,7 @@ Abora v2 added support-report and hardware-readiness tooling, plus release docs 
 
 ## What v2.5 Delivered
 
-v2.5 focused on making installs boring in the best way.
+v2.5 focused on making installs reliable.
 
 - NetworkManager is forced on in the live installer
 - Wi-Fi setup works through `nmtui` and `nmcli`
@@ -92,27 +83,19 @@ v2.5 focused on making installs boring in the best way.
 - QEMU helpers support fresh install disks, disk-only boot, and serial mode
 - setup launcher assets are copied into both the live ISO and installed config tree
 
-## v3 Denali Direction
+## What v3 Denali Delivered
 
-v3 Denali is the next identity and stabilization pass.
+v3 Denali is the identity, installer, and tooling release.
 
-The design direction:
-
-- Omarchy-inspired TUI installer
-- large Abora wordmark
-- compact boxed fields
-- minimal prompts
+- Omarchy-inspired TUI installer with compact boxed fields and live install progress
+- large Abora wordmark in the installer header
 - install validation before long builds
 - post-install `abora setup` reconfiguration
-
-The product direction:
-
-- make Abora feel more like its own OS, not just GNOME over Nix
-- stay NixOS-compatible underneath
-- keep beginner-facing commands friendly
-- keep release checks strict
-- reduce late install failures
-- keep the desktop matrix green
+- ANIX v1 profile manager shipped: snapshots, diff/test/boot/switch/rollback workflows, doctor repair, NixOS module options
+- TinyPM v4 shipped: first-class Abora/ANIX/NixOS awareness, source reporting, repair shortcuts
+- COSMIC desktop added to the supported matrix
+- Abora branding across boot, desktop, and fastfetch
+- Limine as the installed-system bootloader with Abora branding
 
 ## Build and Release Commands
 
@@ -127,13 +110,13 @@ make tinypm-package
 
 `make iso` is for fast ISO iteration. `make release` is for the full release bundle.
 
-## Current Testing State
+## Testing State
 
 In good shape:
 
 - ISO build
-- script checks
-- desktop profile evaluation
+- script checks (`make check`)
+- desktop profile evaluation (`make check-desktops`)
 - QEMU fresh/disk boot helpers
 - installer config validation
 - support report tooling
@@ -171,7 +154,3 @@ Wiki docs:
 - `docs/wiki/TinyPM-V4.md`
 - `docs/wiki/ANIX-V1.md`
 - `docs/wiki/FAQ.md`
-
-## Short Version
-
-v2 made Abora feel like a real NixOS-based distro. v2.5 made the installer and release process more reliable. v3 Denali is about making that reliable base feel unmistakably like Abora.

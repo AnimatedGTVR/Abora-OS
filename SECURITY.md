@@ -2,16 +2,16 @@
 
 ## Supported Versions
 
-Abora is still a young project, so security support is focused on the current stable line.
+Abora is on the v3 line. Security fixes target the current stable release.
 
 | Version        | Supported |
 | -------------- | --------- |
-| `v1.0.x`       | Yes       |
-| `v0.1.0-pre`   | No        |
-| Beta builds    | No        |
+| `v3.0.x`       | Yes       |
+| `v2.x`         | No        |
+| `v1.x`         | No        |
 | Older releases | No        |
 
-In practice, that means the latest `v1.0.x` release is the one that should be used for security fixes and reporting.
+In practice, that means the latest `v3.0.x` release is the one that receives security fixes and reports.
 
 ## Reporting a Vulnerability
 

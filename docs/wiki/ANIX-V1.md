@@ -1,4 +1,4 @@
-is an# ANIX v1
+# ANIX v1
 
 ANIX v1 is the Abora/NixOS profile manager.
 

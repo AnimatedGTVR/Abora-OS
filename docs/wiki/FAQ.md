@@ -8,6 +8,20 @@ Abora OS is a distro project built on top of NixOS with a focus on a simpler fir
 
 Abora is still NixOS-based, but it adds its own live image flow, installer experience, branding, update path, desktop profiles, support tools, ANIX workflows, and TinyPM-flavored app commands.
 
+## What is v3 Denali?
+
+v3 Denali is the current stable release. It shipped the Omarchy-inspired TUI installer, stronger install validation, Abora branding across boot and desktop, ANIX v1, and TinyPM v4.
+
+Key additions over v2.5:
+
+- Omarchy-inspired TUI installer with a compact boxed UI and live progress output
+- config validation runs before `nixos-install`
+- Abora branding in bootloader, Plymouth, wallpapers, Fastfetch, and desktop defaults
+- ANIX v1 profile manager with snapshots, diff/test/boot/switch/rollback workflows
+- TinyPM v4 with Abora/ANIX/NixOS system bridges
+- 21 desktop environments selectable at install time
+- COSMIC desktop support added
+
 ## What changed in v2.5?
 
 v2.5 focused on reliability:
@@ -17,19 +31,6 @@ v2.5 focused on reliability:
 - desktop profile evaluation checks
 - QEMU fresh/disk boot helpers
 - `make iso` vs `make release` split
-- fixed generated config issues around `environment.systemPackages`, LightDM, GNOME setup, wallpapers, and setup launcher assets
-
-## What is v3 Denali?
-
-v3 Denali is the current direction for Abora's installer and identity.
-
-It focuses on:
-
-- Omarchy-inspired TUI setup
-- early generated-config validation
-- a more distinctive Abora look and feel
-- post-install `abora setup` reconfiguration
-- keeping the desktop matrix reliable
 
 ## How do I update Abora?
 
@@ -46,7 +47,6 @@ Short aliases like `update` and `upgrade` are also available on installed system
 Use:
 
 ```sh
-cd /home/animated/abora-os
 make iso
 ```
 
