@@ -5,7 +5,6 @@ This page covers the normal Abora release flow.
 ## Local ISO Build
 
 ```sh
-cd /home/animated/abora-os
 make iso
 ```
 

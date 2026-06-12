@@ -572,14 +572,11 @@ in
       })
 
       # ── COSMIC ─────────────────────────────────────────────────────────
+      # cosmic-greeter is its own display manager — it does not use the
+      # generic services.displayManager.{defaultSession,autoLogin} options.
       (lib.mkIf (is "cosmic") {
-        services.desktopManager.cosmic.enable     = true;
+        services.desktopManager.cosmic.enable         = true;
         services.displayManager.cosmic-greeter.enable = true;
-        services.displayManager = {
-          defaultSession   = "cosmic";
-          autoLogin.enable = true;
-          autoLogin.user   = cfg.user.name;
-        };
       })
 
     ])) # end mkIf active

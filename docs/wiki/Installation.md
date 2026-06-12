@@ -7,7 +7,6 @@ This page covers the normal Abora OS install flow for v2.5+ and v3 Denali.
 From the repo:
 
 ```sh
-cd /home/animated/abora-os
 make iso
 ```
 

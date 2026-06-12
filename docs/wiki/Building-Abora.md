@@ -10,7 +10,6 @@ This page covers local builds for Abora OS.
 ## Build Only The ISO
 
 ```sh
-cd /home/animated/abora-os
 make iso
 ```
 

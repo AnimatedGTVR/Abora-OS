@@ -9,8 +9,6 @@ This repo is still pretty small, so the best way to help is to keep changes focu
 Make sure you can build and boot the current ISO:
 
 ```sh
-cd /home/animated/abora-os
-
 make iso
 make qemc
 ```
@@ -18,8 +16,6 @@ make qemc
 If you only want the quick checks:
 
 ```sh
-cd /home/animated/abora-os
-
 make check
 ```
 
@@ -31,7 +27,7 @@ If you are new to the repo, start here:
 - `docs/` for release notes, install validation, and roadmap docs
 - `nix/` for the live image configuration
 - `scripts/` for the boot flow, installer, build helpers, and release tooling
-- `vendor/tinypm/` for the vendored TinyPM V3 project
+- `vendor/tinypm/` for the vendored TinyPM v4 project
 
 There is also a more detailed layout guide in [docs/project-layout.md](docs/project-layout.md).
 
