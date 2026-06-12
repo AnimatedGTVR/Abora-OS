@@ -59,3 +59,16 @@ check-desktops:
 
 preflight:
 	./scripts/preflight.sh
+
+setup-modularity:
+	@[ -n "$(ZIP)" ] || { echo "Usage: make setup-modularity ZIP=/path/to/Modularity-1.0.0-Linux.zip"; exit 1; }
+	@echo "Extracting Modularity from $(ZIP)..."
+	@mkdir -p vendor/modularity/bin vendor/modularity/lib
+	@unzip -jo "$(ZIP)" "Modularity-1.0.0-Linux/bin/Modularity" -d vendor/modularity/bin/
+	@chmod +x vendor/modularity/bin/Modularity
+	@unzip -jo "$(ZIP)" "Modularity-1.0.0-Linux/bin/linux.x86_64/release/libPhysX.so" \
+	    "Modularity-1.0.0-Linux/bin/linux.x86_64/release/libPhysXCommon.so" \
+	    "Modularity-1.0.0-Linux/bin/linux.x86_64/release/libPhysXFoundation.so" \
+	    "Modularity-1.0.0-Linux/bin/linux.x86_64/release/libPhysXCooking.so" \
+	    -d vendor/modularity/lib/
+	@echo "Modularity ready at vendor/modularity/"

@@ -4,3 +4,7 @@
 *.iso
 *.lock
 .codex
+
+# Modularity prebuilt binary (run `make setup-modularity` to populate)
+/vendor/modularity/bin/
+/vendor/modularity/lib/

@@ -61,7 +61,7 @@ Instead of dropping people into a system that feels like it was only built for p
 - Terminal-first live boot and installer with a full welcome flow
 - 21 desktop environments to choose from at install time
 - Curated starter app bundles: Fan Favorites, Essentials, Social, Creator, Developer, Gaming, System
-- 52 apps in the catalog across 6 categories
+- 53 apps in the catalog across 6 categories
 - Flatpak + Flathub enabled out of the box on every install
 - Curated wallpaper pack seeded across all supported desktop sessions
 - Dark-first desktop defaults across the full session matrix
@@ -81,7 +81,7 @@ Instead of dropping people into a system that feels like it was only built for p
 
 ## Desktop Environments
 
-Abora v3 ships with **20 desktop environments/window managers**, plus a no-desktop install, selectable at install time:
+Abora v3 ships with **21 desktop environments/window managers**, plus a no-desktop install, selectable at install time:
 
 | Desktop | Type | Display Manager |
 |---|---|---|
@@ -105,6 +105,7 @@ Abora v3 ships with **20 desktop environments/window managers**, plus a no-deskt
 | Fluxbox | Floating WM | LightDM |
 | IceWM | Floating WM | LightDM |
 | Herbstluftwm | Tiling WM | LightDM |
+| COSMIC | Full DE | COSMIC Greeter |
 | No desktop | Console-only | TTY |
 
 ---
