@@ -11,6 +11,12 @@ Abora v3 Denali is the installer, identity, and tooling release.
 - Bootloader verified before declaring success
 - QEMU install auto-powers off and guides users to boot with `make qemu-disk`
 
+## Developer Tools
+
+- Modularity game engine editor added to the Developer app bundle
+- Available via `grab modularity` or selectable at install time in the Developer bundle
+- Backed by a custom Nix derivation with bundled PhysX, Vulkan, and Mono support
+
 ## Desktops
 
 - 21 desktop environments selectable at install time
@@ -106,7 +112,7 @@ Abora v2.5 is a quality-of-life release focused on making the installed system e
 
 ## Apps
 
-- App catalog is now 52 apps across 6 categories.
+- App catalog is now 53 apps across 6 categories.
 - New Gaming category: Steam, Lutris, Heroic, Bottles, MangoHud, GameMode.
 - New System category: GParted, Disks, Timeshift, Flameshot, btop, Mission Center.
 - Added more picks like Chromium, Bitwarden, Discord, Slack, Zoom, RawTherapee, Zed, tmux, Alacritty, Ghostty, Lazygit, and Docker.

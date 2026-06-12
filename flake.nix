@@ -9,7 +9,15 @@
     let
       system = "x86_64-linux";
       version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile ./VERSION);
+
+      overlay = final: prev: {
+        modularity = final.callPackage ./nix/pkgs/modularity.nix {};
+      };
+
+      pkgs = import nixpkgs { inherit system; overlays = [ overlay ]; };
     in {
+      overlays.default = overlay;
+
       nixosModules = {
         installed-base = import ./nix/modules/installed-base.nix;
         anix = import ./nix/modules/anix.nix;
@@ -21,11 +29,13 @@
         modules = [
           (nixpkgs.outPath + "/nixos/modules/installer/cd-dvd/iso-image.nix")
           ./nix/profiles/live.nix
+          { nixpkgs.overlays = [ overlay ]; }
         ];
       };
 
       packages.${system} = {
         iso = self.nixosConfigurations.abora-live.config.system.build.isoImage;
+        modularity = pkgs.modularity;
       };
       defaultPackage.${system} = self.packages.${system}.iso;
     };

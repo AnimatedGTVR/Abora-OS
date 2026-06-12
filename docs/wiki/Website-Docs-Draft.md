@@ -96,6 +96,7 @@ v3 Denali is the identity, installer, and tooling release.
 - COSMIC desktop added to the supported matrix
 - Abora branding across boot, desktop, and fastfetch
 - Limine as the installed-system bootloader with Abora branding
+- Modularity game engine added to the Developer app bundle (`grab modularity`)
 
 ## Build and Release Commands
 

@@ -68,6 +68,20 @@ TinyPM is part of the Abora ecosystem, but it is not a full replacement for decl
 
 In Abora it provides friendly app commands such as `grab`, `search`, `term`, `start`, and `supdate`, plus helpers such as `tinypm sources`, `tinypm system`, `tinypm anix <command>`, and `tinypm abora <command>`.
 
+## Is Modularity available in Abora?
+
+Yes. Modularity is a game engine editor by Tareno Labs and is included in the Developer app bundle.
+
+Install it after setup:
+
+```sh
+grab modularity
+```
+
+Or select it from the Developer bundle during installation.
+
+Modularity is backed by a custom Nix derivation with PhysX, Vulkan, and Mono support built in.
+
 ## Where are the project docs?
 
 Start here:
