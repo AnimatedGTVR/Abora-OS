@@ -1,131 +1,185 @@
-# Abora OS v3.0.0 Denali
+# Abora OS v3.0.0 — Denali
 
-Abora OS v3.0.0 is the Denali release: a reliability, installer, hardware, and identity pass that turns the v2 base into a more complete Abora experience.
+**Denali is the release where Abora becomes a real operating system.**
 
-The focus for this release is simple: the installer should work, the installed system should boot, the terminal and desktop should look like Abora, and the release artifacts should be easy to publish.
+v3 ships a rebuilt installer, a full OS identity, 21 desktop environments, ANIX v1, TinyPM v4, and Modularity — all on top of the NixOS foundation that v2 laid down. If you have been waiting for the right time to try Abora, this is it.
 
 ---
 
-## Highlights
+## What's New
 
-### Remade Denali Installer
+### Installer — rebuilt from the ground up
 
-The installer has been rebuilt around a calmer terminal UI with bounded log output, clearer status messages, and safer failure handling.
+The installer is now an Omarchy-inspired terminal UI with a large Abora wordmark header, compact boxed fields, and numbered menus. It is calmer, faster to read, and safer when things go wrong.
 
-- recent logs are kept compact so they do not run off screen
-- long installs expose the current step and log path
-- failed installs drop to a live shell with `/tmp/abora-install.log`
-- config validation runs before `nixos-install`
-- install completion verifies the system profile before declaring success
-- the boot guard now detects an installed disk and guides users to boot it instead of relaunching the ISO
+- Config is validated before `nixos-install` — bad configs fail early with a clear message
+- Live install progress with a log panel and elapsed timer
+- Failed installs drop to a live shell with `/tmp/abora-install.log` and the full error context
+- Bootloader files are verified on disk before the installer declares success
+- QEMU installs auto-power off and tell you to run `make qemu-disk` to boot the installed system
 
-### Hardware Comes Up In The Live ISO
+### 22 Desktop Environments
 
-The live installer now enables the services and firmware users expect before install:
+Choose your desktop at install time from the full supported matrix:
 
-- NetworkManager
-- Bluetooth and Blueman
-- ModemManager
-- redistributable and unfree firmware
-- Intel and AMD microcode
-- common Wi-Fi, Ethernet, Bluetooth, storage, and VM driver modules
-- radio unblock at boot
+| Desktop | Type |
+|---|---|
+| GNOME | Full DE |
+| KDE Plasma | Full DE |
+| COSMIC | Full DE |
+| MangoWM | Wayland compositor |
+| XFCE | Full DE |
+| Cinnamon | Full DE |
+| MATE | Full DE |
+| Budgie | Full DE |
+| LXQt | Lightweight DE |
+| Pantheon | Full DE |
+| Hyprland | Wayland compositor |
+| Sway | Wayland compositor |
+| Niri | Wayland compositor |
+| River | Wayland compositor |
+| i3 | Tiling WM |
+| AwesomeWM | Tiling WM |
+| Qtile | Tiling WM |
+| BSPWM | Tiling WM |
+| Herbstluftwm | Tiling WM |
+| Openbox | Floating WM |
+| Fluxbox | Floating WM |
+| IceWM | Floating WM |
+| No desktop | Console-only |
 
-### Abora OS 3.0 Branding
+COSMIC Desktop is new in v3, using its own COSMIC Greeter display manager. All 21 profiles are evaluated in CI before every release via `make check-desktops`.
 
-The installed system now reports itself as:
+### Abora Branding
 
-```text
-Abora OS 3.0 (Denali)
-```
+The installed system now identifies itself as **Abora OS 3.0 (Denali)** everywhere — OS release metadata, issue reporter URLs, installer copy, and first-run surfaces.
 
-This updates visible OS release metadata, issue text, installer copy, and the welcome surfaces that previously exposed NixOS/Yarara branding.
+The Abora visual identity is applied across the full session:
 
-### Desktop And Terminal Polish
-
-Denali adds the first pass of the Abora desktop identity:
-
-- day/night mountain wallpapers
-- dark-mode wallpaper pairing
-- Papirus dark icon defaults
-- larger app-grid icon sizing
-- Konsole as the preferred terminal
+- Limine bootloader with Abora branding on installed systems
+- Plymouth splash theme
+- Abora wallpaper pack: Mountain Day, Mountain Night, Ocean Dusk, Blue Horizon, Astronaut, Glacier Reflection
+- Dark-first defaults across all supported desktop sessions
+- Papirus Dark icon defaults
+- Fastfetch with the Abora logo on first shell open
 - zsh with Spaceship prompt
-- fastfetch with the Abora logo
-- first-run zsh setup suppression so users do not see the zsh wizard
+- GNOME wallpaper and accent color auto-sync
 
-### Release Folder Cleanup
+### ANIX v1
 
-Generated files now land in a cleaner `out/` layout:
-
-- `out/iso/`
-- `out/packages/`
-- `out/release/`
-- `out/qemu/`
-- `out/logs/`
-- `out/nix/`
-
-Release scripts, QEMU helpers, package generation, and metadata generation were updated for that layout.
-
-### TinyPM v4 And ANIX v1
-
-TinyPM remains vendored and packaged with the release. The v4 bundle includes the Abora-flavored TinyPM package, portable relative `vendor/tinypm/bin/` symlinks instead of machine-local absolute symlinks, package source reporting, repair shortcuts, and Abora/ANIX bridges.
-
-ANIX is now shaped as a v1 profile manager with status, quickstart, docs, profile discovery, generation listing, diff/test/boot/switch/rollback workflows, local snapshots, doctor repair, and NixOS module options for packages, trusted users, store optimisation, and scheduled garbage collection.
-
----
-
-## Release Assets
-
-- `abora-2026.05.30-x86_64-v3.0.0.iso`
-- `tinypm-v4.0.0-abora-v3.0.0.tar.gz`
-- `SHA256SUMS-v3.0.0.txt`
-- `RELEASE_MANIFEST-v3.0.0.txt`
-- `RELEASE_NOTES-v3.0.0.md`
-
----
-
-## Upgrade Notes
-
-Existing Abora installs can try:
+ANIX is the human layer for NixOS. It gives you profile switching, rollback, snapshots, and health checks without requiring you to know the rebuild and flake syntax.
 
 ```sh
-sudo nixos update
+anix quickstart          # first-run setup
+anix status              # profile, generation, and snapshot state
+anix profiles            # list available profiles
+anix diff nix gaming     # preview changes before applying
+anix test nix gaming     # temp-activate a profile
+anix switch nix gaming   # apply now
+anix rollback nix        # roll back a generation
+anix save                # local Git snapshot of /etc/nixos
+anix doctor --fix        # health checks and auto-repair
+anix set desktop gnome   # change settings without editing Nix
+anix --gui               # graphical helper via zenity
 ```
 
-For the cleanest v3 Denali experience, especially from older installer builds, a fresh install is recommended.
+Named flake profiles available out of the box: `stable`, `minimal`, `gaming`, `creator`, `developer`.
 
-After install in QEMU, boot the installed disk with:
+### TinyPM v4
+
+TinyPM is the app layer. v4 is the first version with first-class Abora, ANIX, and NixOS awareness.
+
+```sh
+grab firefox             # install through the best available source
+tinypm sources           # show native/Flatpak/Snap availability
+tinypm system            # Abora/NixOS/ANIX bridge status
+tinypm repair            # repair-focused doctor checks
+tinypm anix status       # forward to ANIX
+tinypm abora doctor      # forward to Abora
+```
+
+### App Catalog — 53 apps across 6 bundles
+
+Select a starter bundle at install time: **Fan Favorites**, **Essentials**, **Social**, **Creator**, **Developer**, or **Gaming**. Every bundle is opt-in — you can also skip all of them.
+
+New in v3: **Modularity** is included in the Developer bundle — a game engine editor by Tareno Labs with PhysX, Vulkan, and Mono support baked in.
+
+### Hardware and Live Image
+
+The live image now comes up with the hardware services you expect before install:
+
+- NetworkManager with radio unblock at boot
+- Bluetooth, Blueman, and ModemManager
+- Redistributable firmware, Intel and AMD microcode
+- Common Wi-Fi, Ethernet, Bluetooth, storage, and VM driver modules
+- Flathub added automatically on first boot of the installed system
+
+---
+
+## Getting Started
+
+**Build and test the ISO:**
+
+```sh
+make iso
+make qemu-fresh
+```
+
+**After installing in QEMU, boot the installed system:**
 
 ```sh
 make qemu-disk
 ```
 
-For a clean installer test, use:
+**On an installed system, update or roll back:**
 
 ```sh
-make qemu-fresh
+sudo nixos update
+sudo nixos rollback
 ```
+
+---
+
+## Release Assets
+
+| File | Description |
+|---|---|
+| `abora-2026.05.30-x86_64-v3.0.0.iso` | Bootable live ISO |
+| `tinypm-v4.0.0-abora-v3.0.0.tar.gz` | TinyPM v4 package |
+| `SHA256SUMS-v3.0.0.txt` | Checksums |
+| `RELEASE_MANIFEST-v3.0.0.txt` | Full release manifest |
+
+---
+
+## Upgrade Notes
+
+From an existing Abora install:
+
+```sh
+sudo nixos update
+```
+
+For the cleanest Denali experience — especially from older v2 or pre-release builds — a fresh install is recommended.
 
 ---
 
 ## Known Limits
 
-- The ISO is larger than earlier v2 builds because it now includes broader firmware and hardware support.
-- Hardware support still depends on Linux kernel support for the exact device.
-- Flatpak and app installs need network after first boot.
-- Manual removal of the ISO may still be required on some VM setups if virtual media eject is blocked.
+- The ISO is larger than earlier v2 builds due to broader firmware and hardware coverage.
+- Flatpak and app bundle installs require network after first boot.
+- Modularity requires the Developer bundle to be selected at install, or `grab modularity` post-install.
+- COSMIC Greeter manages its own session; GNOME auto-login settings do not apply to COSMIC.
+- Hardware support depends on Linux kernel support for your exact device.
 
 ---
 
 ## Validation
 
-Completed for this release:
+Completed before this release:
 
-- `./scripts/preflight.sh`
-- `vendor/tinypm/scripts/e2e-smoke.sh`
-- fresh ISO build for `2026.05.30`
-- v4 TinyPM package generation
-- v3 release manifest, release notes, and checksums
-
-Before publishing broadly, still do one real boot/install smoke test in the target VM or hardware environment.
+- `make check` — 79 script checks: syntax, executability, runtime ANIX behaviors
+- `make check-desktops` — all 21 desktop profiles evaluated against nixpkgs
+- `make preflight` — full release preflight
+- QEMU fresh install and disk boot
+- TinyPM v4 package generation and smoke test
+- Release manifest, checksums, and release notes generated

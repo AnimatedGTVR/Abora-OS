@@ -19,8 +19,9 @@ Abora v3 Denali is the installer, identity, and tooling release.
 
 ## Desktops
 
-- 21 desktop environments selectable at install time
+- 22 desktop environments selectable at install time
 - COSMIC Desktop added to the supported matrix
+- MangoWM added — lightweight Wayland compositor (dwm-style, wlroots-based)
 - Desktop profile matrix fully evaluated in CI with `make check-desktops`
 - Dark-first defaults and Abora wallpapers applied across all sessions
 
