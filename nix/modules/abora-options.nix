@@ -601,6 +601,10 @@ in
           enable       = true;
           extraPortals = with pkgs; [ xdg-desktop-portal-wlr xdg-desktop-portal-gtk ];
           wlr.enable   = true;
+          config = {
+            mango.default = [ "wlr" "gtk" ];
+            wlroots.default = [ "wlr" "gtk" ];
+          };
         };
         security.polkit.enable   = true;
         programs.xwayland.enable = true;
