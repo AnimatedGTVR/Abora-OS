@@ -55,7 +55,7 @@ anix_tool_config="${ANIX_TOOL_CONFIG:-$anix_state_dir/config}"
 valid_desktops=(
     none gnome plasma hyprland sway xfce cinnamon mate budgie lxqt pantheon
     i3 awesome openbox niri river qtile bspwm fluxbox
-    icewm herbstluftwm cosmic
+    icewm herbstluftwm cosmic mangowm
 )
 
 default_wallpapers=(

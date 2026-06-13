@@ -61,6 +61,7 @@ let
     icewm        = "IceWM";
     herbstluftwm = "Herbstluftwm";
     cosmic       = "COSMIC";
+    mangowm      = "MangoWM";
   }.${cfg.desktop} or "Abora";
 
   is = d: active && cfg.desktop == d;
@@ -124,7 +125,7 @@ in
         "none" "gnome" "plasma" "hyprland" "sway" "xfce" "cinnamon" "mate"
         "budgie" "lxqt" "pantheon" "i3"
         "awesome" "openbox" "niri" "river" "qtile" "bspwm" "fluxbox"
-        "icewm" "herbstluftwm" "cosmic"
+        "icewm" "herbstluftwm" "cosmic" "mangowm"
       ];
       default     = "gnome";
       description = "Desktop environment or window manager to enable.";
@@ -577,6 +578,32 @@ in
       (lib.mkIf (is "cosmic") {
         services.desktopManager.cosmic.enable         = true;
         services.displayManager.cosmic-greeter.enable = true;
+      })
+
+      # ── MangoWM ─────────────────────────────────────────────────────────
+      (lib.mkIf (is "mangowm") {
+        services.xserver = {
+          enable     = true;
+          xkb.layout = cfg.keyboard.xkb;
+        };
+        environment.systemPackages = [ pkgs.mango ];
+        services.displayManager = {
+          defaultSession   = "mango";
+          autoLogin.enable = true;
+          autoLogin.user   = cfg.user.name;
+          sessionPackages  = [ pkgs.mango ];
+        };
+        services.displayManager.sddm = {
+          enable         = true;
+          wayland.enable = true;
+        };
+        xdg.portal = {
+          enable       = true;
+          extraPortals = with pkgs; [ xdg-desktop-portal-wlr xdg-desktop-portal-gtk ];
+          wlr.enable   = true;
+        };
+        security.polkit.enable   = true;
+        programs.xwayland.enable = true;
       })
 
     ])) # end mkIf active
