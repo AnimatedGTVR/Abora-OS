@@ -69,6 +69,7 @@ fluxbox
 icewm
 herbstluftwm
 cosmic
+mangowm
 EOF
 }
 
@@ -162,6 +163,10 @@ abora_sync_desktop_label() {
             desktop_label="COSMIC"
             desktop_variant_id="cosmic"
             ;;
+        mangowm)
+            desktop_label="MangoWM"
+            desktop_variant_id="mangowm"
+            ;;
         *)
             desktop_label="GNOME"
             desktop_variant_id="gnome"
@@ -218,6 +223,8 @@ abora_detect_desktop_profile() {
         printf 'icewm\n'
     elif grep -q 'windowManager\.herbstluftwm\.enable = true;' "$file"; then
         printf 'herbstluftwm\n'
+    elif grep -q "defaultSession = \"mango\";" "$file"; then
+        printf 'mangowm\n'
     else
         printf 'gnome\n'
     fi
@@ -642,6 +649,31 @@ EOF
   services.displayManager.cosmic-greeter.enable = true;
 EOF
             ;;
+        mangowm)
+            cat <<EOF
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+  };
+  services.displayManager = {
+    defaultSession = "mango";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+    sessionPackages = [ pkgs.mango ];
+  };
+  services.displayManager.sddm = {
+    enable = true;
+    wayland.enable = true;
+  };
+  xdg.portal = {
+    enable = true;
+    extraPortals = with pkgs; [ xdg-desktop-portal-wlr xdg-desktop-portal-gtk ];
+    wlr.enable = true;
+  };
+  security.polkit.enable = true;
+  programs.xwayland.enable = true;
+EOF
+            ;;
     esac
 }
 
@@ -686,6 +718,14 @@ EOF
         bspwm)
             cat <<'EOF'
     sxhkd
+EOF
+            ;;
+        mangowm)
+            cat <<'EOF'
+    mango
+    foot
+    waybar
+    wofi
 EOF
             ;;
     esac

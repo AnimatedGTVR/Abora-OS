@@ -12,6 +12,7 @@
 
       overlay = final: prev: {
         modularity = final.callPackage ./nix/pkgs/modularity.nix {};
+        mango      = final.callPackage ./nix/pkgs/mango.nix {};
       };
 
       pkgs = import nixpkgs { inherit system; overlays = [ overlay ]; };
@@ -34,8 +35,9 @@
       };
 
       packages.${system} = {
-        iso = self.nixosConfigurations.abora-live.config.system.build.isoImage;
+        iso        = self.nixosConfigurations.abora-live.config.system.build.isoImage;
         modularity = pkgs.modularity;
+        mango      = pkgs.mango;
       };
       defaultPackage.${system} = self.packages.${system}.iso;
     };
