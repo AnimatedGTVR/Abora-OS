@@ -669,6 +669,8 @@ in
         source = desktopProfilesScript;
         mode = "0755";
       };
+      "abora/pkgs/mango.nix".source = ../../nix/pkgs/mango.nix;
+      "abora/pkgs/modularity.nix".source = ../../nix/pkgs/modularity.nix;
       "abora/tinypm".source = tinypmDir;
       # The generated /etc/nixos/flake.nix pins its nixpkgs input to
       # "path:/etc/abora/nixpkgs". Expose the build-time nixpkgs source here so
