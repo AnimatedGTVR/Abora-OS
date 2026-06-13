@@ -356,6 +356,36 @@ extract_setting() {
     sed -nE "$expression" "$file" | head -n1
 }
 
+copy_upstream_file() {
+    local source="$1"
+    local destination="$2"
+
+    if [[ ! -f "$source" ]]; then
+        abora_error "Required upstream file is missing: ${source}"
+        return 1
+    fi
+
+    mkdir -p "$(dirname "$destination")"
+    cp "$source" "$destination"
+}
+
+copy_first_existing_upstream_file() {
+    local destination="$1"
+    shift
+
+    local source=""
+    for source in "$@"; do
+        if [[ -f "$source" ]]; then
+            mkdir -p "$(dirname "$destination")"
+            cp "$source" "$destination"
+            return 0
+        fi
+    done
+
+    abora_error "None of the expected upstream files were found for ${destination##*/}."
+    return 1
+}
+
 # ── File sync ─────────────────────────────────────────────────────────────────
 
 sync_abora_files() {
@@ -373,42 +403,58 @@ sync_abora_files() {
 
     if [[ -d "$upstream_dir/.git" ]]; then
         abora_info "Fetching latest Abora files (${effective_ref})"
-        git -C "$upstream_dir" fetch --depth=1 origin "$effective_ref" >/dev/null 2>&1
-        git -C "$upstream_dir" reset --hard FETCH_HEAD >/dev/null 2>&1
+        if ! git -C "$upstream_dir" fetch --depth=1 origin "$effective_ref"; then
+            abora_error "Failed to fetch ${effective_ref} from ${repo_git_url}."
+            return 1
+        fi
+        if ! git -C "$upstream_dir" reset --hard FETCH_HEAD >/dev/null; then
+            abora_error "Failed to reset the upstream checkout to ${effective_ref}."
+            return 1
+        fi
     else
         abora_info "Cloning Abora files (${effective_ref})"
         rm -rf "$upstream_dir"
-        git clone --depth=1 --branch "$effective_ref" "$repo_git_url" "$upstream_dir" >/dev/null 2>&1
+        if ! git clone --depth=1 --branch "$effective_ref" "$repo_git_url" "$upstream_dir"; then
+            abora_error "Failed to clone ${repo_git_url} at ${effective_ref}."
+            return 1
+        fi
     fi
 
     mkdir -p "$abora_dir/plymouth" "$abora_dir/bootloader" "$abora_dir/effects"
-    cp "$upstream_dir/VERSION" "$abora_dir/VERSION"
-    cp "$upstream_dir/nix/modules/abora-options.nix" "$abora_dir/abora-options.nix"
-    cp "$upstream_dir/nix/modules/anix.nix" "$abora_dir/anix-module.nix"
-    cp "$upstream_dir/scripts/abora-ui.sh"     "$abora_dir/ui.sh"
-    cp "$upstream_dir/scripts/abora-config.sh" "$abora_dir/config.sh"
-    cp "$upstream_dir/scripts/abora.sh" "$abora_dir/abora.sh"
-    cp "$upstream_dir/scripts/abora-desktop.sh" "$abora_dir/desktop.sh"
-    cp "$upstream_dir/scripts/abora-doctor.sh" "$abora_dir/doctor.sh"
-    cp "$upstream_dir/scripts/abora-recovery.sh" "$abora_dir/recovery.sh"
-    cp "$upstream_dir/scripts/abora-welcome.sh" "$abora_dir/welcome.sh"
-    cp "$upstream_dir/scripts/anix.sh" "$abora_dir/anix.sh"
-    cp "$upstream_dir/scripts/abora-app-catalog.sh" "$abora_dir/app-catalog.sh"
-    cp "$upstream_dir/scripts/abora-apps.sh" "$abora_dir/apps.sh"
-    cp "$upstream_dir/scripts/abora-support-report.sh" "$abora_dir/support-report.sh"
-    cp "$upstream_dir/scripts/abora-hardware-test.sh" "$abora_dir/hardware-test.sh"
-    cp "$upstream_dir/assets/wallpapers/collection/Daytime-MNT.jpg" "$abora_dir/default-wallpaper.png"
-    cp "$upstream_dir/scripts/abora-desktop-profiles.sh" "$abora_dir/desktop-profiles.sh"
-    cp "$upstream_dir/nix/modules/installed-base.nix" "$abora_dir/installed-base.nix"
-    cp "$upstream_dir/scripts/abora-session-setup.sh" "$abora_dir/session-setup.sh"
-    cp "$upstream_dir/scripts/abora-theme-sync.sh" "$abora_dir/theme-sync.sh"
-    cp "$upstream_dir/scripts/abora-update.sh" "$abora_dir/update.sh"
-    cp "$upstream_dir/assets/abora-title.txt" "$abora_dir/title.txt"
-    cp "$upstream_dir/assets/fastfetch-logo.txt" "$abora_dir/fastfetch-logo.txt"
-    cp "$upstream_dir/assets/fastfetch-config.jsonc" "$abora_dir/fastfetch-config.jsonc"
-    cp "$upstream_dir/assets/Effects/v3StartingAbora.mp3" "$abora_dir/effects/v3StartingAbora.mp3"
-    cp "$upstream_dir/assets/plymouth/abora.plymouth" "$abora_dir/plymouth/abora.plymouth"
-    cp "$upstream_dir/assets/plymouth/abora.script" "$abora_dir/plymouth/abora.script"
+    copy_upstream_file "$upstream_dir/VERSION" "$abora_dir/VERSION"
+    copy_upstream_file "$upstream_dir/nix/modules/abora-options.nix" "$abora_dir/abora-options.nix"
+    copy_upstream_file "$upstream_dir/nix/modules/anix.nix" "$abora_dir/anix-module.nix"
+    copy_upstream_file "$upstream_dir/scripts/abora-ui.sh" "$abora_dir/ui.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-config.sh" "$abora_dir/config.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora.sh" "$abora_dir/abora.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-desktop.sh" "$abora_dir/desktop.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-doctor.sh" "$abora_dir/doctor.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-recovery.sh" "$abora_dir/recovery.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-welcome.sh" "$abora_dir/welcome.sh"
+    copy_upstream_file "$upstream_dir/scripts/anix.sh" "$abora_dir/anix.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-app-catalog.sh" "$abora_dir/app-catalog.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-apps.sh" "$abora_dir/apps.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-support-report.sh" "$abora_dir/support-report.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-hardware-test.sh" "$abora_dir/hardware-test.sh"
+    copy_first_existing_upstream_file \
+        "$abora_dir/default-wallpaper.png" \
+        "$upstream_dir/assets/wallpapers/collection/Daytime-MNT.jpg" \
+        "$upstream_dir/assets/wallpapers/collection/bluehorizon.png" \
+        "$upstream_dir/assets/wallpapers/collection/astronautwallpaper.png"
+    copy_upstream_file "$upstream_dir/scripts/abora-desktop-profiles.sh" "$abora_dir/desktop-profiles.sh"
+    copy_upstream_file "$upstream_dir/nix/modules/installed-base.nix" "$abora_dir/installed-base.nix"
+    copy_upstream_file "$upstream_dir/scripts/abora-session-setup.sh" "$abora_dir/session-setup.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-theme-sync.sh" "$abora_dir/theme-sync.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-update.sh" "$abora_dir/update.sh"
+    copy_upstream_file "$upstream_dir/assets/abora-title.txt" "$abora_dir/title.txt"
+    copy_upstream_file "$upstream_dir/assets/fastfetch-logo.txt" "$abora_dir/fastfetch-logo.txt"
+    copy_upstream_file "$upstream_dir/assets/fastfetch-config.jsonc" "$abora_dir/fastfetch-config.jsonc"
+    copy_first_existing_upstream_file \
+        "$abora_dir/effects/v3StartingAbora.mp3" \
+        "$upstream_dir/assets/Effects/v3StartingAbora.mp3" \
+        "$upstream_dir/assets/Effects/LaunchingAbora.mp3"
+    copy_upstream_file "$upstream_dir/assets/plymouth/abora.plymouth" "$abora_dir/plymouth/abora.plymouth"
+    copy_upstream_file "$upstream_dir/assets/plymouth/abora.script" "$abora_dir/plymouth/abora.script"
 
     if [[ ! -f "$upstream_background" || ! -f "$upstream_theme" ]]; then
         abora_error "The latest Abora bootloader assets are incomplete."

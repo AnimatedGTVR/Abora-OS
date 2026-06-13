@@ -131,8 +131,9 @@ Abora tries to make that part easier.
 
 ### Desktop Choice
 
-- 21 desktop environments/window managers
+- 22 desktop environments/window managers
 - Full desktop, tiling, Wayland, lightweight, and console-only installs
+- Curated starter app bundles: Fan Favorites, Essentials, Social, Creator, Developer, Gaming, System
 - Starter app bundles for different setups
 - 53 apps in the catalog across 6 categories
 - Abora branding across boot, desktop, fastfetch, and recovery tools
@@ -145,7 +146,7 @@ Abora tries to make that part easier.
 
 ## Desktop Environments
 
-Abora v3 includes **21 desktop environments/window managers**, plus a no-desktop install for console-only systems.
+Abora v3 ships with **22 desktop environments/window managers**, plus a no-desktop install, selectable at install time:
 
 | Desktop | Type | Display Manager |
 |---|---|---|
@@ -170,6 +171,7 @@ Abora v3 includes **21 desktop environments/window managers**, plus a no-desktop
 | Openbox | Floating WM | LightDM |
 | Fluxbox | Floating WM | LightDM |
 | IceWM | Floating WM | LightDM |
+| MangoWM | Wayland compositor | SDDM (Wayland) |
 | No desktop | Console-only | TTY |
 
 ---

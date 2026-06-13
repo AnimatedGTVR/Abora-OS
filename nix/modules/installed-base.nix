@@ -345,6 +345,21 @@ in
 
   nixpkgs.config.allowUnfree = lib.mkDefault true;
 
+  nixpkgs.overlays = [
+    (final: prev: {
+      mango = final.callPackage (
+        if builtins.pathExists ./pkgs/mango.nix
+        then ./pkgs/mango.nix
+        else ../../nix/pkgs/mango.nix
+      ) {};
+      modularity = final.callPackage (
+        if builtins.pathExists ./pkgs/modularity.nix
+        then ./pkgs/modularity.nix
+        else ../../nix/pkgs/modularity.nix
+      ) {};
+    })
+  ];
+
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   nix.nixPath = [
     "nixpkgs=${pkgs.path}"
