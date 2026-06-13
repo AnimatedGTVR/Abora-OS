@@ -345,6 +345,8 @@ check_install_environment() {
         /etc/abora/fastfetch-logo.txt
         /etc/abora/fastfetch-config.jsonc
         /etc/abora/desktop-profiles.sh
+        /etc/abora/pkgs/mango.nix
+        /etc/abora/pkgs/modularity.nix
         /etc/abora/installed-base.nix
         /etc/abora/anix.sh
         /etc/abora/anix-module.nix
@@ -979,6 +981,7 @@ EOF
 
 write_branding_assets() {
     local root="${1:-/mnt}"
+    mkdir -p "${root}/etc/nix/pkgs"
     mkdir -p "${root}/etc/nixos/abora/plymouth" \
              "${root}/etc/nixos/abora/bootloader" \
              "${root}/etc/nixos/abora/pkgs" \
@@ -999,12 +1002,16 @@ write_branding_assets() {
         cp /etc/abora/Abora-LOGO.png "${root}/etc/nixos/abora/Abora-LOGO.png"
     cp_required /etc/abora/plymouth/abora.plymouth "${root}/etc/nixos/abora/plymouth/abora.plymouth"
     cp_required /etc/abora/plymouth/abora.script   "${root}/etc/nixos/abora/plymouth/abora.script"
+    cp_required /etc/abora/pkgs/mango.nix          "${root}/etc/nixos/abora/pkgs/mango.nix"
+    cp_required /etc/abora/pkgs/modularity.nix     "${root}/etc/nixos/abora/pkgs/modularity.nix"
+    # Compatibility fallback for older copied module paths that still resolve
+    # ../../nix/pkgs/* during nixos-install evaluation.
+    cp_required /etc/abora/pkgs/mango.nix          "${root}/etc/nix/pkgs/mango.nix"
+    cp_required /etc/abora/pkgs/modularity.nix     "${root}/etc/nix/pkgs/modularity.nix"
 
     [[ -f /etc/abora/anix.sh           ]] && cp /etc/abora/anix.sh            "${root}/etc/nixos/abora/anix.sh"
     [[ -f /etc/abora/anix-module.nix   ]] && cp /etc/abora/anix-module.nix    "${root}/etc/nixos/abora/anix-module.nix"
     [[ -f /etc/abora/abora-options.nix ]] && cp /etc/abora/abora-options.nix  "${root}/etc/nixos/abora/abora-options.nix"
-    [[ -f /etc/abora/pkgs/mango.nix    ]] && cp /etc/abora/pkgs/mango.nix     "${root}/etc/nixos/abora/pkgs/mango.nix"
-    [[ -f /etc/abora/pkgs/modularity.nix ]] && cp /etc/abora/pkgs/modularity.nix "${root}/etc/nixos/abora/pkgs/modularity.nix"
     [[ -f /etc/abora/effects/v3StartingAbora.mp3 ]] && \
         cp /etc/abora/effects/v3StartingAbora.mp3 "${root}/etc/nixos/abora/effects/v3StartingAbora.mp3"
 
