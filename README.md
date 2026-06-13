@@ -304,9 +304,10 @@ Shorter aliases also work:
 update
 upgrade
 rollback
+abora-update
 ```
 
-These commands sync the latest Abora project files into `/etc/nixos/abora/`, update the local flake, and rebuild the system.
+These commands resolve the selected Abora channel, sync the latest project files into `/etc/nixos/abora/`, update the local flake, and rebuild the system.
 
 ---
 

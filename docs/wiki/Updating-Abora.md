@@ -1,49 +1,57 @@
 # Updating Abora
 
-Abora keeps the NixOS base, but gives installed systems simpler update commands.
+Abora uses a flake-based update flow for installed systems.
 
-## Normal Update Command
+## Normal Update
 
-On an installed Abora system, use:
+On an installed Abora system, run:
 
 ```sh
 sudo nixos update
 ```
 
-Short aliases also work:
+These aliases run the same updater:
 
 ```sh
 update
 upgrade
+abora-update
 ```
 
-## What It Does
+## What The Updater Does
 
-The Abora update flow:
+The update helper:
 
-- syncs the latest Abora project files into `/etc/nixos/abora/`
-- updates the local flake
-- can offer a local ANIX snapshot before rebuilding
-- rebuilds the system
-- keeps older installer-generated Abora installs closer to the current layout
+- resolves the selected Abora channel
+- fetches the latest Abora project files into `/etc/nixos/.abora-upstream`
+- syncs the installed Abora files under `/etc/nixos/abora/`
+- optionally offers a local ANIX snapshot before rebuilding
+- updates the flake inputs
+- runs `nixos-rebuild switch`
 
-## Related Tools
+## Channels
 
-- `abora doctor`: check system health
-- `abora recovery`: rollback, rebuild, repair, and support actions
-- `abora setup`: installed reconfiguration launcher
-- `anix status`: show profile, generation, and snapshot state
-- `anix save`: local `/etc/nixos` snapshot
-- `anix diff nix <profile>`: preview profile changes
-- `anix test nix <profile>`: test-activate a profile
-- `anix rollback nix`: rollback through NixOS generations
-- `tinypm sources`: show app/package source status
+Show the current channel:
 
-## Notes
+```sh
+nixos channel
+```
 
-- this is meant for installed Abora systems
-- it follows the Abora/NixOS flake-based path
-- it is not the same thing as using classic NixOS channels by hand
+List channels:
+
+```sh
+nixos channel list
+```
+
+Switch channels:
+
+```sh
+sudo nixos channel set stable
+sudo nixos channel set unstable
+```
+
+- `stable` tracks the latest tagged Abora release
+- `unstable` tracks the `main` branch
 
 ## Safer Update Habit
 
@@ -55,9 +63,34 @@ anix status
 sudo nixos update
 ```
 
+## Rollback
+
 If the update is not good:
+
+```sh
+sudo nixos rollback
+```
+
+Or with ANIX:
 
 ```sh
 anix generations
 anix rollback nix
 ```
+
+## Related Tools
+
+- `abora doctor`: check system health
+- `abora recovery`: rollback, rebuild, repair, and support actions
+- `abora setup`: installed reconfiguration launcher
+- `anix status`: show profile, generation, and snapshot state
+- `anix save`: local `/etc/nixos` snapshot
+- `anix diff nix <profile>`: preview profile changes
+- `anix test nix <profile>`: test-activate a profile
+- `tinypm sources`: show app/package source status
+
+## Notes
+
+- This is for installed Abora systems.
+- It does not use classic manual NixOS channel updates.
+- If the updater fails while fetching files, check the reported git error first.
