@@ -454,6 +454,8 @@ in
       };
       "abora/setup.desktop".source = ../../scripts/abora-setup.desktop;
       "abora/installed-base.nix".source = ../../nix/modules/installed-base.nix;
+      "abora/pkgs/mango.nix".source = ../../nix/pkgs/mango.nix;
+      "abora/pkgs/modularity.nix".source = ../../nix/pkgs/modularity.nix;
       "abora/tinypm".source = tinypmDir;
       "abora/docs".source = ../../docs;
       "abora/abora-options.nix".source  = ../../nix/modules/abora-options.nix;

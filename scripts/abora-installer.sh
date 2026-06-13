@@ -981,6 +981,7 @@ write_branding_assets() {
     local root="${1:-/mnt}"
     mkdir -p "${root}/etc/nixos/abora/plymouth" \
              "${root}/etc/nixos/abora/bootloader" \
+             "${root}/etc/nixos/abora/pkgs" \
              "${root}/etc/nixos/abora/wallpapers" \
              "${root}/etc/nixos/abora/themes" \
              "${root}/etc/nixos/abora/effects"
@@ -1002,6 +1003,8 @@ write_branding_assets() {
     [[ -f /etc/abora/anix.sh           ]] && cp /etc/abora/anix.sh            "${root}/etc/nixos/abora/anix.sh"
     [[ -f /etc/abora/anix-module.nix   ]] && cp /etc/abora/anix-module.nix    "${root}/etc/nixos/abora/anix-module.nix"
     [[ -f /etc/abora/abora-options.nix ]] && cp /etc/abora/abora-options.nix  "${root}/etc/nixos/abora/abora-options.nix"
+    [[ -f /etc/abora/pkgs/mango.nix    ]] && cp /etc/abora/pkgs/mango.nix     "${root}/etc/nixos/abora/pkgs/mango.nix"
+    [[ -f /etc/abora/pkgs/modularity.nix ]] && cp /etc/abora/pkgs/modularity.nix "${root}/etc/nixos/abora/pkgs/modularity.nix"
     [[ -f /etc/abora/effects/v3StartingAbora.mp3 ]] && \
         cp /etc/abora/effects/v3StartingAbora.mp3 "${root}/etc/nixos/abora/effects/v3StartingAbora.mp3"
 
