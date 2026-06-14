@@ -1,6 +1,6 @@
-# Abora OS v3.0.0 Denali Changelog
+# Abora OS DENALI 3.1.4 Changelog
 
-Abora v3 Denali is the installer, identity, and tooling release.
+Abora DENALI 3.1.4 is the installer, identity, and tooling release.
 
 ## Installer
 

@@ -42,7 +42,7 @@
 </p>
 
 <p align="center">
-  <img alt="Release" src="https://img.shields.io/badge/v3.0.0-Denali-7cc7ff?style=for-the-badge">
+  <img alt="Release" src="https://img.shields.io/badge/3.1.4-DENALI-7cc7ff?style=for-the-badge">
   <img alt="Base" src="https://img.shields.io/badge/base-NixOS-5277C3?style=for-the-badge">
   <img alt="Desktop options" src="https://img.shields.io/badge/desktops-21-8bd5ff?style=for-the-badge">
   <img alt="Flatpak" src="https://img.shields.io/badge/Flatpak-ready-4A90D9?style=for-the-badge">
@@ -50,7 +50,7 @@
 
 ---
 
-## Abora OS v3.0.0 — Denali
+## Abora OS DENALI 3.1.4
 
 Abora OS is a NixOS-based distro made for people who want the power of NixOS without fighting the first install.
 
@@ -146,7 +146,7 @@ Abora tries to make that part easier.
 
 ## Desktop Environments
 
-Abora v3 ships with **22 desktop environments/window managers**, plus a no-desktop install, selectable at install time:
+Abora DENALI 3.1.4 ships with **22 desktop environments/window managers**, plus a no-desktop install, selectable at install time:
 
 | Desktop | Type | Display Manager |
 |---|---|---|
@@ -443,11 +443,11 @@ make tinypm-package  # TinyPM package by itself
 make tinypm-image    # TinyPM container image locally
 ```
 
-Publish the v3 line:
+Publish the DENALI 3.1.4 line:
 
 ```sh
-git tag v3.0.0
-git push origin v3.0.0
+git tag 3.1.4
+git push origin 3.1.4
 ```
 
 ---

@@ -2,16 +2,16 @@
 
 ## Supported Versions
 
-Abora is on the v3 line. Security fixes target the current stable release.
+Abora is on the DENALI 3.1.4 line. Security fixes target the current stable release.
 
 | Version        | Supported |
 | -------------- | --------- |
-| `v3.0.x`       | Yes       |
+| `3.1.x`        | Yes       |
 | `v2.x`         | No        |
 | `v1.x`         | No        |
 | Older releases | No        |
 
-In practice, that means the latest `v3.0.x` release is the one that receives security fixes and reports.
+In practice, that means the latest `3.1.x` release is the one that receives security fixes and reports.
 
 ## Reporting a Vulnerability
 

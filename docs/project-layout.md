@@ -1,6 +1,6 @@
 # Project Layout
 
-This is the quick map of the Abora OS repo for the v3.0.0 Denali release.
+This is the quick map of the Abora OS repo for the DENALI 3.1.4 release.
 
 ## Top Level
 
