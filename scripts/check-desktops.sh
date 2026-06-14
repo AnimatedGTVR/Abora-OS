@@ -33,7 +33,15 @@ resolve_nixpkgs_path() {
     return 0
   fi
 
-  nix-instantiate --find-file nixpkgs 2>/dev/null
+  if nix-instantiate --find-file nixpkgs 2>/dev/null; then
+    return 0
+  fi
+
+  if command -v nix >/dev/null 2>&1; then
+    nix --extra-experimental-features "nix-command flakes" \
+      eval --raw --impure \
+      --expr "(builtins.getFlake \"path:${repo_dir}\").inputs.nixpkgs.outPath" 2>/dev/null
+  fi
 }
 
 assert_supported_everywhere() {

@@ -5,7 +5,7 @@ export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/
 
 script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ui_lib="${ABORA_UI_LIB:-$script_dir/abora-ui.sh}"
-anix_version="1.0.0"
+anix_version="1.0.5 DEMO"
 
 if [[ ! -f "$ui_lib" && -f /etc/abora/ui.sh ]]; then
     ui_lib="/etc/abora/ui.sh"
@@ -344,7 +344,7 @@ ensure_config_git_repo() {
     fi
     abora_warn "${config_dir} is not a Git repo yet."
     if confirm "Initialize a local Git repo for ANIX snapshots?" "yes"; then
-        run_as_root git -C "$config_dir" init >/dev/null
+        run_as_root git -C "$config_dir" -c init.defaultBranch=main init >/dev/null
     else
         abora_error "Snapshot cancelled."
         exit 1
@@ -1172,97 +1172,209 @@ gui_pick_profile() {
     printf '%s\n' "${profile:-$flake_config_name}"
 }
 
-do_gui_terminal() {
-    local choice profile key value
+gui_choose_action() {
+    local title="$1"
+    local text="$2"
+    shift 2
+
+    zenity --list --width=760 --height=500 \
+        --title="$title" \
+        --text="$text" \
+        --column="Action" \
+        --column="What it does" \
+        "$@" 2>/dev/null || true
+}
+
+gui_prompt_text() {
+    local title="$1"
+    local text="$2"
+    local current="${3:-}"
+
+    zenity --entry --width=460 \
+        --title="$title" \
+        --text="$text" \
+        --entry-text="$current" 2>/dev/null || true
+}
+
+gui_confirm_action() {
+    local title="$1"
+    local text="$2"
+    zenity --question --width=460 --title="$title" --text="$text" 2>/dev/null
+}
+
+gui_pick_setting_key() {
+    gui_choose_action "ANIX Settings" "Choose a setting to change." \
+        "show" "Show the current ANIX config summary" \
+        "hostname" "Set the machine hostname" \
+        "timezone" "Set the system timezone" \
+        "keyboard.console" "Set the TTY keyboard layout" \
+        "keyboard.xkb" "Set the desktop keyboard layout" \
+        "desktop" "Pick a desktop profile" \
+        "wallpaper" "Pick an Abora wallpaper" \
+        "shell" "Choose bash, zsh, or fish" \
+        "back" "Return to the main menu"
+}
+
+gui_pick_setting_value() {
+    local key="$1"
+    local current="$2"
+    local value=""
+
+    case "$key" in
+        desktop)
+            value="$(
+                printf '%s\n' "${valid_desktops[@]}" \
+                    | zenity --list --width=420 --height=420 \
+                        --title="Choose Desktop" \
+                        --text="Select the desktop profile ANIX should manage." \
+                        --column="Desktop" 2>/dev/null || true
+            )"
+            ;;
+        wallpaper)
+            value="$(
+                wallpaper_candidates \
+                    | zenity --list --width=480 --height=420 \
+                        --title="Choose Wallpaper" \
+                        --text="Select the wallpaper file stored in ${wallpaper_dir}." \
+                        --column="Wallpaper" 2>/dev/null || true
+            )"
+            ;;
+        shell)
+            value="$(
+                printf '%s\n' bash zsh fish \
+                    | zenity --list --width=360 --height=280 \
+                        --title="Choose Shell" \
+                        --text="Select the default shell for normal users." \
+                        --column="Shell" 2>/dev/null || true
+            )"
+            ;;
+        hostname)
+            value="$(gui_prompt_text "Set Hostname" "Machine hostname" "$current")"
+            ;;
+        timezone)
+            value="$(gui_prompt_text "Set Timezone" "Timezone, for example America/New_York" "$current")"
+            ;;
+        keyboard.console)
+            value="$(gui_prompt_text "Set Console Keyboard" "Console keyboard layout, for example us" "$current")"
+            ;;
+        keyboard.xkb)
+            value="$(gui_prompt_text "Set Desktop Keyboard" "Desktop keyboard layout, for example us" "$current")"
+            ;;
+    esac
+
+    printf '%s\n' "$value"
+}
+
+gui_pick_feature_action() {
+    gui_choose_action "ANIX Features" "Toggle higher-level ANIX feature flags." \
+        "allowUnfree:on" "Allow unfree packages and apps" \
+        "allowUnfree:off" "Disable unfree packages" \
+        "experimentalNix:on" "Enable flakes and the modern Nix CLI" \
+        "experimentalNix:off" "Disable flakes and the modern Nix CLI" \
+        "bluetooth:on" "Enable Bluetooth support" \
+        "bluetooth:off" "Disable Bluetooth support" \
+        "printing:on" "Enable printer support" \
+        "printing:off" "Disable printer support" \
+        "flatpak:on" "Enable Flatpak integration" \
+        "flatpak:off" "Disable Flatpak integration" \
+        "audio:on" "Enable desktop audio services" \
+        "audio:off" "Disable desktop audio services" \
+        "openssh:on" "Enable SSH service" \
+        "openssh:off" "Disable SSH service" \
+        "thermald:on" "Enable laptop thermal management" \
+        "thermald:off" "Disable thermald" \
+        "tlp:on" "Enable TLP power management" \
+        "tlp:off" "Disable TLP" \
+        "tinypm:on" "Turn on TinyPM bootstrap" \
+        "tinypm:off" "Turn off TinyPM bootstrap" \
+        "garbageCollect:on" "Enable scheduled garbage collection" \
+        "garbageCollect:off" "Disable scheduled garbage collection" \
+        "back" "Return to the main menu"
+}
+
+gui_pick_doc_file() {
+    gui_choose_action "ANIX Docs" "Choose a local document to view." \
+        "/etc/abora/docs/wiki/ANIX-V1.md" "ANIX guide" \
+        "/etc/abora/docs/wiki/TinyPM-V4.md" "TinyPM guide" \
+        "/etc/abora/docs/wiki/Abora-Tools.md" "Abora tools guide" \
+        "/etc/abora/docs/wiki/Recovery.md" "Recovery guide" \
+        "back" "Return to the main menu"
+}
+
+gui_show_doc() {
+    local doc="$1"
+    [[ "$doc" == "back" || -z "$doc" ]] && return 0
+    if [[ -f "$doc" ]]; then
+        gui_show_file "ANIX Docs" "$doc"
+    else
+        zenity --warning --width=420 --title="Missing document" \
+            --text="This local doc was not found:\n${doc}" 2>/dev/null || true
+    fi
+}
+
+gui_settings_menu() {
+    local action current value
 
     while true; do
-        abora_banner "ANIX GUI" "Graphical toolkit unavailable; using menu mode."
-        printf '  1  Status\n'
-        printf '  2  Quickstart\n'
-        printf '  3  Doctor\n'
-        printf '  4  Profiles\n'
-        printf '  5  Generations\n'
-        printf '  6  Diff profile\n'
-        printf '  7  Test profile\n'
-        printf '  8  Boot profile\n'
-        printf '  9  Switch profile\n'
-        printf '  10 Set value\n'
-        printf '  11 Docs\n'
-        printf '  0  Exit\n\n'
-        printf '  Select: '
-        read -r choice || choice="0"
-        case "$choice" in
-            1) do_status ;;
-            2) do_quickstart ;;
-            3) do_doctor ;;
-            4) do_profiles ;;
-            5) do_generations ;;
-            6) profile="$(gui_pick_profile)"; do_diff nix "$profile" ;;
-            7) profile="$(gui_pick_profile)"; do_test nix "$profile" ;;
-            8) profile="$(gui_pick_profile)"; do_boot nix "$profile" ;;
-            9) profile="$(gui_pick_profile)"; do_switch nix "$profile" ;;
-            10)
-                printf 'Key: '; read -r key || key=""
-                printf 'Value: '; read -r value || value=""
-                do_set "$key" "$value"
+        action="$(gui_pick_setting_key)"
+        case "$action" in
+            show) gui_capture "ANIX Settings" show_config ;;
+            hostname|timezone|keyboard.console|keyboard.xkb|desktop|wallpaper|shell)
+                current="$(read_anix_option "$action")"
+                [[ -n "$current" ]] || current="$(read_abora_option "$action")"
+                value="$(gui_pick_setting_value "$action" "$current")"
+                [[ -n "$value" ]] || continue
+                gui_capture "ANIX Set ${action}" do_set "$action" "$value"
                 ;;
-            11) do_docs ;;
-            0|"") return 0 ;;
-            *) abora_warn "Choose a menu number." ;;
+            back|"") return 0 ;;
         esac
-        printf '\nPress Enter to return to ANIX menu.'
-        read -r _ || true
     done
 }
 
-do_gui() {
-    local action profile key value
-
-    if ! gui_available; then
-        do_gui_terminal
-        return
-    fi
+gui_features_menu() {
+    local action feature state wanted
 
     while true; do
-        action="$(zenity --list --width=620 --height=470 \
-            --title="ANIX v${anix_version}" \
-            --text="Choose an ANIX action" \
-            --column="Action" --column="What it does" \
-            "status" "Show config, flake, generation, and snapshot state" \
-            "quickstart" "Create ANIX config and prepare snapshots" \
-            "doctor" "Check the ANIX/NixOS management layer" \
-            "doctor --fix" "Create missing safe basics" \
-            "profiles" "List flake profiles" \
+        action="$(gui_pick_feature_action)"
+        case "$action" in
+            back|"") return 0 ;;
+            *)
+                feature="${action%%:*}"
+                state="${action##*:}"
+                wanted="true"
+                [[ "$state" == "off" ]] && wanted="false"
+                gui_capture "ANIX Feature ${feature}" do_toggle "$wanted" "$feature"
+                ;;
+        esac
+    done
+}
+
+gui_profiles_menu() {
+    local action profile target
+
+    while true; do
+        action="$(gui_choose_action "ANIX Profiles" "Inspect, validate, or switch profiles." \
+            "profiles" "List detected flake profiles" \
             "generations" "Show recent system generations" \
-            "show" "Show current ANIX settings" \
-            "set" "Set hostname/timezone/keyboard/desktop/wallpaper" \
-            "diff" "Dry-build and compare a profile" \
-            "test" "Test-activate a profile" \
-            "boot" "Prepare a profile for next boot" \
-            "switch" "Switch to a profile after confirmation" \
-            "docs" "Show local docs paths" \
-            "exit" "Close ANIX GUI" \
-            2>/dev/null || true)"
+            "diff" "Dry-build a profile and compare package changes" \
+            "build" "Build a profile without switching to it" \
+            "test" "Test-activate a profile for this boot" \
+            "boot" "Set a profile for next boot" \
+            "switch" "Switch to a profile now" \
+            "rollback" "Rollback to the previous generation" \
+            "back" "Return to the main menu")"
 
         case "$action" in
-            status) gui_capture "ANIX Status" do_status ;;
-            quickstart) gui_capture "ANIX Quickstart" do_quickstart ;;
-            doctor) gui_capture "ANIX Doctor" do_doctor ;;
-            "doctor --fix") gui_capture "ANIX Doctor Repair" do_doctor --fix ;;
             profiles) gui_capture "ANIX Profiles" do_profiles ;;
             generations) gui_capture "ANIX Generations" do_generations ;;
-            show) gui_capture "ANIX Settings" show_config ;;
-            set)
-                key="$(zenity --list --width=360 --height=320 --title="ANIX Setting" \
-                    --column="Key" hostname timezone keyboard keyboard.xkb desktop wallpaper 2>/dev/null || true)"
-                [[ -n "$key" ]] || continue
-                value="$(zenity --entry --width=420 --title="Set ${key}" --text="New value for ${key}" 2>/dev/null || true)"
-                [[ -n "$value" ]] || continue
-                gui_capture "ANIX Set ${key}" do_set "$key" "$value"
-                ;;
             diff)
                 profile="$(gui_pick_profile)"
                 gui_capture "ANIX Diff ${profile}" do_diff nix "$profile"
+                ;;
+            build)
+                profile="$(gui_pick_profile)"
+                target="$(profile_target nix "$profile")"
+                gui_capture "ANIX Build ${profile}" do_build_profile nix "$profile" "$target"
                 ;;
             test)
                 profile="$(gui_pick_profile)"
@@ -1274,12 +1386,434 @@ do_gui() {
                 ;;
             switch)
                 profile="$(gui_pick_profile)"
-                if zenity --question --width=460 --title="Switch profile" \
-                    --text="Switch to profile '${profile}' now?\n\nThis runs nixos-rebuild switch." 2>/dev/null; then
+                if gui_confirm_action "Switch profile" "Switch to profile '${profile}' now?\n\nThis runs nixos-rebuild switch."; then
                     gui_capture "ANIX Switch ${profile}" do_switch nix "$profile" --now
                 fi
                 ;;
+            rollback)
+                if gui_confirm_action "Rollback generation" "Rollback to the previous generation now?"; then
+                    gui_capture "ANIX Rollback" do_rollback --now
+                fi
+                ;;
+            back|"") return 0 ;;
+        esac
+    done
+}
+
+gui_snapshots_menu() {
+    local action current next
+
+    while true; do
+        current="$(anix_config_get "snapshots.push" "false")"
+        action="$(gui_choose_action "ANIX Snapshots" "Manage local config history and push behavior." \
+            "status" "Show ANIX status with snapshot state" \
+            "save" "Create a local config snapshot now" \
+            "push" "Toggle snapshots.push (currently ${current})" \
+            "config" "Show ANIX tool config" \
+            "back" "Return to the main menu")"
+
+        case "$action" in
+            status) gui_capture "ANIX Status" do_status ;;
+            save)
+                local message=""
+                message="$(gui_prompt_text "Save Snapshot" "Commit message for this local snapshot" "anix: local config snapshot")"
+                [[ -n "$message" ]] || continue
+                gui_capture "ANIX Snapshot" do_save "$message"
+                ;;
+            push)
+                next="true"
+                if is_yes "$current"; then
+                    next="false"
+                fi
+                gui_capture "ANIX Config" do_tool_config set snapshots.push "$next"
+                ;;
+            config) gui_capture "ANIX Config" do_tool_config show ;;
+            back|"") return 0 ;;
+        esac
+    done
+}
+
+gui_packages_menu() {
+    local action pkg
+
+    while true; do
+        action="$(gui_choose_action "ANIX Packages" "Manage TinyPM bootstrap and simple package edits." \
+            "tinypm-status" "Show TinyPM status" \
+            "tinypm-install" "Install or repair TinyPM for this user" \
+            "package-add" "Add a package to anix.packages" \
+            "package-remove" "Remove a package from anix.packages" \
+            "back" "Return to the main menu")"
+
+        case "$action" in
+            tinypm-status) gui_capture "TinyPM Status" do_tinypm status ;;
+            tinypm-install) gui_capture "TinyPM Install" do_tinypm install ;;
+            package-add)
+                pkg="$(gui_prompt_text "Add Package" "Package name to add to anix.packages")"
+                [[ -n "$pkg" ]] || continue
+                gui_capture "ANIX Package Add" do_package add "$pkg"
+                ;;
+            package-remove)
+                pkg="$(gui_prompt_text "Remove Package" "Package name to remove from anix.packages")"
+                [[ -n "$pkg" ]] || continue
+                gui_capture "ANIX Package Remove" do_package remove "$pkg"
+                ;;
+            back|"") return 0 ;;
+        esac
+    done
+}
+
+gui_maintenance_menu() {
+    local action
+
+    while true; do
+        action="$(gui_choose_action "ANIX Maintenance" "Run larger system checks and apply changes." \
+            "quickstart" "Create ANIX config and prepare snapshot history" \
+            "doctor" "Check the ANIX and NixOS management layer" \
+            "doctor-fix" "Create missing safe basics automatically" \
+            "apply" "Rebuild and switch using the ANIX layer" \
+            "docs" "Show local docs paths" \
+            "back" "Return to the main menu")"
+
+        case "$action" in
+            quickstart) gui_capture "ANIX Quickstart" do_quickstart ;;
+            doctor) gui_capture "ANIX Doctor" do_doctor ;;
+            doctor-fix) gui_capture "ANIX Doctor Repair" do_doctor --fix ;;
+            apply)
+                if gui_confirm_action "Apply ANIX config" "Apply the current ANIX config now?\n\nThis runs nixos-rebuild switch."; then
+                    gui_capture "ANIX Apply" do_apply
+                fi
+                ;;
             docs) gui_capture "ANIX Docs" do_docs ;;
+            back|"") return 0 ;;
+        esac
+    done
+}
+
+terminal_prompt_setting_key() {
+    printf '\nSettings\n'
+    printf '  1  Show current config\n'
+    printf '  2  Hostname\n'
+    printf '  3  Timezone\n'
+    printf '  4  Console keyboard\n'
+    printf '  5  Desktop keyboard\n'
+    printf '  6  Desktop\n'
+    printf '  7  Wallpaper\n'
+    printf '  8  Shell\n'
+    printf '  0  Back\n\n'
+    printf '  Select: '
+}
+
+terminal_prompt_feature_action() {
+    printf '\nFeatures\n'
+    printf '  1  Allow unfree\n'
+    printf '  2  Experimental Nix / flakes\n'
+    printf '  3  Bluetooth\n'
+    printf '  4  Printing\n'
+    printf '  5  Flatpak\n'
+    printf '  6  Audio\n'
+    printf '  7  OpenSSH\n'
+    printf '  8  Thermald\n'
+    printf '  9  TLP\n'
+    printf '  10 TinyPM bootstrap\n'
+    printf '  11 Garbage collect\n'
+    printf '  0  Back\n\n'
+    printf '  Select: '
+}
+
+terminal_prompt_feature_state() {
+    printf '  State [on/off]: '
+}
+
+terminal_settings_menu() {
+    local choice key current value
+
+    while true; do
+        abora_banner "ANIX Settings" "Change common ANIX values."
+        terminal_prompt_setting_key
+        read -r choice || choice="0"
+        case "$choice" in
+            1) show_config ;;
+            2) key="hostname" ;;
+            3) key="timezone" ;;
+            4) key="keyboard.console" ;;
+            5) key="keyboard.xkb" ;;
+            6) key="desktop" ;;
+            7) key="wallpaper" ;;
+            8) key="shell" ;;
+            0|"") return 0 ;;
+            *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
+        esac
+
+        if [[ "$choice" == "1" ]]; then
+            printf '\nPress Enter to return to settings.'
+            read -r _ || true
+            continue
+        fi
+
+        current="$(read_anix_option "$key")"
+        [[ -n "$current" ]] || current="$(read_abora_option "$key")"
+        printf '  Current [%s]: ' "${current:-unset}"
+        read -r value || value=""
+        [[ -n "$value" ]] || continue
+        do_set "$key" "$value"
+        printf '\nPress Enter to return to settings.'
+        read -r _ || true
+    done
+}
+
+terminal_features_menu() {
+    local choice feature wanted state
+
+    while true; do
+        abora_banner "ANIX Features" "Toggle ANIX feature flags."
+        terminal_prompt_feature_action
+        read -r choice || choice="0"
+        case "$choice" in
+            1) feature="allowUnfree" ;;
+            2) feature="experimentalNix" ;;
+            3) feature="bluetooth" ;;
+            4) feature="printing" ;;
+            5) feature="flatpak" ;;
+            6) feature="audio" ;;
+            7) feature="openssh" ;;
+            8) feature="thermald" ;;
+            9) feature="tlp" ;;
+            10) feature="tinypm" ;;
+            11) feature="garbageCollect" ;;
+            0|"") return 0 ;;
+            *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
+        esac
+
+        terminal_prompt_feature_state
+        read -r state || state=""
+        case "$state" in
+            on|enable|enabled|true|yes|y) wanted="true" ;;
+            off|disable|disabled|false|no|n) wanted="false" ;;
+            *) abora_warn "Type on or off."; printf '\n'; continue ;;
+        esac
+        do_toggle "$wanted" "$feature"
+        printf '\nPress Enter to return to features.'
+        read -r _ || true
+    done
+}
+
+terminal_profiles_menu() {
+    local choice profile
+
+    while true; do
+        abora_banner "ANIX Profiles" "Inspect, build, and switch profiles."
+        printf '  1  List profiles\n'
+        printf '  2  Show generations\n'
+        printf '  3  Diff profile\n'
+        printf '  4  Build profile\n'
+        printf '  5  Test profile\n'
+        printf '  6  Boot profile\n'
+        printf '  7  Switch profile\n'
+        printf '  8  Rollback previous generation\n'
+        printf '  0  Back\n\n'
+        printf '  Select: '
+        read -r choice || choice="0"
+        case "$choice" in
+            1) do_profiles ;;
+            2) do_generations ;;
+            3) profile="$(gui_pick_profile)"; do_diff nix "$profile" ;;
+            4) profile="$(gui_pick_profile)"; do_build_profile nix "$profile" ;;
+            5) profile="$(gui_pick_profile)"; do_test nix "$profile" ;;
+            6) profile="$(gui_pick_profile)"; do_boot nix "$profile" ;;
+            7) profile="$(gui_pick_profile)"; do_switch nix "$profile" ;;
+            8) do_rollback ;;
+            0|"") return 0 ;;
+            *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
+        esac
+        printf '\nPress Enter to return to profiles.'
+        read -r _ || true
+    done
+}
+
+terminal_snapshots_menu() {
+    local choice message current
+
+    while true; do
+        current="$(anix_config_get "snapshots.push" "false")"
+        abora_banner "ANIX Snapshots" "Manage local config history."
+        printf '  1  Status\n'
+        printf '  2  Save snapshot\n'
+        printf '  3  Toggle snapshots.push (current: %s)\n' "$current"
+        printf '  4  Show ANIX tool config\n'
+        printf '  0  Back\n\n'
+        printf '  Select: '
+        read -r choice || choice="0"
+        case "$choice" in
+            1) do_status ;;
+            2)
+                printf '  Message [anix: local config snapshot]: '
+                read -r message || message=""
+                do_save "${message:-anix: local config snapshot}"
+                ;;
+            3)
+                if is_yes "$current"; then
+                    do_tool_config set snapshots.push false
+                else
+                    do_tool_config set snapshots.push true
+                fi
+                ;;
+            4) do_tool_config show ;;
+            0|"") return 0 ;;
+            *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
+        esac
+        printf '\nPress Enter to return to snapshots.'
+        read -r _ || true
+    done
+}
+
+terminal_packages_menu() {
+    local choice pkg
+
+    while true; do
+        abora_banner "ANIX Packages" "Manage TinyPM and anix.packages."
+        printf '  1  TinyPM status\n'
+        printf '  2  Install TinyPM\n'
+        printf '  3  Add package\n'
+        printf '  4  Remove package\n'
+        printf '  0  Back\n\n'
+        printf '  Select: '
+        read -r choice || choice="0"
+        case "$choice" in
+            1) do_tinypm status ;;
+            2) do_tinypm install ;;
+            3)
+                printf '  Package to add: '
+                read -r pkg || pkg=""
+                [[ -n "$pkg" ]] && do_package add "$pkg"
+                ;;
+            4)
+                printf '  Package to remove: '
+                read -r pkg || pkg=""
+                [[ -n "$pkg" ]] && do_package remove "$pkg"
+                ;;
+            0|"") return 0 ;;
+            *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
+        esac
+        printf '\nPress Enter to return to packages.'
+        read -r _ || true
+    done
+}
+
+terminal_maintenance_menu() {
+    local choice
+
+    while true; do
+        abora_banner "ANIX Maintenance" "Prepare, repair, and apply the ANIX layer."
+        printf '  1  Quickstart\n'
+        printf '  2  Doctor\n'
+        printf '  3  Doctor repair\n'
+        printf '  4  Apply\n'
+        printf '  5  Docs\n'
+        printf '  0  Back\n\n'
+        printf '  Select: '
+        read -r choice || choice="0"
+        case "$choice" in
+            1) do_quickstart ;;
+            2) do_doctor ;;
+            3) do_doctor --fix ;;
+            4) do_apply ;;
+            5) do_docs ;;
+            0|"") return 0 ;;
+            *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
+        esac
+        printf '\nPress Enter to return to maintenance.'
+        read -r _ || true
+    done
+}
+
+terminal_docs_menu() {
+    local choice
+
+    while true; do
+        abora_banner "ANIX Docs" "Open local documentation in terminal mode."
+        printf '  1  ANIX guide\n'
+        printf '  2  TinyPM guide\n'
+        printf '  3  Abora tools guide\n'
+        printf '  4  Recovery guide\n'
+        printf '  0  Back\n\n'
+        printf '  Select: '
+        read -r choice || choice="0"
+        case "$choice" in
+            1) gui_show_doc "/etc/abora/docs/wiki/ANIX-V1.md" ;;
+            2) gui_show_doc "/etc/abora/docs/wiki/TinyPM-V4.md" ;;
+            3) gui_show_doc "/etc/abora/docs/wiki/Abora-Tools.md" ;;
+            4) gui_show_doc "/etc/abora/docs/wiki/Recovery.md" ;;
+            0|"") return 0 ;;
+            *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
+        esac
+        printf '\nPress Enter to return to docs.'
+        read -r _ || true
+    done
+}
+
+do_gui_terminal() {
+    local choice
+
+    while true; do
+        abora_banner "ANIX Control Center" "Graphical toolkit unavailable; using grouped terminal mode."
+        printf '  1  Overview\n'
+        printf '  2  Settings\n'
+        printf '  3  Features\n'
+        printf '  4  Profiles\n'
+        printf '  5  Snapshots\n'
+        printf '  6  Packages\n'
+        printf '  7  Maintenance\n'
+        printf '  8  Docs\n'
+        printf '  0  Exit\n\n'
+        printf '  Select: '
+        read -r choice || choice="0"
+        case "$choice" in
+            1) do_status; printf '\nPress Enter to return to overview.'; read -r _ || true ;;
+            2) terminal_settings_menu ;;
+            3) terminal_features_menu ;;
+            4) terminal_profiles_menu ;;
+            5) terminal_snapshots_menu ;;
+            6) terminal_packages_menu ;;
+            7) terminal_maintenance_menu ;;
+            8) terminal_docs_menu ;;
+            0|"") return 0 ;;
+            *) abora_warn "Choose a menu number." ;;
+        esac
+    done
+}
+
+do_gui() {
+    local action doc
+
+    if ! gui_available; then
+        do_gui_terminal
+        return
+    fi
+
+    while true; do
+        action="$(gui_choose_action "ANIX v${anix_version}" "Choose an ANIX workspace." \
+            "overview" "Show status, config, flake, and snapshot state" \
+            "settings" "Change hostname, timezone, desktop, wallpaper, shell, and more" \
+            "features" "Toggle Bluetooth, Flatpak, TinyPM, GC, and other feature flags" \
+            "profiles" "Inspect, build, test, boot, switch, or rollback profiles" \
+            "snapshots" "Save local config snapshots and control push behavior" \
+            "packages" "Install TinyPM and edit anix.packages" \
+            "maintenance" "Run quickstart, doctor, repair, and apply flows" \
+            "docs" "Read local ANIX and Abora documentation" \
+            "exit" "Close ANIX GUI")"
+
+        case "$action" in
+            overview) gui_capture "ANIX Status" do_status ;;
+            settings) gui_settings_menu ;;
+            features) gui_features_menu ;;
+            profiles) gui_profiles_menu ;;
+            snapshots) gui_snapshots_menu ;;
+            packages) gui_packages_menu ;;
+            maintenance) gui_maintenance_menu ;;
+            docs)
+                doc="$(gui_pick_doc_file)"
+                gui_show_doc "$doc"
+                ;;
             exit|"") return 0 ;;
         esac
     done
@@ -1359,6 +1893,19 @@ do_diff() {
     run_rebuild dry-build "$target"
     printf '\n'
     show_package_changes "$target"
+    printf '\n'
+}
+
+do_build_profile() {
+    local family="${1:-nix}"
+    local profile="${2:-$flake_config_name}"
+    local target="${3:-}"
+
+    [[ -n "$target" ]] || target="$(profile_target "$family" "$profile")"
+    abora_banner "ANIX Build" "${family}/${profile}"
+    run_rebuild build "$target"
+    printf '\n'
+    abora_success "Build finished for ${profile}."
     printf '\n'
 }
 

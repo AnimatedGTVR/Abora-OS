@@ -242,7 +242,7 @@ printf '%s\n' \
   '    };' \
   '  };' \
   '}' > "$tmp_anix_switch_dir/flake.nix"
-git -C "$tmp_anix_switch_dir" init >/dev/null
+git -C "$tmp_anix_switch_dir" -c init.defaultBranch=main init >/dev/null
 git -C "$tmp_anix_switch_dir" -c user.name=ANIX -c user.email=anix@localhost add -A
 git -C "$tmp_anix_switch_dir" -c user.name=ANIX -c user.email=anix@localhost commit -m "initial" >/dev/null
 printf '%s\n' \
