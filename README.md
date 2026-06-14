@@ -60,6 +60,34 @@ Abora is not trying to replace NixOS or hide how it works. The goal is simpler: 
 
 ---
 
+## Demos And Releases
+
+Abora has two ways to follow the project:
+
+| Track | What it is | Best for | Where to look |
+|---|---|---|---|
+| `Demos` | Preview work, UI overhauls, experimental polish, and things like `ANIX 1.0.5 DEMO` | People who want to watch Abora evolve in public | [Roadmap](docs/roadmap.md), [Wiki](docs/wiki/Home.md), [main branch](https://github.com/AnimatedGTVR/abora-os/tree/main) |
+| `Releases` | Tagged builds with ISO assets, checksums, release notes, and the stable Abora line | People who want the cleanest install path | [Latest release](https://github.com/AnimatedGTVR/abora-os/releases/latest), [Release notes](RELEASE_NOTES.md), [Security](SECURITY.md) |
+
+### Current Showcase
+
+- `DENALI 3.1.4` is the current Abora release line.
+- `ANIX 1.0.5 DEMO` is the current demo-branded ANIX experience inside the tooling layer.
+- `make iso` is the fast path for trying the latest local build.
+- `make release` is the full path for generating a proper release bundle.
+
+### Release Bundle
+
+Every full release is meant to feel complete, not just bootable:
+
+- ISO image for install testing and real hardware installs
+- TinyPM package bundle
+- Release notes
+- Checksums
+- Release manifest
+
+---
+
 ## What Abora Changes
 
 NixOS is strong, but the first steps can be rough if you are not already used to flakes, rebuilds, generations, and config files.
