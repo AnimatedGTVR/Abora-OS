@@ -329,13 +329,13 @@ in
     vendorName = "Abora OS";
     label = version;
     variant_id = lib.mkDefault "system";
-    variantName = lib.mkDefault "Abora OS 3.0 (Denali)";
+    variantName = lib.mkDefault "Abora OS DENALI 3.1.4";
     extraOSReleaseArgs = {
       LOGO = "abora";
-      VERSION = "3.0 (Denali)";
-      VERSION_ID = "3.0";
+      VERSION = "DENALI 3.1.4";
+      VERSION_ID = "3.1.4";
       VERSION_CODENAME = "denali";
-      PRETTY_NAME = "Abora OS 3.0 (Denali)";
+      PRETTY_NAME = "Abora OS DENALI 3.1.4";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
       BUG_REPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
@@ -352,6 +352,7 @@ in
         then ./pkgs/mango.nix
         else ../../nix/pkgs/mango.nix
       ) {};
+    } // lib.optionalAttrs (builtins.pathExists ../../vendor/modularity) {
       modularity = final.callPackage (
         if builtins.pathExists ./pkgs/modularity.nix
         then ./pkgs/modularity.nix
@@ -669,6 +670,8 @@ in
         source = desktopProfilesScript;
         mode = "0755";
       };
+      "abora/pkgs/mango.nix".source = ../../nix/pkgs/mango.nix;
+      "abora/pkgs/modularity.nix".source = ../../nix/pkgs/modularity.nix;
       "abora/tinypm".source = tinypmDir;
       # The generated /etc/nixos/flake.nix pins its nixpkgs input to
       # "path:/etc/abora/nixpkgs". Expose the build-time nixpkgs source here so
@@ -697,7 +700,7 @@ in
         mode = "0755";
       };
       "motd".text = ''
-        Abora OS ${version} — Denali
+        Abora OS DENALI ${version}
 
           grab <app>          install an app  (flatpak, nix, or snap)
           search <app>        find apps across all sources
@@ -840,10 +843,10 @@ in
         Opacity=0.84
       '';
       "issue".text = ''
-        Abora OS 3.0 (Denali)
+        Abora OS DENALI 3.1.4
       '';
       "issue.net".text = ''
-        Abora OS 3.0 (Denali)
+        Abora OS DENALI 3.1.4
       '';
     }
     // builtins.listToAttrs (

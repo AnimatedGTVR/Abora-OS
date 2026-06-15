@@ -17,7 +17,9 @@ stdenv.mkDerivation rec {
 
   # Prebuilt binary vendored locally.
   # Run `make setup-modularity ZIP=/path/to/Modularity-1.0.0-Linux.zip` to populate.
-  src = ../../vendor/modularity;
+  src = if builtins.pathExists ../../vendor/modularity
+        then ../../vendor/modularity
+        else builtins.throw "vendor/modularity is not populated. Run: make setup-modularity ZIP=/path/to/Modularity-1.0.0-Linux.zip";
 
   nativeBuildInputs = [ autoPatchelfHook makeWrapper ];
 
