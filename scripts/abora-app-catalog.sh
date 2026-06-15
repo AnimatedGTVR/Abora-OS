@@ -42,7 +42,7 @@ lazygit|Lazygit|lazygit|Developer|Terminal UI for git commands|no
 docker|Docker|docker|Developer|Container engine for building and running apps|no
 filezilla|FileZilla|filezilla|Developer|FTP and SFTP file transfer client|no
 remmina|Remmina|remmina|Developer|Remote desktop client for RDP, VNC, and SSH|no
-modularity|Modularity|modularity|Developer|Game engine editor for 2D and 3D projects|no
+modularity|Modularity|modularity|Extras|Game engine editor for 2D and 3D projects (requires vendor setup)|no
 steam|Steam|steam|Gaming|Valve's game store and launcher for Linux|yes
 lutris|Lutris|lutris|Gaming|Game manager for native, Wine, and emulated titles|yes
 heroic|Heroic Games Launcher|heroic|Gaming|Epic Games and GOG launcher for Linux|yes
