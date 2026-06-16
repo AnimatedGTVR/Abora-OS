@@ -1,8 +1,8 @@
-# Abora OS DENALI 3.1.4
+# Abora OS DENALI 3.14
 
-**DENALI 3.1.4 is the release where Abora becomes a real operating system.**
+**DENALI 3.14 is the release where Abora becomes a real operating system.**
 
-DENALI 3.1.4 ships a rebuilt installer, a full OS identity, 21 desktop environments, ANIX v1, TinyPM v4, and Modularity — all on top of the NixOS foundation that v2 laid down. If you have been waiting for the right time to try Abora, this is it.
+DENALI 3.14 ships a rebuilt installer, a full OS identity, 21 desktop environments, ANIX v1, TinyPM v4, and Modularity — all on top of the NixOS foundation that v2 laid down. If you have been waiting for the right time to try Abora, this is it.
 
 ---
 
@@ -48,11 +48,11 @@ Choose your desktop at install time from the full supported matrix:
 | IceWM | Floating WM |
 | No desktop | Console-only |
 
-COSMIC Desktop is new in DENALI 3.1.4, using its own COSMIC Greeter display manager. All 21 profiles are evaluated in CI before every release via `make check-desktops`.
+COSMIC Desktop is new in DENALI 3.14, using its own COSMIC Greeter display manager. All 21 profiles are evaluated in CI before every release via `make check-desktops`.
 
 ### Abora Branding
 
-The installed system now identifies itself as **Abora OS DENALI 3.1.4** everywhere — OS release metadata, issue reporter URLs, installer copy, and first-run surfaces.
+The installed system now identifies itself as **Abora OS DENALI 3.14** everywhere — OS release metadata, issue reporter URLs, installer copy, and first-run surfaces.
 
 The Abora visual identity is applied across the full session:
 
@@ -102,7 +102,7 @@ tinypm abora doctor      # forward to Abora
 
 Select a starter bundle at install time: **Fan Favorites**, **Essentials**, **Social**, **Creator**, **Developer**, or **Gaming**. Every bundle is opt-in — you can also skip all of them.
 
-New in DENALI 3.1.4: **Modularity** is included in the Developer bundle — a game engine editor by Tareno Labs with PhysX, Vulkan, and Mono support baked in.
+New in DENALI 3.14: **Modularity** is included in the Developer bundle — a game engine editor by Tareno Labs with PhysX, Vulkan, and Mono support baked in.
 
 ### Hardware and Live Image
 
@@ -144,10 +144,10 @@ sudo nixos rollback
 
 | File | Description |
 |---|---|
-| `abora-2026.05.30-x86_64-3.1.4.iso` | Bootable live ISO |
-| `tinypm-v4.0.0-abora-3.1.4.tar.gz` | TinyPM v4 package |
-| `SHA256SUMS-3.1.4.txt` | Checksums |
-| `RELEASE_MANIFEST-3.1.4.txt` | Full release manifest |
+| `abora-2026.05.30-x86_64-3.14.iso` | Bootable live ISO |
+| `tinypm-v4.0.0-abora-3.14.tar.gz` | TinyPM v4 package |
+| `SHA256SUMS-3.14.txt` | Checksums |
+| `RELEASE_MANIFEST-3.14.txt` | Full release manifest |
 
 ---
 

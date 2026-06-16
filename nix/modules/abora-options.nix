@@ -174,10 +174,10 @@ in
       {
         system.nixos.extraOSReleaseArgs = {
           LOGO = "abora";
-          VERSION = "DENALI 3.1.4";
-          VERSION_ID = "3.1.4";
+          VERSION = "DENALI 3.14";
+          VERSION_ID = "3.14";
           VERSION_CODENAME = "denali";
-          PRETTY_NAME = "Abora OS DENALI 3.1.4";
+          PRETTY_NAME = "Abora OS DENALI 3.14";
           ANSI_COLOR = "0;38;2;80;220;255";
         };
 

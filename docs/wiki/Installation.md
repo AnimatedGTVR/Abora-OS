@@ -1,6 +1,6 @@
 # Installation
 
-This page covers the normal Abora OS install flow for v2.5+ and DENALI 3.1.4.
+This page covers the normal Abora OS install flow for v2.5+ and DENALI 3.14.
 
 ## Build The ISO
 

@@ -18,9 +18,9 @@ Abora is a distro project built on top of NixOS with one main goal: make NixOS e
 
 ## Current Version
 
-**DENALI 3.1.4** is the current stable release.
+**DENALI 3.14** is the current stable release.
 
-- DENALI 3.1.4 shipped the Omarchy-inspired TUI installer, stronger install validation, Abora branding across boot and desktop, ANIX v1, and TinyPM v4.
+- DENALI 3.14 shipped the Omarchy-inspired TUI installer, stronger install validation, Abora branding across boot and desktop, ANIX v1, and TinyPM v4.
 - v2.5 delivered the installer reliability, NetworkManager, desktop matrix, QEMU helpers, and release-command cleanup work that v3 built on.
 
 ## What Abora Adds To NixOS
