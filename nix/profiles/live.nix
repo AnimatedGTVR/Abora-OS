@@ -197,14 +197,14 @@ in
     vendorId = "abora";
     vendorName = "Abora OS";
     variant_id = "live";
-    variantName = "Abora OS DENALI 3.1.4 Live Image";
+    variantName = "Abora OS DENALI 3.14 Live Image";
     label = version;
     extraOSReleaseArgs = {
       LOGO = "abora";
-      VERSION = "DENALI 3.1.4";
-      VERSION_ID = "3.1.4";
+      VERSION = "DENALI 3.14";
+      VERSION_ID = "3.14";
       VERSION_CODENAME = "denali";
-      PRETTY_NAME = "Abora OS DENALI 3.1.4";
+      PRETTY_NAME = "Abora OS DENALI 3.14";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
       BUG_REPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
@@ -421,10 +421,10 @@ in
       "xdg/fastfetch/config.jsonc".source = ../../assets/fastfetch-config.jsonc;
       "xdg/fastfetch/abora-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "issue".text = ''
-        Abora OS DENALI 3.1.4
+        Abora OS DENALI 3.14
       '';
       "issue.net".text = ''
-        Abora OS DENALI 3.1.4
+        Abora OS DENALI 3.14
       '';
       "profile.d/abora-live.sh".text = ''
         if [ -z "$ABORA_LIVE_GREETED" ]; then

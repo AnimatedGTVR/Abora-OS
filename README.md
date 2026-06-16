@@ -42,7 +42,7 @@
 </p>
 
 <p align="center">
-  <img alt="Release" src="https://img.shields.io/badge/3.1.4-DENALI-7cc7ff?style=for-the-badge">
+  <img alt="Release" src="https://img.shields.io/badge/3.14-DENALI-7cc7ff?style=for-the-badge">
   <img alt="Base" src="https://img.shields.io/badge/base-NixOS-5277C3?style=for-the-badge">
   <img alt="Desktop options" src="https://img.shields.io/badge/desktops-21-8bd5ff?style=for-the-badge">
   <img alt="Flatpak" src="https://img.shields.io/badge/Flatpak-ready-4A90D9?style=for-the-badge">
@@ -50,7 +50,7 @@
 
 ---
 
-## Abora OS DENALI 3.1.4
+## Abora OS DENALI 3.14
 
 Abora OS is a NixOS-based distro made for people who want the power of NixOS without fighting the first install.
 
@@ -71,7 +71,7 @@ Abora has two ways to follow the project:
 
 ### Current Showcase
 
-- `DENALI 3.1.4` is the current Abora release line.
+- `DENALI 3.14` is the current Abora release line.
 - `ANIX 1.0.5 DEMO` is the current demo-branded ANIX experience inside the tooling layer.
 - `make iso` is the fast path for trying the latest local build.
 - `make release` is the full path for generating a proper release bundle.
@@ -174,7 +174,7 @@ Abora tries to make that part easier.
 
 ## Desktop Environments
 
-Abora DENALI 3.1.4 ships with **22 desktop environments/window managers**, plus a no-desktop install, selectable at install time:
+Abora DENALI 3.14 ships with **22 desktop environments/window managers**, plus a no-desktop install, selectable at install time:
 
 | Desktop | Type | Display Manager |
 |---|---|---|
@@ -471,11 +471,11 @@ make tinypm-package  # TinyPM package by itself
 make tinypm-image    # TinyPM container image locally
 ```
 
-Publish the DENALI 3.1.4 line:
+Publish the DENALI 3.14 line:
 
 ```sh
-git tag 3.1.4
-git push origin 3.1.4
+git tag 3.14
+git push origin 3.14
 ```
 
 ---

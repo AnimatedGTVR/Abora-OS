@@ -1,10 +1,10 @@
-# Abora OS DENALI 3.1.4 — Overview
+# Abora OS DENALI 3.14 — Overview
 
 This file is an overview of the Abora project covering what each release delivered and where the project stands now.
 
 ## Current Version
 
-**DENALI 3.1.4** — the current stable release.
+**DENALI 3.14** — the current stable release.
 
 Abora OS is built on top of NixOS. The goal is not to hide NixOS; the goal is to make NixOS feel approachable from the first boot onward.
 
@@ -83,9 +83,9 @@ v2.5 focused on making installs reliable.
 - QEMU helpers support fresh install disks, disk-only boot, and serial mode
 - setup launcher assets are copied into both the live ISO and installed config tree
 
-## What DENALI 3.1.4 Delivered
+## What DENALI 3.14 Delivered
 
-DENALI 3.1.4 is the identity, installer, and tooling release.
+DENALI 3.14 is the identity, installer, and tooling release.
 
 - Omarchy-inspired TUI installer with compact boxed fields and live install progress
 - large Abora wordmark in the installer header

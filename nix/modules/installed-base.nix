@@ -329,13 +329,13 @@ in
     vendorName = "Abora OS";
     label = version;
     variant_id = lib.mkDefault "system";
-    variantName = lib.mkDefault "Abora OS DENALI 3.1.4";
+    variantName = lib.mkDefault "Abora OS DENALI 3.14";
     extraOSReleaseArgs = {
       LOGO = "abora";
-      VERSION = "DENALI 3.1.4";
-      VERSION_ID = "3.1.4";
+      VERSION = "DENALI 3.14";
+      VERSION_ID = "3.14";
       VERSION_CODENAME = "denali";
-      PRETTY_NAME = "Abora OS DENALI 3.1.4";
+      PRETTY_NAME = "Abora OS DENALI 3.14";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
       BUG_REPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
@@ -843,10 +843,10 @@ in
         Opacity=0.84
       '';
       "issue".text = ''
-        Abora OS DENALI 3.1.4
+        Abora OS DENALI 3.14
       '';
       "issue.net".text = ''
-        Abora OS DENALI 3.1.4
+        Abora OS DENALI 3.14
       '';
     }
     // builtins.listToAttrs (

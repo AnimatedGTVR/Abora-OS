@@ -30,11 +30,11 @@ The normal release bundle includes:
 
 ## Tagging A Release
 
-For the current DENALI 3.1.4 line:
+For the current DENALI 3.14 line:
 
 ```sh
-git tag 3.1.4
-git push origin 3.1.4
+git tag 3.14
+git push origin 3.14
 ```
 
 That triggers the GitHub release workflow for the tagged version.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Abora OS Installer — DENALI 3.1.4 Edition
+# Abora OS Installer — DENALI 3.14 Edition
 # Compact Omarchy-inspired TUI: large wordmark, boxed choices, simple prompts.
 
 set -uo pipefail
@@ -85,7 +85,7 @@ CC=$'\033[38;5;253m'   # Cloud white  — body text
 _TABS=("Network" "Identity" "Desktop" "Apps" "Options" "Preflight" "Disk" "Confirm")
 
 draw_logo() {
-    printf '  %bABORA OS%b  %bDENALI 3.1.4 Installer%b\n' "${B}${CW}" "$R" "${D}${CG}" "$R"
+    printf '  %bABORA OS%b  %bDENALI 3.14 Installer%b\n' "${B}${CW}" "$R" "${D}${CG}" "$R"
     printf '  %bNixOS base. Abora finish. No drama.%b\n' "${D}${CC}" "$R"
 }
 
@@ -101,7 +101,7 @@ tab_header() {
     printf '\n'
     draw_logo
     printf '\n'
-    printf '  %bA calm, guided install for Abora DENALI 3.1.4.%b\n' "$CC" "$R"
+    printf '  %bA calm, guided install for Abora DENALI 3.14.%b\n' "$CC" "$R"
     printf '  %bStep %d/%d%b  %b%s%b  %bv%s%b\n' "$CW" "$step" "${#_TABS[@]}" "$R" "${B}${CS}" "$step_name" "$R" "$CG" "$version" "$R"
     rule
     printf '  '
@@ -445,11 +445,11 @@ page_welcome() {
     printf '\n'
     draw_logo
     printf '\n'
-    printf '  %bLet'\''s set up your Abora DENALI 3.1.4 install...%b\n' "${D}${CC}" "$R"
+    printf '  %bLet'\''s set up your Abora DENALI 3.14 install...%b\n' "${D}${CC}" "$R"
     printf '  %bSmall choices first. Big rebuild later.%b\n' "${D}${CG}" "$R"
     printf '\n'
     printf '  %b╭────────────────────────────────────────────────────────────╮%b\n' "$CG" "$R"
-    printf '  %b│%b %-58s %b│%b\n' "$CG" "$CS" "Abora DENALI 3.1.4 Installer" "$CG" "$R"
+    printf '  %b│%b %-58s %b│%b\n' "$CG" "$CS" "Abora DENALI 3.14 Installer" "$CG" "$R"
     printf '  %b│%b %-58s %b│%b\n' "$CG" "$CC" "Version ${version}" "$CG" "$R"
     printf '  %b│%b %-58s %b│%b\n' "$CG" "${D}${CG}" "Network, identity, desktop, apps, disk, install." "$CG" "$R"
     printf '  %b╰────────────────────────────────────────────────────────────╯%b\n' "$CG" "$R"
@@ -791,7 +791,7 @@ step_confirm() {
         _print_summary
 
         menu "Ready to install?" \
-            "Install now|Erase ${disk} and install Abora OS DENALI 3.1.4" \
+            "Install now|Erase ${disk} and install Abora OS DENALI 3.14" \
             "Change password|Reset user password before installing" \
             "Cancel|Abort and return to the live shell"
 
@@ -1134,14 +1134,14 @@ NIXEOF
     cat > "${cfgdir}/abora-local.nix" <<EOF
 { pkgs, lib, ... }:
 {
-  system.nixos.variantName = "Abora OS DENALI 3.1.4 ${desktop_label} Edition";
+  system.nixos.variantName = "Abora OS DENALI 3.14 ${desktop_label} Edition";
   system.nixos.variant_id = "${desktop_variant_id}";
   system.nixos.extraOSReleaseArgs = {
     LOGO = "abora";
-    VERSION = "DENALI 3.1.4";
-    VERSION_ID = "3.1.4";
+    VERSION = "DENALI 3.14";
+    VERSION_ID = "3.14";
     VERSION_CODENAME = "denali";
-    PRETTY_NAME = "Abora OS DENALI 3.1.4";
+    PRETTY_NAME = "Abora OS DENALI 3.14";
     ANSI_COLOR = "0;38;2;80;220;255";
   };
 
@@ -1499,7 +1499,7 @@ progress_line() {
 }
 
 draw_install_title() {
-    printf '  %bABORA OS%b  %bDENALI 3.1.4 Installer%b\n' "${B}${CW}" "$R" "${D}${CG}" "$R"
+    printf '  %bABORA OS%b  %bDENALI 3.14 Installer%b\n' "${B}${CW}" "$R" "${D}${CG}" "$R"
     rule
 }
 
@@ -1580,7 +1580,7 @@ draw_install_status() {
     printf '\033[2J\033[H'
     printf '\n'
     draw_install_title
-    printf '  %bInstalling Abora DENALI 3.1.4%b\n' "$CC" "$R"
+    printf '  %bInstalling Abora DENALI 3.14%b\n' "$CC" "$R"
     printf '  %bLog: %s%b\n' "${D}${CG}" "$install_log" "$R"
     printf '\n'
     progress_line "$percent" "$stage"
@@ -1653,7 +1653,7 @@ run_install() {
     printf '\033[2J\033[H'
     printf '\n'
     draw_install_title
-    printf '  %bInstalling Abora DENALI 3.1.4%b\n' "$CC" "$R"
+    printf '  %bInstalling Abora DENALI 3.14%b\n' "$CC" "$R"
     printf '  %bLog: %s%b\n' "${D}${CG}" "$install_log" "$R"
     printf '\n'
 
@@ -1732,7 +1732,7 @@ run_install() {
 page_done() {
     printf '\033[2J\033[H'
     printf '\n'
-    printf '  %b◈  ABORA OS%b  —  DENALI 3.1.4 Edition\n' "${B}${CS}" "$R"
+    printf '  %b◈  ABORA OS%b  —  DENALI 3.14 Edition\n' "${B}${CS}" "$R"
     printf '\n'
     printf '  %b✓%b  Installation complete!\n' "$CP" "$R"
     printf '\n'
