@@ -324,7 +324,7 @@ check_install_environment() {
     local failed=0 cmd path nixpkgs
     local commands_ok=0 assets_ok=0
     local -a commands=(
-        wipefs parted partprobe udevadm mkfs.vfat mkfs.ext4 mount
+        wipefs parted partprobe udevadm mkfs.vfat mkfs.ext4 mount blkid
         nixos-generate-config nixos-install openssl curl
     )
     local -a required_paths=(
@@ -863,6 +863,11 @@ partition_disk() {
     mkfs.ext4 -F -L ABORA_ROOT "$root_part" >>"$install_log" 2>&1 || return 1
     sync || true
     udevadm settle >>"$install_log" 2>&1 || true
+    ensure_root_label "$root_part" || {
+        log_install_step "partition_disk: root label verification failed for ${root_part}"
+        return 1
+    }
+    log_install_step "partition_disk: verified root label ABORA_ROOT on ${root_part}"
     log_install_step "partition_disk: format complete"
 }
 
@@ -1442,9 +1447,58 @@ eject_media() {
     return 0
 }
 
+ensure_root_label() {
+    local device="$1"
+    local current=""
+    local n
+
+    [[ -b "$device" ]] || return 1
+
+    for n in 1 2 3 4 5; do
+        udevadm settle >>"$install_log" 2>&1 || true
+        current="$(blkid -s LABEL -o value "$device" 2>/dev/null | head -n 1 || true)"
+        [[ "$current" == "ABORA_ROOT" ]] && return 0
+
+        if command -v e2label >/dev/null 2>&1; then
+            e2label "$device" ABORA_ROOT >>"$install_log" 2>&1 || true
+        elif command -v tune2fs >/dev/null 2>&1; then
+            tune2fs -L ABORA_ROOT "$device" >>"$install_log" 2>&1 || true
+        fi
+
+        sync || true
+        sleep 1
+    done
+
+    current="$(blkid -s LABEL -o value "$device" 2>/dev/null | head -n 1 || true)"
+    [[ "$current" == "ABORA_ROOT" ]]
+}
+
+live_media_present() {
+    local d real fstype type
+    for d in /dev/sr[0-9]* /dev/cdrom /dev/dvd /dev/disk/by-label/NIXOS_ISO /dev/disk/by-label/ABORA_ISO /dev/disk/by-label/ABORA_OS; do
+        [[ -e "$d" ]] || continue
+        real="$(readlink -f "$d" 2>/dev/null || printf '%s\n' "$d")"
+        type="$(lsblk -dnro TYPE "$real" 2>/dev/null | head -n 1 || true)"
+        fstype="$(lsblk -dnro FSTYPE "$real" 2>/dev/null | head -n 1 || true)"
+        [[ "$real" == /dev/sr* || "$type" == "rom" || "$fstype" == "iso9660" ]] && return 0
+    done
+    return 1
+}
+
 request_reboot() {
     local virt=""
     virt="$(systemd-detect-virt 2>/dev/null || true)"
+    if live_media_present; then
+        printf '\n  %bLive install media is still attached.%b\n' "$CY" "$R"
+        printf '  %bPowering off instead so Abora does not fall back into the live ISO again.%b\n' "$CI" "$R"
+        if [[ "$virt" == "qemu" || "$virt" == "kvm" ]]; then
+            printf '  On the host, run %bmake qemu-disk%b to boot the installed system.\n' "${B}${CW}" "$R"
+        else
+            printf '  Remove the USB/DVD, then boot from the installed disk.\n'
+        fi
+        request_poweroff
+        return
+    fi
     if [[ "$virt" == "qemu" || "$virt" == "kvm" ]]; then
         printf '\n  %bQEMU/KVM detected: powering off instead of rebooting into the ISO again.%b\n' "$CI" "$R"
         printf '  On the host, run %bmake qemu-disk%b to boot the installed system.\n' "${B}${CW}" "$R"
@@ -1772,6 +1826,10 @@ page_done() {
             printf '  %bPress Enter when the ISO is detached (auto-continues in 30 s)…%b ' "$CW" "$R"
             read -rt 30 _ </dev/tty 2>/dev/null || true
             printf '\n'
+            if live_media_present; then
+                printf '  %bLive media still appears attached.%b\n' "$CY" "$R"
+                printf '  %bFalling back to poweroff so the installer does not loop again.%b\n' "$CI" "$R"
+            fi
             request_reboot
             ;;
         2)
