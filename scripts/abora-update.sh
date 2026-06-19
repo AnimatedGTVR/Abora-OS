@@ -58,7 +58,7 @@ resolve_channel_ref() {
 
     case "$channel" in
         stable)
-            abora_info "Resolving latest stable release tag..."
+            abora_info "Resolving latest stable release tag..." >&2
             latest_tag="$(
                 git ls-remote --tags "$repo_git_url" 'refs/tags/v*' 2>/dev/null \
                     | grep -v '\^{}' \
@@ -71,7 +71,7 @@ resolve_channel_ref() {
             if [[ -n "$latest_tag" ]]; then
                 printf '%s' "$latest_tag"
             else
-                abora_warn "Could not resolve a stable tag — falling back to main."
+                abora_warn "Could not resolve a stable tag — falling back to main." >&2
                 printf 'main'
             fi
             ;;
@@ -79,7 +79,7 @@ resolve_channel_ref() {
             printf 'main'
             ;;
         *)
-            abora_warn "Unknown channel '${channel}' — using main."
+            abora_warn "Unknown channel '${channel}' — using main." >&2
             printf 'main'
             ;;
     esac
