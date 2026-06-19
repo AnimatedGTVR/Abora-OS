@@ -1,4 +1,4 @@
-.PHONY: help iso iso-local qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qmec qemc check check-desktops preflight metadata release tinypm-package tinypm-image
+.PHONY: help iso iso-local qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc check check-desktops preflight metadata release tinypm-package tinypm-image
 
 help:
 	@echo "Usage: make <target>"
@@ -13,6 +13,8 @@ help:
 	@echo "  qemu-disk        - Boot the installed QEMU hard drive without the ISO"
 	@echo "  qemu-serial      - Boot in headless mode — all output in this terminal"
 	@echo "  qemu-fresh-serial- Fresh disk + headless mode"
+	@echo "  qemu-debug       - Graphical QEMU plus live serial output in this terminal"
+	@echo "  qemu-fresh-debug - Fresh disk + graphical QEMU + terminal serial output"
 	@echo "  qmec / qemc      - Aliases for qemu"
 	@echo "  check            - Run repository script checks"
 	@echo "  check-desktops   - Evaluate every supported desktop profile"
@@ -46,6 +48,12 @@ qemu-serial:
 
 qemu-fresh-serial:
 	ABORA_QEMU_FRESH=1 ABORA_QEMU_NOGRAPHIC=1 ./scripts/run-qemu.sh
+
+qemu-debug:
+	ABORA_QEMU_SERIAL_STDIO=1 ./scripts/run-qemu.sh
+
+qemu-fresh-debug:
+	ABORA_QEMU_FRESH=1 ABORA_QEMU_SERIAL_STDIO=1 ./scripts/run-qemu.sh
 
 qmec: qemu
 
