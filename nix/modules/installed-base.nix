@@ -148,6 +148,11 @@ let
       ./desktop-profiles.sh
     else
       ../../scripts/abora-desktop-profiles.sh;
+  mangoConfigFile =
+    if builtins.pathExists ./mango/config.conf then
+      ./mango/config.conf
+    else
+      ../../assets/mango/config.conf;
   installerScript =
     if builtins.pathExists ./installer.sh then
       ./installer.sh
@@ -670,6 +675,7 @@ in
         source = desktopProfilesScript;
         mode = "0755";
       };
+      "abora/mango/config.conf".source = mangoConfigFile;
       "abora/pkgs/mango.nix".source = ../../nix/pkgs/mango.nix;
       "abora/pkgs/modularity.nix".source = ../../nix/pkgs/modularity.nix;
       "abora/tinypm".source = tinypmDir;

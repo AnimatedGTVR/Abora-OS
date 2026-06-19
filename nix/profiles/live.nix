@@ -407,6 +407,7 @@ in
         source = ../../scripts/abora-desktop-profiles.sh;
         mode = "0755";
       };
+      "abora/mango/config.conf".source = ../../assets/mango/config.conf;
       "abora/support-report.sh" = {
         source = ../../scripts/abora-support-report.sh;
         mode = "0755";

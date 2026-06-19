@@ -345,6 +345,7 @@ check_install_environment() {
         /etc/abora/fastfetch-logo.txt
         /etc/abora/fastfetch-config.jsonc
         /etc/abora/desktop-profiles.sh
+        /etc/abora/mango/config.conf
         /etc/abora/pkgs/mango.nix
         /etc/abora/pkgs/modularity.nix
         /etc/abora/installed-base.nix
@@ -989,6 +990,7 @@ write_branding_assets() {
     mkdir -p "${root}/etc/nix/pkgs"
     mkdir -p "${root}/etc/nixos/abora/plymouth" \
              "${root}/etc/nixos/abora/bootloader" \
+             "${root}/etc/nixos/abora/mango" \
              "${root}/etc/nixos/abora/pkgs" \
              "${root}/etc/nixos/abora/wallpapers" \
              "${root}/etc/nixos/abora/themes" \
@@ -1007,6 +1009,7 @@ write_branding_assets() {
         cp /etc/abora/Abora-LOGO.png "${root}/etc/nixos/abora/Abora-LOGO.png"
     cp_required /etc/abora/plymouth/abora.plymouth "${root}/etc/nixos/abora/plymouth/abora.plymouth"
     cp_required /etc/abora/plymouth/abora.script   "${root}/etc/nixos/abora/plymouth/abora.script"
+    cp_required /etc/abora/mango/config.conf       "${root}/etc/nixos/abora/mango/config.conf"
     cp_required /etc/abora/pkgs/mango.nix          "${root}/etc/nixos/abora/pkgs/mango.nix"
     cp_required /etc/abora/pkgs/modularity.nix     "${root}/etc/nixos/abora/pkgs/modularity.nix"
     # Compatibility fallback for older copied module paths that still resolve
@@ -1586,7 +1589,7 @@ detect_install_activity() {
     }
 
     if tail -n 24 "$file" 2>/dev/null | grep -Eq '(^|\]| )Compiling |Running phase: (buildPhase|configurePhase)|build flags:|ninja-[0-9]|mesonConfigurePhase|Checking for (function|type|header)|Header ".*" has symbol'; then
-        printf 'Building packages from source; Plasma can take a while in a VM'
+        printf 'Building packages from source; this can take a while in a VM'
     elif tail -n 24 "$file" 2>/dev/null | grep -Eq 'copying path|copying .*from|these [0-9]+ paths will be fetched|downloading|fetching'; then
         printf 'Downloading/copying packages from cache'
     elif tail -n 24 "$file" 2>/dev/null | grep -Eq 'installing the boot loader|setting up /etc|building the system configuration'; then
@@ -1650,7 +1653,7 @@ run_with_log_panel() {
     local percent="$1" stage="$2"
     shift 2
 
-    local warn_after=480 hard_timeout=1800
+    local warn_after=480 hard_timeout=5400 idle_timeout=1800
     local started pid rc now elapsed status last_size current_size last_change idle
     started="$(monotonic_seconds)"
     last_change="$started"
@@ -1681,13 +1684,22 @@ run_with_log_panel() {
             status="${status} after 5 minutes"
         fi
         draw_install_status "$percent" "$stage" "$pid" "$started" "$status"
-        if (( elapsed >= hard_timeout )); then
-            printf '\n  %bInstall command exceeded 30 minutes; stopping it.%b\n' "$CY" "$R"
+        if (( idle >= idle_timeout )); then
+            printf '\n  %bInstall command produced no new log output for 30 minutes; stopping it.%b\n' "$CY" "$R"
             kill "$pid" >/dev/null 2>&1 || true
             sleep 5
             kill -KILL "$pid" >/dev/null 2>&1 || true
             wait "$pid" >/dev/null 2>&1 || true
-            draw_install_status "$percent" "$stage" "$pid" "$started" "Stopped after 30 minute timeout"
+            draw_install_status "$percent" "$stage" "$pid" "$started" "Stopped after 30 minutes of no log output"
+            return 124
+        fi
+        if (( elapsed >= hard_timeout )); then
+            printf '\n  %bInstall command exceeded 90 minutes; stopping it.%b\n' "$CY" "$R"
+            kill "$pid" >/dev/null 2>&1 || true
+            sleep 5
+            kill -KILL "$pid" >/dev/null 2>&1 || true
+            wait "$pid" >/dev/null 2>&1 || true
+            draw_install_status "$percent" "$stage" "$pid" "$started" "Stopped after 90 minute timeout"
             return 124
         fi
         sleep 2

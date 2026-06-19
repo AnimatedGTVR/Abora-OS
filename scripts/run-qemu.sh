@@ -14,6 +14,7 @@ disk_size="${ABORA_QEMU_DISK_SIZE:-32G}"
 boot_mode="${ABORA_QEMU_BOOT:-iso}"
 nographic="${ABORA_QEMU_NOGRAPHIC:-0}"
 fresh="${ABORA_QEMU_FRESH:-0}"
+serial_stdio="${ABORA_QEMU_SERIAL_STDIO:-0}"
 firmware_code=""
 firmware_vars=""
 
@@ -150,8 +151,14 @@ else
         -usb
         -device usb-tablet
     )
-    # Also pipe serial to a log file so boot messages are accessible
-    qemu_args+=( -serial "file:$log_dir/abora-serial.log" )
+    if [[ "$serial_stdio" == "1" ]]; then
+        # Keep the graphical window, but mirror the guest serial stream into
+        # this terminal for installer debugging.
+        qemu_args+=( -serial stdio )
+    else
+        # Also pipe serial to a log file so boot messages are accessible.
+        qemu_args+=( -serial "file:$log_dir/abora-serial.log" )
+    fi
 fi
 
 # Print launch info
@@ -162,8 +169,11 @@ else
     echo "Booting installed Abora disk in QEMU:"
 fi
 echo "  Disk: $disk_path"
-if [[ "$nographic" != "1" ]]; then
+if [[ "$nographic" != "1" && "$serial_stdio" != "1" ]]; then
     echo "  Serial log: $log_dir/abora-serial.log"
+fi
+if [[ "$serial_stdio" == "1" && "$nographic" != "1" ]]; then
+    echo "  Serial: live output mirrored into this terminal"
 fi
 echo "  Close the QEMU window or press Ctrl+C here to stop the VM."
 echo ""

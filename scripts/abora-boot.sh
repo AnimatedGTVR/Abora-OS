@@ -10,6 +10,16 @@ export ABORA_DESKTOP_PROFILES_LIB="${ABORA_DESKTOP_PROFILES_LIB:-/etc/abora/desk
 export ABORA_APP_CATALOG_LIB="${ABORA_APP_CATALOG_LIB:-/etc/abora/app-catalog.sh}"
 export ABORA_NIXPKGS_PATH="${ABORA_NIXPKGS_PATH:-/etc/abora/nixpkgs}"
 
+enable_serial_mirror() {
+    [[ "${ABORA_SERIAL_MIRROR:-1}" == "1" ]] || return 0
+    [[ -w /dev/ttyS0 ]] || return 0
+    [[ -z "${ABORA_SERIAL_MIRROR_ACTIVE:-}" ]] || return 0
+    export ABORA_SERIAL_MIRROR_ACTIVE=1
+    # Mirror live boot and installer output to the first serial device so a
+    # graphical QEMU session can stream the same text into the host terminal.
+    exec > >(tee /dev/ttyS0) 2>&1
+}
+
 force_installer=0
 installer_args=()
 for arg in "$@"; do
@@ -229,6 +239,8 @@ if (( ! force_installer )) && installed_system_present; then
         exec "$BASH_BIN" --login
     fi
 fi
+
+enable_serial_mirror
 
 show_loader
 

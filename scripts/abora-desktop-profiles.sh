@@ -73,6 +73,27 @@ mangowm
 EOF
 }
 
+abora_mangowm_config_text() {
+    local script_dir="" candidate=""
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    for candidate in \
+        "${ABORA_MANGO_CONFIG_FILE:-}" \
+        "/etc/abora/mango/config.conf" \
+        "${script_dir}/../assets/mango/config.conf"; do
+        [[ -n "$candidate" && -f "$candidate" ]] || continue
+        cat "$candidate"
+        return 0
+    done
+
+    cat <<'EOF'
+# Fallback minimal Abora MangoWM config
+bind=Alt,space,spawn,wofi --show drun
+bind=Alt,Return,spawn,foot
+bind=SUPER,space,spawn,wofi --show drun
+bind=SUPER,Return,spawn,foot
+EOF
+}
+
 abora_sync_desktop_label() {
     case "$1" in
         none)
@@ -655,6 +676,9 @@ EOF
     enable = true;
     xkb.layout = "${xkb_layout_value}";
   };
+  environment.etc."mango/config.conf".text = ''
+$(abora_mangowm_config_text)
+  '';
   services.displayManager = {
     defaultSession = "mango";
     autoLogin.enable = true;

@@ -13,6 +13,12 @@ let
       ./wallpapers
     else
       ../../assets/wallpapers/collection;
+  mangoConfigFile =
+    if builtins.pathExists ./mango/config.conf then
+      ./mango/config.conf
+    else
+      ../../assets/mango/config.conf;
+  mangoConfigText = builtins.readFile mangoConfigFile;
   bundledWallpaperNames = [
     "Daytime-MNT.jpg"
     "NightTime-MNT.png"
@@ -586,7 +592,8 @@ in
           enable     = true;
           xkb.layout = cfg.keyboard.xkb;
         };
-        environment.systemPackages = [ pkgs.mango ];
+        environment.systemPackages = with pkgs; [ mango foot waybar wofi ];
+        environment.etc."mango/config.conf".text = mangoConfigText;
         services.displayManager = {
           defaultSession   = "mango";
           autoLogin.enable = true;
