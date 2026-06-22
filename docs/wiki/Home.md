@@ -14,6 +14,7 @@ Abora is a distro project built on top of NixOS with one main goal: make NixOS e
 - [Recovery](Recovery.md)
 - [TinyPM v4](TinyPM-V4.md)
 - [ANIX v1](ANIX-V1.md)
+- [ANIX standalone](ANIX-Standalone.md)
 - [FAQ](FAQ.md)
 
 ## Current Version

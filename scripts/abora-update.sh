@@ -247,7 +247,7 @@ write_flake_file() {
     local target="$1"
     local nix_system="$2"
 
-    cat > "$target" <<EOF
+    cat > "$target" <<'EOF'
 {
   description = "Abora installed system";
 
@@ -258,7 +258,7 @@ write_flake_file() {
   outputs = { nixpkgs, ... }:
     let
       lib = nixpkgs.lib;
-      system = "${nix_system}";
+      system = "__ABORA_NIX_SYSTEM__";
       baseModules =
         let
           appModule = ./abora/apps.nix;
@@ -279,33 +279,38 @@ write_flake_file() {
         ];
       };
     in {
-    nixosConfigurations.${flake_config_name} = mkProfile "Stable" [];
+    nixosConfigurations.__ABORA_FLAKE_CONFIG_NAME__ = mkProfile "Stable" [];
     nixosConfigurations.stable = mkProfile "Stable" [];
     nixosConfigurations.minimal = mkProfile "Minimal" [
       { abora.desktop = lib.mkForce "none"; }
     ];
     nixosConfigurations.gaming = mkProfile "Gaming" [
-      { pkgs, ... }: {
+      ({ pkgs, ... }: {
         abora.desktop = lib.mkForce "gnome";
         environment.systemPackages = with pkgs; [ mangohud prismlauncher lutris ];
         programs.steam.enable = lib.mkDefault true;
-      }
+      })
     ];
     nixosConfigurations.creator = mkProfile "Creator" [
-      { pkgs, ... }: {
+      ({ pkgs, ... }: {
         abora.desktop = lib.mkForce "gnome";
         environment.systemPackages = with pkgs; [ blender gimp inkscape krita obs-studio audacity ];
-      }
+      })
     ];
     nixosConfigurations.developer = mkProfile "Developer" [
-      { pkgs, ... }: {
+      ({ pkgs, ... }: {
         abora.desktop = lib.mkForce "gnome";
         environment.systemPackages = with pkgs; [ git gh vscode direnv nixfmt-rfc-style shellcheck ];
-      }
+      })
     ];
   };
 }
 EOF
+
+    sed -i \
+        -e "s|__ABORA_NIX_SYSTEM__|${nix_system}|g" \
+        -e "s|__ABORA_FLAKE_CONFIG_NAME__|${flake_config_name}|g" \
+        "$target"
 }
 
 write_local_module() {

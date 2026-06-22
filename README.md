@@ -468,7 +468,21 @@ Other release targets:
 ```sh
 make metadata        # refresh release metadata only
 make tinypm-package  # TinyPM package by itself
+make anix-package    # ANIX standalone package by itself
 make tinypm-image    # TinyPM container image locally
+```
+
+Standalone ANIX for plain NixOS systems:
+
+```sh
+nix profile install github:AnimatedGTVR/abora-os#anix
+```
+
+To use the ANIX NixOS module in a flake:
+
+```nix
+imports = [ abora.nixosModules.anix ];
+environment.systemPackages = [ abora.packages.${pkgs.system}.anix ];
 ```
 
 Publish the DENALI 3.14 line:
@@ -512,6 +526,7 @@ Rebuild in the VM workspace:
 | [Abora tools](docs/wiki/Abora-Tools.md) | Abora management commands |
 | [Recovery](docs/wiki/Recovery.md) | Repair and rollback help |
 | [ANIX v1](docs/wiki/ANIX-V1.md) | ANIX profile system |
+| [ANIX standalone](docs/wiki/ANIX-Standalone.md) | Using ANIX on non-Abora NixOS systems |
 | [TinyPM v4](docs/wiki/TinyPM-V4.md) | TinyPM package layer |
 | [Building Abora](docs/wiki/Building-Abora.md) | Build instructions |
 | [Release notes](RELEASE_NOTES.md) | Version history |

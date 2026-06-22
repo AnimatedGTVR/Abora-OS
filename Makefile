@@ -1,4 +1,4 @@
-.PHONY: help iso iso-local qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc check check-desktops preflight metadata release tinypm-package tinypm-image
+.PHONY: help iso iso-local qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc check check-desktops preflight metadata release tinypm-package anix-package tinypm-image
 
 help:
 	@echo "Usage: make <target>"
@@ -6,8 +6,9 @@ help:
 	@echo "  iso              - Build only the ISO"
 	@echo "  metadata         - Generate release notes, manifest, and checksums"
 	@echo "  tinypm-package   - Build the TinyPM release tarball"
+	@echo "  anix-package     - Build the ANIX standalone tarball"
 	@echo "  tinypm-image     - Build the TinyPM GHCR container image locally"
-	@echo "  release          - Build the ISO, TinyPM package, and refresh the release bundle"
+	@echo "  release          - Build the ISO, TinyPM package, ANIX package, and refresh the release bundle"
 	@echo "  qemu             - Boot the latest ISO in QEMU (graphical window)"
 	@echo "  qemu-fresh       - Delete old disk image, then boot the ISO (clean install test)"
 	@echo "  qemu-disk        - Boot the installed QEMU hard drive without the ISO"
@@ -29,10 +30,13 @@ metadata:
 tinypm-package:
 	./scripts/package-tinypm.sh
 
+anix-package:
+	./scripts/package-anix.sh
+
 tinypm-image:
 	./scripts/build-tinypm-image.sh
 
-release: iso tinypm-package metadata
+release: iso tinypm-package anix-package metadata
 
 qemu:
 	./scripts/run-qemu.sh

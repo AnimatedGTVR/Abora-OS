@@ -7,4 +7,5 @@
 - [Recovery](Recovery.md)
 - [TinyPM v4](TinyPM-V4.md)
 - [ANIX v1](ANIX-V1.md)
+- [ANIX standalone](ANIX-Standalone.md)
 - [FAQ](FAQ.md)

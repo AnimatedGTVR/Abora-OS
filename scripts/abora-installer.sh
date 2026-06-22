@@ -1195,10 +1195,9 @@ EOF
     cat > "${cfgdir}/flake.nix" <<'NIXEOF'
 {
   description = "Abora installed system";
-  # Use the nixpkgs source shipped in the ISO. This keeps install-time
-  # evaluation aligned with the image and avoids drifting into surprise
-  # source builds from a newer remote nixos-unstable.
-  inputs.nixpkgs.url = "path:/etc/abora/nixpkgs";
+  # Use the standard flake input so future rebuilds and updates work in pure
+  # evaluation mode on the installed system.
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   outputs = { nixpkgs, ... }: {
     nixosConfigurations.abora = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
