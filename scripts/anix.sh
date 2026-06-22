@@ -51,6 +51,13 @@ flake_config_name="${ANIX_FLAKE_CONFIG_NAME:-abora}"
 wallpaper_dir="${ANIX_WALLPAPER_DIR:-/etc/abora/wallpapers}"
 anix_state_dir="${ANIX_STATE_DIR:-$config_dir/.anix}"
 anix_tool_config="${ANIX_TOOL_CONFIG:-$anix_state_dir/config}"
+docs_dir="${ANIX_DOCS_DIR:-/etc/abora/docs/wiki}"
+tinypm_source_dir="${ANIX_TINYPM_SOURCE:-/etc/abora/tinypm}"
+sound_file="${ANIX_SOUND_FILE:-/etc/abora/effects/v3StartingAbora.mp3}"
+anix_doc_file="${ANIX_DOC_FILE:-$docs_dir/ANIX-V1.md}"
+tinypm_doc_file="${ANIX_TINYPM_DOC_FILE:-$docs_dir/TinyPM-V4.md}"
+abora_tools_doc_file="${ANIX_ABORA_TOOLS_DOC_FILE:-$docs_dir/Abora-Tools.md}"
+recovery_doc_file="${ANIX_RECOVERY_DOC_FILE:-$docs_dir/Recovery.md}"
 
 valid_desktops=(
     none gnome plasma hyprland sway xfce cinnamon mate budgie lxqt pantheon
@@ -558,7 +565,7 @@ render_template() {
     wallpaper="$(seed_value "wallpaper" "Daytime-MNT.jpg")"
 
     cat <<EOF
-## ANIX is the simple layer on top of Abora/NixOS.
+## ANIX is the simple layer on top of NixOS.
 ## Change values here, save the file, then run: anix apply
 { pkgs, ... }:
 {
@@ -582,7 +589,7 @@ render_template() {
   ## Command: anix set desktop gnome
   anix.desktop = "${desktop}";
 
-  ## Wallpaper filename (Abora OS only).
+  ## Wallpaper filename (used by Abora OS integrations when available).
   ## Command: anix set wallpaper Daytime-MNT.jpg
   anix.wallpaper = "${wallpaper}";
 
@@ -598,7 +605,7 @@ render_template() {
   ## Command: anix set shell zsh
   anix.shell = "zsh";
 
-  ## TinyPM installs per-user on first login (grab, search, term, start, supdate).
+  ## TinyPM installs per-user on first login when a TinyPM source is available.
   ## Command: anix tinypm install
   anix.tinypm.enable = true;
 
@@ -890,7 +897,7 @@ do_service() {
 
 do_ringtone() {
     local action="${1:-start}"
-    local sound="/etc/abora/effects/v3StartingAbora.mp3"
+    local sound="$sound_file"
 
     case "$action" in
         start|play)
@@ -1068,7 +1075,7 @@ do_tinypm() {
                 abora_kv "installed"  "no"
                 abora_kv "stamp"      "$(tinypm_stamp)"
             fi
-            abora_kv "system src" "/etc/abora/tinypm"
+            abora_kv "system src" "${tinypm_source_dir}"
             abora_card_end
             printf '\n'
             if ! tinypm_installed; then
@@ -1077,7 +1084,7 @@ do_tinypm() {
             fi
             ;;
         install|setup|reinstall)
-            local src="/etc/abora/tinypm"
+            local src="${tinypm_source_dir}"
             if [[ ! -f "${src}/install.sh" ]]; then
                 abora_error "TinyPM source not found at ${src}/install.sh"
                 exit 1
@@ -1107,15 +1114,15 @@ do_tinypm() {
 }
 
 do_docs() {
-    abora_banner "ANIX Docs" "Local documentation for the Abora toolchain."
+    abora_banner "ANIX Docs" "Local documentation for ANIX and optional companion tools."
     abora_card_start "Docs"
-    abora_kv "ANIX" "/etc/abora/docs/wiki/ANIX-V1.md"
-    abora_kv "TinyPM" "/etc/abora/docs/wiki/TinyPM-V4.md"
-    abora_kv "Abora tools" "/etc/abora/docs/wiki/Abora-Tools.md"
-    abora_kv "Recovery" "/etc/abora/docs/wiki/Recovery.md"
+    abora_kv "ANIX" "$anix_doc_file"
+    abora_kv "TinyPM" "$tinypm_doc_file"
+    abora_kv "Abora tools" "$abora_tools_doc_file"
+    abora_kv "Recovery" "$recovery_doc_file"
     abora_card_end
     printf '\n'
-    abora_dim_line "Source tree copies live under docs/wiki/ when developing Abora."
+    abora_dim_line "Packaged docs can live anywhere; override the paths with ANIX_* env vars."
     printf '\n'
 }
 
@@ -1294,10 +1301,10 @@ gui_pick_feature_action() {
 
 gui_pick_doc_file() {
     gui_choose_action "ANIX Docs" "Choose a local document to view." \
-        "/etc/abora/docs/wiki/ANIX-V1.md" "ANIX guide" \
-        "/etc/abora/docs/wiki/TinyPM-V4.md" "TinyPM guide" \
-        "/etc/abora/docs/wiki/Abora-Tools.md" "Abora tools guide" \
-        "/etc/abora/docs/wiki/Recovery.md" "Recovery guide" \
+        "$anix_doc_file" "ANIX guide" \
+        "$tinypm_doc_file" "TinyPM guide" \
+        "$abora_tools_doc_file" "Abora tools guide" \
+        "$recovery_doc_file" "Recovery guide" \
         "back" "Return to the main menu"
 }
 
@@ -1739,10 +1746,10 @@ terminal_docs_menu() {
         printf '  Select: '
         read -r choice || choice="0"
         case "$choice" in
-            1) gui_show_doc "/etc/abora/docs/wiki/ANIX-V1.md" ;;
-            2) gui_show_doc "/etc/abora/docs/wiki/TinyPM-V4.md" ;;
-            3) gui_show_doc "/etc/abora/docs/wiki/Abora-Tools.md" ;;
-            4) gui_show_doc "/etc/abora/docs/wiki/Recovery.md" ;;
+            1) gui_show_doc "$anix_doc_file" ;;
+            2) gui_show_doc "$tinypm_doc_file" ;;
+            3) gui_show_doc "$abora_tools_doc_file" ;;
+            4) gui_show_doc "$recovery_doc_file" ;;
             0|"") return 0 ;;
             *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
         esac

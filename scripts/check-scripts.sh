@@ -33,6 +33,7 @@ bash_scripts=(
   "scripts/abora-theme-sync.sh"
   "scripts/abora-update.sh"
   "scripts/build-iso.sh"
+  "scripts/package-anix.sh"
   "scripts/build-tinypm-image.sh"
   "scripts/package-tinypm.sh"
   "scripts/preflight.sh"
@@ -134,11 +135,13 @@ trap 'rm -rf "$tmp_ok" "$tmp_empty"' EXIT
 mkdir -p "$tmp_ok/iso" "$tmp_ok/packages" "$tmp_ok/release"
 touch "$tmp_ok/iso/abora-test-x86_64-${release_tag}.iso"
 touch "$tmp_ok/packages/tinypm-v0.0.0-abora-${release_tag}.tar.gz"
+touch "$tmp_ok/packages/anix-v0.0.0-abora-${release_tag}.tar.gz"
 if ABORA_OUT_DIR="$tmp_ok" scripts/release-metadata.sh >/dev/null; then
   if [[ -f "$tmp_ok/release/SHA256SUMS-${release_tag}.txt" ]] \
     && [[ -f "$tmp_ok/release/RELEASE_MANIFEST-${release_tag}.txt" ]] \
     && [[ -f "$tmp_ok/release/RELEASE_NOTES-${release_tag}.md" ]] \
-    && grep -q "tinypm-v0.0.0-abora-${release_tag}.tar.gz" "$tmp_ok/release/SHA256SUMS-${release_tag}.txt"; then
+    && grep -q "tinypm-v0.0.0-abora-${release_tag}.tar.gz" "$tmp_ok/release/SHA256SUMS-${release_tag}.txt" \
+    && grep -q "anix-v0.0.0-abora-${release_tag}.tar.gz" "$tmp_ok/release/SHA256SUMS-${release_tag}.txt"; then
     pass "runtime: release-metadata checksum generation"
   else
     fail "runtime: release-metadata checksum generation"

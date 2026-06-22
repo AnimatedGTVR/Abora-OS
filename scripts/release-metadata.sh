@@ -24,7 +24,10 @@ mkdir -p "$release_dir"
     cd "$release_dir"
     shopt -s nullglob
     iso_files=("$iso_dir"/*-"$version_tag".iso)
-    package_files=("$package_dir"/tinypm-*-abora-"$version_tag".tar.gz)
+    package_files=(
+        "$package_dir"/tinypm-*-abora-"$version_tag".tar.gz
+        "$package_dir"/anix-*-abora-"$version_tag".tar.gz
+    )
     asset_files=("${iso_files[@]}")
 
     if [ "${#iso_files[@]}" -eq 0 ]; then
