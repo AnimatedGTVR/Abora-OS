@@ -335,7 +335,7 @@ in
     label = version;
     variant_id = lib.mkDefault "system";
     variantName = lib.mkDefault "Abora OS DENALI 3.14";
-    extraOSReleaseArgs = {
+    extraOSReleaseArgs = lib.mapAttrs (_: lib.mkDefault) {
       LOGO = "abora";
       VERSION = "DENALI 3.14";
       VERSION_ID = "3.14";
