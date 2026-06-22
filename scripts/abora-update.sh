@@ -474,9 +474,11 @@ sync_abora_files() {
     install -Dm0644 "$upstream_background" "$abora_dir/bootloader/background.png"
     install -Dm0644 "$limine_source" "$abora_dir/bootloader/limine-background.png"
     install -Dm0644 "$upstream_theme" "$abora_dir/bootloader/theme.txt"
-    mkdir -p "$abora_dir/wallpapers" "$abora_dir/themes"
+    mkdir -p "$abora_dir/wallpapers" "$abora_dir/themes" "$abora_dir/pkgs"
     cp "$upstream_dir/assets/wallpapers/collection/"* "$abora_dir/wallpapers/"
     cp "$upstream_dir/assets/wallpaper-themes/"* "$abora_dir/themes/"
+    copy_upstream_file "$upstream_dir/nix/pkgs/mango.nix" "$abora_dir/pkgs/mango.nix"
+    copy_upstream_file "$upstream_dir/nix/pkgs/modularity.nix" "$abora_dir/pkgs/modularity.nix"
 
     if [[ ! -f "$abora_dir/apps.list" ]]; then
         : > "$abora_dir/apps.list"
@@ -663,6 +665,10 @@ abora_step "Updating flake inputs"
 printf '\n'
 nix --extra-experimental-features "nix-command flakes" flake update --flake "$config_dir"
 printf '\n'
+
+if git -C "$config_dir" rev-parse --git-dir >/dev/null 2>&1; then
+    git -C "$config_dir" add abora/ 2>/dev/null || true
+fi
 
 abora_step "Rebuilding Abora from $config_dir"
 printf '\n'
