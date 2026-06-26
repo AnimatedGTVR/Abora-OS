@@ -178,14 +178,7 @@ in
 
       # ── Common ─────────────────────────────────────────────────────────
       {
-        system.nixos.extraOSReleaseArgs = {
-          LOGO = "abora";
-          VERSION = "DENALI 3.14";
-          VERSION_ID = "3.14";
-          VERSION_CODENAME = "denali";
-          PRETTY_NAME = "Abora OS DENALI 3.14";
-          ANSI_COLOR = "0;38;2;80;220;255";
-        };
+        # OS release args (PRETTY_NAME etc.) live in installed-base.nix only.
 
         system.nixos.variantName = lib.mkOverride 900 "Abora ${desktopLabel} Edition";
         system.nixos.variant_id  = lib.mkOverride 900 cfg.desktop;

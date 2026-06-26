@@ -4,6 +4,7 @@ set -euo pipefail
 export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+script_self="${BASH_SOURCE[0]}"
 desktop_profiles_lib="${ABORA_DESKTOP_PROFILES_LIB:-$script_dir/abora-desktop-profiles.sh}"
 ui_lib="${ABORA_UI_LIB:-$script_dir/abora-ui.sh}"
 
@@ -391,6 +392,43 @@ copy_first_existing_upstream_file() {
     return 1
 }
 
+# ── GitHub clone fallback ─────────────────────────────────────────────────────
+
+# Called when a git fetch on an existing upstream dir fails.
+# Prompts the user, then wipes and re-clones from GitHub if they agree.
+try_fresh_clone() {
+    local effective_ref="$1"
+
+    abora_warn "The local upstream cache appears to be broken or out of date."
+    printf '\n'
+
+    if [[ ! -t 0 ]]; then
+        abora_error "Non-interactive session — cannot prompt to re-clone. Run interactively or delete '${upstream_dir}' manually and retry."
+        return 1
+    fi
+
+    printf '  %bWould you like to re-clone Abora from GitHub and retry?%b\n' "$ABORA_YELLOW" "$ABORA_NC"
+    abora_dim_line "  This will delete the local cache at: ${upstream_dir}"
+    printf '  %b[Y/n]%b ' "$ABORA_YELLOW" "$ABORA_NC"
+    local answer=""
+    read -r answer
+    case "$answer" in
+        ""|y|Y|yes|YES) ;;
+        *)
+            abora_error "Re-clone declined. Update aborted."
+            return 1
+            ;;
+    esac
+
+    abora_info "Removing broken cache and cloning fresh from GitHub..."
+    rm -rf "$upstream_dir"
+    if ! git clone --depth=1 --branch "$effective_ref" "$repo_git_url" "$upstream_dir"; then
+        abora_error "Fresh clone from ${repo_git_url} also failed."
+        abora_error "Check your internet connection, then run 'nixos update' again."
+        return 1
+    fi
+}
+
 # ── File sync ─────────────────────────────────────────────────────────────────
 
 sync_abora_files() {
@@ -408,19 +446,21 @@ sync_abora_files() {
 
     if [[ -d "$upstream_dir/.git" ]]; then
         abora_info "Fetching latest Abora files (${effective_ref})"
-        if ! git -C "$upstream_dir" fetch --depth=1 origin "$effective_ref"; then
-            abora_error "Failed to fetch ${effective_ref} from ${repo_git_url}."
-            return 1
-        fi
-        if ! git -C "$upstream_dir" reset --hard FETCH_HEAD >/dev/null; then
-            abora_error "Failed to reset the upstream checkout to ${effective_ref}."
-            return 1
+        if ! git -C "$upstream_dir" fetch --depth=1 origin "$effective_ref" 2>/dev/null; then
+            abora_warn "Fetch from origin failed."
+            try_fresh_clone "$effective_ref" || return 1
+        else
+            if ! git -C "$upstream_dir" reset --hard FETCH_HEAD >/dev/null; then
+                abora_warn "Reset to FETCH_HEAD failed — upstream cache may be corrupt."
+                try_fresh_clone "$effective_ref" || return 1
+            fi
         fi
     else
         abora_info "Cloning Abora files (${effective_ref})"
         rm -rf "$upstream_dir"
         if ! git clone --depth=1 --branch "$effective_ref" "$repo_git_url" "$upstream_dir"; then
             abora_error "Failed to clone ${repo_git_url} at ${effective_ref}."
+            abora_error "Check your internet connection and try again."
             return 1
         fi
     fi
@@ -615,7 +655,9 @@ if [[ "$(id -u)" -ne 0 ]]; then
         ABORA_REPO_REF="$repo_ref" \
         ABORA_UPSTREAM_DIR="$upstream_dir" \
         ABORA_FLAKE_CONFIG_NAME="$flake_config_name" \
-        bash "$0" "$@"
+        ABORA_DESKTOP_PROFILES_LIB="$desktop_profiles_lib" \
+        ABORA_UI_LIB="$ui_lib" \
+        bash "$script_self" "$@"
     exit 0
 fi
 

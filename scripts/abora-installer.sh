@@ -987,7 +987,6 @@ EOF
 
 write_branding_assets() {
     local root="${1:-/mnt}"
-    mkdir -p "${root}/etc/nix/pkgs"
     mkdir -p "${root}/etc/nixos/abora/plymouth" \
              "${root}/etc/nixos/abora/bootloader" \
              "${root}/etc/nixos/abora/mango" \
@@ -1012,10 +1011,6 @@ write_branding_assets() {
     cp_required /etc/abora/mango/config.conf       "${root}/etc/nixos/abora/mango/config.conf"
     cp_required /etc/abora/pkgs/mango.nix          "${root}/etc/nixos/abora/pkgs/mango.nix"
     cp_required /etc/abora/pkgs/modularity.nix     "${root}/etc/nixos/abora/pkgs/modularity.nix"
-    # Compatibility fallback for older copied module paths that still resolve
-    # ../../nix/pkgs/* during nixos-install evaluation.
-    cp_required /etc/abora/pkgs/mango.nix          "${root}/etc/nix/pkgs/mango.nix"
-    cp_required /etc/abora/pkgs/modularity.nix     "${root}/etc/nix/pkgs/modularity.nix"
 
     [[ -f /etc/abora/anix.sh           ]] && cp /etc/abora/anix.sh            "${root}/etc/nixos/abora/anix.sh"
     [[ -f /etc/abora/anix-module.nix   ]] && cp /etc/abora/anix-module.nix    "${root}/etc/nixos/abora/anix-module.nix"
@@ -1144,14 +1139,7 @@ NIXEOF
 {
   system.nixos.variantName = "Abora OS DENALI 3.14 ${desktop_label} Edition";
   system.nixos.variant_id = "${desktop_variant_id}";
-  system.nixos.extraOSReleaseArgs = {
-    LOGO = "abora";
-    VERSION = "DENALI 3.14";
-    VERSION_ID = "3.14";
-    VERSION_CODENAME = "denali";
-    PRETTY_NAME = "Abora OS DENALI 3.14";
-    ANSI_COLOR = "0;38;2;80;220;255";
-  };
+  # OS release branding is set centrally in abora/installed-base.nix.
 
   boot.loader.grub.enable = lib.mkForce false;
   boot.loader.efi.efiSysMountPoint = "/boot";
@@ -1591,8 +1579,12 @@ detect_install_activity() {
         printf 'Building packages from source; this can take a while in a VM'
     elif tail -n 24 "$file" 2>/dev/null | grep -Eq 'copying path|copying .*from|these [0-9]+ paths will be fetched|downloading|fetching'; then
         printf 'Downloading/copying packages from cache'
-    elif tail -n 24 "$file" 2>/dev/null | grep -Eq 'installing the boot loader|setting up /etc|building the system configuration'; then
+    elif tail -n 24 "$file" 2>/dev/null | grep -Eq 'installing the boot loader|setting up /etc|building the system configuration|updating /boot'; then
         printf 'Installing system files'
+    elif tail -n 24 "$file" 2>/dev/null | grep -Eq '-> /nix/store/|/nix/store/.*->|creating symlinks|setting up tmpfiles|activating the configuration'; then
+        printf 'Activating system — almost done'
+    elif tail -n 24 "$file" 2>/dev/null | grep -Eq 'setting up GNOME|gdm|gnome-shell|dconf|glib-compile'; then
+        printf 'Configuring GNOME desktop'
     else
         printf 'Working'
     fi
