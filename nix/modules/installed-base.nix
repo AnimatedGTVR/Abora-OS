@@ -68,22 +68,16 @@ let
   optionsModule =
     if builtins.pathExists ./abora-options.nix then
       ./abora-options.nix
-    else if builtins.pathExists ../../nix/modules/abora-options.nix then
-      ../../nix/modules/abora-options.nix
     else
       null;
   anixModule =
     if builtins.pathExists ./anix-module.nix then
       ./anix-module.nix
-    else if builtins.pathExists ../../nix/modules/anix.nix then
-      ../../nix/modules/anix.nix
     else
       null;
   docsDir =
     if builtins.pathExists ./docs then
       ./docs
-    else if builtins.pathExists ../../docs then
-      ../../docs
     else
       null;
   appCatalogScript =
@@ -114,8 +108,6 @@ let
   aboraLogoFile =
     if builtins.pathExists ./Abora-LOGO.png then
       ./Abora-LOGO.png
-    else if builtins.pathExists ../../assets/Abora-LOGO.png then
-      ../../assets/Abora-LOGO.png
     else
       null;
   wallpaperDir =
@@ -191,10 +183,8 @@ let
   tinypmDir =
     if builtins.pathExists ./tinypm then
       ./tinypm
-    else if builtins.pathExists ../../vendor/tinypm then
-      ../../vendor/tinypm
     else
-      throw "Abora TinyPM payload is missing. Expected ./tinypm beside installed-base.nix or ../../vendor/tinypm in the source tree.";
+      throw "Abora TinyPM payload is missing. Expected ./tinypm beside installed-base.nix.";
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
   mkGrabCmd = name: pkgs.writeShellScriptBin name ''
     exec env TINYPM_FLAVOR=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/tinypm/${name} "$@"
@@ -407,12 +397,8 @@ in
            };
          })
         {};
-    } // lib.optionalAttrs (builtins.pathExists ../../vendor/modularity) {
-      modularity = final.callPackage (
-        if builtins.pathExists ./pkgs/modularity.nix
-        then ./pkgs/modularity.nix
-        else ../../nix/pkgs/modularity.nix
-      ) {};
+    } // lib.optionalAttrs (builtins.pathExists ./pkgs/modularity.nix) {
+      modularity = final.callPackage ./pkgs/modularity.nix {};
     })
   ];
 
@@ -726,8 +712,6 @@ in
         mode = "0755";
       };
       "abora/mango/config.conf".source = mangoConfigFile;
-      "abora/pkgs/mango.nix".source = ../../nix/pkgs/mango.nix;
-      "abora/pkgs/modularity.nix".source = ../../nix/pkgs/modularity.nix;
       "abora/tinypm".source = tinypmDir;
       # The generated /etc/nixos/flake.nix pins its nixpkgs input to
       # "path:/etc/abora/nixpkgs". Expose the build-time nixpkgs source here so

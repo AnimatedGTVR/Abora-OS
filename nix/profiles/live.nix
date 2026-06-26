@@ -454,12 +454,12 @@ in
         mode = "0755";
       };
       "abora/setup.desktop".source = ../../scripts/abora-setup.desktop;
-      "abora/installed-base.nix".source = ../../nix/modules/installed-base.nix;
-      "abora/pkgs/mango.nix".source = ../../nix/pkgs/mango.nix;
-      "abora/pkgs/modularity.nix".source = ../../nix/pkgs/modularity.nix;
+      "abora/installed-base.nix".source = ../modules/installed-base.nix;
+      "abora/pkgs/mango.nix".source = ../pkgs/mango.nix;
+      "abora/pkgs/modularity.nix".source = ../pkgs/modularity.nix;
       "abora/tinypm".source = tinypmDir;
       "abora/docs".source = ../../docs;
-      "abora/abora-options.nix".source  = ../../nix/modules/abora-options.nix;
+      "abora/abora-options.nix".source  = ../modules/abora-options.nix;
       "abora/ui.sh" = {
         source = ../../scripts/abora-ui.sh;
         mode   = "0644";
@@ -472,7 +472,7 @@ in
         source = ../../scripts/anix.sh;
         mode = "0755";
       };
-      "abora/anix-module.nix".source = ../../nix/modules/anix.nix;
+      "abora/anix-module.nix".source = ../modules/anix.nix;
       "abora/session-setup.sh" = {
         source = ../../scripts/abora-session-setup.sh;
         mode = "0755";
