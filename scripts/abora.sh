@@ -26,6 +26,24 @@ case "${1:-help}" in
         shift
         exec abora-recovery "$@"
         ;;
+    repair)
+        shift
+        case "${1:-}" in
+            --mango|mango)
+                exec abora-repair-flake-purity --mango
+                ;;
+            help|--help|-h|"")
+                cat <<'EOF'
+Abora repair commands:
+  abora repair --mango    repair MangoWM flake-pure config paths
+EOF
+                ;;
+            *)
+                printf 'Unknown Abora repair command: %s\n' "$1" >&2
+                exit 1
+                ;;
+        esac
+        ;;
     welcome)
         shift
         exec abora-welcome "$@"
@@ -49,6 +67,7 @@ Abora commands:
   abora doctor           check Abora system health
   abora check-full       collect full ANIX, TinyPM, desktop, driver, and Nix logs
   abora recovery         rollback, repair, and diagnostics menu
+  abora repair --mango   repair MangoWM flake-pure config paths
   abora desktop          view or switch desktop profiles
   abora apps             install curated apps
   abora config           view or edit installed-system settings

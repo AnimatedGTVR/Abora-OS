@@ -341,6 +341,7 @@ check_install_environment() {
         /etc/abora/apps.sh
         /etc/abora/support-report.sh
         /etc/abora/hardware-test.sh
+        /etc/abora/repair-flake-purity.sh
         /etc/abora/default-wallpaper.png
         /etc/abora/fastfetch-logo.txt
         /etc/abora/fastfetch-config.jsonc
@@ -985,10 +986,66 @@ EOF
     done
 }
 
+install_mango_config_asset() {
+    local root="${1:-/mnt}"
+    local dest="${root}/etc/nixos/abora/mango/config.conf"
+    local candidate
+
+    mkdir -p "$(dirname "$dest")"
+    for candidate in \
+        /etc/abora/mango/config.conf \
+        "${root}/etc/nixos/.abora-upstream/assets/mango/config.conf" \
+        /etc/nixos/.abora-upstream/assets/mango/config.conf \
+        "${root}/etc/nixos/assets/mango/config.conf"; do
+        if [[ -f "$candidate" ]]; then
+            cp "$candidate" "$dest"
+            return 0
+        fi
+    done
+
+    : > "$dest"
+}
+
+rewrite_installed_mango_config_paths() {
+    local root="${1:-/mnt}"
+    local abora_dir="${root}/etc/nixos/abora"
+    local bad_store='/nix/store'
+    bad_store="${bad_store}/assets/mango/config.conf"
+    local file
+
+    for file in "$abora_dir/abora-options.nix" "$abora_dir/installed-base.nix"; do
+        [[ -f "$file" ]] || continue
+        sed -i \
+            -e "s|\"${bad_store}\"|./mango/config.conf|g" \
+            -e "s|${bad_store}|./mango/config.conf|g" \
+            -e 's|../../assets/mango/config\.conf|./mango/config.conf|g' \
+            -e 's|../../../assets/mango/config\.conf|./mango/config.conf|g' \
+            "$file"
+    done
+
+    if [[ -d "$abora_dir/desktops" ]]; then
+        while IFS= read -r -d '' file; do
+            sed -i \
+                -e "s|\"${bad_store}\"|../mango/config.conf|g" \
+                -e "s|${bad_store}|../mango/config.conf|g" \
+                -e 's|../../assets/mango/config\.conf|../mango/config.conf|g' \
+                -e 's|../../../assets/mango/config\.conf|../mango/config.conf|g' \
+                "$file"
+        done < <(
+            grep -RIlZ \
+                -e "$bad_store" \
+                -e '../../assets/mango/config.conf' \
+                -e '../../../assets/mango/config.conf' \
+                "$abora_dir/desktops" 2>/dev/null || true
+        )
+    fi
+}
+
 write_branding_assets() {
     local root="${1:-/mnt}"
     mkdir -p "${root}/etc/nixos/abora/plymouth" \
              "${root}/etc/nixos/abora/bootloader" \
+             "${root}/etc/nixos/abora/desktops" \
              "${root}/etc/nixos/abora/mango" \
              "${root}/etc/nixos/abora/pkgs" \
              "${root}/etc/nixos/abora/wallpapers" \
@@ -1000,7 +1057,7 @@ write_branding_assets() {
               check-full.sh recovery.sh welcome.sh app-catalog.sh apps.sh support-report.sh \
               hardware-test.sh default-wallpaper.png fastfetch-logo.txt \
               fastfetch-config.jsonc desktop-profiles.sh installed-base.nix \
-              installer.sh setup-launcher.sh setup.desktop \
+              installer.sh setup-launcher.sh setup.desktop repair-flake-purity.sh \
               session-setup.sh theme-sync.sh update.sh; do
         cp_required "/etc/abora/${f}" "${root}/etc/nixos/abora/${f}"
     done
@@ -1008,15 +1065,18 @@ write_branding_assets() {
         cp /etc/abora/Abora-LOGO.png "${root}/etc/nixos/abora/Abora-LOGO.png"
     cp_required /etc/abora/plymouth/abora.plymouth "${root}/etc/nixos/abora/plymouth/abora.plymouth"
     cp_required /etc/abora/plymouth/abora.script   "${root}/etc/nixos/abora/plymouth/abora.script"
-    cp_required /etc/abora/mango/config.conf       "${root}/etc/nixos/abora/mango/config.conf"
+    install_mango_config_asset "$root"
     cp_required /etc/abora/pkgs/mango.nix          "${root}/etc/nixos/abora/pkgs/mango.nix"
     cp_required /etc/abora/pkgs/modularity.nix     "${root}/etc/nixos/abora/pkgs/modularity.nix"
+    cp_required /etc/abora/anix-module.nix         "${root}/etc/nixos/abora/anix-module.nix"
+    cp_required /etc/abora/abora-options.nix       "${root}/etc/nixos/abora/abora-options.nix"
 
     [[ -f /etc/abora/anix.sh           ]] && cp /etc/abora/anix.sh            "${root}/etc/nixos/abora/anix.sh"
-    [[ -f /etc/abora/anix-module.nix   ]] && cp /etc/abora/anix-module.nix    "${root}/etc/nixos/abora/anix-module.nix"
-    [[ -f /etc/abora/abora-options.nix ]] && cp /etc/abora/abora-options.nix  "${root}/etc/nixos/abora/abora-options.nix"
     [[ -f /etc/abora/effects/v3StartingAbora.mp3 ]] && \
         cp /etc/abora/effects/v3StartingAbora.mp3 "${root}/etc/nixos/abora/effects/v3StartingAbora.mp3"
+
+    cp -a /etc/abora/desktops/. "${root}/etc/nixos/abora/desktops/"
+    rewrite_installed_mango_config_paths "$root"
 
     if [[ -e /etc/abora/tinypm ]]; then
         mkdir -p "${root}/etc/nixos/abora/tinypm"
@@ -1054,6 +1114,15 @@ write_branding_assets() {
     find -L /etc/abora/themes -maxdepth 1 -type f \
         -exec cp -L {} "${root}/etc/nixos/abora/themes/" \; 2>/dev/null || true
 
+    if git -C "${root}/etc/nixos" rev-parse --git-dir >/dev/null 2>&1; then
+        git -C "${root}/etc/nixos" add \
+            abora/mango/config.conf \
+            abora/abora-options.nix \
+            abora/installed-base.nix \
+            abora/desktops/mangowm.nix \
+            abora/repair-flake-purity.sh \
+            2>/dev/null || true
+    fi
 }
 
 generate_nixos_config() {
@@ -1064,7 +1133,7 @@ generate_nixos_config() {
     nixos-generate-config --root "$root" >> "$config_log" 2>&1
     write_branding_assets "$root"
 
-    local desktop_block desktop_pkgs root_pw_line host_nix user_nix timezone_nix keyboard_nix xkb_nix desktop_nix wallpaper_nix
+    local desktop_block desktop_pkgs root_pw_line host_nix user_nix timezone_nix keyboard_nix xkb_nix desktop_nix wallpaper_nix anix_import_line
     desktop_block="$(abora_desktop_config_block "$desktop_profile" "$xkb_layout_value" "$username_value")"
     desktop_pkgs="$(abora_desktop_package_block "$desktop_profile")"
     [[ -n "$desktop_block" ]] || die "Empty desktop block for $desktop_profile."
@@ -1109,30 +1178,26 @@ generate_nixos_config() {
   anix.wallpaper = "${wallpaper_nix}";
 }
 EOF
+        anix_import_line="    ./anix.nix"
     else
         rm -f "${cfgdir}/anix.nix"
+        anix_import_line=""
     fi
 
-    cat > "${cfgdir}/configuration.nix" <<'NIXEOF'
-{ lib, ... }:
-let
-  appModule  = ./abora/apps.nix;
-  aboraOptions = ./abora/abora-options.nix;
-  anixModule = ./abora/anix-module.nix;
-  anixLayer  = ./anix.nix;
-in
+    cat > "${cfgdir}/configuration.nix" <<EOF
+{ ... }:
 {
   imports = [
     ./hardware-configuration.nix
     ./abora/installed-base.nix
+    ./abora/abora-options.nix
+    ./abora/anix-module.nix
+    ./abora/apps.nix
     ./abora-local.nix
-  ]
-  ++ lib.optional (builtins.pathExists appModule) appModule
-  ++ lib.optional (builtins.pathExists aboraOptions) aboraOptions
-  ++ lib.optional (builtins.pathExists anixModule) anixModule
-  ++ lib.optional (builtins.pathExists anixLayer) anixLayer;
+${anix_import_line}
+  ];
 }
-NIXEOF
+EOF
 
     cat > "${cfgdir}/abora-local.nix" <<EOF
 { pkgs, lib, ... }:
@@ -1180,35 +1245,24 @@ ${root_pw_line}
 }
 EOF
 
-    cat > "${cfgdir}/flake.nix" <<'NIXEOF'
+    cat > "${cfgdir}/flake.nix" <<EOF
 {
   description = "Abora installed system";
   # Use the standard flake input so future rebuilds and updates work in pure
   # evaluation mode on the installed system.
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   outputs = { nixpkgs, ... }: {
-    nixosConfigurations.abora = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules =
-        let
-          lib = nixpkgs.lib;
-          appModule   = ./abora/apps.nix;
-          aboraOptions = ./abora/abora-options.nix;
-          anixModule  = ./abora/anix-module.nix;
-          anixLayer   = ./anix.nix;
-        in [
-          ./hardware-configuration.nix
-          ./abora/installed-base.nix
-          ./abora-local.nix
-        ]
-        ++ lib.optional (builtins.pathExists appModule)  appModule
-        ++ lib.optional (builtins.pathExists aboraOptions) aboraOptions
-        ++ lib.optional (builtins.pathExists anixModule) anixModule
-        ++ lib.optional (builtins.pathExists anixLayer)  anixLayer;
+    nixosConfigurations = {
+      abora = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./configuration.nix
+        ];
+      };
     };
   };
 }
-NIXEOF
+EOF
 }
 
 copy_github_auth() {

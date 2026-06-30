@@ -10,8 +10,14 @@ source "$repo_dir/scripts/abora-desktop-profiles.sh"
 version="$(tr -d '\n' < "$repo_dir/VERSION")"
 bootloader_background="$repo_dir/assets/bootloader/limine-background.png"
 tmpdir="$(mktemp -d)"
+staged_abora="$tmpdir/abora"
 failed=0
 pkgs_path=""
+nix_cmd=(nix-instantiate)
+
+if [[ -n "${ABORA_NIX_STORE:-}" ]]; then
+  nix_cmd+=(--store "$ABORA_NIX_STORE")
+fi
 
 cleanup() {
   rm -rf "$tmpdir"
@@ -33,7 +39,7 @@ resolve_nixpkgs_path() {
     return 0
   fi
 
-  if nix-instantiate --find-file nixpkgs 2>/dev/null; then
+  if "${nix_cmd[@]}" --find-file nixpkgs 2>/dev/null; then
     return 0
   fi
 
@@ -63,6 +69,63 @@ if ! pkgs_path="$(resolve_nixpkgs_path)"; then
   exit 1
 fi
 
+stage_installed_abora() {
+  mkdir -p \
+    "$staged_abora/bootloader" \
+    "$staged_abora/desktops" \
+    "$staged_abora/effects" \
+    "$staged_abora/mango" \
+    "$staged_abora/pkgs" \
+    "$staged_abora/plymouth" \
+    "$staged_abora/themes" \
+    "$staged_abora/wallpapers"
+
+  cp "$repo_dir/VERSION" "$staged_abora/VERSION"
+  cp "$repo_dir/assets/abora-title.txt" "$staged_abora/title.txt"
+  cp "$repo_dir/assets/fastfetch-logo.txt" "$staged_abora/fastfetch-logo.txt"
+  cp "$repo_dir/assets/fastfetch-config.jsonc" "$staged_abora/fastfetch-config.jsonc"
+  cp "$repo_dir/assets/Abora-LOGO.png" "$staged_abora/Abora-LOGO.png"
+  cp "$repo_dir/assets/wallpapers/collection/Daytime-MNT.jpg" "$staged_abora/default-wallpaper.png"
+  cp "$repo_dir/assets/mango/config.conf" "$staged_abora/mango/config.conf"
+  cp "$repo_dir/assets/plymouth/abora.plymouth" "$staged_abora/plymouth/abora.plymouth"
+  cp "$repo_dir/assets/plymouth/abora.script" "$staged_abora/plymouth/abora.script"
+  cp "$repo_dir/assets/Effects/v3StartingAbora.mp3" "$staged_abora/effects/v3StartingAbora.mp3"
+  cp "$repo_dir"/assets/bootloader/* "$staged_abora/bootloader/"
+  cp "$repo_dir"/assets/wallpapers/collection/* "$staged_abora/wallpapers/"
+  cp "$repo_dir"/assets/wallpaper-themes/* "$staged_abora/themes/"
+
+  cp "$repo_dir/nix/modules/installed-base.nix" "$staged_abora/installed-base.nix"
+  cp "$repo_dir/nix/modules/abora-options.nix" "$staged_abora/abora-options.nix"
+  cp "$repo_dir/nix/modules/anix.nix" "$staged_abora/anix-module.nix"
+  cp -R "$repo_dir/nix/modules/desktops/." "$staged_abora/desktops/"
+  cp "$repo_dir/nix/pkgs/mango.nix" "$staged_abora/pkgs/mango.nix"
+  cp "$repo_dir/nix/pkgs/modularity.nix" "$staged_abora/pkgs/modularity.nix"
+
+  cp "$repo_dir/scripts/abora-ui.sh" "$staged_abora/ui.sh"
+  cp "$repo_dir/scripts/abora-config.sh" "$staged_abora/config.sh"
+  cp "$repo_dir/scripts/abora.sh" "$staged_abora/abora.sh"
+  cp "$repo_dir/scripts/abora-desktop.sh" "$staged_abora/desktop.sh"
+  cp "$repo_dir/scripts/abora-doctor.sh" "$staged_abora/doctor.sh"
+  cp "$repo_dir/scripts/abora-check-full.sh" "$staged_abora/check-full.sh"
+  cp "$repo_dir/scripts/abora-recovery.sh" "$staged_abora/recovery.sh"
+  cp "$repo_dir/scripts/abora-welcome.sh" "$staged_abora/welcome.sh"
+  cp "$repo_dir/scripts/anix.sh" "$staged_abora/anix.sh"
+  cp "$repo_dir/scripts/abora-app-catalog.sh" "$staged_abora/app-catalog.sh"
+  cp "$repo_dir/scripts/abora-apps.sh" "$staged_abora/apps.sh"
+  cp "$repo_dir/scripts/abora-support-report.sh" "$staged_abora/support-report.sh"
+  cp "$repo_dir/scripts/abora-hardware-test.sh" "$staged_abora/hardware-test.sh"
+  cp "$repo_dir/scripts/abora-desktop-profiles.sh" "$staged_abora/desktop-profiles.sh"
+  cp "$repo_dir/scripts/abora-installer.sh" "$staged_abora/installer.sh"
+  cp "$repo_dir/scripts/abora-setup-launcher.sh" "$staged_abora/setup-launcher.sh"
+  cp "$repo_dir/scripts/abora-setup.desktop" "$staged_abora/setup.desktop"
+  cp "$repo_dir/scripts/abora-session-setup.sh" "$staged_abora/session-setup.sh"
+  cp "$repo_dir/scripts/abora-theme-sync.sh" "$staged_abora/theme-sync.sh"
+  cp "$repo_dir/scripts/abora-update.sh" "$staged_abora/update.sh"
+  cp -R "$repo_dir/vendor/tinypm" "$staged_abora/tinypm"
+}
+
+stage_installed_abora
+
 while IFS= read -r desktop_profile; do
   desktop_label=""
   desktop_variant_id=""
@@ -76,7 +139,7 @@ while IFS= read -r desktop_profile; do
 let
   pkgsPath = ${pkgs_path};
   evalConfig = import (pkgsPath + "/nixos/lib/eval-config.nix");
-  installedBase = import ${repo_dir}/nix/modules/installed-base.nix;
+  installedBase = import ${staged_abora}/installed-base.nix;
   desktopModule = { pkgs, lib, ... }: {
     system.nixos.variantName = "Abora ${version} ${desktop_label} Edition";
     system.nixos.variant_id = "${desktop_variant_id}";
@@ -136,11 +199,11 @@ done < <(abora_supported_desktop_profiles)
 
 while IFS= read -r desktop_profile; do
   printf '[..]  instantiating: %s\n' "$desktop_profile"
-  if nix-instantiate --eval --strict "$tmpdir/${desktop_profile}.nix" >/dev/null 2>&1; then
+  if "${nix_cmd[@]}" --eval --strict "$tmpdir/${desktop_profile}.nix" >/dev/null 2>&1; then
     pass "desktop toplevel: ${desktop_profile}"
   else
     fail "desktop toplevel: ${desktop_profile}"
-    nix-instantiate --eval --strict "$tmpdir/${desktop_profile}.nix" || true
+    "${nix_cmd[@]}" --eval --strict "$tmpdir/${desktop_profile}.nix" || true
   fi
 done < <(abora_supported_desktop_profiles)
 

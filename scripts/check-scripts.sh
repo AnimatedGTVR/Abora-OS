@@ -119,14 +119,94 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 fi
 
 if command -v nix >/dev/null 2>&1; then
-  if nix --extra-experimental-features "nix-command flakes" flake show --no-write-lock-file "$repo_dir" >/dev/null 2>&1; then
+  set +e
+  _nix_eval_output="$(
+    nix --extra-experimental-features "nix-command flakes" flake show --no-write-lock-file "$repo_dir" 2>&1
+  )"
+  _nix_eval_status=$?
+  set -e
+  if [[ "$_nix_eval_status" -eq 0 ]]; then
     pass "nix flake evaluation"
+  elif grep -q '/nix/var/nix/db/big-lock.*Permission denied' <<<"$_nix_eval_output"; then
+    pass "nix store unavailable (flake eval skipped)"
   else
     fail "nix flake evaluation"
+    printf '%s\n' "$_nix_eval_output" | sed 's/^/              /'
   fi
 else
   pass "nix command unavailable (flake eval skipped)"
 fi
+
+# ── Pure-eval safety lint ──────────────────────────────────────────────────────
+# Committed Nix and installer templates must never hardcode /nix/store paths.
+# Flakes may only access source files that are part of the flake input or copied
+# into the installed /etc/nixos tree.
+_pure_eval_ok=1
+_pure_eval_files=(
+  flake.nix
+  nix
+  scripts
+)
+_pure_eval_matches="$(
+  grep -RIEn \
+    --exclude='check-scripts.sh' \
+    --exclude='abora-repair-flake-purity.sh' \
+    '(/nix/store/assets|source[[:space:]]*=[[:space:]]*"?/nix/store|builtins\.storePath)' \
+    "${_pure_eval_files[@]}" 2>/dev/null || true
+)"
+if [[ -n "$_pure_eval_matches" ]]; then
+  fail "pure-eval: forbidden hardcoded /nix/store path or builtins.storePath found"
+  printf '%s\n' "$_pure_eval_matches" | while IFS= read -r _ln; do
+    printf '              %s\n' "$_ln"
+  done
+  _pure_eval_ok=0
+fi
+[[ "$_pure_eval_ok" == 1 ]] && pass "pure-eval: no hardcoded /nix/store paths in Nix/templates"
+
+_installed_mango_static_matches="$(
+  grep -RIEn \
+    '(/nix/store/assets|(\.\./\.\./|\.\./\.\./\.\./)assets/mango/config\.conf)' \
+    nix/modules/abora-options.nix \
+    nix/modules/installed-base.nix \
+    2>/dev/null || true
+)"
+if [[ -n "$_installed_mango_static_matches" ]]; then
+  fail "pure-eval: installed Mango modules contain repo-relative asset paths"
+  printf '%s\n' "$_installed_mango_static_matches" | while IFS= read -r _ln; do
+    printf '              %s\n' "$_ln"
+  done
+else
+  pass "pure-eval: installed Mango modules use installed asset paths"
+fi
+
+tmp_mango_repair="$(mktemp -d)"
+mkdir -p "$tmp_mango_repair/abora/desktops" "$tmp_mango_repair/.abora-upstream/assets/mango"
+cp nix/modules/abora-options.nix "$tmp_mango_repair/abora/abora-options.nix"
+cp nix/modules/installed-base.nix "$tmp_mango_repair/abora/installed-base.nix"
+cp nix/modules/desktops/mangowm.nix "$tmp_mango_repair/abora/desktops/mangowm.nix"
+cp assets/mango/config.conf "$tmp_mango_repair/.abora-upstream/assets/mango/config.conf"
+if ABORA_SYSTEM_CONFIG="$tmp_mango_repair" bash scripts/abora-repair-flake-purity.sh --mango >/dev/null; then
+  _repaired_mango_matches="$(
+    grep -RIEn \
+      '(/nix/store/assets|(\.\./\.\./|\.\./\.\./\.\./)assets/mango/config\.conf)' \
+      "$tmp_mango_repair/abora" 2>/dev/null || true
+  )"
+  if [[ -n "$_repaired_mango_matches" ]]; then
+    fail "pure-eval: Mango repair leaves forbidden installed asset paths"
+    printf '%s\n' "$_repaired_mango_matches" | while IFS= read -r _ln; do
+      printf '              %s\n' "$_ln"
+    done
+  elif [[ ! -s "$tmp_mango_repair/abora/mango/config.conf" ]]; then
+    fail "pure-eval: Mango repair did not create abora/mango/config.conf"
+  elif ! grep -q 'builtins.readFile ../mango/config.conf' "$tmp_mango_repair/abora/desktops/mangowm.nix"; then
+    fail "pure-eval: Mango desktop module was not rewritten to installed relative path"
+  else
+    pass "pure-eval: Mango repair produces flake-local installed paths"
+  fi
+else
+  fail "pure-eval: Mango repair script failed"
+fi
+rm -rf "$tmp_mango_repair"
 
 tmp_ok="$(mktemp -d)"
 tmp_empty="$(mktemp -d)"

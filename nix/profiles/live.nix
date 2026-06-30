@@ -396,6 +396,10 @@ in
         source = ../../scripts/abora-welcome.sh;
         mode = "0755";
       };
+      "abora/repair-flake-purity.sh" = {
+        source = ../../scripts/abora-repair-flake-purity.sh;
+        mode = "0755";
+      };
       "abora/default-wallpaper.png".source = ../../assets/wallpapers/collection/Daytime-MNT.jpg;
       "abora/Abora-LOGO.png".source = ../../assets/Abora-LOGO.png;
       "abora/title.txt".source = ../../assets/abora-title.txt;
@@ -408,6 +412,7 @@ in
         mode = "0755";
       };
       "abora/mango/config.conf".source = ../../assets/mango/config.conf;
+      "assets/mango/config.conf".source = ../../assets/mango/config.conf;
       "abora/support-report.sh" = {
         source = ../../scripts/abora-support-report.sh;
         mode = "0755";
@@ -556,7 +561,10 @@ in
           value.source = ../../assets/wallpaper-themes + "/${name}";
         })
         (builtins.attrNames (builtins.readDir ../../assets/wallpaper-themes))
-    );
+    )
+    // {
+      "abora/desktops".source = ../modules/desktops;
+    };
 
   services.xserver.enable = false;
   systemd.services.ModemManager = {
@@ -651,7 +659,7 @@ in
   isoImage.squashfsCompression = lib.mkForce "zstd -Xcompression-level 15";
   isoImage.prependToMenuLabel = "";
   isoImage.appendToMenuLabel = "";
-  isoImage.configurationName = null;
+  isoImage.showConfiguration = true;
   isoImage.splashImage = ../../assets/bootloader/background.png;
   isoImage.grubTheme = aboraGrubTheme;
   isoImage.syslinuxTheme = ''

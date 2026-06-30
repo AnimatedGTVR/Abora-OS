@@ -1,0 +1,25 @@
+[
+  ./none.nix
+  ./gnome.nix
+  ./plasma.nix
+  ./hyprland.nix
+  ./sway.nix
+  ./xfce.nix
+  ./cinnamon.nix
+  ./mate.nix
+  ./budgie.nix
+  ./lxqt.nix
+  ./pantheon.nix
+  ./awesome.nix
+  ./i3.nix
+  ./openbox.nix
+  ./niri.nix
+  ./river.nix
+  ./qtile.nix
+  ./bspwm.nix
+  ./fluxbox.nix
+  ./icewm.nix
+  ./herbstluftwm.nix
+  ./cosmic.nix
+  ./mangowm.nix
+]
