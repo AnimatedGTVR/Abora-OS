@@ -1,0 +1,103 @@
+name: Flake & Script Check
+
+# Runs on every push and PR to catch pure-eval regressions and script issues
+# before they reach main. The full ISO build runs separately on main only.
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  script-check:
+    name: Script checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run make check
+        run: make check
+
+  formatting-and-lint:
+    name: Formatting / lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Whitespace format check
+        run: |
+          set -euxo pipefail
+          git diff --check
+
+      - name: Install Nix (official installer, no FlakeHub)
+        run: |
+          set -euxo pipefail
+          curl -fsSL https://nixos.org/nix/install -o /tmp/install-nix.sh
+          sh /tmp/install-nix.sh --no-daemon
+          echo "$HOME/.nix-profile/bin" >> "$GITHUB_PATH"
+
+      - name: ShellCheck scripts
+        env:
+          NIX_CONFIG: |
+            experimental-features = nix-command flakes
+            access-tokens = github.com=${{ github.token }}
+        run: |
+          set -euxo pipefail
+          export PATH="$HOME/.nix-profile/bin:$PATH"
+          nix shell nixpkgs#shellcheck -c shellcheck -S error \
+            scripts/abora-desktop-profiles.sh \
+            scripts/abora-installer.sh \
+            scripts/abora-update.sh \
+            scripts/check-scripts.sh
+
+  flake-eval:
+    name: Nix flake evaluation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Nix (official installer, no FlakeHub)
+        run: |
+          set -euxo pipefail
+          curl -fsSL https://nixos.org/nix/install -o /tmp/install-nix.sh
+          sh /tmp/install-nix.sh --no-daemon
+          echo "$HOME/.nix-profile/bin" >> "$GITHUB_PATH"
+          "$HOME/.nix-profile/bin/nix" --version
+
+      - name: nix flake check (evaluate all outputs, no build)
+        env:
+          NIX_CONFIG: |
+            experimental-features = nix-command flakes
+            access-tokens = github.com=${{ github.token }}
+        run: |
+          set -euxo pipefail
+          export PATH="$HOME/.nix-profile/bin:$PATH"
+          nix flake check --no-build --no-write-lock-file
+
+      - name: Evaluate live system toplevel
+        env:
+          NIX_CONFIG: |
+            experimental-features = nix-command flakes
+            access-tokens = github.com=${{ github.token }}
+        run: |
+          set -euxo pipefail
+          export PATH="$HOME/.nix-profile/bin:$PATH"
+          nix eval --raw .#nixosConfigurations.abora-live.config.system.build.toplevel.drvPath
+
+      - name: Build live system toplevel
+        env:
+          NIX_CONFIG: |
+            experimental-features = nix-command flakes
+            access-tokens = github.com=${{ github.token }}
+        run: |
+          set -euxo pipefail
+          export PATH="$HOME/.nix-profile/bin:$PATH"
+          nix build --no-link --print-build-logs .#nixosConfigurations.abora-live.config.system.build.toplevel

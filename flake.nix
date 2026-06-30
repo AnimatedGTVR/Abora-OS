@@ -13,7 +13,6 @@
       overlay = final: prev: {
         anix = final.callPackage ./nix/pkgs/anix.nix {};
         mango = final.callPackage ./nix/pkgs/mango.nix {};
-      } // nixpkgs.lib.optionalAttrs (builtins.pathExists ./vendor/modularity) {
         modularity = final.callPackage ./nix/pkgs/modularity.nix {};
       };
 
@@ -40,7 +39,6 @@
         anix  = pkgs.anix;
         iso   = self.nixosConfigurations.abora-live.config.system.build.isoImage;
         mango = pkgs.mango;
-      } // nixpkgs.lib.optionalAttrs (builtins.pathExists ./vendor/modularity) {
         modularity = pkgs.modularity;
       };
       apps.${system}.anix = {

@@ -50,7 +50,19 @@ Important paths:
 - `nix/profiles/live.nix`: live ISO profile, live boot service, bundled installer assets
 - `nix/modules/installed-base.nix`: installed Abora base module
 - `nix/modules/abora-options.nix`: Abora option layer used by installed configs
+- `nix/modules/desktops/`: one module per supported desktop or window manager
 - `nix/modules/anix.nix`: ANIX NixOS module
+- `nix/pkgs/`: authoritative package definitions loaded by the flake and installed-system overlay
+
+Desktop support is split by environment:
+
+- `nix/modules/desktops/default.nix`: imports the desktop module set
+- `nix/modules/desktops/common.nix`: shared helpers for active desktop checks, keyboard layout, autologin, and wallpaper URIs
+- `nix/modules/desktops/gnome.nix`, `plasma.nix`, `hyprland.nix`, `mangowm.nix`, etc.: per-desktop configuration
+
+Add a desktop by adding a module under `nix/modules/desktops/`, importing it from `default.nix`, adding the option value to `nix/modules/abora-options.nix`, and updating `scripts/abora-desktop-profiles.sh` so the installer/reconfiguration path matches the module behavior.
+
+Packages are defined once under `nix/pkgs/` and loaded with flake-relative `callPackage` imports from `flake.nix`. Installed systems copy those same package files into `/etc/nixos/abora/pkgs/`, where `installed-base.nix` uses the same `callPackage` pattern. Do not duplicate package derivations in modules.
 
 ### `scripts/`
 
@@ -92,3 +104,16 @@ It can contain:
 - `out/qemu/`: QEMU disks and firmware state
 - `out/logs/`: QEMU serial logs and build logs
 - `out/nix/`: Nix build result symlinks
+
+## Development Workflow
+
+Run these before opening a PR:
+
+```sh
+make check
+make check-desktops
+nix flake check --no-build --no-write-lock-file
+nix build --no-link .#nixosConfigurations.abora-live.config.system.build.toplevel
+```
+
+GitHub Actions run the same core gates: script checks, Nix formatting, targeted ShellCheck, flake evaluation, and a live-system toplevel build. Full ISO/release builds remain in the dedicated ISO workflows.

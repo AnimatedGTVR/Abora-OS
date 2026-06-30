@@ -60,6 +60,10 @@ EOF
         shift
         exec abora-update "$@"
         ;;
+    fallback)
+        shift
+        exec abora-update fallback "$@"
+        ;;
     help|--help|-h|"")
         cat <<'EOF'
 Abora commands:
@@ -72,6 +76,7 @@ Abora commands:
   abora apps             install curated apps
   abora config           view or edit installed-system settings
   abora update           update Abora
+  abora fallback         intentionally switch to an older release
   abora hardware-test    run hardware readiness checks
   abora support-report   collect support diagnostics
 EOF

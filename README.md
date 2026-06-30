@@ -496,19 +496,33 @@ git push origin 3.14
 
 ## Development
 
-Run script checks:
+Run the normal local checks:
 
 ```sh
-./scripts/check-scripts.sh
+make check
+make check-desktops
+nix flake check --no-build --no-write-lock-file
+nix build --no-link .#nixosConfigurations.abora-live.config.system.build.toplevel
 ```
 
-Validate all desktop environment configs against nixpkgs:
+The repository is flake-native. Package definitions live once under `nix/pkgs/` and are loaded with flake-relative `callPackage` imports from both `flake.nix` and the installed-system overlay.
 
-```sh
-./scripts/check-desktops.sh
+Desktop modules live under `nix/modules/desktops/`:
+
+```text
+nix/modules/desktops/
+  default.nix
+  common.nix
+  gnome.nix
+  plasma.nix
+  hyprland.nix
+  mangowm.nix
+  ...
 ```
 
-Rebuild in the VM workspace:
+When adding a desktop, add the module there, import it from `default.nix`, add the option value in `nix/modules/abora-options.nix`, and keep `scripts/abora-desktop-profiles.sh` in sync for installer/reconfiguration output.
+
+Rebuild in the VM workspace when doing install-flow work:
 
 ```sh
 ./scripts/rebuild-vm.sh
