@@ -5,19 +5,13 @@ export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/
 
 script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 script_self="${BASH_SOURCE[0]}"
-desktop_profiles_lib="${ABORA_DESKTOP_PROFILES_LIB:-$script_dir/abora-desktop-profiles.sh}"
+script_hash_before="$(sha256sum "$script_self" 2>/dev/null | awk '{print $1}' || true)"
 ui_lib="${ABORA_UI_LIB:-$script_dir/abora-ui.sh}"
-
-if [[ ! -f "$desktop_profiles_lib" && -f /etc/abora/desktop-profiles.sh ]]; then
-    desktop_profiles_lib="/etc/abora/desktop-profiles.sh"
-fi
 
 if [[ ! -f "$ui_lib" && -f /etc/abora/ui.sh ]]; then
     ui_lib="/etc/abora/ui.sh"
 fi
 
-# shellcheck source=/dev/null
-source "$desktop_profiles_lib"
 # shellcheck source=/dev/null
 source "$ui_lib"
 
@@ -65,6 +59,7 @@ resolve_channel_ref() {
                     | grep -v '\^{}' \
                     | awk '{print $2}' \
                     | sed 's|refs/tags/||' \
+                    | grep -E '^v[0-9]+([.][0-9]+)*$' \
                     | sort -V \
                     | tail -n1 \
                     || true
@@ -222,146 +217,6 @@ confirm() {
     esac
 }
 
-system_string() {
-    case "$(uname -m)" in
-        x86_64) printf 'x86_64-linux\n' ;;
-        aarch64 | arm64) printf 'aarch64-linux\n' ;;
-        *) printf '%s-linux\n' "$(uname -m)" ;;
-    esac
-}
-
-# ── Config writers ────────────────────────────────────────────────────────────
-
-desktop_config_block() {
-    local desktop_profile="$1"
-    local xkb_layout_value="$2"
-    local username_value="$3"
-
-    abora_desktop_config_block "$desktop_profile" "$xkb_layout_value" "$username_value"
-}
-
-desktop_package_block() {
-    abora_desktop_package_block "$1"
-}
-
-write_flake_file() {
-    local target="$1"
-    local nix_system="$2"
-
-    cat > "$target" <<'EOF'
-{
-  description = "Abora installed system";
-
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-  };
-
-  outputs = { nixpkgs, ... }:
-    let
-      lib = nixpkgs.lib;
-      system = "__ABORA_NIX_SYSTEM__";
-      baseModules =
-        let
-          appModule = ./abora/apps.nix;
-          anixLayer = ./anix.nix;
-        in
-        [
-          ./hardware-configuration.nix
-          ./abora/installed-base.nix
-          ./abora/abora-options.nix
-          ./abora/anix-module.nix
-          ./abora-local.nix
-        ] ++ lib.optional (builtins.pathExists appModule) appModule
-          ++ lib.optional (builtins.pathExists anixLayer) anixLayer;
-      mkProfile = name: extraModules: nixpkgs.lib.nixosSystem {
-        inherit system;
-        modules = baseModules ++ extraModules ++ [
-          { system.nixos.variantName = lib.mkOverride 800 "Abora ${name} Profile"; }
-        ];
-      };
-    in {
-    nixosConfigurations.__ABORA_FLAKE_CONFIG_NAME__ = mkProfile "Stable" [];
-    nixosConfigurations.stable = mkProfile "Stable" [];
-    nixosConfigurations.minimal = mkProfile "Minimal" [
-      { abora.desktop = lib.mkForce "none"; }
-    ];
-    nixosConfigurations.gaming = mkProfile "Gaming" [
-      ({ pkgs, ... }: {
-        abora.desktop = lib.mkForce "gnome";
-        environment.systemPackages = with pkgs; [ mangohud prismlauncher lutris ];
-        programs.steam.enable = lib.mkDefault true;
-      })
-    ];
-    nixosConfigurations.creator = mkProfile "Creator" [
-      ({ pkgs, ... }: {
-        abora.desktop = lib.mkForce "gnome";
-        environment.systemPackages = with pkgs; [ blender gimp inkscape krita obs-studio audacity ];
-      })
-    ];
-    nixosConfigurations.developer = mkProfile "Developer" [
-      ({ pkgs, ... }: {
-        abora.desktop = lib.mkForce "gnome";
-        environment.systemPackages = with pkgs; [ git gh vscode direnv nixfmt-rfc-style shellcheck ];
-      })
-    ];
-  };
-}
-EOF
-
-    sed -i \
-        -e "s|__ABORA_NIX_SYSTEM__|${nix_system}|g" \
-        -e "s|__ABORA_FLAKE_CONFIG_NAME__|${flake_config_name}|g" \
-        "$target"
-}
-
-write_local_module() {
-    local target="$1"
-    local hostname_value="$2"
-    local timezone_value="$3"
-    local keyboard_value="$4"
-    local xkb_layout_value="$5"
-    local username_value="$6"
-    local user_password_hash="$7"
-    local disk_value="$8"
-    local state_version="$9"
-    local desktop_profile="${10}"
-
-    cat > "$target" <<EOF
-# ── Abora OS — system configuration ──────────────────────────────────────────
-# Edit these values to personalise your system, then run 'update' to apply.
-# Do not change abora.disk or abora.stateVersion after the first install.
-{ ... }:
-{
-  # ── Identity ──────────────────────────────────────────────────────────────
-  abora.hostname         = "${hostname_value}";
-  abora.timezone         = "${timezone_value}";  # e.g. America/New_York, Europe/London
-  abora.keyboard.console = "${keyboard_value}";  # TTY keymap
-  abora.keyboard.xkb     = "${xkb_layout_value}"; # graphical keyboard layout
-
-  # ── User ──────────────────────────────────────────────────────────────────
-  abora.user.name           = "${username_value}";
-  abora.user.hashedPassword = "${user_password_hash}"; # generate with: mkpasswd
-
-  # ── Desktop ───────────────────────────────────────────────────────────────
-  # Options: none gnome plasma hyprland sway niri xfce cinnamon mate budgie
-  #          lxqt pantheon lxde i3 awesome openbox
-  #          river qtile bspwm fluxbox icewm herbstluftwm cosmic
-  abora.desktop = "${desktop_profile}";
-
-  # ── Hardware ──────────────────────────────────────────────────────────────
-  abora.disk         = "${disk_value}";    # install disk for the bootloader
-  abora.stateVersion = "${state_version}"; # set at install time — do not change
-}
-EOF
-}
-
-extract_setting() {
-    local file="$1"
-    local expression="$2"
-
-    sed -nE "$expression" "$file" | head -n1
-}
-
 copy_upstream_file() {
     local source="$1"
     local destination="$2"
@@ -390,6 +245,29 @@ copy_first_existing_upstream_file() {
 
     abora_error "None of the expected upstream files were found for ${destination##*/}."
     return 1
+}
+
+maybe_reexec_synced_updater() {
+    local synced_script="$config_dir/abora/update.sh"
+    local script_hash_after=""
+
+    [[ "${ABORA_UPDATE_REEXECED:-0}" != 1 ]] || return 0
+    [[ -n "$script_hash_before" && -f "$synced_script" ]] || return 0
+
+    script_hash_after="$(sha256sum "$synced_script" 2>/dev/null | awk '{print $1}' || true)"
+    [[ -n "$script_hash_after" && "$script_hash_after" != "$script_hash_before" ]] || return 0
+
+    abora_info "Restarting with the synced updater."
+    exec env \
+        ABORA_UPDATE_REEXECED=1 \
+        ABORA_UPDATE_COMMAND="$command_name" \
+        ABORA_SYSTEM_CONFIG="$config_dir" \
+        ABORA_REPO_GIT_URL="$repo_git_url" \
+        ABORA_REPO_REF="$repo_ref" \
+        ABORA_UPSTREAM_DIR="$upstream_dir" \
+        ABORA_FLAKE_CONFIG_NAME="$flake_config_name" \
+        ABORA_UI_LIB="$ui_lib" \
+        bash "$synced_script"
 }
 
 # ── GitHub clone fallback ─────────────────────────────────────────────────────
@@ -431,6 +309,60 @@ try_fresh_clone() {
 
 # ── File sync ─────────────────────────────────────────────────────────────────
 
+install_mango_config_asset() {
+    local abora_dir="$config_dir/abora"
+    local dest="$abora_dir/mango/config.conf"
+    local candidate
+
+    mkdir -p "$(dirname "$dest")"
+    for candidate in \
+        "$upstream_dir/assets/mango/config.conf" \
+        "$config_dir/.abora-upstream/assets/mango/config.conf" \
+        /etc/abora/mango/config.conf \
+        "$config_dir/assets/mango/config.conf"; do
+        if [[ -f "$candidate" ]]; then
+            cp "$candidate" "$dest"
+            return 0
+        fi
+    done
+
+    : > "$dest"
+}
+
+rewrite_installed_mango_config_paths() {
+    local abora_dir="$config_dir/abora"
+    local bad_store='/nix/store'
+    bad_store="${bad_store}/assets/mango/config.conf"
+    local file
+
+    for file in "$abora_dir/abora-options.nix" "$abora_dir/installed-base.nix"; do
+        [[ -f "$file" ]] || continue
+        sed -i \
+            -e "s|\"${bad_store}\"|./mango/config.conf|g" \
+            -e "s|${bad_store}|./mango/config.conf|g" \
+            -e 's|../../assets/mango/config\.conf|./mango/config.conf|g' \
+            -e 's|../../../assets/mango/config\.conf|./mango/config.conf|g' \
+            "$file"
+    done
+
+    if [[ -d "$abora_dir/desktops" ]]; then
+        while IFS= read -r -d '' file; do
+            sed -i \
+                -e "s|\"${bad_store}\"|../mango/config.conf|g" \
+                -e "s|${bad_store}|../mango/config.conf|g" \
+                -e 's|../../assets/mango/config\.conf|../mango/config.conf|g' \
+                -e 's|../../../assets/mango/config\.conf|../mango/config.conf|g' \
+                "$file"
+        done < <(
+            grep -RIlZ \
+                -e "$bad_store" \
+                -e '../../assets/mango/config.conf' \
+                -e '../../../assets/mango/config.conf' \
+                "$abora_dir/desktops" 2>/dev/null || true
+        )
+    fi
+}
+
 sync_abora_files() {
     local effective_ref="$1"
     local abora_dir="$config_dir/abora"
@@ -465,9 +397,11 @@ sync_abora_files() {
         fi
     fi
 
-    mkdir -p "$abora_dir/plymouth" "$abora_dir/bootloader" "$abora_dir/effects"
+    mkdir -p "$abora_dir/plymouth" "$abora_dir/bootloader" "$abora_dir/effects" "$abora_dir/mango"
     copy_upstream_file "$upstream_dir/VERSION" "$abora_dir/VERSION"
     copy_upstream_file "$upstream_dir/nix/modules/abora-options.nix" "$abora_dir/abora-options.nix"
+    rm -rf "$abora_dir/desktops"
+    cp -R "$upstream_dir/nix/modules/desktops" "$abora_dir/desktops"
     copy_upstream_file "$upstream_dir/nix/modules/anix.nix" "$abora_dir/anix-module.nix"
     copy_upstream_file "$upstream_dir/scripts/abora-ui.sh" "$abora_dir/ui.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-config.sh" "$abora_dir/config.sh"
@@ -481,6 +415,7 @@ sync_abora_files() {
     copy_upstream_file "$upstream_dir/scripts/abora-apps.sh" "$abora_dir/apps.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-support-report.sh" "$abora_dir/support-report.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-hardware-test.sh" "$abora_dir/hardware-test.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-repair-flake-purity.sh" "$abora_dir/repair-flake-purity.sh"
     copy_first_existing_upstream_file \
         "$abora_dir/default-wallpaper.png" \
         "$upstream_dir/assets/wallpapers/collection/Daytime-MNT.jpg" \
@@ -500,6 +435,8 @@ sync_abora_files() {
         "$upstream_dir/assets/Effects/LaunchingAbora.mp3"
     copy_upstream_file "$upstream_dir/assets/plymouth/abora.plymouth" "$abora_dir/plymouth/abora.plymouth"
     copy_upstream_file "$upstream_dir/assets/plymouth/abora.script" "$abora_dir/plymouth/abora.script"
+    install_mango_config_asset
+    rewrite_installed_mango_config_paths
 
     if [[ ! -f "$upstream_background" || ! -f "$upstream_theme" ]]; then
         abora_error "The latest Abora bootloader assets are incomplete."
@@ -535,62 +472,78 @@ EOF
     fi
 }
 
-# ── Legacy migration ──────────────────────────────────────────────────────────
+# ── Flake layout check ────────────────────────────────────────────────────────
 
-bootstrap_legacy_flake() {
-    local legacy_config="$config_dir/configuration.nix"
-    local local_module="$config_dir/abora-local.nix"
+write_installed_flake() {
     local flake_file="$config_dir/flake.nix"
-    local hostname_value="" timezone_value="" keyboard_value="" xkb_layout_value=""
-    local username_value="" user_password_hash="" disk_value="" state_version=""
-    local desktop_profile=""
 
-    if [[ ! -f "$legacy_config" && ! -f "$flake_file" ]]; then
-        abora_error "No flake.nix or configuration.nix found in $config_dir."
+    cat > "$flake_file" <<EOF
+{
+  description = "Abora installed system";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  outputs = { nixpkgs, ... }: {
+    nixosConfigurations = {
+      "${flake_config_name}" = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./configuration.nix
+        ];
+      };
+    };
+  };
+}
+EOF
+}
+
+repair_flake_layout_if_needed() {
+    local flake_file="$config_dir/flake.nix"
+    local abora_dir="$config_dir/abora"
+    local needs_repair=0
+
+    if [[ ! -f "$flake_file" ]]; then
+        return 0
+    fi
+
+    if grep -Eq '(/nix/store|../../nix|../../../nix|nix/pkgs/mango\.nix|nix/pkgs/modularity\.nix)' "$flake_file"; then
+        needs_repair=1
+    elif [[ -d "$abora_dir" ]] && grep -RIEq '(/nix/store|(\.\./){2,}assets/mango/config\.conf|(\.\./){2,}nix/|nix/(pkgs|modules)/(mango|modularity)\.nix)' "$abora_dir"; then
+        needs_repair=1
+    elif ! nix --extra-experimental-features "nix-command flakes" \
+        eval --no-write-lock-file "$config_dir#nixosConfigurations.${flake_config_name}.config.system.name" \
+        >/dev/null 2>&1; then
+        needs_repair=1
+    fi
+
+    if [[ "$needs_repair" -eq 1 ]]; then
+        abora_warn "Repairing the installed flake/module layout for pure evaluation."
+        cp -f "$flake_file" "${flake_file}.abora-backup" 2>/dev/null || true
+        write_installed_flake
+    fi
+}
+
+ensure_flake_layout() {
+    local flake_file="$config_dir/flake.nix"
+    local repair_script="$config_dir/abora/repair-flake-purity.sh"
+
+    if [[ ! -f "$flake_file" ]]; then
+        abora_warn "No flake.nix found in $config_dir — creating a flake-native Abora layout."
+        write_installed_flake
+    fi
+
+    if [[ ! -f "$config_dir/abora-local.nix" ]]; then
+        abora_error "Missing $config_dir/abora-local.nix."
+        abora_error "Reinstall from the current Abora ISO or restore the flake-native local module."
         return 1
     fi
 
-    if [[ ! -f "$local_module" ]]; then
-        hostname_value="$(extract_setting "$legacy_config" 's/^[[:space:]]*networking\.hostName = "([^"]+)";/\1/p')"
-        timezone_value="$(extract_setting "$legacy_config" 's/^[[:space:]]*time\.timeZone = "([^"]+)";/\1/p')"
-        keyboard_value="$(extract_setting "$legacy_config" 's/^[[:space:]]*console\.keyMap = "([^"]+)";/\1/p')"
-        xkb_layout_value="$(extract_setting "$legacy_config" 's/^[[:space:]]*xkb\.layout = "([^"]+)";/\1/p')"
-        username_value="$(extract_setting "$legacy_config" 's/^[[:space:]]*users\.users\."([^"]+)".*/\1/p')"
-        user_password_hash="$(extract_setting "$legacy_config" 's/^[[:space:]]*hashedPassword = "([^"]+)";/\1/p')"
-        disk_value="$(extract_setting "$legacy_config" 's/^[[:space:]]*devices = \[ "([^"]+)" \];/\1/p')"
-        state_version="$(extract_setting "$legacy_config" 's/^[[:space:]]*system\.stateVersion = "([^"]+)";/\1/p')"
-        desktop_profile="$(abora_detect_desktop_profile "$legacy_config")"
-
-        hostname_value="${hostname_value:-$(hostname)}"
-        timezone_value="${timezone_value:-UTC}"
-        keyboard_value="${keyboard_value:-us}"
-        xkb_layout_value="${xkb_layout_value:-$keyboard_value}"
-        state_version="${state_version:-26.05}"
-
-        if [[ -z "$username_value" || -z "$user_password_hash" || -z "$disk_value" ]]; then
-            abora_error "Could not migrate the legacy Abora install automatically."
-            abora_error "Missing values: user=${username_value:-missing} passwordHash=${user_password_hash:+set}${user_password_hash:-missing} disk=${disk_value:-missing}"
+    if [[ -f "$repair_script" ]]; then
+        bash "$repair_script" || {
+            abora_error "Abora could not repair known flake-purity issues."
             return 1
-        fi
-
-        abora_info "Migrating legacy Abora install to flake layout"
-        cp -f "$legacy_config" "$config_dir/configuration.legacy.nix"
-        write_local_module \
-            "$local_module" \
-            "$hostname_value" \
-            "$timezone_value" \
-            "$keyboard_value" \
-            "$xkb_layout_value" \
-            "$username_value" \
-            "$user_password_hash" \
-            "$disk_value" \
-            "$state_version" \
-            "$desktop_profile"
-        abora_info "Created $local_module"
+        }
     fi
 
-    write_flake_file "$flake_file" "$(system_string)"
-    abora_info "Wrote $flake_file"
+    repair_flake_layout_if_needed
 }
 
 # ── Pre-flight checks ─────────────────────────────────────────────────────────
@@ -616,6 +569,7 @@ case "$command_name" in
     nixos)
         case "${1:-}" in
             update | upgrade)
+                command_name="update"
                 shift
                 ;;
             rollback)
@@ -655,7 +609,6 @@ if [[ "$(id -u)" -ne 0 ]]; then
         ABORA_REPO_REF="$repo_ref" \
         ABORA_UPSTREAM_DIR="$upstream_dir" \
         ABORA_FLAKE_CONFIG_NAME="$flake_config_name" \
-        ABORA_DESKTOP_PROFILES_LIB="$desktop_profiles_lib" \
         ABORA_UI_LIB="$ui_lib" \
         bash "$script_self" "$@"
     exit 0
@@ -697,9 +650,10 @@ sync_abora_files "$effective_ref" || {
 abora_success "Abora files synced."
 printf '\n'
 
-bootstrap_legacy_flake || {
-    abora_error "Abora could not prepare a flake-based system update."
-    abora_error "Reinstall from the latest Abora ISO if this system predates the flake update path."
+maybe_reexec_synced_updater
+
+ensure_flake_layout || {
+    abora_error "Abora could not prepare a flake-native system update."
     exit 1
 }
 
@@ -709,7 +663,13 @@ nix --extra-experimental-features "nix-command flakes" flake update --flake "$co
 printf '\n'
 
 if git -C "$config_dir" rev-parse --git-dir >/dev/null 2>&1; then
-    git -C "$config_dir" add abora/ 2>/dev/null || true
+    git -C "$config_dir" add \
+        abora/mango/config.conf \
+        abora/abora-options.nix \
+        abora/installed-base.nix \
+        abora/desktops/mangowm.nix \
+        abora/ \
+        2>/dev/null || true
 fi
 
 abora_step "Rebuilding Abora from $config_dir"

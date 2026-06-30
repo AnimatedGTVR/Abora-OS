@@ -1,190 +1,57 @@
 { lib, pkgs, ... }:
 let
-  versionFile =
-    if builtins.pathExists ./VERSION then
-      ./VERSION
-    else
-      ../../VERSION;
-  titleFile =
-    if builtins.pathExists ./title.txt then
-      ./title.txt
-    else
-      ../../assets/abora-title.txt;
-  fastfetchLogoFile =
-    if builtins.pathExists ./fastfetch-logo.txt then
-      ./fastfetch-logo.txt
-    else
-      ../../assets/fastfetch-logo.txt;
-  fastfetchConfigFile =
-    if builtins.pathExists ./fastfetch-config.jsonc then
-      ./fastfetch-config.jsonc
-    else
-      ../../assets/fastfetch-config.jsonc;
-  uiScript =
-    if builtins.pathExists ./ui.sh then
-      ./ui.sh
-    else
-      ../../scripts/abora-ui.sh;
-  configScript =
-    if builtins.pathExists ./config.sh then
-      ./config.sh
-    else
-      ../../scripts/abora-config.sh;
-  aboraScript =
-    if builtins.pathExists ./abora.sh then
-      ./abora.sh
-    else
-      ../../scripts/abora.sh;
-  desktopScript =
-    if builtins.pathExists ./desktop.sh then
-      ./desktop.sh
-    else
-      ../../scripts/abora-desktop.sh;
-  doctorScript =
-    if builtins.pathExists ./doctor.sh then
-      ./doctor.sh
-    else
-      ../../scripts/abora-doctor.sh;
-  checkFullScript =
-    if builtins.pathExists ./check-full.sh then
-      ./check-full.sh
-    else
-      ../../scripts/abora-check-full.sh;
-  recoveryScript =
-    if builtins.pathExists ./recovery.sh then
-      ./recovery.sh
-    else
-      ../../scripts/abora-recovery.sh;
-  welcomeScript =
-    if builtins.pathExists ./welcome.sh then
-      ./welcome.sh
-    else
-      ../../scripts/abora-welcome.sh;
-  anixScript =
-    if builtins.pathExists ./anix.sh then
-      ./anix.sh
-    else
-      ../../scripts/anix.sh;
-  optionsModule =
-    if builtins.pathExists ./abora-options.nix then
-      ./abora-options.nix
-    else
-      null;
-  anixModule =
-    if builtins.pathExists ./anix-module.nix then
-      ./anix-module.nix
-    else
-      null;
+  # All paths below are relative to this file as it lives on the installed system
+  # (beside installed-base.nix in /etc/nixos/abora/ or equivalent).  The
+  # installer copies every required file via cp_required before the first
+  # nixos-rebuild, so the ./x paths are always present.  Optional files that
+  # the installer only copies when available fall back to null and their
+  # environment.etc entries are guarded with lib.optionalAttrs.
+  versionFile          = ./VERSION;
+  titleFile            = ./title.txt;
+  fastfetchLogoFile    = ./fastfetch-logo.txt;
+  fastfetchConfigFile  = ./fastfetch-config.jsonc;
+  uiScript             = ./ui.sh;
+  configScript         = ./config.sh;
+  aboraScript          = ./abora.sh;
+  desktopScript        = ./desktop.sh;
+  doctorScript         = ./doctor.sh;
+  checkFullScript      = ./check-full.sh;
+  recoveryScript       = ./recovery.sh;
+  welcomeScript        = ./welcome.sh;
+  anixScript           = ./anix.sh;
+  optionsModule        = ./abora-options.nix;
+  anixModule           = ./anix-module.nix;
   docsDir =
-    if builtins.pathExists ./docs then
-      ./docs
-    else
-      null;
-  appCatalogScript =
-    if builtins.pathExists ./app-catalog.sh then
-      ./app-catalog.sh
-    else
-      ../../scripts/abora-app-catalog.sh;
-  appManagerScript =
-    if builtins.pathExists ./apps.sh then
-      ./apps.sh
-    else
-      ../../scripts/abora-apps.sh;
-  supportReportScript =
-    if builtins.pathExists ./support-report.sh then
-      ./support-report.sh
-    else
-      ../../scripts/abora-support-report.sh;
-  hardwareTestScript =
-    if builtins.pathExists ./hardware-test.sh then
-      ./hardware-test.sh
-    else
-      ../../scripts/abora-hardware-test.sh;
-  wallpaperFile =
-    if builtins.pathExists ./default-wallpaper.png then
-      ./default-wallpaper.png
-    else
-      ../../assets/wallpapers/collection/Daytime-MNT.jpg;
+    if builtins.pathExists ./docs then ./docs else null;
+  appCatalogScript     = ./app-catalog.sh;
+  appManagerScript     = ./apps.sh;
+  supportReportScript  = ./support-report.sh;
+  hardwareTestScript   = ./hardware-test.sh;
+  repairFlakePurityScript = ./repair-flake-purity.sh;
+  wallpaperFile        = ./default-wallpaper.png;
   aboraLogoFile =
-    if builtins.pathExists ./Abora-LOGO.png then
-      ./Abora-LOGO.png
-    else
-      null;
-  wallpaperDir =
-    if builtins.pathExists ./wallpapers then
-      ./wallpapers
-    else
-      ../../assets/wallpapers/collection;
-  wallpaperThemeDir =
-    if builtins.pathExists ./themes then
-      ./themes
-    else
-      ../../assets/wallpaper-themes;
-  updateScript =
-    if builtins.pathExists ./update.sh then
-      ./update.sh
-    else
-      ../../scripts/abora-update.sh;
-  themeSyncScript =
-    if builtins.pathExists ./theme-sync.sh then
-      ./theme-sync.sh
-    else
-      ../../scripts/abora-theme-sync.sh;
-  sessionSetupScript =
-    if builtins.pathExists ./session-setup.sh then
-      ./session-setup.sh
-    else
-      ../../scripts/abora-session-setup.sh;
-  desktopProfilesScript =
-    if builtins.pathExists ./desktop-profiles.sh then
-      ./desktop-profiles.sh
-    else
-      ../../scripts/abora-desktop-profiles.sh;
-  mangoConfigFile =
-    if builtins.pathExists ./mango/config.conf then
-      ./mango/config.conf
-    else
-      ../../assets/mango/config.conf;
-  installerScript =
-    if builtins.pathExists ./installer.sh then
-      ./installer.sh
-    else
-      ../../scripts/abora-installer.sh;
-  setupLauncherScript =
-    if builtins.pathExists ./setup-launcher.sh then
-      ./setup-launcher.sh
-    else
-      ../../scripts/abora-setup-launcher.sh;
-  setupDesktopFile =
-    if builtins.pathExists ./setup.desktop then
-      ./setup.desktop
-    else
-      ../../scripts/abora-setup.desktop;
-  plymouthDir =
-    if builtins.pathExists ./plymouth then
-      ./plymouth
-    else
-      ../../assets/plymouth;
-  bootloaderDir =
-    if builtins.pathExists ./bootloader then
-      ./bootloader
-    else
-      ../../assets/bootloader;
+    if builtins.pathExists ./Abora-LOGO.png then ./Abora-LOGO.png else null;
+  wallpaperDir         = ./wallpapers;
+  wallpaperThemeDir    = ./themes;
+  updateScript         = ./update.sh;
+  themeSyncScript      = ./theme-sync.sh;
+  sessionSetupScript   = ./session-setup.sh;
+  desktopProfilesScript = ./desktop-profiles.sh;
+  mangoConfigFile      = ./mango/config.conf;
+  mangoConfigText      = builtins.readFile mangoConfigFile;
+  installerScript      = ./installer.sh;
+  setupLauncherScript  = ./setup-launcher.sh;
+  setupDesktopFile     = ./setup.desktop;
+  plymouthDir          = ./plymouth;
+  bootloaderDir        = ./bootloader;
   effectsDir =
-    if builtins.pathExists ./effects then
-      ./effects
-    else
-      ../../assets/Effects;
+    if builtins.pathExists ./effects then ./effects else null;
   limineWallpaperFile =
     if builtins.pathExists (bootloaderDir + "/limine-background.png") then
       bootloaderDir + "/limine-background.png"
     else
       bootloaderDir + "/background.png";
-  tinypmDir =
-    if builtins.pathExists ./tinypm then
-      ./tinypm
-    else
-      throw "Abora TinyPM payload is missing. Expected ./tinypm beside installed-base.nix.";
+  tinypmDir            = ./tinypm;
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
   mkGrabCmd = name: pkgs.writeShellScriptBin name ''
     exec env TINYPM_FLAVOR=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/tinypm/${name} "$@"
@@ -221,6 +88,9 @@ let
   '';
   aboraHardwareTest = pkgs.writeShellScriptBin "abora-hardware-test" ''
     exec env ABORA_SUPPORT_REPORT_SCRIPT=/etc/abora/support-report.sh ${pkgs.bashInteractive}/bin/bash /etc/abora/hardware-test.sh "$@"
+  '';
+  aboraRepairFlakePurity = pkgs.writeShellScriptBin "abora-repair-flake-purity" ''
+    exec env ABORA_SYSTEM_CONFIG=/etc/nixos ${pkgs.bashInteractive}/bin/bash /etc/abora/repair-flake-purity.sh "$@"
   '';
   aboraInstaller = pkgs.writeShellScriptBin "abora-installer" ''
     exec env ABORA_INSTALLER=/etc/abora/installer.sh \
@@ -342,62 +212,7 @@ in
 
   nixpkgs.overlays = [
     (final: prev: {
-      mango = final.callPackage
-        ({ stdenv
-         , lib
-         , fetchFromGitHub
-         , meson
-         , ninja
-         , pkg-config
-         , wayland-scanner
-         , libinput
-         , libxcb
-         , libxkbcommon
-         , pcre2
-         , cjson
-         , pixman
-         , wayland
-         , wayland-protocols
-         , wlroots_0_19
-         , scenefx
-         , libGL
-         , libX11
-         , libxcb-wm
-         , xwayland
-         }:
-         stdenv.mkDerivation {
-           pname = "mango";
-           version = "unstable-2026-06-12";
-
-           src = fetchFromGitHub {
-             owner = "mangowm";
-             repo = "mango";
-             rev = "792bfac475cab87bd470ed70bb9f540d72959263";
-             hash = "sha256-/sKbjzbftTgjvTmlPx5navYSPYcxyD4Pao0Ef1RJD54=";
-           };
-
-           nativeBuildInputs = [ meson ninja pkg-config wayland-scanner ];
-
-           buildInputs = [
-             libinput libxcb libxkbcommon pcre2 cjson pixman
-             wayland wayland-protocols wlroots_0_19 scenefx libGL
-             libX11 libxcb-wm xwayland
-           ];
-
-           mesonFlags = [ (lib.mesonEnable "xwayland" true) ];
-
-           passthru.providedSessions = [ "mango" ];
-
-           meta = with lib; {
-             description = "Practical and powerful Wayland compositor (dwm but Wayland)";
-             homepage = "https://mangowm.github.io/";
-             license = licenses.gpl3Plus;
-             platforms = platforms.linux;
-             maintainers = [];
-           };
-         })
-        {};
-    } // lib.optionalAttrs (builtins.pathExists ./pkgs/modularity.nix) {
+      mango = final.callPackage ./pkgs/mango.nix {};
       modularity = final.callPackage ./pkgs/modularity.nix {};
     })
   ];
@@ -555,6 +370,7 @@ in
     aboraDoctor
     aboraHardwareTest
     aboraRecovery
+    aboraRepairFlakePurity
     aboraSupportReport
     aboraUpdate
     aboraWelcome
@@ -702,16 +518,20 @@ in
         source = hardwareTestScript;
         mode = "0755";
       };
+      "abora/repair-flake-purity.sh" = {
+        source = repairFlakePurityScript;
+        mode = "0755";
+      };
       "abora/default-wallpaper.png".source = wallpaperFile;
       "abora/title.txt".source = titleFile;
       "abora/fastfetch-logo.txt".source = fastfetchLogoFile;
       "abora/fastfetch-config.jsonc".source = fastfetchConfigFile;
-      "abora/effects/v3StartingAbora.mp3".source = effectsDir + "/v3StartingAbora.mp3";
       "abora/desktop-profiles.sh" = {
         source = desktopProfilesScript;
         mode = "0755";
       };
       "abora/mango/config.conf".source = mangoConfigFile;
+      "mango/config.conf".text = lib.mkDefault mangoConfigText;
       "abora/tinypm".source = tinypmDir;
       # The generated /etc/nixos/flake.nix pins its nixpkgs input to
       # "path:/etc/abora/nixpkgs". Expose the build-time nixpkgs source here so
@@ -907,10 +727,13 @@ in
         value.source = wallpaperThemeDir + "/${name}";
       }) (builtins.attrNames (builtins.readDir wallpaperThemeDir))
     )
-    // lib.optionalAttrs (optionsModule != null) {
+    // {
+      "abora/desktops".source = ./desktops;
+    }
+    // {
       "abora/abora-options.nix".source = optionsModule;
     }
-    // lib.optionalAttrs (anixModule != null) {
+    // {
       "abora/anix-module.nix".source = anixModule;
     }
     // lib.optionalAttrs (docsDir != null) {
@@ -918,6 +741,9 @@ in
     }
     // lib.optionalAttrs (aboraLogoFile != null) {
       "abora/Abora-LOGO.png".source = aboraLogoFile;
+    }
+    // lib.optionalAttrs (effectsDir != null) {
+      "abora/effects/v3StartingAbora.mp3".source = effectsDir + "/v3StartingAbora.mp3";
     };
 
   environment.shellAliases.fastfetch = "fastfetch -c /etc/xdg/fastfetch/config.jsonc";

@@ -78,6 +78,9 @@ abora_mangowm_config_text() {
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     for candidate in \
         "${ABORA_MANGO_CONFIG_FILE:-}" \
+        "${script_dir}/mango/config.conf" \
+        "/etc/nixos/abora/mango/config.conf" \
+        "/etc/nixos/.abora-upstream/assets/mango/config.conf" \
         "/etc/abora/mango/config.conf" \
         "${script_dir}/../assets/mango/config.conf"; do
         [[ -n "$candidate" && -f "$candidate" ]] || continue
@@ -374,8 +377,15 @@ EOF
     withUWSM = true;
     xwayland.enable = true;
   };
-  xdg.portal.enable = true;
-  xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+  xdg.portal = {
+    enable = true;
+    extraPortals = with pkgs; [ xdg-desktop-portal-hyprland xdg-desktop-portal-gtk ];
+    config = {
+      hyprland.default = lib.mkForce [ "hyprland" "gtk" ];
+      hyprland-uwsm.default = lib.mkForce [ "hyprland" "gtk" ];
+      common.default = lib.mkForce [ "gtk" ];
+    };
+  };
 EOF
             ;;
         xfce)
@@ -489,8 +499,14 @@ EOF
     enable = true;
     wayland.enable = true;
   };
-  xdg.portal.enable = true;
-  xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+  xdg.portal = {
+    enable = true;
+    extraPortals = with pkgs; [ xdg-desktop-portal-wlr xdg-desktop-portal-gtk ];
+    config = {
+      sway.default = lib.mkForce [ "wlr" "gtk" ];
+      common.default = lib.mkForce [ "gtk" ];
+    };
+  };
 EOF
             ;;
         awesome)
@@ -557,8 +573,14 @@ EOF
     enable = true;
     wayland.enable = true;
   };
-  xdg.portal.enable = true;
-  xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+  xdg.portal = {
+    enable = true;
+    extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+    config = {
+      niri.default = lib.mkForce [ "gtk" ];
+      common.default = lib.mkForce [ "gtk" ];
+    };
+  };
 EOF
             ;;
         river)
@@ -580,8 +602,14 @@ EOF
     enable = true;
     wayland.enable = true;
   };
-  xdg.portal.enable = true;
-  xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+  xdg.portal = {
+    enable = true;
+    extraPortals = with pkgs; [ xdg-desktop-portal-wlr xdg-desktop-portal-gtk ];
+    config = {
+      river.default = lib.mkForce [ "wlr" "gtk" ];
+      common.default = lib.mkForce [ "gtk" ];
+    };
+  };
 EOF
             ;;
         qtile)
@@ -694,8 +722,8 @@ $(abora_mangowm_config_text)
     extraPortals = with pkgs; [ xdg-desktop-portal-wlr xdg-desktop-portal-gtk ];
     wlr.enable = true;
     config = {
-      mango.default = [ "wlr" "gtk" ];
-      wlroots.default = [ "wlr" "gtk" ];
+      mango.default = lib.mkForce [ "wlr" "gtk" ];
+      common.default = lib.mkForce [ "gtk" ];
     };
   };
   security.polkit.enable = true;
