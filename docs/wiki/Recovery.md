@@ -39,6 +39,18 @@ Or through ANIX:
 anix switch nix abora
 ```
 
+## Repair Flake Purity
+
+If rebuilds fail with `/nix/store/assets/mango/config.conf` in pure evaluation mode, repair the installed config first:
+
+```sh
+sudo abora repair --mango
+sudo nix --extra-experimental-features "nix-command flakes" flake update --flake /etc/nixos
+sudo nixos-rebuild switch --flake /etc/nixos#abora
+```
+
+Do not use `--impure` as the normal fix. The repair ensures `/etc/nixos/abora/mango/config.conf` exists, rewrites copied Abora modules away from repo-relative Mango asset paths, and runs `git add` when `/etc/nixos` is a Git flake tree.
+
 ## Test Before Switching
 
 ```sh

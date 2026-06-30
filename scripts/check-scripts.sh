@@ -22,6 +22,7 @@ bash_scripts=(
   "scripts/abora-doctor.sh"
   "scripts/abora-hardware-test.sh"
   "scripts/abora-installer.sh"
+  "scripts/abora-repair-flake-purity.sh"
   "scripts/abora-recovery.sh"
   "scripts/abora-session-setup.sh"
   "scripts/abora-setup-launcher.sh"
@@ -38,6 +39,7 @@ bash_scripts=(
   "scripts/package-tinypm.sh"
   "scripts/preflight.sh"
   "scripts/rebuild-vm.sh"
+  "scripts/check-release-files.sh"
   "scripts/release-metadata.sh"
   "scripts/run-qemu.sh"
   "scripts/check-scripts.sh"
@@ -90,6 +92,16 @@ for file in "${bash_scripts[@]}"; do
     fail "not executable: $file"
   fi
 done
+
+if command -v shellcheck >/dev/null 2>&1; then
+  if shellcheck scripts/abora-update.sh scripts/abora-repair-flake-purity.sh scripts/check-release-files.sh; then
+    pass "shellcheck: updater and repair scripts"
+  else
+    fail "shellcheck: updater and repair scripts"
+  fi
+else
+  pass "shellcheck unavailable (updater lint skipped)"
+fi
 
 for file in "${nix_files[@]}"; do
   if [[ -f "$file" ]]; then
@@ -210,7 +222,82 @@ rm -rf "$tmp_mango_repair"
 
 tmp_ok="$(mktemp -d)"
 tmp_empty="$(mktemp -d)"
-trap 'rm -rf "$tmp_ok" "$tmp_empty"' EXIT
+tmp_update_flake="$(mktemp -d)"
+trap 'rm -rf "$tmp_ok" "$tmp_empty" "$tmp_update_flake"' EXIT
+
+cat > "$tmp_update_flake/flake.nix" <<'EOF'
+{
+  broken =
+EOF
+if ABORA_SYSTEM_CONFIG="$tmp_update_flake" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-write-flake >/dev/null; then
+  _update_flake_backup="$(compgen -G "$tmp_update_flake/flake.nix.backup-*" | head -n1 || true)"
+  if [[ -n "$_update_flake_backup" ]] \
+    && bash -c 'nix-instantiate --parse "$1" >/dev/null' _ "$tmp_update_flake/flake.nix" 2>/dev/null; then
+    pass "runtime: updater writes flake.nix atomically with backup"
+  elif [[ -n "$_update_flake_backup" ]] \
+    && grep -q 'nixosConfigurations' "$tmp_update_flake/flake.nix"; then
+    pass "runtime: updater writes flake.nix atomically with backup"
+  else
+    fail "runtime: updater flake writer did not produce valid flake and backup"
+  fi
+else
+  fail "runtime: updater flake writer self-test"
+fi
+
+if scripts/check-release-files.sh >/dev/null; then
+  pass "runtime: release file manifest"
+else
+  fail "runtime: release file manifest"
+fi
+
+_resolver_tags="v2.5.0 v3.14DEMO"
+if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable | grep -q '^v3\.14DEMO[[:space:]]'; then
+  pass "runtime: resolver keeps 3.14 demo on v3.14DEMO"
+else
+  fail "runtime: resolver keeps 3.14 demo on v3.14DEMO"
+fi
+
+_resolver_tags="v2.5.0 v3.14DEMO v3.14"
+if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable | grep -q '^v3\.14[[:space:]]'; then
+  pass "runtime: resolver prefers final v3.14 when present"
+else
+  fail "runtime: resolver prefers final v3.14 when present"
+fi
+
+_resolver_tags="v2.5.0"
+if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable >/dev/null 2>&1; then
+  fail "runtime: resolver refuses accidental downgrade to v2.5.0"
+else
+  pass "runtime: resolver refuses accidental downgrade to v2.5.0"
+fi
+
+if ABORA_RELEASE_TAGS="v2.5.0" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-fallback 3.14 v2.5.0 | grep -q '^v2\.5\.0[[:space:]]'; then
+  pass "runtime: resolver allows explicit fallback downgrade"
+else
+  fail "runtime: resolver allows explicit fallback downgrade"
+fi
+
+tmp_bad_upstream="$(mktemp -d)"
+mkdir -p "$tmp_bad_upstream"
+if ABORA_SYSTEM_CONFIG="$tmp_update_flake" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-validate-upstream "$tmp_bad_upstream" test-ref >/dev/null 2>&1; then
+  fail "runtime: updater rejects incomplete upstream checkout"
+else
+  pass "runtime: updater rejects incomplete upstream checkout"
+fi
+rm -rf "$tmp_bad_upstream"
+
+if git rev-parse -q --verify refs/tags/v3.14DEMO >/dev/null; then
+  tmp_demo_upstream="$(mktemp -d)"
+  git archive v3.14DEMO | tar -x -C "$tmp_demo_upstream"
+  if ABORA_SYSTEM_CONFIG="$tmp_update_flake" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-validate-upstream "$tmp_demo_upstream" v3.14DEMO >/dev/null 2>&1; then
+    pass "runtime: v3.14DEMO manifest matches tagged layout"
+  else
+    fail "runtime: v3.14DEMO manifest matches tagged layout"
+  fi
+  rm -rf "$tmp_demo_upstream"
+else
+  pass "runtime: v3.14DEMO tag unavailable (manifest check skipped)"
+fi
 
 mkdir -p "$tmp_ok/iso" "$tmp_ok/packages" "$tmp_ok/release"
 touch "$tmp_ok/iso/abora-test-x86_64-${release_tag}.iso"
