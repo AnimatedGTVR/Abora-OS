@@ -34,12 +34,24 @@ root_password_hash=""
 root_password_mode="same"
 version="${ABORA_VERSION:-}"
 reconfig_mode="${ABORA_RECONFIG:-0}"
+batch_mode=0
+batch_params_file=""
 
-for arg in "$@"; do
-    case "$arg" in
+# Parse args: support both --reconfig and --batch <params-file>
+_args=("$@")
+_i=0
+while (( _i < ${#_args[@]} )); do
+    case "${_args[$_i]}" in
         --reconfig|-r) reconfig_mode=1 ;;
+        --batch)
+            batch_mode=1
+            _i=$(( _i + 1 ))
+            batch_params_file="${_args[$_i]:-}"
+            ;;
     esac
+    _i=$(( _i + 1 ))
 done
+unset _args _i
 
 # ── Library loading ────────────────────────────────────────────────────────────
 find_lib() {
@@ -194,6 +206,12 @@ pause() {
 die() {
     err "$*"
     printf 'INSTALL ERROR: %s\n' "$*" >>"$install_log" 2>/dev/null || true
+    # In batch (GUI) mode: just exit so the GUI can read the error from the log.
+    if [[ "${batch_mode:-0}" -eq 1 ]]; then
+        printf 'FATAL: %s\n' "$*" >&2
+        cleanup_target 2>/dev/null || true
+        exit 1
+    fi
     printf '\n  %bLog: %s%b\n\n' "${D}${CG}" "$install_log" "$R"
     if declare -F draw_log_tail >/dev/null 2>&1 && [[ -f "$install_log" ]]; then
         draw_log_tail "$install_log" 7
@@ -1986,6 +2004,28 @@ page_done_reconfig() {
 
 main() {
     require_root
+
+    # ── Batch (GUI) mode ────────────────────────────────────────────────────────
+    # The GUI installer writes all settings to a params file and calls us with
+    # --batch <file>.  We source the file, skip all TUI steps, and run the
+    # install engine.  All output goes to stdout (the GUI reads it via pipe and
+    # also tails /tmp/abora-install.log for the log viewer).
+    if [[ "${batch_mode:-0}" -eq 1 ]]; then
+        [[ -n "$batch_params_file" && -f "$batch_params_file" ]] \
+            || { printf 'ERROR: batch params file not found: %s\n' "$batch_params_file" >&2; exit 1; }
+        # shellcheck source=/dev/null
+        source "$batch_params_file"
+        trap 'cleanup_target 2>/dev/null || true' EXIT
+        detect_defaults 2>/dev/null || true
+        : > "$install_log"
+        printf '[batch] Starting Abora OS installation\n'
+        printf '[batch] disk=%s hostname=%s desktop=%s\n' \
+            "$disk" "$hostname_value" "$desktop_profile"
+        run_install
+        printf 'done!\n'
+        exit 0
+    fi
+
     trap 'if [[ "${reconfig_mode:-0}" != "1" ]]; then cleanup_target; fi' EXIT
     detect_defaults
     refresh_github_identity
