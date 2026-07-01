@@ -155,6 +155,22 @@ let
   mkGrabCmd = name: pkgs.writeShellScriptBin name ''
     exec env TINYPM_FLAVOR=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/tinypm/${name} "$@"
   '';
+  # ── GUI Installer ────────────────────────────────────────────────────────────
+  guiPython = pkgs.python3.withPackages (ps: [ ps.pygobject3 ]);
+  aboraInstallGui = pkgs.writeShellScriptBin "abora-install-gui" ''
+    if [ "$(id -u)" -ne 0 ]; then
+      exec sudo -E \
+        DISPLAY="''${DISPLAY:-}" \
+        WAYLAND_DISPLAY="''${WAYLAND_DISPLAY:-}" \
+        XDG_RUNTIME_DIR="''${XDG_RUNTIME_DIR:-}" \
+        "$0" "$@"
+    fi
+    export GI_TYPELIB_PATH="${pkgs.gtk4}/lib/girepository-1.0:${pkgs.libadwaita}/lib/girepository-1.0:${pkgs.glib.out}/lib/girepository-1.0:${pkgs.pango.out}/lib/girepository-1.0:${pkgs.gdk-pixbuf}/lib/girepository-1.0:${pkgs.graphene}/lib/girepository-1.0:${pkgs.harfbuzz}/lib/girepository-1.0"
+    export XDG_DATA_DIRS="${pkgs.gtk4}/share:${pkgs.adwaita-icon-theme}/share:${pkgs.hicolor-icon-theme}/share:''${XDG_DATA_DIRS:-/usr/share}"
+    export ABORA_DESKTOP_PROFILES_LIB=/etc/abora/desktop-profiles.sh
+    export ABORA_APP_CATALOG_LIB=/etc/abora/app-catalog.sh
+    exec ${guiPython}/bin/python3 /etc/abora/installer-gui.py "$@"
+  '';
 in
 {
   system.stateVersion = "26.05";
@@ -291,6 +307,7 @@ in
     aboraCommand
     aboraCheckFull
     aboraInstall
+    aboraInstallGui
     anixCommand
     aboraConfig
     aboraDesktop
@@ -452,6 +469,10 @@ in
       };
       "abora/installer.sh" = {
         source = ../../scripts/abora-installer.sh;
+        mode = "0755";
+      };
+      "abora/installer-gui.py" = {
+        source = ../../scripts/abora-installer-gui.py;
         mode = "0755";
       };
       "abora/setup-launcher.sh" = {
