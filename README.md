@@ -1,568 +1,203 @@
-<p align="center">
-  <img src="assets/Github/ReadME%20background.png" alt="Abora OS banner" width="94%">
-</p>
+<div align="center">
 
-<h1 align="center">Abora OS</h1>
+# Abora OS
 
-<p align="center">
-  <strong>A NixOS-based distro with an easier installer, more desktop choices, and a cleaner first setup.</strong>
-</p>
+### A NixOS-based Linux distro made to be easier to install, use, and understand.
 
-<p align="center">
-  <a href="https://github.com/AnimatedGTVR/abora-os/releases/latest"><strong>Download</strong></a>
-  ·
-  <a href="https://www.aboraos.org/"><strong>Website</strong></a>
-  ·
-  <a href="docs/wiki/Home.md"><strong>Wiki</strong></a>
-  ·
-  <a href="RELEASE_NOTES.md"><strong>Release Notes</strong></a>
-</p>
+<br/>
 
-<p align="center">
-  <a href="https://github.com/AnimatedGTVR/abora-os/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/AnimatedGTVR/abora-os?style=for-the-badge" alt="License">
-  </a>
-  <a href="https://github.com/AnimatedGTVR/abora-os/releases/latest">
-    <img src="https://img.shields.io/github/v/release/AnimatedGTVR/abora-os?style=for-the-badge&label=release" alt="Latest release">
-  </a>
-  <a href="https://github.com/AnimatedGTVR/abora-os/actions/workflows/build-iso.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/AnimatedGTVR/abora-os/build-iso.yml?style=for-the-badge&label=iso%20build" alt="ISO build status">
-  </a>
-  <a href="https://github.com/AnimatedGTVR/abora-os/graphs/contributors">
-    <img src="https://img.shields.io/github/contributors/AnimatedGTVR/abora-os?style=for-the-badge" alt="Contributors">
-  </a>
-</p>
+<a href="https://aboraos.org">
+  <img height="28" src="https://img.shields.io/badge/Website-aboraos.org-f0f0f0?style=for-the-badge" alt="Website">
+</a>
+<a href="https://deepwiki.com/AnimatedGTVR/Abora-OS">
+  <img height="28" src="https://img.shields.io/badge/Ask%20DeepWiki-Abora%20OS-0ea5e9?style=for-the-badge" alt="Ask DeepWiki">
+</a>
+<a href="https://github.com/AnimatedGTVR/Abora-OS">
+  <img height="28" src="https://img.shields.io/badge/GitHub-Abora--OS-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub">
+</a>
 
-<p align="center">
-  <a href="SECURITY.md">Security</a>
-  &nbsp;•&nbsp;
-  <a href="docs/roadmap.md">Roadmap</a>
-  &nbsp;•&nbsp;
-  <a href="CONTRIBUTING.md">Contributing</a>
-</p>
+<br/>
+<br/>
 
-<p align="center">
-  <img alt="Release" src="https://img.shields.io/badge/3.14-DENALI-7cc7ff?style=for-the-badge">
-  <img alt="Base" src="https://img.shields.io/badge/base-NixOS-5277C3?style=for-the-badge">
-  <img alt="Desktop options" src="https://img.shields.io/badge/desktops-21-8bd5ff?style=for-the-badge">
-  <img alt="Flatpak" src="https://img.shields.io/badge/Flatpak-ready-4A90D9?style=for-the-badge">
-</p>
+<a href="https://github.com/AnimatedGTVR/Abora-OS/stargazers">
+  <img height="22" src="https://img.shields.io/github/stars/AnimatedGTVR/Abora-OS?style=flat-square&label=Stars" alt="GitHub Stars">
+</a>
+<a href="https://github.com/AnimatedGTVR/Abora-OS/issues">
+  <img height="22" src="https://img.shields.io/github/issues/AnimatedGTVR/Abora-OS?style=flat-square&label=Issues" alt="Issues">
+</a>
+<a href="https://github.com/AnimatedGTVR/Abora-OS/releases">
+  <img height="22" src="https://img.shields.io/github/v/release/AnimatedGTVR/Abora-OS?style=flat-square&label=Release" alt="Latest Release">
+</a>
+<a href="LICENSE">
+  <img height="22" src="https://img.shields.io/badge/License-See%20LICENSE-3b82f6?style=flat-square" alt="License">
+</a>
+
+</div>
 
 ---
 
-## Abora OS DENALI 3.14
+> [!IMPORTANT]
+> Abora OS has two release lines: **Stable** and **Edge**.
 
-Abora OS is a NixOS-based distro made for people who want the power of NixOS without fighting the first install.
-
-It keeps the NixOS base, but adds a better live image, a guided installer, desktop choices, app bundles, Abora tools, ANIX profiles, TinyPM, Flatpak support, wallpapers, theming, and boot branding.
-
-Abora is not trying to replace NixOS or hide how it works. The goal is simpler: make the start less rough.
+> [!TIP]
+> Want more info, docs, downloads, screenshots, and updates? Visit **https://aboraos.org**.
 
 ---
 
-## Demos And Releases
+## What is Abora OS?
 
-Abora has two ways to follow the project:
+Abora OS is a Linux distribution based on NixOS.
 
-| Track | What it is | Best for | Where to look |
-|---|---|---|---|
-| `Demos` | Preview work, UI overhauls, experimental polish, and things like `ANIX 1.0.5 DEMO` | People who want to watch Abora evolve in public | [Roadmap](docs/roadmap.md), [Wiki](docs/wiki/Home.md), [main branch](https://github.com/AnimatedGTVR/abora-os/tree/main) |
-| `Releases` | Tagged builds with ISO assets, checksums, release notes, and the stable Abora line | People who want the cleanest install path | [Latest release](https://github.com/AnimatedGTVR/abora-os/releases/latest), [Release notes](RELEASE_NOTES.md), [Security](SECURITY.md) |
+It keeps the good parts of NixOS — rollback support, reproducible systems, and powerful configuration — while making the experience easier with better defaults, desktop options, installer work, and Abora tooling.
 
-### Current Showcase
-
-- `DENALI 3.14` is the current Abora release line.
-- `ANIX 1.0.5 DEMO` is the current demo-branded ANIX experience inside the tooling layer.
-- `make iso` is the fast path for trying the latest local build.
-- `make release` is the full path for generating a proper release bundle.
-
-### Release Bundle
-
-Every full release is meant to feel complete, not just bootable:
-
-- ISO image for install testing and real hardware installs
-- TinyPM package bundle
-- Release notes
-- Checksums
-- Release manifest
+Abora is built for people who want a powerful Linux system without fighting the system from the start.
 
 ---
 
-## What Abora Changes
+## Release Lines
 
-NixOS is strong, but the first steps can be rough if you are not already used to flakes, rebuilds, generations, and config files.
+### Stable
 
-Abora tries to make that part easier.
+Stable is for regular installs and daily use.
 
-| NixOS can feel like... | Abora adds... |
-|---|---|
-| A blank live system | A cleaner boot and welcome flow |
-| Manual setup right away | A guided terminal installer |
-| One main desktop path | 21 desktop/window-manager choices |
-| Long rebuild commands | Shorter `abora`, `anix`, and update commands |
-| A plain first boot | Wallpapers, themes, apps, and branding |
-| Recovery you have to figure out yourself | Snapshots, rollback helpers, and repair tools |
+It uses normal version numbers like:
+
+```txt
+2.5
+3.0
+3.14
+4.0
+```
+
+Stable gets tested changes and is the safer choice for most users.
+
+### Edge
+
+Edge is the faster-moving line.
+
+It gets newer changes first, including installer updates, desktop changes, ANIX work, fixes, and early Abora development.
+
+Edge uses date-based version IDs like:
+
+```txt
+2026.07.01
+```
 
 ---
 
 ## Main Features
 
-<table>
-<tr>
-<td width="50%" valign="top">
-
-### Installer
-
-- Terminal-first Denali installer
-- Keyboard-driven menus
-- Welcome screen before disk changes
-- Timezone and keyboard detection
-- Hostname, user, password, desktop, and app setup
-- Optional GitHub CLI login
-- Install summary before wiping the disk
-- Live `nixos-install` progress
-- Config validation before install
-- Failure logs when something goes wrong
-
-</td>
-<td width="50%" valign="top">
-
-### System
-
-- Full NixOS base
-- Reproducible ISO builds with Nix flakes
-- Limine bootloader with Abora branding
-- Stable and unstable update channels
-- `sudo nixos update` and rollback flow
-- Flatpak and Flathub enabled by default
-- Dark-first desktop defaults
-- Abora wallpapers across supported sessions
-- GNOME accent and theme matching for Abora wallpapers
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-### Tools
-
-- `abora config` for safer local changes
-- `abora welcome`, `doctor`, `recovery`, and `setup`
-- ANIX v1 profile management
-- Snapshot, diff, test, boot, switch, and rollback workflows
-- TinyPM v4 app/source layer
-- Abora, ANIX, and TinyPM bridges
-- Optional GitHub helper workflows
-
-</td>
-<td width="50%" valign="top">
-
-### Desktop Choice
-
-- 22 desktop environments/window managers
-- Full desktop, tiling, Wayland, lightweight, and console-only installs
-- Curated starter app bundles: Fan Favorites, Essentials, Social, Creator, Developer, Gaming, System
-- Starter app bundles for different setups
-- 53 apps in the catalog across 6 categories
-- Abora branding across boot, desktop, fastfetch, and recovery tools
-
-</td>
-</tr>
-</table>
+- NixOS base
+- Rollback-friendly updates
+- Multiple desktop options
+- ANIX tooling
+- Stable and Edge release lines
+- Custom installer work
+- Abora-specific defaults and cleanup
 
 ---
 
-## Desktop Environments
+## ANIX
 
-Abora DENALI 3.14 ships with **22 desktop environments/window managers**, plus a no-desktop install, selectable at install time:
+ANIX is Abora’s easier layer for common Nix-style system tasks.
 
-| Desktop | Type | Display Manager |
-|---|---|---|
-| GNOME | Full DE | GDM |
-| KDE Plasma | Full DE | SDDM |
-| COSMIC | Full DE | COSMIC Greeter |
-| XFCE | Full DE | LightDM |
-| Cinnamon | Full DE | LightDM |
-| MATE | Full DE | LightDM |
-| Budgie | Full DE | LightDM |
-| LXQt | Lightweight DE | SDDM |
-| Pantheon | Full DE | LightDM |
-| Hyprland | Wayland compositor | SDDM (Wayland) |
-| Sway | Wayland compositor | SDDM (Wayland) |
-| Niri | Wayland compositor | SDDM (Wayland) |
-| River | Wayland compositor | SDDM (Wayland) |
-| i3 | Tiling WM | LightDM |
-| AwesomeWM | Tiling WM | LightDM |
-| Qtile | Tiling WM | LightDM |
-| BSPWM | Tiling WM | LightDM |
-| Herbstluftwm | Tiling WM | LightDM |
-| Openbox | Floating WM | LightDM |
-| Fluxbox | Floating WM | LightDM |
-| IceWM | Floating WM | LightDM |
-| MangoWM | Wayland compositor | SDDM (Wayland) |
-| No desktop | Console-only | TTY |
-
----
-
-## Quick Start
-
-Build the ISO:
-
-```sh
-make iso
-```
-
-Boot it in QEMU:
-
-```sh
-make qemu-fresh
-```
-
-After installing in QEMU, boot the virtual disk without the ISO:
-
-```sh
-make qemu-disk
-```
-
----
-
-## Installer Flow
-
-The Denali installer is built around a simple terminal flow. It is still keyboard-first, but it gives you the choices before touching the disk.
-
-```text
-Welcome
-  └─ Locale
-      └─ User setup
-          └─ Desktop selection
-              └─ Starter apps
-                  └─ Optional GitHub CLI
-                      └─ Install summary
-                          └─ NixOS install
-                              └─ Reboot
-```
-
-### Navigation
-
-Arrow keys work normally. Number keys can also jump straight to menu items.
-
-```text
-1-9    Jump to menu item
-↑ ↓    Move selection
-Enter  Confirm
-Esc    Back/cancel where supported
-```
-
-### Disk Layout
-
-Every install creates a GPT layout:
-
-| Partition | Size | Purpose |
-|---|---:|---|
-| BIOS boot | 1 MiB | Legacy boot support |
-| EFI system | 512 MiB | UEFI boot |
-| Root | Remaining space | ext4 system root |
-
----
-
-## Installed System Configuration
-
-After installation, local settings live here:
-
-```text
-/etc/nixos/abora-local.nix
-```
-
-Example:
-
-```nix
-abora.hostname = "my-pc";
-abora.timezone = "America/New_York";
-abora.desktop  = "gnome";
-```
-
-Use `abora config` for common changes without opening the Nix file by hand:
-
-```sh
-abora config
-abora config set hostname my-pc
-abora config set timezone America/New_York
-abora config set desktop hyprland
-abora config apply
+```bash
+anix update
+anix switch
+anix rollback
+anix status
 ```
 
 > [!NOTE]
-> `user` and `disk` are read-only through `abora config` for safety. Edit `abora-local.nix` directly only when you actually mean to change those values.
+> ANIX is meant to make Abora easier to manage, not hide how the system works.
 
 ---
 
-## ANIX v1
+## Download
 
-ANIX is the human-facing layer for Abora and NixOS.
+Download Abora OS from the website or GitHub releases.
 
-It gives users shorter commands for profiles, rebuilds, rollbacks, snapshots, wallpapers, desktop changes, and system checks. Underneath that, it still uses the normal NixOS system.
+<div align="center">
 
-```sh
-anix init
-anix quickstart
-anix --gui
-anix status
-anix profiles
-anix generations
-anix show
-anix diff nix gaming
-anix test nix gaming
-anix boot nix gaming
-anix switch nix gaming
-anix rollback nix
-anix rollback nix minimal
-anix save
-anix doctor
-anix doctor --fix
-anix set hostname my-pc
-anix set wallpaper bluehorizon.png
-anix set desktop none
-anix wallpapers
-anix apply
-```
+<a href="https://aboraos.org">
+  <img src="https://img.shields.io/badge/Download-Abora%20OS-f0f0f0?style=for-the-badge" alt="Download Abora OS">
+</a>
+<a href="https://github.com/AnimatedGTVR/Abora-OS/releases">
+  <img src="https://img.shields.io/badge/GitHub-Releases-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub Releases">
+</a>
 
-Friendly profile names map to real flake configs. For example:
-
-```sh
-anix switch nix gaming
-```
-
-is the safer front-end for:
-
-```sh
-sudo nixos-rebuild switch --flake /etc/nixos#gaming
-```
-
-### Snapshots
-
-Snapshots stay local by default. `anix save` creates a Git commit in the user's `/etc/nixos` config repo, warns about possible secrets, and recommends moving real keys/passwords to `sops-nix` or `agenix`.
-
-Pushing snapshots is opt-in:
-
-```sh
-anix config set snapshots.push true
-```
+</div>
 
 ---
 
-## TinyPM v4
+## Building
 
-TinyPM is the app/package layer used by Abora.
+Clone the repository:
 
-On Abora and other NixOS-family systems, TinyPM prefers Nix. It can still work with Flatpak, Snap, and common native package managers where supported.
-
-```sh
-grab firefox
-tinypm sources
-tinypm system
-tinypm repair
-tinypm anix status
-tinypm abora doctor
+```bash
+git clone https://github.com/AnimatedGTVR/Abora-OS.git
+cd Abora-OS
 ```
 
-TinyPM v4 is mainly for:
+Build steps may change depending on the branch, release line, and ISO profile.
 
-- Simple app installs
-- Checking package sources
-- Repairing broken sources
-- Showing Abora and ANIX package status
-- Making package management less annoying for new users
+For current build info, check the website, release notes, or DeepWiki.
+
+<div align="center">
+
+<a href="https://deepwiki.com/AnimatedGTVR/Abora-OS">
+  <img src="https://img.shields.io/badge/Ask%20DeepWiki-Abora%20OS-7c3aed?style=for-the-badge" alt="Ask DeepWiki">
+</a>
+
+</div>
 
 ---
 
-## Abora Commands
+## Contributing
 
-Abora includes a small command layer for first boot, recovery, desktop switching, and maintenance.
+Contributions are welcome.
 
-```sh
-abora welcome          # first-step status and quick actions
-abora doctor           # check Flatpak, themes, boot assets, updates, ANIX
-abora recovery         # rollback, rebuild, repair Flathub, collect reports
-abora setup            # installed reconfiguration launcher
-abora desktop list     # list desktop profiles
-abora desktop set gnome
-anix status            # profile, generation, and snapshot state
-tinypm sources         # package source status
-make preflight         # maintainer release checks
-```
+Useful help includes:
 
-Fresh installs expose named flake profiles for ANIX:
+- bug reports
+- desktop testing
+- installer testing
+- documentation fixes
+- ANIX improvements
+- cleanup work
 
-```sh
-anix switch nix stable
-anix switch nix minimal
-anix switch nix gaming
-anix switch nix creator
-anix switch nix developer
-```
-
-Before updating, Abora can create a local ANIX snapshot so there is a recovery point before the system changes.
+Open an issue or pull request if you want to help.
 
 ---
 
-## Update Channels
-
-Installed systems can follow either the tagged release line or the main branch.
-
-| Channel | Purpose |
-|---|---|
-| `stable` | Latest tagged Abora release |
-| `unstable` | Main branch / newest changes |
-
-```sh
-nixos channel
-nixos channel list
-nixos channel set stable
-nixos channel set unstable
-```
+> [!WARNING]
+> Edge builds may break. Use Stable if you want the safer path.
 
 ---
 
-## Updating Abora
+## Links
 
-On an installed Abora system:
+<div align="center">
 
-```sh
-sudo nixos update
-sudo nixos rollback
-```
+<a href="https://aboraos.org">
+  <img src="https://img.shields.io/badge/Visit%20Website-aboraos.org-f0f0f0?style=for-the-badge" alt="Visit Website">
+</a>
+<a href="https://deepwiki.com/AnimatedGTVR/Abora-OS">
+  <img src="https://img.shields.io/badge/Ask%20DeepWiki-Abora%20OS-7c3aed?style=for-the-badge" alt="Ask DeepWiki">
+</a>
+<a href="https://github.com/AnimatedGTVR/Abora-OS">
+  <img src="https://img.shields.io/badge/View%20Source-GitHub-181717?style=for-the-badge&logo=github&logoColor=white" alt="View Source">
+</a>
+<a href="https://xenoproject.tech">
+  <img src="https://img.shields.io/badge/Xeno%20Tech-xenoproject.tech-2563eb?style=for-the-badge" alt="Xeno Tech">
+</a>
 
-Short aliases are also available:
-
-```sh
-update
-upgrade
-rollback
-abora-update
-```
-
-These commands resolve the selected Abora channel, sync the latest project files into `/etc/nixos/abora/`, update the local flake, and rebuild the system.
-
----
-
-## Flatpak
-
-Flatpak is enabled on every Abora install, and Flathub is added automatically on first boot.
-
-No extra setup is needed.
-
----
-
-## Release Flow
-
-Build the full release bundle:
-
-```sh
-make release
-```
-
-This writes the ISO, TinyPM package, checksums, release manifest, and release notes into the organized `out/` folders.
-
-Other release targets:
-
-```sh
-make metadata        # refresh release metadata only
-make tinypm-package  # TinyPM package by itself
-make anix-package    # ANIX standalone package by itself
-make tinypm-image    # TinyPM container image locally
-```
-
-Standalone ANIX for plain NixOS systems:
-
-```sh
-nix profile install github:AnimatedGTVR/abora-os#anix
-```
-
-To use the ANIX NixOS module in a flake:
-
-```nix
-imports = [ abora.nixosModules.anix ];
-environment.systemPackages = [ abora.packages.${pkgs.system}.anix ];
-```
-
-Publish the DENALI 3.14 line:
-
-```sh
-git tag 3.14
-git push origin 3.14
-```
-
----
-
-## Development
-
-Run the normal local checks:
-
-```sh
-make check
-make check-desktops
-nix flake check --no-build --no-write-lock-file
-nix build --no-link .#nixosConfigurations.abora-live.config.system.build.toplevel
-```
-
-The repository is flake-native. Package definitions live once under `nix/pkgs/` and are loaded with flake-relative `callPackage` imports from both `flake.nix` and the installed-system overlay.
-
-Desktop modules live under `nix/modules/desktops/`:
-
-```text
-nix/modules/desktops/
-  default.nix
-  common.nix
-  gnome.nix
-  plasma.nix
-  hyprland.nix
-  mangowm.nix
-  ...
-```
-
-When adding a desktop, add the module there, import it from `default.nix`, add the option value in `nix/modules/abora-options.nix`, and keep `scripts/abora-desktop-profiles.sh` in sync for installer/reconfiguration output.
-
-Rebuild in the VM workspace when doing install-flow work:
-
-```sh
-./scripts/rebuild-vm.sh
-```
-
----
-
-## Documentation
-
-| Guide | Description |
-|---|---|
-| [Wiki home](docs/wiki/Home.md) | Main documentation landing page |
-| [Installation guide](docs/wiki/Installation.md) | Installing Abora OS |
-| [Updating Abora](docs/wiki/Updating-Abora.md) | Update and rollback flow |
-| [Abora tools](docs/wiki/Abora-Tools.md) | Abora management commands |
-| [Recovery](docs/wiki/Recovery.md) | Repair and rollback help |
-| [ANIX v1](docs/wiki/ANIX-V1.md) | ANIX profile system |
-| [ANIX standalone](docs/wiki/ANIX-Standalone.md) | Using ANIX on non-Abora NixOS systems |
-| [TinyPM v4](docs/wiki/TinyPM-V4.md) | TinyPM package layer |
-| [Building Abora](docs/wiki/Building-Abora.md) | Build instructions |
-| [Release notes](RELEASE_NOTES.md) | Version history |
-| [Security policy](SECURITY.md) | Vulnerability reporting |
-| [Contributing guide](CONTRIBUTING.md) | How to help |
-| [Project layout](docs/project-layout.md) | Repository structure |
-| [Roadmap](docs/roadmap.md) | Planned work |
-
----
-
-## Project Goal
-
-Abora is my attempt to make NixOS easier to start with.
-
-It keeps the rebuilds, generations, rollbacks, declarative config, and package power that make NixOS useful. It just adds a better first install, a more complete live image, easier commands, and defaults that do not feel empty.
-
-That is the point of Abora: same base, better first experience.
+</div>
 
 ---
 
 ## License
 
-Abora OS is licensed under the **GNU General Public License v3.0 or later**.
+Abora OS is open source.
 
-See [LICENSE](LICENSE) for details.
+Check the repository license for exact terms.
