@@ -250,14 +250,14 @@ else
   fail "runtime: release file manifest"
 fi
 
-_resolver_tags="v2.5.0 v3.14DEMO"
-if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable | grep -q '^v3\.14DEMO[[:space:]]'; then
-  pass "runtime: resolver keeps 3.14 demo on v3.14DEMO"
+_resolver_tags="v2.5.0 v3.14"
+if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable | grep -q '^v3\.14[[:space:]]'; then
+  pass "runtime: resolver keeps 3.14 on v3.14"
 else
-  fail "runtime: resolver keeps 3.14 demo on v3.14DEMO"
+  fail "runtime: resolver keeps 3.14 on v3.14"
 fi
 
-_resolver_tags="v2.5.0 v3.14DEMO v3.14"
+_resolver_tags="v2.5.0 v3.14"
 if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable | grep -q '^v3\.14[[:space:]]'; then
   pass "runtime: resolver prefers final v3.14 when present"
 else
@@ -286,17 +286,17 @@ else
 fi
 rm -rf "$tmp_bad_upstream"
 
-if git rev-parse -q --verify refs/tags/v3.14DEMO >/dev/null; then
-  tmp_demo_upstream="$(mktemp -d)"
-  git archive v3.14DEMO | tar -x -C "$tmp_demo_upstream"
-  if ABORA_SYSTEM_CONFIG="$tmp_update_flake" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-validate-upstream "$tmp_demo_upstream" v3.14DEMO >/dev/null 2>&1; then
-    pass "runtime: v3.14DEMO manifest matches tagged layout"
+if git rev-parse -q --verify refs/tags/v3.14 >/dev/null; then
+  tmp_release_upstream="$(mktemp -d)"
+  git archive v3.14 | tar -x -C "$tmp_release_upstream"
+  if ABORA_SYSTEM_CONFIG="$tmp_update_flake" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-validate-upstream "$tmp_release_upstream" v3.14 >/dev/null 2>&1; then
+    pass "runtime: v3.14 manifest matches tagged layout"
   else
-    fail "runtime: v3.14DEMO manifest matches tagged layout"
+    fail "runtime: v3.14 manifest matches tagged layout"
   fi
-  rm -rf "$tmp_demo_upstream"
+  rm -rf "$tmp_release_upstream"
 else
-  pass "runtime: v3.14DEMO tag unavailable (manifest check skipped)"
+  pass "runtime: v3.14 tag unavailable (manifest check skipped)"
 fi
 
 mkdir -p "$tmp_ok/iso" "$tmp_ok/packages" "$tmp_ok/release"

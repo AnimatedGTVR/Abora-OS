@@ -20,9 +20,11 @@ username_value="abora"
 timezone_value="UTC"
 keyboard_value="us"
 xkb_layout_value="us"
-desktop_profile="gnome"
-desktop_label="GNOME"
-desktop_variant_id="gnome"
+locale_value="en_US.UTF-8"
+language_label="English (United States)"
+desktop_profile="cosmic"
+desktop_label="COSMIC"
+desktop_variant_id="cosmic"
 wallpaper_name="Daytime-MNT.jpg"
 starter_apps_bundle="favorites"
 starter_apps_label="Fan Favorites"
@@ -82,102 +84,161 @@ fi
 R=$'\033[0m'
 B=$'\033[1m'
 D=$'\033[2m'
-CF=$'\033[38;5;45m'    # Aqua         — frames
-CI=$'\033[38;5;117m'   # Light cyan   — prompts
+CF=$'\033[38;5;17m'    # Dark navy    — frames / borders
+CI=$'\033[38;5;75m'    # Sky blue     — prompts / info
 CS=$'\033[1;97m'       # Snow white   — headings
-CG=$'\033[38;5;245m'   # Stone gray   — dim / pending
-CP=$'\033[38;5;51m'    # Bright cyan  — done / logo
-CW=$'\033[38;5;39m'    # Dodger blue  — choices
+CG=$'\033[38;5;240m'   # Stone gray   — dim / pending steps
+CP=$'\033[38;5;82m'    # Green        — done / success
+CW=$'\033[38;5;33m'    # Abora blue   — primary accent (choices, highlights)
+CB=$'\033[38;5;33m'    # Abora blue   — logo / branding
 CE=$'\033[38;5;196m'   # Red          — errors
-CY=$'\033[38;5;81m'    # Sky cyan     — warnings / notices
+CY=$'\033[38;5;220m'   # Yellow       — warnings / notices
 CC=$'\033[38;5;253m'   # Cloud white  — body text
 
-# ── Omarchy-style UI engine ────────────────────────────────────────────────────
+# ── Gum integration ───────────────────────────────────────────────────────────
+GUM_BIN=""
+_init_gum() {
+    GUM_BIN="$(command -v gum 2>/dev/null || true)"
+    [[ -n "$GUM_BIN" ]] || return 0
+    export GUM_CHOOSE_CURSOR="  › "
+    export GUM_CHOOSE_CURSOR_FOREGROUND="214"
+    export GUM_CHOOSE_HEADER_FOREGROUND="253"
+    export GUM_CHOOSE_HEADER_BOLD="true"
+    export GUM_CHOOSE_ITEM_FOREGROUND="253"
+    export GUM_CHOOSE_SELECTED_FOREGROUND="214"
+    export GUM_CHOOSE_SELECTED_BOLD="true"
+    export GUM_INPUT_PROMPT="  › "
+    export GUM_INPUT_PROMPT_FOREGROUND="214"
+    export GUM_INPUT_CURSOR_FOREGROUND="214"
+}
+_init_gum
 
-_TABS=("Network" "Identity" "Desktop" "Apps" "Options" "Preflight" "Disk" "Confirm")
+# ── Abora TUI engine ───────────────────────────────────────────────────────────
+
+_TABS=("Language" "Network" "Identity" "Desktop" "Apps" "Options" "Preflight" "Disk" "Confirm")
 
 draw_logo() {
-    printf '  %bABORA OS%b  %bDENALI 3.14 Installer%b\n' "${B}${CW}" "$R" "${D}${CG}" "$R"
-    printf '  %bNixOS base. Abora finish. No drama.%b\n' "${D}${CC}" "$R"
+    printf '  %bABORA OS%b  %b▸%b  %bDENALI 3.14%b\n' \
+        "${B}${CW}" "$R" "${D}${CG}" "$R" "${D}${CG}" "$R"
 }
 
 rule() {
-    printf '  %b──────────────────────────────────────────────────────────%b\n' "$CG" "$R"
+    printf '  %b────────────────────────────────────────────────────────%b\n' "$CF" "$R"
 }
 
 tab_header() {
     local step="$1"
     local step_name="${_TABS[$((step - 1))]}"
+    local total=${#_TABS[@]}
 
-    printf '\033[2J\033[H'   # ANSI clear + cursor home (no full VT reset)
+    printf '\033[2J\033[H'
     printf '\n'
-    draw_logo
+    printf '  %b┌────────────────────────────────────────────────────────┐%b\n' "$CF" "$R"
+    printf '  %b│%b  %bABORA OS%b  %b▸%b  DENALI 3.14%b                              %b│%b\n' \
+        "$CF" "$R" "${B}${CW}" "$R" "${D}${CG}" "$R" "${D}${CG}" "$CF" "$R"
+    printf '  %b└────────────────────────────────────────────────────────┘%b\n' "$CF" "$R"
     printf '\n'
-    printf '  %bA calm, guided install for Abora DENALI 3.14.%b\n' "$CC" "$R"
-    printf '  %bStep %d/%d%b  %b%s%b  %bv%s%b\n' "$CW" "$step" "${#_TABS[@]}" "$R" "${B}${CS}" "$step_name" "$R" "$CG" "$version" "$R"
+    printf '  %bStep %d of %d%b  %b·%b  %b%s%b\n' \
+        "$CG" "$step" "$total" "$R" \
+        "$CG" "$R" \
+        "${B}${CW}" "$step_name" "$R"
     rule
-    printf '  '
-    local i label
-    for ((i = 1; i <= ${#_TABS[@]}; i++)); do
-        label="${_TABS[$((i - 1))]}"
-        if (( i < step )); then
-            printf '%b%s%b' "$CP" "●" "$R"
-        elif (( i == step )); then
-            printf '%b%s%b' "$CW" "● ${label}" "$R"
+    printf '\n'
+    # 3-column step grid
+    local i col
+    for ((i = 0; i < total; i++)); do
+        col=$(( i % 3 ))
+        local label="${_TABS[$i]}"
+        if (( i + 1 < step )); then
+            printf '  %b✓%b  %b%-16s%b' "$CP" "$R" "${D}${CG}" "$label" "$R"
+        elif (( i + 1 == step )); then
+            printf '  %b›%b  %b%-16s%b' "${B}${CW}" "$R" "${B}${CS}" "$label" "$R"
         else
-            printf '%b%s%b' "$CG" "○" "$R"
+            printf '  %b·%b  %b%-16s%b' "$CG" "$R" "${D}${CG}" "$label" "$R"
         fi
-        (( i < ${#_TABS[@]} )) && printf '  '
+        if [[ "$col" -eq 2 || "$i" -eq $((total - 1)) ]]; then
+            printf '\n'
+        fi
     done
-    printf '\n'
-    rule
     printf '\n'
 }
 
-# Numbered menu — NO screen clear (caller uses tab_header first).
-# Each item: "Label|short description"  (description truncated to fit 80 cols)
-# Sets MENU_RESULT (0-indexed).
+# Menu — arrow-key selection via gum when available, numbered fallback.
+# Each item: "Label|short description". Sets MENU_RESULT (0-indexed).
 MENU_RESULT=0
 menu() {
     local title="$1"; shift
     local -a items=("$@")
     local count=${#items[@]}
+    local -a labels=() descs=() gum_items=()
+    local i item label desc
 
-    [[ -n "$title" ]] && printf '  %b%s%b\n' "${B}${CS}" "$title" "$R"
-    printf '  %b╭────────────────────────────────────────────────────────────╮%b\n' "$CF" "$R"
-
-    local i label desc
-    for ((i = 0; i < count; i++)); do
-        label="${items[$i]%%|*}"
-        desc="${items[$i]#*|}"
-        [[ "$desc" == "${items[$i]}" ]] && desc=""
-
-        if [[ -n "$desc" && ${#desc} -gt 33 ]]; then
-            desc="${desc:0:32}…"
+    for item in "${items[@]}"; do
+        label="${item%%|*}"
+        desc="${item#*|}"
+        [[ "$desc" == "$label" ]] && desc=""
+        labels+=("$label")
+        descs+=("$desc")
+        if [[ -n "$desc" && ${#desc} -gt 44 ]]; then
+            desc="${desc:0:43}…"
         fi
-
-        printf '  %b│%b %b%-2d%b %-20.20s %b%-33.33s%b %b│%b\n' \
-            "$CF" "$R" "$CW" "$((i+1))" "$R" "$label" "${D}${CG}" "$desc" "$R" "$CF" "$R"
+        if [[ -n "$desc" ]]; then
+            gum_items+=("${label}  — ${desc}")
+        else
+            gum_items+=("$label")
+        fi
     done
-    printf '  %b╰────────────────────────────────────────────────────────────╯%b\n' "$CF" "$R"
 
+    if [[ -n "$GUM_BIN" ]]; then
+        [[ -n "$title" ]] && printf '  %b%s%b\n\n' "${B}${CS}" "$title" "$R"
+        local selected
+        selected="$("$GUM_BIN" choose \
+            --height "$(( count + 4 ))" \
+            "${gum_items[@]}" 2>/dev/tty)" || { MENU_RESULT=0; return 0; }
+        for (( i=0; i<count; i++ )); do
+            if [[ "${gum_items[$i]}" == "$selected" ]]; then
+                MENU_RESULT=$i; return 0
+            fi
+        done
+        MENU_RESULT=0; return 0
+    fi
+
+    # Fallback: numbered list
+    [[ -n "$title" ]] && printf '  %b%s%b\n' "${B}${CS}" "$title" "$R"
+    printf '  %bType a number and press Enter%b\n\n' "${D}${CG}" "$R"
+    for (( i=0; i<count; i++ )); do
+        local d="${descs[$i]}"
+        [[ ${#d} -gt 40 ]] && d="${d:0:39}…"
+        printf '  %b%2d%b  %b%-26s%b  %b%s%b\n' \
+            "$CW" "$((i+1))" "$R" "${labels[$i]}" "$R" "${D}${CG}" "$d" "$R"
+    done
     printf '\n'
     while true; do
-        printf '  %bSelect:%b ' "$CW" "$R"
+        printf '  %b›%b ' "$CW" "$R"
         local choice
         read -r choice </dev/tty || choice=""
         if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= count )); then
             MENU_RESULT=$(( choice - 1 ))
             return 0
         fi
-        printf '  %b⚠%b  Enter a number from 1 to %d.\n' "$CY" "$R" "$count"
+        printf '  %bEnter a number from 1 to %d%b\n' "$CY" "$count" "$R"
     done
 }
 
-# prompt_field — send prompt text to stderr so $(prompt_field ...) captures only value
+# prompt_field — uses gum input when available; stdout is the captured value
 prompt_field() {
     local prompt="$1" default="$2"
-    printf '  %b%-14s%b %b│%b %s %b>%b ' "$CI" "$prompt" "$R" "$CG" "$R" "$default" "$CW" "$R" >&2
+    if [[ -n "$GUM_BIN" ]]; then
+        local val
+        val="$("$GUM_BIN" input \
+            --placeholder "$default" \
+            --prompt "  ${prompt}  › " \
+            --width 52 \
+            2>/dev/tty)" || val=""
+        printf '%s\n' "${val:-$default}"
+        return
+    fi
+    printf '  %b%-16s%b %b│%b %s %b›%b ' "$CI" "$prompt" "$R" "$CG" "$R" "$default" "$CW" "$R" >&2
     local val
     read -r val </dev/tty || val=""
     printf '%s\n' "${val:-$default}"
@@ -185,7 +246,17 @@ prompt_field() {
 
 prompt_password() {
     local prompt="$1"
-    printf '  %b%-14s%b %b│%b %b>%b ' "$CI" "$prompt" "$R" "$CG" "$R" "$CW" "$R" >&2
+    if [[ -n "$GUM_BIN" ]]; then
+        local val
+        val="$("$GUM_BIN" input \
+            --password \
+            --prompt "  ${prompt}  › " \
+            --width 52 \
+            2>/dev/tty)" || val=""
+        printf '%s\n' "$val"
+        return
+    fi
+    printf '  %b%-16s%b %b│%b %b›%b ' "$CI" "$prompt" "$R" "$CG" "$R" "$CW" "$R" >&2
     local val
     read -rs val </dev/tty || val=""
     printf '\n' >&2
@@ -194,11 +265,23 @@ prompt_password() {
 
 ok()   { printf '  %b✓%b  %s\n' "$CP" "$R" "$1"; }
 warn() { printf '  %b⚠%b  %s\n' "$CY" "$R" "$1"; }
-err()  { printf '  %b✕%b  %s\n' "$CE" "$R" "$1"; }
+err()  { printf '  %b✗%b  %s\n' "$CE" "$R" "$1"; }
 msg()  { printf '  %b·%b  %s\n' "$CI" "$R" "$1"; }
 
+choice_panel() {
+    printf '\n'
+    printf '  %bCurrent settings%b\n' "${B}${CS}" "$R"
+    printf '  %b  ──────────────────────────────────%b\n' "$CF" "$R"
+    printf '  %b  Language%b  %s (%s)\n' "$CG" "$R" "$language_label" "$locale_value"
+    printf '  %b  Keyboard%b  %s / %s\n' "$CG" "$R" "$keyboard_value" "$xkb_layout_value"
+    printf '  %b  Timezone%b  %s\n' "$CG" "$R" "$timezone_value"
+    printf '  %b  Desktop %b  %s\n' "$CG" "$R" "$desktop_label"
+    printf '  %b  ──────────────────────────────────%b\n' "$CF" "$R"
+    printf '\n'
+}
+
 pause() {
-    printf '\n  %bPress Enter to continue%b' "${D}${CG}" "$R"
+    printf '\n  %bPress Enter to continue …%b' "${D}${CG}" "$R"
     read -rs _ </dev/tty || true
     printf '\n'
 }
@@ -206,7 +289,7 @@ pause() {
 die() {
     err "$*"
     printf 'INSTALL ERROR: %s\n' "$*" >>"$install_log" 2>/dev/null || true
-    # In batch (GUI) mode: just exit so the GUI can read the error from the log.
+    # In batch mode, exit so automation can read the error from stdout/logs.
     if [[ "${batch_mode:-0}" -eq 1 ]]; then
         printf 'FATAL: %s\n' "$*" >&2
         cleanup_target 2>/dev/null || true
@@ -236,6 +319,7 @@ require_root() {
 safe_identifier() { [[ "$1" =~ ^[a-z_][a-z0-9_-]*$ ]]; }
 safe_hostname()   { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,62}$ ]]; }
 safe_keymap()     { [[ "$1" =~ ^[A-Za-z0-9_+.-]+$ ]]; }
+safe_locale()     { [[ "$1" =~ ^[A-Za-z][A-Za-z0-9_.@-]*$ && "$1" == *.* ]]; }
 safe_timezone()   { [[ "$1" =~ ^[A-Za-z0-9_+./-]+$ && "$1" != *..* && "$1" != /* ]]; }
 
 timezone_exists() {
@@ -272,6 +356,36 @@ sync_xkb_layout() {
         pt) xkb_layout_value="pt" ;;
         ru) xkb_layout_value="ru" ;;
         *)  xkb_layout_value="$keyboard_value" ;;
+    esac
+}
+
+apply_language_defaults() {
+    local can_set_tz=0
+    [[ -z "$timezone_value" || "$timezone_value" == "UTC" ]] && can_set_tz=1
+    _maybe_timezone() {
+        (( can_set_tz )) && timezone_value="$1"
+    }
+
+    case "$locale_value" in
+        en_US.UTF-8) language_label="English (United States)"; keyboard_value="us"; xkb_layout_value="us"; _maybe_timezone "UTC" ;;
+        en_GB.UTF-8) language_label="English (United Kingdom)"; keyboard_value="uk"; xkb_layout_value="gb"; _maybe_timezone "Europe/London" ;;
+        es_ES.UTF-8) language_label="Spanish"; keyboard_value="es"; xkb_layout_value="es"; _maybe_timezone "Europe/Madrid" ;;
+        fr_FR.UTF-8) language_label="French"; keyboard_value="fr"; xkb_layout_value="fr"; _maybe_timezone "Europe/Paris" ;;
+        de_DE.UTF-8) language_label="Deutsch"; keyboard_value="de"; xkb_layout_value="de"; _maybe_timezone "Europe/Berlin" ;;
+        it_IT.UTF-8) language_label="Italiano"; keyboard_value="it"; xkb_layout_value="it"; _maybe_timezone "Europe/Rome" ;;
+        pt_BR.UTF-8) language_label="Portuguese Brazil"; keyboard_value="br-abnt2"; xkb_layout_value="br"; _maybe_timezone "America/Sao_Paulo" ;;
+        pt_PT.UTF-8) language_label="Portuguese Portugal"; keyboard_value="pt-latin1"; xkb_layout_value="pt"; _maybe_timezone "Europe/Lisbon" ;;
+        nl_NL.UTF-8) language_label="Nederlands"; keyboard_value="us"; xkb_layout_value="us"; _maybe_timezone "Europe/Amsterdam" ;;
+        pl_PL.UTF-8) language_label="Polski"; keyboard_value="pl"; xkb_layout_value="pl"; _maybe_timezone "Europe/Warsaw" ;;
+        ru_RU.UTF-8) language_label="Russian"; keyboard_value="ru"; xkb_layout_value="ru"; _maybe_timezone "Europe/Moscow" ;;
+        tr_TR.UTF-8) language_label="Turkish"; keyboard_value="trq"; xkb_layout_value="tr"; _maybe_timezone "Europe/Istanbul" ;;
+        ja_JP.UTF-8) language_label="Japanese"; keyboard_value="jp106"; xkb_layout_value="jp"; _maybe_timezone "Asia/Tokyo" ;;
+        ko_KR.UTF-8) language_label="Korean"; keyboard_value="kr"; xkb_layout_value="kr"; _maybe_timezone "Asia/Seoul" ;;
+        zh_CN.UTF-8) language_label="Chinese Simplified"; keyboard_value="us"; xkb_layout_value="us"; _maybe_timezone "Asia/Shanghai" ;;
+        *)
+            language_label="$locale_value"
+            sync_xkb_layout
+            ;;
     esac
 }
 
@@ -442,6 +556,7 @@ check_install_environment() {
         fi
     done
 
+    safe_locale "$locale_value" || { err "Invalid locale: ${locale_value}"; failed=1; }
     timezone_exists "$timezone_value" || { err "Invalid or unavailable timezone: ${timezone_value}"; failed=1; }
     safe_keymap "$keyboard_value" || { err "Invalid console keymap: ${keyboard_value}"; failed=1; }
     safe_keymap "$xkb_layout_value" || { err "Invalid XKB layout: ${xkb_layout_value}"; failed=1; }
@@ -450,7 +565,7 @@ check_install_environment() {
     if [[ "$mode" != "detail" ]]; then
         ok "Tools ready: ${commands_ok}/${#commands[@]}"
         ok "Installer assets ready: ${assets_ok}/${#required_paths[@]}"
-        ok "Selected locale values look valid"
+        ok "Selected language and locale values look valid"
     fi
 
     return "$failed"
@@ -463,24 +578,124 @@ check_install_environment() {
 page_welcome() {
     printf '\033[2J\033[H'
     printf '\n'
-    draw_logo
+    # Logo printed via heredoc — safe for backticks, single quotes, and all special chars
+    while IFS= read -r _logo_line; do
+        printf '%b%s%b\n' "$CB" "$_logo_line" "$R"
+    done <<'ABORA_LOGO'
+          ,ggg,                                                _,gggggg,_         ,gg,
+          dP""8I   ,dPYb,                                     ,d8P""d8P"Y8b,      i8""8i
+         dP   88   IP'`Yb                                    ,d8'   Y8   "8b,dP   `8,,8'
+        dP    88   I8  8I                                    d8'    `Ybaaad88P'    `88'
+       ,8'    88   I8  8'                                    8P       `""""Y8      dP"8,
+       d88888888   I8 dP       ,ggggg,   ,gggggg,    ,gggg,gg8b            d8     dP' `8a
+ __   ,8"     88   I8dP   88ggdP"  "Y8gggdP""""8I   dP"  "Y8IY8,          ,8P    dP'   `Yb
+dP"  ,8P      Y8   I8P    8I i8'    ,8I ,8'    8I  i8'    ,8I`Y8,        ,8P'_ ,dP'     I8
+Yb,_,dP       `8b,,d8b,  ,8I,d8,   ,d8',dP     Y8,,d8,   ,d8b,`Y8b,,__,,d8P' "888,,____,dP
+ "Y8P"         `Y88P'"Y88P"'P"Y8888P"  8P      `Y8P"Y8888P"`Y8  `"Y8888P"'   a8P"Y88888P"
+ABORA_LOGO
     printf '\n'
-    printf '  %bLet'\''s set up your Abora DENALI 3.14 install...%b\n' "${D}${CC}" "$R"
-    printf '  %bSmall choices first. Big rebuild later.%b\n' "${D}${CG}" "$R"
+    printf '  %bDENALI 3.14%b  %b·  NixOS-based Linux  ·  v%s%b\n' \
+        "${B}${CS}" "$R" "${D}${CG}" "$version" "$R"
     printf '\n'
-    printf '  %b╭────────────────────────────────────────────────────────────╮%b\n' "$CG" "$R"
-    printf '  %b│%b %-58s %b│%b\n' "$CG" "$CS" "Abora DENALI 3.14 Installer" "$CG" "$R"
-    printf '  %b│%b %-58s %b│%b\n' "$CG" "$CC" "Version ${version}" "$CG" "$R"
-    printf '  %b│%b %-58s %b│%b\n' "$CG" "${D}${CG}" "Network, identity, desktop, apps, disk, install." "$CG" "$R"
-    printf '  %b╰────────────────────────────────────────────────────────────╯%b\n' "$CG" "$R"
+    printf '  %b────────────────────────────────────────────────────────%b\n' "$CF" "$R"
     printf '\n'
-    printf '  %bPress Enter to begin installation%b\n' "$CW" "$R"
+    printf '  %bThis installer guides you through 9 steps to set up%b\n' "$CC" "$R"
+    printf '  %bAbora OS. All data on the chosen disk will be erased.%b\n' "$CC" "$R"
+    printf '\n'
+    printf '  %b  ①%b  Language, keyboard, and timezone\n' "$CW" "$R"
+    printf '  %b  ②%b  Network connectivity\n' "$CW" "$R"
+    printf '  %b  ③%b  User account, hostname, password\n' "$CW" "$R"
+    printf '  %b  ④%b  Desktop environment and apps\n' "$CW" "$R"
+    printf '  %b  ⑤%b  Disk selection and install\n' "$CW" "$R"
+    printf '\n'
+    printf '  %b────────────────────────────────────────────────────────%b\n' "$CF" "$R"
+    printf '\n'
+    if [[ -n "$GUM_BIN" ]]; then
+        printf '  %bUse arrow keys to navigate menus. Press Enter to select.%b\n' "${D}${CG}" "$R"
+    else
+        printf '  %bType a number to navigate menus. Press Enter to confirm.%b\n' "${D}${CG}" "$R"
+    fi
+    printf '\n'
+    printf '  %bPress Enter to begin%b\n' "$CW" "$R"
     printf '\n'
     read -rs _ </dev/tty || true
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  STEP 1 — NETWORK
+#  STEP 1 — LANGUAGE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+step_language() {
+    while true; do
+        tab_header 1
+        printf '  %bLanguage & Region%b\n\n' "${B}${CS}" "$R"
+        msg "This sets the installed system locale, console keymap, desktop keyboard, and starting timezone."
+        msg "You can still adjust timezone and keyboard on the Identity page."
+        choice_panel
+        printf '\n'
+
+        menu "Choose system language" \
+            "English (US)|en_US.UTF-8" \
+            "English (UK)|en_GB.UTF-8" \
+            "Spanish|es_ES.UTF-8" \
+            "French|fr_FR.UTF-8" \
+            "Deutsch|de_DE.UTF-8" \
+            "Italiano|it_IT.UTF-8" \
+            "Portuguese Brazil|pt_BR.UTF-8" \
+            "Portuguese Portugal|pt_PT.UTF-8" \
+            "Nederlands|nl_NL.UTF-8" \
+            "Polski|pl_PL.UTF-8" \
+            "Russian|ru_RU.UTF-8" \
+            "Turkish|tr_TR.UTF-8" \
+            "Japanese|ja_JP.UTF-8" \
+            "Korean|ko_KR.UTF-8" \
+            "Chinese Simplified|zh_CN.UTF-8" \
+            "Custom locale|Type a locale manually"
+
+        if [[ "$MENU_RESULT" -eq 15 ]]; then
+            local v
+            while true; do
+                v="$(prompt_field "Locale" "$locale_value")"
+                [[ -n "$v" ]] && locale_value="$v"
+                if safe_locale "$locale_value"; then
+                    language_label="$locale_value"
+                    break
+                fi
+                warn "Use a locale like en_US.UTF-8, de_DE.UTF-8, or fr_FR.UTF-8."
+            done
+        fi
+
+        case "$MENU_RESULT" in
+            0) locale_value="en_US.UTF-8" ;;
+            1) locale_value="en_GB.UTF-8" ;;
+            2) locale_value="es_ES.UTF-8" ;;
+            3) locale_value="fr_FR.UTF-8" ;;
+            4) locale_value="de_DE.UTF-8" ;;
+            5) locale_value="it_IT.UTF-8" ;;
+            6) locale_value="pt_BR.UTF-8" ;;
+            7) locale_value="pt_PT.UTF-8" ;;
+            8) locale_value="nl_NL.UTF-8" ;;
+            9) locale_value="pl_PL.UTF-8" ;;
+            10) locale_value="ru_RU.UTF-8" ;;
+            11) locale_value="tr_TR.UTF-8" ;;
+            12) locale_value="ja_JP.UTF-8" ;;
+            13) locale_value="ko_KR.UTF-8" ;;
+            14) locale_value="zh_CN.UTF-8" ;;
+        esac
+        apply_language_defaults
+
+        printf '\n'
+        ok "Language: ${language_label}"
+        ok "Locale: ${locale_value}"
+        ok "Keyboard: ${keyboard_value} / ${xkb_layout_value}"
+        ok "Timezone: ${timezone_value}"
+        pause
+        return 0
+    done
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  STEP 2 — NETWORK
 # ═══════════════════════════════════════════════════════════════════════════════
 
 step_network() {
@@ -489,7 +704,7 @@ step_network() {
     if net_connected; then ok=1; fi
 
     while true; do
-        tab_header 1
+        tab_header 2
         printf '  %bNetwork Setup%b\n\n' "${B}${CS}" "$R"
 
         if (( ok )); then
@@ -554,12 +769,14 @@ step_network() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  STEP 2 — IDENTITY
+#  STEP 3 — IDENTITY
 # ═══════════════════════════════════════════════════════════════════════════════
 
 step_identity() {
-    tab_header 2
+    tab_header 3
     printf '  %bIdentity & Locale%b\n\n' "${B}${CS}" "$R"
+    printf '  %bSystem language%b  %s (%s)\n\n' "$CI" "$R" "$language_label" "$locale_value"
+    choice_panel
 
     # Hostname
     while true; do
@@ -639,11 +856,11 @@ step_identity() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  STEP 3 — DESKTOP
+#  STEP 4 — DESKTOP
 # ═══════════════════════════════════════════════════════════════════════════════
 
 step_desktop() {
-    tab_header 3
+    tab_header 4
 
     local -a profiles=()
     local profile
@@ -659,11 +876,11 @@ step_desktop() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  STEP 4 — APPS
+#  STEP 5 — APPS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 step_apps() {
-    tab_header 4
+    tab_header 5
 
     menu "Choose a Starter App Bundle" \
         "Fan Favorites|Saved for after first boot — recommended" \
@@ -696,11 +913,11 @@ step_apps() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  STEP 5 — OPTIONS
+#  STEP 6 — OPTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 step_options() {
-    tab_header 5
+    tab_header 6
 
     menu "ANIX Helper Layer" \
         "Enable ANIX|Friendly NixOS commands — recommended" \
@@ -718,12 +935,12 @@ step_options() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  STEP 6 — PREFLIGHT
+#  STEP 7 — PREFLIGHT
 # ═══════════════════════════════════════════════════════════════════════════════
 
 step_preflight() {
     while true; do
-        tab_header 6
+        tab_header 7
         printf '  %bInstall Preflight%b\n\n' "${B}${CS}" "$R"
         msg "Checking tools, installer assets, Nix paths, and selected values."
         printf '\n'
@@ -747,11 +964,11 @@ step_preflight() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  STEP 7 — DISK
+#  STEP 8 — DISK
 # ═══════════════════════════════════════════════════════════════════════════════
 
 step_disk() {
-    tab_header 7
+    tab_header 8
     warn "All data on the selected disk will be permanently erased!"
     printf '\n'
 
@@ -777,7 +994,7 @@ step_disk() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  STEP 8 — CONFIRM
+#  STEP 9 — CONFIRM
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _print_summary() {
@@ -788,6 +1005,7 @@ _print_summary() {
     fi
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Hostname:" "$R" "$hostname_value"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Username:" "$R" "$username_value"
+    printf '  %b  %-16s%b  %s (%s)\n' "${D}${CI}" "Language:" "$R" "$language_label" "$locale_value"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Timezone:" "$R" "$timezone_value"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Keyboard:" "$R" "${keyboard_value} / ${xkb_layout_value}"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Desktop:"  "$R" "${desktop_label} (${desktop_profile})"
@@ -806,7 +1024,7 @@ _print_summary() {
 
 step_confirm() {
     while true; do
-        tab_header 8
+        tab_header 9
         printf '  %bInstallation Summary%b\n\n' "${B}${CS}" "$R"
         _print_summary
 
@@ -1151,12 +1369,13 @@ generate_nixos_config() {
     nixos-generate-config --root "$root" >> "$config_log" 2>&1
     write_branding_assets "$root"
 
-    local desktop_block desktop_pkgs root_pw_line host_nix user_nix timezone_nix keyboard_nix xkb_nix desktop_nix wallpaper_nix anix_import_line
+    local desktop_block desktop_pkgs root_pw_line host_nix user_nix locale_nix timezone_nix keyboard_nix xkb_nix desktop_nix wallpaper_nix anix_import_line
     desktop_block="$(abora_desktop_config_block "$desktop_profile" "$xkb_layout_value" "$username_value")"
     desktop_pkgs="$(abora_desktop_package_block "$desktop_profile")"
     [[ -n "$desktop_block" ]] || die "Empty desktop block for $desktop_profile."
     host_nix="$(nix_string "$hostname_value")"
     user_nix="$(nix_string "$username_value")"
+    locale_nix="$(nix_string "$locale_value")"
     timezone_nix="$(nix_string "$timezone_value")"
     keyboard_nix="$(nix_string "$keyboard_value")"
     xkb_nix="$(nix_string "$xkb_layout_value")"
@@ -1241,6 +1460,11 @@ EOF
 
   networking.hostName = "${host_nix}";
   networking.networkmanager.enable = lib.mkForce true;
+  i18n.defaultLocale = "${locale_nix}";
+  i18n.supportedLocales = [
+    "${locale_nix}/UTF-8"
+    "en_US.UTF-8/UTF-8"
+  ];
   time.timeZone = "${timezone_nix}";
   console.keyMap = "${keyboard_nix}";
 
@@ -1605,18 +1829,22 @@ request_poweroff() {
 }
 
 progress_line() {
-    local percent="$1" label="$2" width=32 filled empty
+    local percent="$1" label="$2" width=44 filled empty
     filled=$(( percent * width / 100 ))
     empty=$(( width - filled ))
-    printf '  %b[%b' "$CF" "$R"
-    printf '%*s' "$filled" '' | tr ' ' '#'
-    printf '%*s' "$empty" '' | tr ' ' '-'
-    printf '%b]%b %3d%%  %s\n' "$CF" "$R" "$percent" "$label"
+    printf '  '
+    printf '%b' "$CW"
+    printf '%*s' "$filled" '' | tr ' ' '█'
+    printf '%b' "$CG"
+    printf '%*s' "$empty" '' | tr ' ' '░'
+    printf '%b  %b%3d%%%b  %b%s%b\n' "$R" "${B}${CS}" "$percent" "$R" "$CC" "$label" "$R"
 }
 
 draw_install_title() {
-    printf '  %bABORA OS%b  %bDENALI 3.14 Installer%b\n' "${B}${CW}" "$R" "${D}${CG}" "$R"
-    rule
+    printf '  %b┌────────────────────────────────────────────────────────┐%b\n' "$CF" "$R"
+    printf '  %b│%b  %bABORA OS%b  %b▸%b  Installing DENALI 3.14%b                  %b│%b\n' \
+        "$CF" "$R" "${B}${CW}" "$R" "${D}${CG}" "$R" "${D}${CG}" "$CF" "$R"
+    printf '  %b└────────────────────────────────────────────────────────┘%b\n' "$CF" "$R"
 }
 
 monotonic_seconds() {
@@ -1653,7 +1881,7 @@ detect_install_activity() {
         printf 'Downloading/copying packages from cache'
     elif tail -n 24 "$file" 2>/dev/null | grep -Eq 'installing the boot loader|setting up /etc|building the system configuration|updating /boot'; then
         printf 'Installing system files'
-    elif tail -n 24 "$file" 2>/dev/null | grep -Eq '-> /nix/store/|/nix/store/.*->|creating symlinks|setting up tmpfiles|activating the configuration'; then
+    elif tail -n 24 "$file" 2>/dev/null | grep -Eq -- '-> /nix/store/|/nix/store/.*->|creating symlinks|setting up tmpfiles|activating the configuration'; then
         printf 'Activating system — almost done'
     elif tail -n 24 "$file" 2>/dev/null | grep -Eq 'setting up GNOME|gdm|gnome-shell|dconf|glib-compile'; then
         printf 'Configuring GNOME desktop'
@@ -1674,21 +1902,21 @@ truncate_line() {
 }
 
 draw_log_tail() {
-    local file="$1" lines="${2:-7}" width=68 line count=0
-    printf '  %bRecent log%b  %b(last %d lines)%b\n' "${B}${CS}" "$R" "${D}${CG}" "$lines" "$R"
-    printf '  %b╭────────────────────────────────────────────────────────────╮%b\n' "$CG" "$R"
+    local file="$1" lines="${2:-8}" width=68 line count=0
+    printf '  %bLog output%b\n' "${B}${CS}" "$R"
+    printf '  %b┌────────────────────────────────────────────────────────────┐%b\n' "$CF" "$R"
     if [[ -s "$file" ]]; then
         while IFS= read -r line; do
             line="$(truncate_line "$line" "$width")"
-            printf '  %b│%b %-58.58s %b│%b\n' "$CG" "$R" "$line" "$CG" "$R"
+            printf '  %b│%b %-58.58s %b│%b\n' "$CF" "$R" "$line" "$CF" "$R"
             count=$((count + 1))
         done < <(tail -n "$lines" "$file" 2>/dev/null)
     fi
     while (( count < lines )); do
-        printf '  %b│%b %-58s %b│%b\n' "$CG" "$R" "" "$CG" "$R"
+        printf '  %b│%b %-58s %b│%b\n' "$CF" "$R" "" "$CF" "$R"
         count=$((count + 1))
     done
-    printf '  %b╰────────────────────────────────────────────────────────────╯%b\n' "$CG" "$R"
+    printf '  %b└────────────────────────────────────────────────────────────┘%b\n' "$CF" "$R"
 }
 
 draw_install_status() {
@@ -1700,16 +1928,15 @@ draw_install_status() {
     printf '\033[2J\033[H'
     printf '\n'
     draw_install_title
-    printf '  %bInstalling Abora DENALI 3.14%b\n' "$CC" "$R"
-    printf '  %bLog: %s%b\n' "${D}${CG}" "$install_log" "$R"
     printf '\n'
     progress_line "$percent" "$stage"
-    printf '  %bStatus:%b %s\n' "$CI" "$R" "$status"
-    printf '  %bElapsed:%b %s   %bPID:%b %s\n' "$CI" "$R" "$(format_elapsed "$elapsed")" "$CI" "$R" "$pid"
     printf '\n'
-    draw_log_tail "$install_log" 7
+    printf '  %bStatus%b   %s\n' "$CG" "$R" "$status"
+    printf '  %bElapsed%b  %s   %bPID%b  %s\n' "$CG" "$R" "$(format_elapsed "$elapsed")" "$CG" "$R" "$pid"
     printf '\n'
-    printf '  %bThis can sit for a while while Nix copies or builds packages.%b\n' "${D}${CG}" "$R"
+    draw_log_tail "$install_log" 8
+    printf '\n'
+    printf '  %bNix may take a while to fetch or build packages — this is normal.%b\n' "${D}${CG}" "$R"
 }
 
 run_with_log_panel() {
@@ -1860,27 +2087,28 @@ run_install() {
 
 page_done() {
     printf '\033[2J\033[H'
-    printf '\n'
-    printf '  %b◈  ABORA OS%b  —  DENALI 3.14 Edition\n' "${B}${CS}" "$R"
-    printf '\n'
-    printf '  %b✓%b  Installation complete!\n' "$CP" "$R"
-    printf '\n'
-    printf '  %bLogs:%b\n' "${D}${CG}" "$R"
-    printf '    config:   %s\n' "$config_log"
-    printf '    install:  %s\n' "$install_log"
-    printf '\n'
-    printf '  %bNext boot:%b remove the ISO or boot the installed disk.\n' "$CI" "$R"
-    printf '  QEMU users: run %bmake qemu-disk%b, not make qemu.\n' "${B}${CW}" "$R"
+    printf '\n\n'
+    printf '  %b┌────────────────────────────────────────────────────────┐%b\n' "$CF" "$R"
+    printf '  %b│%b  %b✓  Installation Complete%b                               %b│%b\n' \
+        "$CF" "$R" "${B}${CP}" "$R" "$CF" "$R"
+    printf '  %b│%b  %bAbora OS DENALI 3.14 is installed%b                     %b│%b\n' \
+        "$CF" "$R" "$CS" "$R" "$CF" "$R"
+    printf '  %b└────────────────────────────────────────────────────────┘%b\n' "$CF" "$R"
     printf '\n'
     if [[ "$starter_apps_bundle" != "none" && "$install_apps_during_setup" != "yes" ]]; then
-        printf '  %bStarter apps:%b %s saved for after first boot.\n' "$CI" "$R" "$starter_apps_label"
-        printf '  Run %babora-apps rebuild%b when you want to install them.\n' "${B}${CW}" "$R"
+        printf '  %b·%b  Apps: %b%s%b saved — run %babora-apps rebuild%b after first boot.\n' \
+            "$CI" "$R" "$CC" "$starter_apps_label" "$R" "${B}${CW}" "$R"
         printf '\n'
     fi
+    printf '  %b·%b  QEMU users: run %bmake qemu-disk%b (not make qemu).\n' "$CI" "$R" "${B}${CW}" "$R"
+    printf '  %b·%b  Real hardware: remove the USB/DVD before rebooting.\n' "$CI" "$R"
+    printf '\n'
+    printf '  %bLogs:%b  %s\n' "$CG" "$R" "$install_log"
+    printf '\n'
 
     menu "What would you like to do?" \
-        "Power off|Recommended for VMs — then boot the disk only" \
-        "Reboot into Abora OS|Only after removing/detaching the ISO" \
+        "Power off|Recommended — detach ISO, then boot the installed disk" \
+        "Reboot into Abora OS|Only after detaching the live ISO" \
         "Stay in live shell|Remain in the live environment"
 
     case "$MENU_RESULT" in
@@ -1893,24 +2121,21 @@ page_done() {
             cleanup_target
             eject_media
             printf '\n'
-            printf '  %b⚠%b  Before the VM restarts, detach the Abora ISO:\n' "$CY" "$R"
-            printf '  %b•%b  QEMU     → close and launch with the disk image, not the ISO\n' "$CG" "$R"
-            printf '  %b•%b  VBox/VMware → Storage → remove the ISO from the virtual drive\n' "$CG" "$R"
-            printf '  %b•%b  Real hardware → physically remove the USB/DVD\n' "$CG" "$R"
+            printf '  %b⚠%b  Detach the Abora ISO before the VM restarts:\n' "$CY" "$R"
+            printf '  %b·%b  QEMU: close and launch with disk image, not ISO\n' "$CG" "$R"
+            printf '  %b·%b  VBox/VMware: Storage → remove ISO from virtual drive\n' "$CG" "$R"
+            printf '  %b·%b  Real hardware: physically remove the USB/DVD\n' "$CG" "$R"
             printf '\n'
-            printf '  %bPress Enter when the ISO is detached (auto-continues in 30 s)…%b ' "$CW" "$R"
+            printf '  %bPress Enter when ISO is detached (auto in 30 s) …%b ' "$CW" "$R"
             read -rt 30 _ </dev/tty 2>/dev/null || true
             printf '\n'
             if live_media_present; then
-                printf '  %bLive media still appears attached.%b\n' "$CY" "$R"
-                printf '  %bFalling back to poweroff so the installer does not loop again.%b\n' "$CI" "$R"
+                printf '  %bLive media still attached — falling back to poweroff.%b\n' "$CY" "$R"
             fi
             request_reboot
             ;;
         2)
-            printf '\nRemaining in live shell.\n'
-            printf '  config:  %s\n' "$config_log"
-            printf '  install: %s\n\n' "$install_log"
+            printf '\nRemaining in live shell.\n\n'
             exec bash --login </dev/tty >/dev/tty 2>/dev/tty || true
             ;;
     esac
@@ -1926,6 +2151,8 @@ read_current_config() {
     local v
     v="$(sed -nE 's/^[[:space:]]*networking\.hostName *= *"([^"]+)".*/\1/p' "$f" | head -1)"
     [[ -n "$v" ]] && hostname_value="$v"
+    v="$(sed -nE 's/^[[:space:]]*i18n\.defaultLocale *= *"([^"]+)".*/\1/p' "$f" | head -1)"
+    [[ -n "$v" ]] && locale_value="$v"
     v="$(sed -nE 's/^[[:space:]]*time\.timeZone *= *"([^"]+)".*/\1/p' "$f" | head -1)"
     [[ -n "$v" ]] && timezone_value="$v"
     v="$(sed -nE 's/^[[:space:]]*console\.keyMap *= *"([^"]+)".*/\1/p' "$f" | head -1)"
@@ -1970,6 +2197,7 @@ run_reconfig() {
         msg "Updating abora-local.nix…"
         sed -i \
             -e "s|networking\.hostName *= *\"[^\"]*\"|networking.hostName = \"${hostname_value}\"|" \
+            -e "s|i18n\.defaultLocale *= *\"[^\"]*\"|i18n.defaultLocale = \"${locale_value}\"|" \
             -e "s|time\.timeZone *= *\"[^\"]*\"|time.timeZone = \"${timezone_value}\"|" \
             -e "s|console\.keyMap *= *\"[^\"]*\"|console.keyMap = \"${keyboard_value}\"|" \
             "$abora_local" 2>/dev/null || true
@@ -2005,11 +2233,9 @@ page_done_reconfig() {
 main() {
     require_root
 
-    # ── Batch (GUI) mode ────────────────────────────────────────────────────────
-    # The GUI installer writes all settings to a params file and calls us with
-    # --batch <file>.  We source the file, skip all TUI steps, and run the
-    # install engine.  All output goes to stdout (the GUI reads it via pipe and
-    # also tails /tmp/abora-install.log for the log viewer).
+    # ── Batch mode ───────────────────────────────────────────────────────────────
+    # Automation/tests can pass a params file, skip TUI steps, and run the same
+    # install engine. The normal supported user interface is the TUI.
     if [[ "${batch_mode:-0}" -eq 1 ]]; then
         [[ -n "$batch_params_file" && -f "$batch_params_file" ]] \
             || { printf 'ERROR: batch params file not found: %s\n' "$batch_params_file" >&2; exit 1; }
@@ -2036,12 +2262,13 @@ main() {
         read_current_config
         read_anix_config
 
+        step_language
         step_identity
         step_desktop
         step_apps
         step_options
 
-        tab_header 8
+        tab_header 9
         printf '  %bReconfiguration Summary%b\n\n' "${B}${CS}" "$R"
         _print_summary
 
@@ -2053,6 +2280,7 @@ main() {
         run_reconfig
         page_done_reconfig
     else
+        step_language
         step_network
         step_identity
         step_desktop

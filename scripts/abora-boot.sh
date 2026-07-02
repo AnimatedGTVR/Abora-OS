@@ -246,18 +246,13 @@ show_loader
 
 printf '\033c'
 
-# Launch the installer.
-# We never exit 0 here — if the user chose Reboot/Poweroff, the installer
-# calls systemctl reboot/poweroff directly and we never reach this point.
-# If the installer exits for any other reason (clean exit after "Stay in live
-# shell", or a crash), drop to the live shell so the service keeps running and
-# tty1 stays ours (prevents autovt@tty1 from taking over).
+# ── Launch installer ───────────────────────────────────────────────────────────
 "$BASH_BIN" /etc/abora/installer.sh "${installer_args[@]}" || true
 
 printf '\n'
 printf '  %b━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%b\n' "$DM" "$NC"
 printf '  %bInstaller exited.  You are now in the live shell.%b\n'      "$WH" "$NC"
-printf '  %bType %babora-install%b to restart the installer.%b\n'       "$DM" "$WH" "$DM" "$NC"
+printf '  %bRun %babora-install%b to start the TUI installer again.%b\n' "$DM" "$WH" "$DM" "$NC"
 printf '  %b━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%b\n' "$DM" "$NC"
 printf '\n'
 exec "$BASH_BIN" --login

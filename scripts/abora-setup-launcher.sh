@@ -100,6 +100,7 @@ find_terminal() {
 
 RUNNER=()
 mapfile -t INSTALLER_ARGS < <(installer_args)
+
 if already_root; then
     RUNNER=(bash "$INSTALLER" "${INSTALLER_ARGS[@]}")
 else
