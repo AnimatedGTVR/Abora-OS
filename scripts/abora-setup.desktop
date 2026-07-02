@@ -1,10 +1,10 @@
 [Desktop Entry]
 Version=1.1
 Type=Application
-Name=Start Abora
+Name=Install Abora OS
 GenericName=Abora Installer
-Comment=Install or reconfigure Abora OS
-Icon=system-software-install
+Comment=Install Abora OS from the live desktop
+Icon=/etc/abora/Abora-LOGO.png
 Exec=abora-setup
 Terminal=false
 Categories=System;

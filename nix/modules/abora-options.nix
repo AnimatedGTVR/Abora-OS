@@ -113,7 +113,7 @@ in
         "awesome" "openbox" "niri" "river" "qtile" "bspwm" "fluxbox"
         "icewm" "herbstluftwm" "cosmic" "mangowm"
       ];
-      default     = "gnome";
+      default     = "cosmic";
       description = "Desktop environment or window manager to enable.";
     };
 
