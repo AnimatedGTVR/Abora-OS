@@ -889,7 +889,7 @@ if [[ "${1:-}" == "__test-validate-upstream" ]]; then
 fi
 
 if [[ "${1:-}" == "__test-resolve-ref" ]]; then
-    current_version="${2:-3.14}"
+    current_version="${2:-4.0}"
     channel="${3:-stable}"
     resolve_update_ref "$channel" "$current_version"
     guard_against_accidental_downgrade "$current_version" "$effective_ref"
@@ -898,7 +898,7 @@ if [[ "${1:-}" == "__test-resolve-ref" ]]; then
 fi
 
 if [[ "${1:-}" == "__test-resolve-fallback" ]]; then
-    current_version="${2:-3.14}"
+    current_version="${2:-4.0}"
     fallback_ref="${3:-v2.5.0}"
     fallback_mode=1
     allow_downgrade=1

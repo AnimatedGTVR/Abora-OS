@@ -84,7 +84,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     Flake users can also consume this repository directly:
       inputs.abora.url = "github:AnimatedGTVR/abora-os";
       imports = [ abora.nixosModules.anix ];
-      environment.systemPackages = [ abora.packages.${pkgs.system}.anix ];
+      environment.systemPackages = [ abora.packages.''${pkgs.system}.anix ];
     EOF
 
     runHook postInstall

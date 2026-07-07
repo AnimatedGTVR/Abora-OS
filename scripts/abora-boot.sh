@@ -62,7 +62,7 @@ _boot_frame() {
     printf '\033c'
     printf '\n'
     printf '  %b╔══════════════════════════════════════════════════════╗%b\n' "$BL" "$NC"
-    printf '  %b║%b  %-54s%b║%b\n' "$BL" "$WH" "ABORA OS  —  DENALI 3.14  ·  Starting" "$BL" "$NC"
+    printf '  %b║%b  %-54s%b║%b\n' "$BL" "$WH" "ABORA OS  —  DENALI 4.0  ·  Starting" "$BL" "$NC"
     printf '  %b╠══════════════════════════════════════════════════════╣%b\n' "$BL" "$NC"
     printf '  %b║%b  %-54s%b║%b\n' "$BL" "$DM" "$msg" "$BL" "$NC"
     printf '  %b║%b  [%s] %b%s%b  %b%3d%%%b\n' \
@@ -242,17 +242,5 @@ fi
 
 enable_serial_mirror
 
-show_loader
-
 printf '\033c'
-
-# ── Launch installer ───────────────────────────────────────────────────────────
-"$BASH_BIN" /etc/abora/installer.sh "${installer_args[@]}" || true
-
-printf '\n'
-printf '  %b━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%b\n' "$DM" "$NC"
-printf '  %bInstaller exited.  You are now in the live shell.%b\n'      "$WH" "$NC"
-printf '  %bRun %babora-install%b to start the TUI installer again.%b\n' "$DM" "$WH" "$DM" "$NC"
-printf '  %b━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%b\n' "$DM" "$NC"
-printf '\n'
 exec "$BASH_BIN" --login

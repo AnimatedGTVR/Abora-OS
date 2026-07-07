@@ -3,9 +3,10 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: abora-dotfiles-import [--dry-run] [--replace] DOTFILES_DIR
+Usage: abora-dotfiles-import [--dry-run] [--replace] [--git-url URL] DOTFILES_DIR
 
 Copy common desktop dotfiles from DOTFILES_DIR into your home folder.
+With --git-url, clone the repo first, then import from it.
 
 By default existing files are kept. Use --replace to overwrite them.
 EOF
@@ -14,6 +15,7 @@ EOF
 dry_run=0
 replace=0
 source_dir=""
+git_url=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -24,6 +26,14 @@ while [[ $# -gt 0 ]]; do
     --replace)
       replace=1
       shift
+      ;;
+    --git-url)
+      if [[ -z "${2:-}" ]]; then
+        printf '--git-url requires a URL argument\n' >&2
+        exit 2
+      fi
+      git_url="$2"
+      shift 2
       ;;
     -h|--help)
       usage
@@ -45,6 +55,22 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# If a git URL was given, clone it into a temp dir and use that as source_dir
+if [[ -n "$git_url" ]]; then
+  if ! command -v git >/dev/null 2>&1; then
+    printf 'git is required for --git-url but was not found\n' >&2
+    exit 1
+  fi
+  clone_dir="$(mktemp -d /tmp/abora-dotfiles.XXXXXX)"
+  printf 'Cloning %s ...\n' "$git_url"
+  if ! git clone --depth=1 -- "$git_url" "$clone_dir"; then
+    rm -rf "$clone_dir"
+    printf 'Failed to clone dotfiles repository.\n' >&2
+    exit 1
+  fi
+  source_dir="$clone_dir"
+fi
 
 if [[ -z "$source_dir" ]]; then
   usage >&2
@@ -109,3 +135,8 @@ if [[ -d "$source_dir/.config" ]]; then
 fi
 
 printf 'Dotfiles import complete.\n'
+
+# Clean up temp clone dir if we created one
+if [[ -n "$git_url" && -d "$source_dir" && "$source_dir" == /tmp/abora-dotfiles.* ]]; then
+  rm -rf "$source_dir"
+fi

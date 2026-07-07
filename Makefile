@@ -1,9 +1,14 @@
-.PHONY: help iso iso-local qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc check check-desktops preflight metadata release tinypm-package anix-package tinypm-image
+.PHONY: help iso iso-all iso-cosmic iso-hyprland iso-gnome iso-kde iso-other iso-local qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc check check-desktops preflight metadata release tinypm-package anix-package tinypm-image
 
 help:
 	@echo "Usage: make <target>"
 	@echo "Targets:"
-	@echo "  iso              - Build only the ISO"
+	@echo "  iso              - Build the default Cosmic ISO"
+	@echo "  iso-all          - Build Cosmic, Hyprland, GNOME, KDE, and Other ISOs"
+	@echo "  iso-hyprland     - Build only the Hyprland ISO"
+	@echo "  iso-gnome        - Build only the GNOME ISO"
+	@echo "  iso-kde          - Build only the KDE Plasma ISO"
+	@echo "  iso-other        - Build only the Other Desktops ISO"
 	@echo "  metadata         - Generate release notes, manifest, and checksums"
 	@echo "  tinypm-package   - Build the TinyPM release tarball"
 	@echo "  anix-package     - Build the ANIX standalone tarball"
@@ -22,7 +27,25 @@ help:
 	@echo "  preflight        - Run full release preflight checks"
 
 iso:
-	./scripts/build-iso.sh
+	ABORA_EDITION=cosmic ./scripts/build-iso.sh
+
+iso-all:
+	ABORA_EDITION=all ./scripts/build-iso.sh
+
+iso-cosmic:
+	ABORA_EDITION=cosmic ./scripts/build-iso.sh
+
+iso-hyprland:
+	ABORA_EDITION=hyprland ./scripts/build-iso.sh
+
+iso-gnome:
+	ABORA_EDITION=gnome ./scripts/build-iso.sh
+
+iso-kde:
+	ABORA_EDITION=kde ./scripts/build-iso.sh
+
+iso-other:
+	ABORA_EDITION=other ./scripts/build-iso.sh
 
 metadata:
 	./scripts/release-metadata.sh
@@ -36,7 +59,7 @@ anix-package:
 tinypm-image:
 	./scripts/build-tinypm-image.sh
 
-release: iso tinypm-package anix-package metadata
+release: iso-all tinypm-package anix-package metadata
 
 qemu:
 	./scripts/run-qemu.sh

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Abora OS GUI Installer — DENALI 3.14"""
+"""Abora OS GUI Installer — DENALI 4.0"""
 
 import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('Gdk', '4.0')
 from gi.repository import Gtk, Adw, GLib, Gio, Gdk
+from datetime import datetime
 import json
 import os
 import re
@@ -15,41 +16,86 @@ import subprocess
 import sys
 import tempfile
 import threading
+import traceback
 from pathlib import Path
 
 # ── Runtime paths ──────────────────────────────────────────────────────────────
 INSTALLER_BIN  = os.environ.get('ABORA_INSTALLER', '/etc/abora/installer.sh')
 LOG_FILE       = '/tmp/abora-gui-installer.log'
-VERSION        = os.environ.get('ABORA_VERSION', 'DENALI 3.14')
+VERSION        = os.environ.get('ABORA_VERSION', 'DENALI 4.0')
+LOGO_FILE      = os.environ.get('ABORA_LOGO', '/etc/abora/Abora-LOGO.png')
+EDITION        = os.environ.get('ABORA_EDITION', 'cosmic')
+
+
+def write_log(message: str):
+    """Append a timestamped diagnostic line to the GUI installer log."""
+    try:
+        stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(LOG_FILE, 'a') as f:
+            f.write(f'[{stamp}] {message.rstrip()}\n')
+    except Exception:
+        pass
 
 # ── Desktop choices ────────────────────────────────────────────────────────────
 DESKTOPS = [
-    ('cosmic',    'COSMIC',      'Modern Wayland DE by System76',      '🪐'),
-    ('mangowm',   'MangoWM',     "Abora's own tiling compositor",      '🍋'),
-    ('gnome',     'GNOME',       'Clean and powerful desktop',          '🎯'),
-    ('plasma',    'KDE Plasma',  'Full-featured Qt desktop',            '🔷'),
-    ('hyprland',  'Hyprland',    'Dynamic Wayland compositor',          '🌊'),
-    ('sway',      'Sway',        'i3-compatible Wayland WM',            '💨'),
-    ('xfce',      'XFCE',        'Lightweight and fast',                '🖥'),
-    ('cinnamon',  'Cinnamon',    'Traditional Linux desktop',           '🍂'),
-    ('mate',      'MATE',        'Classic GNOME 2 desktop',             '🧩'),
-    ('budgie',    'Budgie',      'Modern and elegant',                  '🌸'),
-    ('pantheon',  'Pantheon',    'elementary OS desktop',               '🔮'),
-    ('lxqt',      'LXQt',        'Lightweight Qt desktop',              '⚡'),
-    ('niri',      'Niri',        'Scrollable Wayland compositor',       '〰'),
-    ('i3',        'i3',          'Classic tiling WM (X11)',             '📐'),
-    ('awesome',   'AwesomeWM',   'Lua-scripted WM',                    '⭐'),
-    ('openbox',   'Openbox',     'Minimalist stacking WM',              '📦'),
-    ('none',      'No Desktop',  'CLI / server only',                   '💻'),
+    ('cosmic',        'COSMIC',        'Default Abora desktop'),
+    ('hyprland',      'Hyprland',      'Wayland tiling'),
+    ('mangowm',       'MangoWM',       'Abora compositor'),
+    ('gnome',         'GNOME',         'Polished & modern'),
+    ('plasma',        'KDE Plasma',    'Feature-rich Qt'),
+    ('sway',          'Sway',          'i3-style Wayland'),
+    ('i3',            'i3',            'Classic X11 tiling'),
+    ('icewm',         'IceWM',         'Lightweight & fast'),
+    ('budgie',        'Budgie',        'Clean panel desktop'),
+    ('cinnamon',      'Cinnamon',      'Traditional layout'),
+    ('mate',          'MATE',          'Classic GNOME 2'),
+    ('xfce',          'Xfce',          'Lightweight GTK'),
+    ('lxqt',          'LXQt',          'Lightweight Qt'),
+    ('niri',          'Niri',          'Scrollable Wayland'),
+    ('river',         'River',         'Dynamic Wayland WM'),
+    ('openbox',       'Openbox',       'Minimal X11 WM'),
+    ('bspwm',         'bspwm',         'Binary space tiling'),
+    ('qtile',         'Qtile',         'Python-configured'),
+    ('awesome',       'awesome',       'Lua-configured WM'),
+    ('herbstluftwm',  'herbstluftwm',  'Manual tiling WM'),
+    ('fluxbox',       'Fluxbox',       'Fast & configurable'),
+    ('pantheon',      'Pantheon',      'elementaryOS desktop'),
+    ('none',          'None',          'Minimal, no DE'),
 ]
 
 DESKTOP_LABELS = {d[0]: d[1] for d in DESKTOPS}
 
+# Desktop IDs that are tiling WMs / compositors (no full DE)
+_TILING_WMS = {'hyprland', 'mangowm', 'sway', 'i3', 'niri', 'river', 'bspwm',
+               'qtile', 'awesome', 'herbstluftwm', 'openbox', 'fluxbox', 'icewm'}
+# Desktop IDs that are alternative DEs (Alt Desktops edition focus)
+_ALT_DES    = {'xfce', 'cinnamon', 'mate', 'budgie', 'lxqt', 'pantheon',
+               'icewm', 'fluxbox', 'openbox'}
+
+
+def _edition_desktops() -> list[tuple[str, str, str]]:
+    """Return DESKTOPS re-ordered for the current ISO edition."""
+    if EDITION == 'hyprland':
+        tiling = [d for d in DESKTOPS if d[0] in _TILING_WMS]
+        rest   = [d for d in DESKTOPS if d[0] not in _TILING_WMS and d[0] != 'none']
+        tail   = [d for d in DESKTOPS if d[0] == 'none']
+        return tiling + rest + tail
+    if EDITION == 'other':
+        alt    = [d for d in DESKTOPS if d[0] in _ALT_DES]
+        rest   = [d for d in DESKTOPS if d[0] not in _ALT_DES and d[0] != 'none']
+        tail   = [d for d in DESKTOPS if d[0] == 'none']
+        return alt + rest + tail
+    return DESKTOPS
+
+
 APP_BUNDLES = [
-    ('favorites', 'Fan Favorites',  'Everyday apps: browser, office, media'),
-    ('creative',  'Creative Suite', 'Design, photo, and video tools'),
-    ('developer', 'Developer Kit',  'IDEs, terminal tools, language runtimes'),
-    ('minimal',   'Minimal',        'Base system only — add apps yourself'),
+    ('favorites',  'Fan Favorites', 'Everyday apps: browser, office, media'),
+    ('essentials', 'Essentials',    'Browsers, office, media, everyday utilities'),
+    ('creator',    'Creator',       'Design, audio, video, creative tools'),
+    ('developer',  'Developer',     'IDEs, containers, terminal tools, Git'),
+    ('gaming',     'Gaming',        'Steam, Lutris, Wine, gaming helpers'),
+    ('system',     'System Tools',  'Monitoring, backup, and system utilities'),
+    ('none',       'None',          'Start clean and add apps later'),
 ]
 
 LOCALES = [
@@ -93,39 +139,39 @@ KEYBOARDS = [
 ]
 
 TIMEZONES = [
-    ('UTC',                 'UTC (Coordinated Universal Time)'),
-    ('America/New_York',    'Eastern — New York, Toronto'),
-    ('America/Chicago',     'Central — Chicago, Mexico City'),
-    ('America/Denver',      'Mountain — Denver, Phoenix'),
-    ('America/Los_Angeles', 'Pacific — Los Angeles, Vancouver'),
-    ('America/Anchorage',   'Alaska — Anchorage'),
-    ('Pacific/Honolulu',    'Hawaii — Honolulu'),
-    ('America/Sao_Paulo',   'South America — São Paulo'),
-    ('America/Buenos_Aires','South America — Buenos Aires'),
-    ('America/Bogota',      'South America — Bogotá'),
-    ('Europe/London',       'Europe — London (GMT/BST)'),
-    ('Europe/Paris',        'Europe — Paris, Berlin, Rome'),
-    ('Europe/Madrid',       'Europe — Madrid, Amsterdam'),
-    ('Europe/Warsaw',       'Europe — Warsaw, Prague'),
-    ('Europe/Stockholm',    'Europe — Stockholm, Oslo, Helsinki'),
-    ('Europe/Moscow',       'Europe — Moscow'),
-    ('Europe/Istanbul',     'Europe/Asia — Istanbul'),
-    ('Asia/Dubai',          'Gulf — Dubai, Abu Dhabi'),
-    ('Asia/Kolkata',        'South Asia — India (IST)'),
-    ('Asia/Dhaka',          'South Asia — Bangladesh'),
-    ('Asia/Bangkok',        'Southeast Asia — Bangkok'),
-    ('Asia/Singapore',      'Southeast Asia — Singapore'),
-    ('Asia/Shanghai',       'East Asia — China (CST)'),
-    ('Asia/Tokyo',          'East Asia — Japan (JST)'),
-    ('Asia/Seoul',          'East Asia — South Korea'),
-    ('Asia/Jakarta',        'Southeast Asia — Jakarta'),
-    ('Africa/Cairo',        'Africa — Cairo, Egypt'),
-    ('Africa/Lagos',        'Africa — Lagos, Nigeria'),
-    ('Africa/Johannesburg', 'Africa — Johannesburg'),
-    ('Africa/Nairobi',      'Africa — Nairobi'),
-    ('Australia/Sydney',    'Australia — Sydney, Melbourne'),
-    ('Australia/Perth',     'Australia — Perth'),
-    ('Pacific/Auckland',    'Pacific — New Zealand'),
+    ('UTC',                 'UTC'),
+    ('America/New_York',    'US Eastern (New York)'),
+    ('America/Chicago',     'US Central (Chicago)'),
+    ('America/Denver',      'US Mountain (Denver)'),
+    ('America/Los_Angeles', 'US Pacific (Los Angeles)'),
+    ('America/Anchorage',   'US Alaska (Anchorage)'),
+    ('Pacific/Honolulu',    'US Hawaii (Honolulu)'),
+    ('America/Sao_Paulo',   'Brazil (São Paulo)'),
+    ('America/Buenos_Aires','Argentina (Buenos Aires)'),
+    ('America/Bogota',      'Colombia (Bogotá)'),
+    ('Europe/London',       'UK (London)'),
+    ('Europe/Paris',        'Central Europe (Paris/Berlin)'),
+    ('Europe/Madrid',       'Western Europe (Madrid)'),
+    ('Europe/Warsaw',       'Eastern Europe (Warsaw)'),
+    ('Europe/Stockholm',    'Northern Europe (Stockholm)'),
+    ('Europe/Moscow',       'Russia (Moscow)'),
+    ('Europe/Istanbul',     'Turkey (Istanbul)'),
+    ('Asia/Dubai',          'Gulf (Dubai)'),
+    ('Asia/Kolkata',        'India (Kolkata)'),
+    ('Asia/Dhaka',          'Bangladesh (Dhaka)'),
+    ('Asia/Bangkok',        'Indochina (Bangkok)'),
+    ('Asia/Singapore',      'Singapore'),
+    ('Asia/Shanghai',       'China (Shanghai)'),
+    ('Asia/Tokyo',          'Japan (Tokyo)'),
+    ('Asia/Seoul',          'South Korea (Seoul)'),
+    ('Asia/Jakarta',        'Indonesia (Jakarta)'),
+    ('Africa/Cairo',        'Egypt (Cairo)'),
+    ('Africa/Lagos',        'Nigeria (Lagos)'),
+    ('Africa/Johannesburg', 'South Africa (Johannesburg)'),
+    ('Africa/Nairobi',      'Kenya (Nairobi)'),
+    ('Australia/Sydney',    'Australia East (Sydney)'),
+    ('Australia/Perth',     'Australia West (Perth)'),
+    ('Pacific/Auckland',    'New Zealand (Auckland)'),
 ]
 
 WALLPAPERS = [
@@ -142,44 +188,156 @@ WALLPAPERS = [
 # ── CSS ────────────────────────────────────────────────────────────────────────
 
 CSS = b"""
+/* ---- Abora OS Installer ---- */
+
+/* Outer shell - follows Adwaita dark/light automatically */
+.installer-shell {
+    background: shade(@window_bg_color, 0.88);
+}
+
+/* Wizard card */
+.wizard-frame {
+    background: @window_bg_color;
+    border-radius: 10px;
+    border: 1px solid alpha(@window_fg_color, 0.09);
+    box-shadow: 0 4px 28px rgba(0,0,0,0.22);
+}
+
+.wizard-nav {
+    background: transparent;
+}
+
+/* Abora brand accent bar - top edge of the frame */
+.abora-accent-bar {
+    background: #1c6fcf;
+    min-height: 3px;
+    border-radius: 10px 10px 0 0;
+}
+
+headerbar {
+    background: @headerbar_bg_color;
+    border-bottom: 1px solid alpha(@window_fg_color, 0.07);
+    box-shadow: none;
+}
+
+/* Page headings - editorial, not billboard */
 .page-title {
-    font-size: 1.9em;
-    font-weight: 800;
-    letter-spacing: -0.03em;
+    font-size: 1.45em;
+    font-weight: 700;
+    letter-spacing: -0.2px;
 }
+
 .page-subtitle {
-    font-size: 1.0em;
-    opacity: 0.60;
+    font-size: 0.92em;
+    color: alpha(@window_fg_color, 0.52);
 }
+
+.welcome-mark {
+    margin-bottom: 12px;
+}
+
+/* Welcome buttons */
+.choice-button {
+    min-width: 240px;
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95em;
+}
+
+.choice-button.suggested-action {
+    background: #1c6fcf;
+    color: #ffffff;
+    border: none;
+    box-shadow: 0 1px 6px alpha(#1c6fcf, 0.38);
+}
+
+.choice-button.suggested-action:hover {
+    background: #2480e0;
+}
+
+/* Desktop environment cards */
 .desktop-card {
-    border-radius: 12px;
-    padding: 14px 8px;
-    border: 2px solid transparent;
+    border-radius: 8px;
+    padding: 10px 6px;
+    border: 1px solid alpha(@window_fg_color, 0.09);
+    background: @card_bg_color;
+    transition: border-color 120ms ease, background-color 120ms ease;
 }
+
+.desktop-card:hover {
+    border-color: alpha(#1c6fcf, 0.50);
+    background: alpha(#1c6fcf, 0.06);
+}
+
 .desktop-card.selected {
-    border-color: @accent_color;
-    background-color: alpha(@accent_color, 0.12);
+    border: 2px solid #1c6fcf;
+    background: alpha(#1c6fcf, 0.10);
 }
-.desktop-card-emoji {
-    font-size: 1.8em;
-}
+
 .desktop-card-name {
     font-weight: 700;
-    font-size: 0.88em;
+    font-size: 0.85em;
 }
+
 .desktop-card-desc {
-    font-size: 0.76em;
-    opacity: 0.55;
+    font-size: 0.73em;
+    color: alpha(@window_fg_color, 0.48);
 }
+
+/* Disk row */
 .disk-row-dev {
     font-family: monospace;
-    font-size: 0.88em;
-    opacity: 0.70;
+    font-size: 0.85em;
+    color: alpha(@window_fg_color, 0.55);
 }
+
+/* Step progress */
+.step-dot {
+    font-size: 0.75em;
+    font-weight: 700;
+    color: alpha(@window_fg_color, 0.28);
+    background: alpha(@window_fg_color, 0.08);
+    border-radius: 99px;
+    min-width: 22px;
+    min-height: 22px;
+    padding: 2px;
+}
+
+.step-active {
+    color: #ffffff;
+    background: #1c6fcf;
+    border-radius: 99px;
+}
+
+.step-done {
+    color: #1c6fcf;
+    background: alpha(#1c6fcf, 0.16);
+    border-radius: 99px;
+}
+
+.step-dim {
+    color: alpha(@window_fg_color, 0.22);
+    background: alpha(@window_fg_color, 0.05);
+}
+
+/* Thin line connecting step dots */
+.step-connector {
+    background: alpha(@window_fg_color, 0.12);
+    min-width: 10px;
+    min-height: 1px;
+    margin-top: 11px;
+    margin-bottom: 11px;
+}
+
+/* Misc */
 .warn-label { color: @warning_color; }
-.log-view   { font-family: monospace; font-size: 0.84em; }
-.step-active { font-weight: 700; color: @accent_color; }
-.step-dim    { opacity: 0.35; }
+.log-view {
+    font-family: monospace;
+    font-size: 0.84em;
+    background: @view_bg_color;
+    color: @view_fg_color;
+}
 """
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -246,10 +404,13 @@ class State:
     keyboard      = 'us'
     locale        = 'en_US.UTF-8'
     locale_label  = 'English (United States)'
-    desktop       = 'cosmic'
+    desktop       = os.environ.get('ABORA_DEFAULT_DESKTOP', 'cosmic')
+    if desktop not in DESKTOP_LABELS:
+        desktop = 'cosmic'
     apps          = 'favorites'
     anix          = True
-    wallpaper     = 'abora-dark.svg'
+    wallpaper     = 'NightTime-MNT.png'
+    dotfiles_url  = ''
 
 
 # ── Page helpers ───────────────────────────────────────────────────────────────
@@ -278,24 +439,66 @@ def clamped_scroll(child: Gtk.Widget, max_width: int = 640) -> Gtk.ScrolledWindo
     return sw
 
 
+def logo_widget(size: int = 88) -> Gtk.Widget:
+    if Path(LOGO_FILE).exists():
+        img = Gtk.Image.new_from_file(LOGO_FILE)
+    else:
+        img = Gtk.Image.new_from_icon_name('computer-symbolic')
+    img.set_pixel_size(size)
+    img.add_css_class('welcome-mark')
+    return img
+
+
 # ── Pages ─────────────────────────────────────────────────────────────────────
 
-class WelcomePage(Adw.StatusPage):
-    def __init__(self, _state: State):
+class WelcomePage(Gtk.Box):
+    __gtype_name__ = 'AboraWelcomePage'
+
+    def __init__(self, _state: State, on_begin=None):
         super().__init__(
-            icon_name='computer-symbolic',
-            title='Install Abora OS',
-            description=(
-                f'Welcome to Abora OS {VERSION}.\n'
-                'This wizard will guide you through installation.\n\n'
-                'Your selected disk will be completely erased.\n'
-                'Back up any important data before continuing.'
-            ),
+            orientation=Gtk.Orientation.VERTICAL,
+            spacing=16,
+            halign=Gtk.Align.CENTER,
+            valign=Gtk.Align.CENTER,
+            hexpand=True,
             vexpand=True,
         )
+        self.set_margin_top(32)
+        self.set_margin_bottom(32)
+
+        self.append(logo_widget(92))
+
+        title = Gtk.Label(label='Welcome')
+        title.add_css_class('page-title')
+        self.append(title)
+
+        subtitle = Gtk.Label(
+            label=f'Welcome to Abora OS {VERSION}.',
+            justify=Gtk.Justification.CENTER,
+            wrap=True,
+            max_width_chars=52,
+        )
+        subtitle.add_css_class('page-subtitle')
+        self.append(subtitle)
+
+        actions = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, halign=Gtk.Align.CENTER)
+        install = Gtk.Button(label='Install Abora OS to System')
+        install.add_css_class('suggested-action')
+        install.add_css_class('choice-button')
+        if on_begin is not None:
+            install.connect('clicked', on_begin)
+        actions.append(install)
+
+        live = Gtk.Button(label='Use Abora OS in Live Media')
+        live.add_css_class('choice-button')
+        live.connect('clicked', lambda _btn: self.get_root().close() if self.get_root() else None)
+        actions.append(live)
+        self.append(actions)
 
 
 class LanguagePage(Gtk.Widget):
+    __gtype_name__ = 'AboraLanguagePage'
+
     def __init__(self, state: State):
         super().__init__()
         self._state = state
@@ -353,6 +556,8 @@ class LanguagePage(Gtk.Widget):
 
 
 class IdentityPage(Gtk.Widget):
+    __gtype_name__ = 'AboraIdentityPage'
+
     def __init__(self, state: State):
         super().__init__()
         self._state = state
@@ -424,23 +629,23 @@ class IdentityPage(Gtk.Widget):
 
 
 class _DesktopCard(Gtk.Button):
-    def __init__(self, did: str, name: str, desc: str, emoji: str, on_select):
+    __gtype_name__ = 'AboraDesktopCard'
+
+    def __init__(self, did: str, name: str, desc: str, on_select):
         super().__init__()
         self.did = did
         self.add_css_class('flat')
         self.add_css_class('desktop-card')
         self.connect('clicked', lambda _: on_select(did))
 
-        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4,
+        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3,
                         halign=Gtk.Align.CENTER)
-        em = Gtk.Label(label=emoji)
-        em.add_css_class('desktop-card-emoji')
         nm = Gtk.Label(label=name, wrap=True, justify=Gtk.Justification.CENTER)
         nm.add_css_class('desktop-card-name')
         ds = Gtk.Label(label=desc, wrap=True, justify=Gtk.Justification.CENTER,
-                       max_width_chars=16)
+                       max_width_chars=14)
         ds.add_css_class('desktop-card-desc')
-        for w in (em, nm, ds):
+        for w in (nm, ds):
             inner.append(w)
         self.set_child(inner)
 
@@ -452,6 +657,8 @@ class _DesktopCard(Gtk.Button):
 
 
 class DesktopPage(Gtk.Box):
+    __gtype_name__ = 'AboraDesktopPage'
+
     def __init__(self, state: State):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self._state = state
@@ -462,19 +669,23 @@ class DesktopPage(Gtk.Box):
         inner.set_margin_start(8)
         inner.set_margin_end(8)
         inner.set_margin_bottom(8)
+        _subtitles = {
+            'hyprland': 'Tiling window managers are shown first for this edition.',
+            'other':    'Alternative desktops are shown first for this edition.',
+        }
         inner.append(heading_box('Desktop Environment',
-                                 'Choose how your desktop will look and feel.'))
+                                 _subtitles.get(EDITION, 'Choose how your desktop will look and feel.')))
 
         flow = Gtk.FlowBox(
-            max_children_per_line=4,
-            min_children_per_line=2,
+            max_children_per_line=5,
+            min_children_per_line=3,
             selection_mode=Gtk.SelectionMode.NONE,
-            column_spacing=8,
-            row_spacing=8,
+            column_spacing=6,
+            row_spacing=6,
             homogeneous=True,
         )
-        for did, name, desc, emoji in DESKTOPS:
-            card = _DesktopCard(did, name, desc, emoji, self._select)
+        for did, name, desc in _edition_desktops():
+            card = _DesktopCard(did, name, desc, self._select)
             card.set_selected(did == state.desktop)
             self._cards[did] = card
             flow.append(card)
@@ -497,10 +708,13 @@ class DesktopPage(Gtk.Box):
 
 
 class DiskPage(Gtk.Box):
+    __gtype_name__ = 'AboraDiskPage'
+
     def __init__(self, state: State):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self._state = state
         self._disk_rows: list[tuple[str, Gtk.CheckButton]] = []
+        self._disk_group_rows: list[Adw.ActionRow] = []
         self._grp: Adw.PreferencesGroup | None = None
         self._first_btn: Gtk.CheckButton | None = None
 
@@ -520,6 +734,15 @@ class DiskPage(Gtk.Box):
         warn.append(wi)
         warn.append(wl)
         inner.append(warn)
+
+        plan_grp = Adw.PreferencesGroup(title='Partition Plan')
+        for part, detail in [
+            ('EFI System Partition', '512 MB — FAT32, /boot/efi'),
+            ('Root Partition',       'Remaining space — ext4, /'),
+        ]:
+            r = Adw.ActionRow(title=part, subtitle=detail)
+            plan_grp.add(r)
+        inner.append(plan_grp)
 
         self._grp = Adw.PreferencesGroup(title='Available Disks')
         inner.append(self._grp)
@@ -542,8 +765,9 @@ class DiskPage(Gtk.Box):
         self._refresh()
 
     def _refresh(self):
-        while (c := self._grp.get_first_child()) is not None:
-            self._grp.remove(c)
+        for row in self._disk_group_rows:
+            self._grp.remove(row)
+        self._disk_group_rows.clear()
         self._disk_rows.clear()
         self._first_btn = None
 
@@ -566,6 +790,7 @@ class DiskPage(Gtk.Box):
             row.add_prefix(cb)
             row.set_activatable_widget(cb)
             self._grp.add(row)
+            self._disk_group_rows.append(row)
             self._disk_rows.append((dev, cb))
 
     def _on_toggle(self, cb: Gtk.CheckButton, dev: str):
@@ -580,6 +805,8 @@ class DiskPage(Gtk.Box):
 
 
 class AppsPage(Gtk.Widget):
+    __gtype_name__ = 'AboraAppsPage'
+
     def __init__(self, state: State):
         super().__init__()
         self._state = state
@@ -625,6 +852,8 @@ class AppsPage(Gtk.Widget):
 
 
 class OptionsPage(Gtk.Widget):
+    __gtype_name__ = 'AboraOptionsPage'
+
     def __init__(self, state: State):
         super().__init__()
         self._state = state
@@ -673,11 +902,66 @@ class OptionsPage(Gtk.Widget):
         self._state.wallpaper = WALLPAPERS[wi][0]
 
 
+class DotsPage(Gtk.Widget):
+    __gtype_name__ = 'AboraDotsPage'
+
+    def __init__(self, state: State):
+        super().__init__()
+        self._state = state
+
+        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        inner.set_margin_top(8)
+        inner.set_margin_bottom(8)
+        inner.append(heading_box('Dotfiles (Optional)',
+                                 'Import your personal config files from a Git repository after installation.'))
+
+        grp = Adw.PreferencesGroup(title='Repository')
+        inner.append(grp)
+
+        url_row = Adw.ActionRow(
+            title='Dotfiles Git URL',
+            subtitle='GitHub, GitLab, Codeberg, or any public Git URL. Leave blank to skip.',
+        )
+        self._url_entry = Gtk.Entry(
+            placeholder_text='https://github.com/yourname/dotfiles',
+            hexpand=True,
+            valign=Gtk.Align.CENTER,
+        )
+        self._url_entry.set_text(state.dotfiles_url)
+        url_row.add_suffix(self._url_entry)
+        grp.add(url_row)
+
+        note_grp = Adw.PreferencesGroup(title='How it works')
+        inner.append(note_grp)
+        for step in [
+            'After install, Abora will clone your dotfiles repo',
+            'abora-dotfiles-import copies config files to your home folder',
+            'Existing files are kept unless you later run it with --replace',
+        ]:
+            r = Adw.ActionRow(subtitle=step)
+            note_grp.add(r)
+
+        self._sw = clamped_scroll(inner)
+        self._sw.set_parent(self)
+
+    def do_size_allocate(self, width, height, baseline):
+        self._sw.allocate(width, height, baseline)
+
+    def do_measure(self, orientation, for_size):
+        return self._sw.measure(orientation, for_size)
+
+    def collect(self):
+        self._state.dotfiles_url = self._url_entry.get_text().strip()
+
+
 class SummaryPage(Gtk.Widget):
+    __gtype_name__ = 'AboraSummaryPage'
+
     def __init__(self, state: State):
         super().__init__()
         self._state = state
         self._grp: Adw.PreferencesGroup | None = None
+        self._summary_rows: list[Adw.ActionRow] = []
 
         inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         inner.set_margin_top(8)
@@ -708,8 +992,9 @@ class SummaryPage(Gtk.Widget):
         return self._sw.measure(orientation, for_size)
 
     def refresh(self, state: State):
-        while (c := self._grp.get_first_child()) is not None:
-            self._grp.remove(c)
+        for row in self._summary_rows:
+            self._grp.remove(row)
+        self._summary_rows.clear()
 
         desktop_lbl = DESKTOP_LABELS.get(state.desktop, state.desktop)
         bundle_lbl  = next((n for b, n, _ in APP_BUNDLES if b == state.apps), state.apps)
@@ -726,14 +1011,17 @@ class SummaryPage(Gtk.Widget):
             ('Keyboard',   state.keyboard),
             ('Wallpaper',  wp_lbl),
             ('ANIX',       'Enabled' if state.anix else 'Disabled'),
-        ]:
+        ] + ([('Dotfiles', state.dotfiles_url or '(skip)')] if EDITION == 'hyprland' else []):
             row = Adw.ActionRow(title=title)
             lbl = Gtk.Label(label=value, valign=Gtk.Align.CENTER, selectable=True)
             row.add_suffix(lbl)
             self._grp.add(row)
+            self._summary_rows.append(row)
 
 
 class InstallingPage(Gtk.Box):
+    __gtype_name__ = 'AboraInstallingPage'
+
     def __init__(self, _state: State):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         self.set_margin_top(16)
@@ -752,6 +1040,37 @@ class InstallingPage(Gtk.Box):
         self._bar = Gtk.ProgressBar(pulse_step=0.04)
         self.append(self._bar)
 
+        actions = Gtk.Box(spacing=8, halign=Gtk.Align.START)
+        self._open_log = Gtk.Button(label='Open Log')
+        self._open_log.set_icon_name('document-open-symbolic')
+        self._open_log.connect('clicked', self._on_open_log)
+        actions.append(self._open_log)
+
+        self._log_path = Gtk.Label(label=LOG_FILE, xalign=0, selectable=True)
+        self._log_path.add_css_class('page-subtitle')
+        actions.append(self._log_path)
+        self.append(actions)
+
+        self._done_actions = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
+        self._done_actions.set_margin_top(10)
+
+        self._exit = Gtk.Button(label='Exit Installer')
+        self._exit.add_css_class('destructive-action')
+        self._exit.connect('clicked', self._on_exit)
+        self._done_actions.append(self._exit)
+
+        self._reboot = Gtk.Button(label='Reboot System')
+        self._reboot.add_css_class('suggested-action')
+        self._reboot.connect('clicked', self._on_reboot)
+        self._done_actions.append(self._reboot)
+
+        self._view_log = Gtk.Button(label='View Installation Log')
+        self._view_log.connect('clicked', self._on_open_log)
+        self._done_actions.append(self._view_log)
+
+        self._done_actions.set_visible(False)
+        self.append(self._done_actions)
+
         sw = Gtk.ScrolledWindow(vexpand=True)
         sw.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         self._buf = Gtk.TextBuffer()
@@ -761,6 +1080,31 @@ class InstallingPage(Gtk.Box):
         sw.set_child(tv)
         self._tv = tv
         self.append(sw)
+
+    def _on_open_log(self, _btn):
+        path = Path(LOG_FILE)
+        if not path.exists():
+            write_log('Open Log clicked before log file existed')
+            path.touch(exist_ok=True)
+
+        uri = path.resolve().as_uri()
+        try:
+            Gtk.show_uri(self.get_root(), uri, Gdk.CURRENT_TIME)
+            return
+        except Exception as e:
+            write_log(f'Gtk.show_uri failed: {e}')
+
+        opener = shutil.which('xdg-open')
+        if opener:
+            subprocess.Popen([opener, str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def _on_exit(self, _btn):
+        root = self.get_root()
+        if root:
+            root.close()
+
+    def _on_reboot(self, _btn):
+        subprocess.Popen(['systemctl', 'reboot'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def pulse(self):
         self._bar.pulse()
@@ -779,54 +1123,99 @@ class InstallingPage(Gtk.Box):
         else:
             self._title.set_label('Installation Failed')
             self._status.set_label(msg or 'An error occurred. Check the log above for details.')
+        self._done_actions.set_visible(True)
+        self._reboot.set_visible(success)
 
 
 # ── Page order ─────────────────────────────────────────────────────────────────
 
-PAGES_ORDER = ['welcome', 'language', 'identity', 'desktop', 'disk', 'apps',
-               'options', 'summary', 'installing']
-STEP_NAMES  = ['Welcome', 'Language', 'Identity', 'Desktop', 'Disk', 'Apps',
-               'Options', 'Review', 'Installing']
+if EDITION == 'hyprland':
+    PAGES_ORDER = ['welcome', 'language', 'identity', 'desktop', 'disk', 'apps',
+                   'options', 'dotfiles', 'summary', 'installing']
+    STEP_NAMES  = ['Welcome', 'Language', 'Identity', 'Desktop', 'Disk', 'Apps',
+                   'Options', 'Dotfiles', 'Review', 'Installing']
+else:
+    PAGES_ORDER = ['welcome', 'language', 'identity', 'desktop', 'disk', 'apps',
+                   'options', 'summary', 'installing']
+    STEP_NAMES  = ['Welcome', 'Language', 'Identity', 'Desktop', 'Disk', 'Apps',
+                   'Options', 'Review', 'Installing']
 
 
 # ── Main window ────────────────────────────────────────────────────────────────
 
 class AboraInstallerWindow(Adw.ApplicationWindow):
+    __gtype_name__ = 'AboraInstallerWindow'
 
     def __init__(self, app: Adw.Application):
         super().__init__(
             application=app,
             title='Install Abora OS',
-            default_width=960,
-            default_height=700,
+            default_width=1020,
+            default_height=740,
         )
         self._state        = State()
         self._cur          = 0
         self._installing   = False
         self._pulse_id     = None
+        # Mirror Adwaita's current color scheme preference
+        sm = Adw.StyleManager.get_default()
+        self._dark_mode = sm.get_dark()
+        if not sm.get_dark():
+            sm.set_color_scheme(Adw.ColorScheme.FORCE_LIGHT)
+        else:
+            sm.set_color_scheme(Adw.ColorScheme.FORCE_DARK)
         self._build_ui()
 
     def _build_ui(self):
+        shell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
+        shell.set_hexpand(True)
+        shell.set_vexpand(True)
+        shell.add_css_class('installer-shell')
+        self.set_content(shell)
+
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.set_content(root)
+        root.add_css_class('wizard-frame')
+        root.set_size_request(820, 640)
+        root.set_margin_top(24)
+        root.set_margin_bottom(24)
+        root.set_margin_start(24)
+        root.set_margin_end(24)
+        shell.append(root)
+
+        # Abora brand accent bar — 3px stripe at the very top
+        accent_bar = Gtk.Box()
+        accent_bar.add_css_class('abora-accent-bar')
+        root.append(accent_bar)
 
         hb = Adw.HeaderBar()
         self._wt = Adw.WindowTitle(title='Install Abora OS', subtitle='')
         hb.set_title_widget(self._wt)
+
+        # Theme toggle button
+        self._theme_btn = Gtk.Button()
+        self._theme_btn.set_icon_name('weather-clear-night-symbolic')
+        self._theme_btn.set_tooltip_text('Toggle light/dark mode')
+        self._theme_btn.connect('clicked', self._toggle_theme)
+        hb.pack_end(self._theme_btn)
+        self._dark_mode = True
+
         root.append(hb)
 
         # Step bar
-        self._step_bar = Gtk.Box(spacing=4, halign=Gtk.Align.CENTER)
-        self._step_bar.set_margin_top(6)
-        self._step_bar.set_margin_bottom(6)
+        self._step_bar = Gtk.Box(spacing=0, halign=Gtk.Align.CENTER)
+        self._step_bar.set_margin_top(8)
+        self._step_bar.set_margin_bottom(8)
         self._step_lbls: list[Gtk.Label] = []
         for i, name in enumerate(STEP_NAMES):
-            if i:
-                sep = Gtk.Label(label='›')
-                sep.add_css_class('step-dim')
-                self._step_bar.append(sep)
-            lbl = Gtk.Label(label=name)
-            lbl.add_css_class('step-dim')
+            if i > 0:
+                connector = Gtk.Box()
+                connector.add_css_class('step-connector')
+                connector.set_size_request(12, 1)
+                self._step_bar.append(connector)
+            lbl = Gtk.Label(label=str(i + 1))
+            lbl.add_css_class('step-dot')
+            lbl.set_tooltip_text(name)
+            lbl.set_size_request(24, 24)
             self._step_bar.append(lbl)
             self._step_lbls.append(lbl)
         root.append(self._step_bar)
@@ -842,7 +1231,7 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
         self._stack.set_margin_end(16)
         self._pages: dict[str, Gtk.Widget] = {}
 
-        for name, cls in [
+        _page_list = [
             ('welcome',    WelcomePage),
             ('language',   LanguagePage),
             ('identity',   IdentityPage),
@@ -850,10 +1239,18 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
             ('disk',       DiskPage),
             ('apps',       AppsPage),
             ('options',    OptionsPage),
+        ]
+        if EDITION == 'hyprland':
+            _page_list.append(('dotfiles', DotsPage))
+        _page_list += [
             ('summary',    SummaryPage),
             ('installing', InstallingPage),
-        ]:
-            w = cls(self._state)
+        ]
+        for name, cls in _page_list:
+            if name == 'welcome':
+                w = cls(self._state, self._go_next)
+            else:
+                w = cls(self._state)
             self._pages[name] = w
             self._stack.add_named(w, name)
 
@@ -862,6 +1259,7 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
 
         # Nav bar
         nav = Gtk.Box(spacing=8, halign=Gtk.Align.END)
+        nav.add_css_class('wizard-nav')
         nav.set_margin_top(12)
         nav.set_margin_bottom(12)
         nav.set_margin_end(16)
@@ -880,6 +1278,19 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
         self._refresh_nav()
         self._refresh_steps()
 
+    # ── Theme toggle ───────────────────────────────────────────────────────────
+
+    def _toggle_theme(self, _btn):
+        sm = Adw.StyleManager.get_default()
+        if self._dark_mode:
+            sm.set_color_scheme(Adw.ColorScheme.FORCE_LIGHT)
+            self._theme_btn.set_icon_name('weather-clear-symbolic')
+            self._dark_mode = False
+        else:
+            sm.set_color_scheme(Adw.ColorScheme.FORCE_DARK)
+            self._theme_btn.set_icon_name('weather-clear-night-symbolic')
+            self._dark_mode = True
+
     # ── Navigation ─────────────────────────────────────────────────────────────
 
     def _go_back(self, _btn):
@@ -892,7 +1303,7 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
         self._refresh_nav()
         self._refresh_steps()
 
-    def _go_next(self, _btn):
+    def _go_next(self, _btn=None):
         if self._installing:
             return
 
@@ -916,7 +1327,7 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
             return
 
         # Refresh summary before showing it
-        if name == 'options':
+        if name in ('options', 'dotfiles'):
             self._pages['summary'].refresh(self._state)
 
         self._cur += 1
@@ -931,7 +1342,7 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
         self._back.set_visible(self._cur > 0 and not is_installing)
         self._back.set_sensitive(not self._installing)
 
-        self._next.set_visible(not is_installing)
+        self._next.set_visible(not is_installing and name != 'welcome')
         self._next.set_sensitive(not self._installing)
 
         if name == 'welcome':
@@ -954,11 +1365,14 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
 
     def _refresh_steps(self):
         for i, lbl in enumerate(self._step_lbls):
+            lbl.remove_css_class('step-active')
+            lbl.remove_css_class('step-done')
+            lbl.remove_css_class('step-dim')
             if i == self._cur:
                 lbl.add_css_class('step-active')
-                lbl.remove_css_class('step-dim')
+            elif i < self._cur:
+                lbl.add_css_class('step-done')
             else:
-                lbl.remove_css_class('step-active')
                 lbl.add_css_class('step-dim')
 
     # ── Installation ───────────────────────────────────────────────────────────
@@ -987,6 +1401,7 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
                 ('starter_apps_bundle',     self._state.apps),
                 ('install_apps_during_setup', 'no'),
                 ('anix_enabled',            'yes' if self._state.anix else 'no'),
+                ('dotfiles_url',            self._state.dotfiles_url),
             ]:
                 f.write(f'{k}={shlex.quote(v)}\n')
 
@@ -1004,13 +1419,17 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
 
     def _run_install(self):
         ip: InstallingPage = self._pages['installing']
+        write_log('install thread started')
 
         # Write params file
         try:
             fd, params = tempfile.mkstemp(prefix='abora-batch-', suffix='.sh', dir='/tmp')
             os.close(fd)
             self._write_batch_params(params)
+            write_log(f'wrote batch params: {params}')
         except Exception as e:
+            write_log(f'failed to write params: {e}')
+            write_log(traceback.format_exc())
             GLib.idle_add(ip.set_done, False, f'Failed to write params: {e}')
             return
 
@@ -1026,6 +1445,7 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
                 pass
 
         log(f'[gui] cmd: {" ".join(cmd)}\n')
+        write_log(f'installer command: {" ".join(cmd)}')
 
         try:
             proc = subprocess.Popen(
@@ -1033,18 +1453,23 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 bufsize=1,
             )
             for line in proc.stdout:
                 log(line)
             proc.wait()
             success = proc.returncode == 0
+            write_log(f'installer exited with code {proc.returncode}')
         except Exception as e:
             log(f'\n[error] {e}\n')
+            write_log(traceback.format_exc())
             success = False
         finally:
             try:
                 os.unlink(params)
+                write_log(f'removed batch params: {params}')
             except Exception:
                 pass
 
@@ -1075,6 +1500,8 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
 # ── Application entry point ────────────────────────────────────────────────────
 
 class AboraInstaller(Adw.Application):
+    __gtype_name__ = 'AboraInstallerApp'
+
     def __init__(self):
         super().__init__(
             application_id='org.aboraos.Installer',
@@ -1098,11 +1525,14 @@ class AboraInstaller(Adw.Application):
 
 def main():
     try:
-        with open(LOG_FILE, 'a') as f:
-            f.write(f'[abora-installer-gui] starting pid={os.getpid()}\n')
+        write_log(f'abora-installer-gui starting pid={os.getpid()} argv={sys.argv!r}')
+        write_log(f'installer binary: {INSTALLER_BIN}')
+        write_log(f'display DISPLAY={os.environ.get("DISPLAY", "")!r} WAYLAND_DISPLAY={os.environ.get("WAYLAND_DISPLAY", "")!r}')
+        sys.exit(AboraInstaller().run(sys.argv))
     except Exception:
-        pass
-    sys.exit(AboraInstaller().run(sys.argv))
+        write_log('fatal unhandled exception')
+        write_log(traceback.format_exc())
+        raise
 
 
 if __name__ == '__main__':

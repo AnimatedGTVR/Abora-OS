@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Abora OS Installer — DENALI 3.14 Edition
+# Abora OS Installer — DENALI 4.0 Edition
 # Compact Omarchy-inspired TUI: large wordmark, boxed choices, simple prompts.
 
 set -uo pipefail
@@ -118,7 +118,7 @@ _init_gum
 _TABS=("Language" "Network" "Identity" "Desktop" "Apps" "Options" "Preflight" "Disk" "Confirm")
 
 draw_logo() {
-    printf '  %bABORA OS%b  %b▸%b  %bDENALI 3.14%b\n' \
+    printf '  %bABORA OS%b  %b▸%b  %bDENALI 4.0%b\n' \
         "${B}${CW}" "$R" "${D}${CG}" "$R" "${D}${CG}" "$R"
 }
 
@@ -134,7 +134,7 @@ tab_header() {
     printf '\033[2J\033[H'
     printf '\n'
     printf '  %b┌────────────────────────────────────────────────────────┐%b\n' "$CF" "$R"
-    printf '  %b│%b  %bABORA OS%b  %b▸%b  DENALI 3.14%b                              %b│%b\n' \
+    printf '  %b│%b  %bABORA OS%b  %b▸%b  DENALI 4.0%b                              %b│%b\n' \
         "$CF" "$R" "${B}${CW}" "$R" "${D}${CG}" "$R" "${D}${CG}" "$CF" "$R"
     printf '  %b└────────────────────────────────────────────────────────┘%b\n' "$CF" "$R"
     printf '\n'
@@ -322,12 +322,45 @@ safe_keymap()     { [[ "$1" =~ ^[A-Za-z0-9_+.-]+$ ]]; }
 safe_locale()     { [[ "$1" =~ ^[A-Za-z][A-Za-z0-9_.@-]*$ && "$1" == *.* ]]; }
 safe_timezone()   { [[ "$1" =~ ^[A-Za-z0-9_+./-]+$ && "$1" != *..* && "$1" != /* ]]; }
 
+normalize_timezone() {
+    local tz="$1"
+    tz="${tz//$'\r'/}"
+    tz="${tz#"${tz%%[![:space:]]*}"}"
+    tz="${tz%"${tz##*[![:space:]]}"}"
+
+    case "${tz^^}" in
+        UTC|GMT|Z)
+            printf 'UTC\n'
+            ;;
+        EST|EDT|EASTERN|US/EASTERN)
+            printf 'America/New_York\n'
+            ;;
+        CST|CDT|CENTRAL|US/CENTRAL)
+            printf 'America/Chicago\n'
+            ;;
+        MST|MDT|MOUNTAIN|US/MOUNTAIN)
+            printf 'America/Denver\n'
+            ;;
+        PST|PDT|PACIFIC|US/PACIFIC)
+            printf 'America/Los_Angeles\n'
+            ;;
+        *)
+            printf '%s\n' "$tz"
+            ;;
+    esac
+}
+
 timezone_exists() {
     local tz="$1" base
+    tz="$(normalize_timezone "$tz")"
+    [[ "$tz" == "UTC" ]] && return 0
     safe_timezone "$tz" || return 1
     for base in "${ABORA_ZONEINFO_PATH:-}" /usr/share/zoneinfo /run/current-system/sw/share/zoneinfo; do
         [[ -n "$base" && -f "${base}/${tz}" ]] && return 0
     done
+    if command -v timedatectl >/dev/null 2>&1; then
+        timedatectl list-timezones 2>/dev/null | grep -Fxq "$tz" && return 0
+    fi
     return 1
 }
 
@@ -556,6 +589,7 @@ check_install_environment() {
         fi
     done
 
+    timezone_value="$(normalize_timezone "$timezone_value")"
     safe_locale "$locale_value" || { err "Invalid locale: ${locale_value}"; failed=1; }
     timezone_exists "$timezone_value" || { err "Invalid or unavailable timezone: ${timezone_value}"; failed=1; }
     safe_keymap "$keyboard_value" || { err "Invalid console keymap: ${keyboard_value}"; failed=1; }
@@ -594,7 +628,7 @@ Yb,_,dP       `8b,,d8b,  ,8I,d8,   ,d8',dP     Y8,,d8,   ,d8b,`Y8b,,__,,d8P' "88
  "Y8P"         `Y88P'"Y88P"'P"Y8888P"  8P      `Y8P"Y8888P"`Y8  `"Y8888P"'   a8P"Y88888P"
 ABORA_LOGO
     printf '\n'
-    printf '  %bDENALI 3.14%b  %b·  NixOS-based Linux  ·  v%s%b\n' \
+    printf '  %bAbora OS Live%b  %b·  NixOS-based Linux  ·  v%s%b\n' \
         "${B}${CS}" "$R" "${D}${CG}" "$version" "$R"
     printf '\n'
     printf '  %b────────────────────────────────────────────────────────%b\n' "$CF" "$R"
@@ -797,9 +831,9 @@ step_identity() {
     local v
     while true; do
         v="$(prompt_field "Timezone" "$timezone_value")"
-        [[ -n "$v" ]] && timezone_value="$v"
+        [[ -n "$v" ]] && timezone_value="$(normalize_timezone "$v")"
         if timezone_exists "$timezone_value"; then break; fi
-        warn "Use a valid zoneinfo name, for example America/New_York or UTC."
+        warn "Use a valid timezone, for example America/New_York, EST, Eastern, or UTC."
     done
 
     while true; do
@@ -1029,7 +1063,7 @@ step_confirm() {
         _print_summary
 
         menu "Ready to install?" \
-            "Install now|Erase ${disk} and install Abora OS DENALI 3.14" \
+            "Install now|Erase ${disk} and install Abora OS DENALI 4.0" \
             "Change password|Reset user password before installing" \
             "Cancel|Abort and return to the live shell"
 
@@ -1370,6 +1404,7 @@ generate_nixos_config() {
     write_branding_assets "$root"
 
     local desktop_block desktop_pkgs root_pw_line host_nix user_nix locale_nix timezone_nix keyboard_nix xkb_nix desktop_nix wallpaper_nix anix_import_line
+    timezone_value="$(normalize_timezone "$timezone_value")"
     desktop_block="$(abora_desktop_config_block "$desktop_profile" "$xkb_layout_value" "$username_value")"
     desktop_pkgs="$(abora_desktop_package_block "$desktop_profile")"
     [[ -n "$desktop_block" ]] || die "Empty desktop block for $desktop_profile."
@@ -1439,7 +1474,7 @@ EOF
     cat > "${cfgdir}/abora-local.nix" <<EOF
 { pkgs, lib, ... }:
 {
-  system.nixos.variantName = "Abora OS DENALI 3.14 ${desktop_label} Edition";
+  system.nixos.variantName = "Abora OS DENALI 4.0 ${desktop_label} Edition";
   system.nixos.variant_id = "${desktop_variant_id}";
   # OS release branding is set centrally in abora/installed-base.nix.
 
@@ -1842,7 +1877,7 @@ progress_line() {
 
 draw_install_title() {
     printf '  %b┌────────────────────────────────────────────────────────┐%b\n' "$CF" "$R"
-    printf '  %b│%b  %bABORA OS%b  %b▸%b  Installing DENALI 3.14%b                  %b│%b\n' \
+    printf '  %b│%b  %bABORA OS%b  %b▸%b  Installing DENALI 4.0%b                  %b│%b\n' \
         "$CF" "$R" "${B}${CW}" "$R" "${D}${CG}" "$R" "${D}${CG}" "$CF" "$R"
     printf '  %b└────────────────────────────────────────────────────────┘%b\n' "$CF" "$R"
 }
@@ -2009,7 +2044,7 @@ run_install() {
     printf '\033[2J\033[H'
     printf '\n'
     draw_install_title
-    printf '  %bInstalling Abora DENALI 3.14%b\n' "$CC" "$R"
+    printf '  %bInstalling Abora DENALI 4.0%b\n' "$CC" "$R"
     printf '  %bLog: %s%b\n' "${D}${CG}" "$install_log" "$R"
     printf '\n'
 
@@ -2091,7 +2126,7 @@ page_done() {
     printf '  %b┌────────────────────────────────────────────────────────┐%b\n' "$CF" "$R"
     printf '  %b│%b  %b✓  Installation Complete%b                               %b│%b\n' \
         "$CF" "$R" "${B}${CP}" "$R" "$CF" "$R"
-    printf '  %b│%b  %bAbora OS DENALI 3.14 is installed%b                     %b│%b\n' \
+    printf '  %b│%b  %bAbora OS DENALI 4.0 is installed%b                     %b│%b\n' \
         "$CF" "$R" "$CS" "$R" "$CF" "$R"
     printf '  %b└────────────────────────────────────────────────────────┘%b\n' "$CF" "$R"
     printf '\n'
