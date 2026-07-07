@@ -237,6 +237,12 @@ seed_dark_theme_for_session() {
     write_dark_qt_settings
 
     case "$signature" in
+        *COSMIC*:* | *cosmic*:* | *:COSMIC* | *:cosmic*)
+            export_dark_environment
+            ;;
+        *mango*:* | *Mango*:* | *MangoWM*:* | *:mango* | *:Mango* | *:MangoWM*)
+            export_dark_environment "qt6ct"
+            ;;
         *GNOME*:* | *gnome*:* | *:gnome* | *:GNOME* | *ubuntu:gnome* | *:ubuntu*)
             seed_gnome_dark
             export_dark_environment
@@ -356,6 +362,33 @@ seed_hyprland() {
     seed_swaybg
 }
 
+seed_cosmic() {
+    local cosmic_bg_dir="${config_home}/cosmic/com.system76.CosmicBackground/v1"
+    local wallpaper_path="$default_dark_wallpaper"
+
+    # Match GNOME's day/night mountain pairing for COSMIC live and installed
+    # sessions. Fall back to the regular default if the dark file is absent.
+    if [[ ! -f "$wallpaper_path" ]]; then
+        wallpaper_path="$default_wallpaper"
+    fi
+
+    mkdir -p "$cosmic_bg_dir"
+
+    # Write the COSMIC background config in the same RON files cosmic-bg reads.
+    cat > "${cosmic_bg_dir}/all" <<EOF
+(
+    output: "all",
+    source: Path("${wallpaper_path}"),
+    filter_by_theme: false,
+    rotation_frequency: 3600,
+    filter_method: Lanczos,
+    scaling_mode: Zoom,
+    sampling_method: Alphanumeric,
+)
+EOF
+    printf '[All]\n' > "${cosmic_bg_dir}/backgrounds"
+}
+
 run_theme_sync_once() {
     [[ -x "$theme_sync_script" ]] || return 0
     bash "$theme_sync_script" --once >/dev/null 2>&1 || true
@@ -377,6 +410,11 @@ main() {
     fi
 
     case "$signature" in
+        *COSMIC*:* | *cosmic*:* | *:COSMIC* | *:cosmic*)
+            if ! already_seeded; then
+                seed_cosmic && mark_seeded
+            fi
+            ;;
         *GNOME*:* | *gnome*:* | *:gnome* | *:GNOME* | *ubuntu:gnome* | *:ubuntu*)
             if ! already_seeded; then
                 seed_gnome_like org.gnome.desktop.background && mark_seeded
@@ -413,6 +451,12 @@ main() {
                 if seed_lxqt || seed_feh; then
                     mark_seeded
                 fi
+            fi
+            ;;
+        *mango*:* | *Mango*:* | *MangoWM*:* | *:mango* | *:Mango* | *:MangoWM*)
+            # MangoWM is a wlroots compositor — use swaybg for wallpaper
+            if ! already_seeded; then
+                seed_swaybg && mark_seeded
             fi
             ;;
         *i3*:* | *:i3* | \

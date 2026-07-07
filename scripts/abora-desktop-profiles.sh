@@ -10,6 +10,8 @@ abora_default_wallpaper_uri() {
 
 abora_supported_wallpapers() {
     cat <<'EOF'
+abora-dark.svg
+abora-light.svg
 Daytime-MNT.jpg
 NightTime-MNT.png
 oceandusk.png
@@ -21,6 +23,12 @@ EOF
 
 abora_sync_wallpaper_label() {
     case "$1" in
+        abora-dark.svg)
+            wallpaper_label="Abora Dark"
+            ;;
+        abora-light.svg)
+            wallpaper_label="Abora Light"
+            ;;
         Daytime-MNT.jpg)
             wallpaper_label="Mountain — Day/Night"
             ;;

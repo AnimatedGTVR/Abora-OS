@@ -134,6 +134,24 @@ let
     <!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd">
     <wallpapers>
       <wallpaper deleted="false">
+        <name>Abora Dark</name>
+        <filename>/run/current-system/sw/share/backgrounds/abora/abora-dark.svg</filename>
+        <filename-dark>/run/current-system/sw/share/backgrounds/abora/abora-dark.svg</filename-dark>
+        <options>zoom</options>
+        <shade_type>solid</shade_type>
+        <pcolor>#030812</pcolor>
+        <scolor>#030812</scolor>
+      </wallpaper>
+      <wallpaper deleted="false">
+        <name>Abora Light</name>
+        <filename>/run/current-system/sw/share/backgrounds/abora/abora-light.svg</filename>
+        <filename-dark>/run/current-system/sw/share/backgrounds/abora/abora-dark.svg</filename-dark>
+        <options>zoom</options>
+        <shade_type>solid</shade_type>
+        <pcolor>#f2f9fe</pcolor>
+        <scolor>#030812</scolor>
+      </wallpaper>
+      <wallpaper deleted="false">
         <name>Mountain (Day/Night)</name>
         <filename>/run/current-system/sw/share/backgrounds/abora/Daytime-MNT.jpg</filename>
         <filename-dark>/run/current-system/sw/share/backgrounds/abora/NightTime-MNT.png</filename-dark>
@@ -194,13 +212,13 @@ in
     vendorName = "Abora OS";
     label = version;
     variant_id = lib.mkDefault "system";
-    variantName = lib.mkDefault "Abora OS DENALI 3.14";
+    variantName = lib.mkDefault "Abora OS DENALI 4.0";
     extraOSReleaseArgs = lib.mapAttrs (_: lib.mkDefault) {
       LOGO = "abora";
-      VERSION = "DENALI 3.14";
-      VERSION_ID = "3.14";
+      VERSION = "DENALI 4.0";
+      VERSION_ID = "4.0";
       VERSION_CODENAME = "denali";
-      PRETTY_NAME = "Abora OS DENALI 3.14";
+      PRETTY_NAME = "Abora OS DENALI 4.0";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
       BUG_REPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
@@ -703,10 +721,10 @@ in
         Opacity=0.84
       '';
       "issue".text = ''
-        Abora OS DENALI 3.14
+        Abora OS DENALI 4.0
       '';
       "issue.net".text = ''
-        Abora OS DENALI 3.14
+        Abora OS DENALI 4.0
       '';
     }
     // builtins.listToAttrs (

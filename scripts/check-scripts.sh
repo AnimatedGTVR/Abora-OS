@@ -19,6 +19,7 @@ bash_scripts=(
   "scripts/abora-config.sh"
   "scripts/abora-desktop.sh"
   "scripts/abora-desktop-profiles.sh"
+  "scripts/abora-dotfiles-import.sh"
   "scripts/abora-doctor.sh"
   "scripts/abora-hardware-test.sh"
   "scripts/abora-installer.sh"
