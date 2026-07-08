@@ -373,6 +373,7 @@ hash_password() {
 nix_string() {
     local value="$1"
     value="${value//\\/\\\\}"
+    value="${value//\$/\\\$}"
     value="${value//\"/\\\"}"
     value="${value//$'\n'/}"
     printf '%s' "$value"
@@ -595,6 +596,15 @@ check_install_environment() {
     safe_keymap "$keyboard_value" || { err "Invalid console keymap: ${keyboard_value}"; failed=1; }
     safe_keymap "$xkb_layout_value" || { err "Invalid XKB layout: ${xkb_layout_value}"; failed=1; }
     [[ -n "$user_password_hash" ]] || { err "User password hash is empty."; failed=1; }
+
+    # These three are re-validated here (not just in the interactive step_*
+    # prompts) so --batch installs get the exact same guarantees: a batch
+    # params file can set hostname/username/disk to anything, and nothing
+    # else on the batch path re-checks them before they're baked into
+    # generated Nix config or handed to wipefs/parted.
+    safe_hostname "$hostname_value" || { err "Invalid hostname: ${hostname_value}"; failed=1; }
+    safe_identifier "$username_value" || { err "Invalid username: ${username_value}"; failed=1; }
+    [[ -n "$disk" && -b "$disk" ]] || { err "Invalid or missing installation disk: '${disk}'"; failed=1; }
 
     if [[ "$mode" != "detail" ]]; then
         ok "Tools ready: ${commands_ok}/${#commands[@]}"
@@ -1105,6 +1115,10 @@ log_install_step() {
 
 partition_disk() {
     log_install_step "partition_disk: start disk=${disk}"
+    if [[ -z "$disk" || ! -b "$disk" ]]; then
+        log_install_step "partition_disk: refusing — '${disk}' is not a block device"
+        return 1
+    fi
     umount -R /mnt >/dev/null 2>&1 || true
     wipefs -af "$disk" >>"$install_log" 2>&1 || return 1
     parted -s "$disk" mklabel gpt >>"$install_log" 2>&1 || return 1

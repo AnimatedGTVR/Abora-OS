@@ -166,11 +166,28 @@ validate_desktop() {
     exit 1
 }
 
+safe_timezone() {
+    [[ "$1" =~ ^[A-Za-z0-9_+./-]+$ && "$1" != *..* && "$1" != /* ]]
+}
+
+safe_xkb_code() {
+    [[ "$1" =~ ^[a-z]{2,3}(,[a-z]{2,3})*$ ]]
+}
+
 do_set() {
     local key="$1" value="$2"
 
     require_local_module
     require_options_format
+
+    # Belt-and-suspenders: no settable value may contain characters that could
+    # break out of the Nix double-quoted string it gets written into ('"' ends
+    # the string; '\' starts an escape; '${' begins Nix antiquotation), no
+    # matter which key-specific check below runs.
+    if [[ "$value" == *'"'* || "$value" == *'\'* || "$value" == *'${'* ]]; then
+        abora_error "Invalid value '${value}' — it cannot contain '\"', '\\', or '\${'."
+        exit 1
+    fi
 
     # Validate and normalise the key.
     case "$key" in
@@ -180,11 +197,21 @@ do_set() {
                 exit 1
             fi
             ;;
-        timezone) ;;
+        timezone)
+            if ! safe_timezone "$value"; then
+                abora_error "Invalid timezone '${value}' — expected a zoneinfo-style name (e.g. 'America/New_York')."
+                exit 1
+            fi
+            ;;
         keyboard | keyboard.console)
             key="keyboard.console"
             ;;
-        keyboard.xkb) ;;
+        keyboard.xkb)
+            if ! safe_xkb_code "$value"; then
+                abora_error "Invalid keyboard layout '${value}' — expected a layout code (e.g. 'us' or 'us,de')."
+                exit 1
+            fi
+            ;;
         desktop)
             validate_desktop "$value"
             ;;
