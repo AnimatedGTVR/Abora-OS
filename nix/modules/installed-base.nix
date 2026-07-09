@@ -212,13 +212,13 @@ in
     vendorName = "Abora OS";
     label = version;
     variant_id = lib.mkDefault "system";
-    variantName = lib.mkDefault "Abora OS DENALI 4.0";
+    variantName = lib.mkDefault "Abora OS EVEREST 4.0";
     extraOSReleaseArgs = lib.mapAttrs (_: lib.mkDefault) {
       LOGO = "abora";
-      VERSION = "DENALI 4.0";
+      VERSION = "EVEREST 4.0";
       VERSION_ID = "4.0";
       VERSION_CODENAME = "denali";
-      PRETTY_NAME = "Abora OS DENALI 4.0";
+      PRETTY_NAME = "Abora OS EVEREST 4.0";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
       BUG_REPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
@@ -578,7 +578,7 @@ in
         mode = "0755";
       };
       "motd".text = ''
-        Abora OS DENALI ${version}
+        Abora OS EVEREST ${version}
 
           grab <app>          install an app  (flatpak, nix, or snap)
           search <app>        find apps across all sources
@@ -721,10 +721,10 @@ in
         Opacity=0.84
       '';
       "issue".text = ''
-        Abora OS DENALI 4.0
+        Abora OS EVEREST 4.0
       '';
       "issue.net".text = ''
-        Abora OS DENALI 4.0
+        Abora OS EVEREST 4.0
       '';
     }
     // builtins.listToAttrs (

@@ -62,7 +62,7 @@ _boot_frame() {
     printf '\033c'
     printf '\n'
     printf '  %b╔══════════════════════════════════════════════════════╗%b\n' "$BL" "$NC"
-    printf '  %b║%b  %-54s%b║%b\n' "$BL" "$WH" "ABORA OS  —  DENALI 4.0  ·  Starting" "$BL" "$NC"
+    printf '  %b║%b  %-54s%b║%b\n' "$BL" "$WH" "ABORA OS  —  EVEREST 4.0  ·  Starting" "$BL" "$NC"
     printf '  %b╠══════════════════════════════════════════════════════╣%b\n' "$BL" "$NC"
     printf '  %b║%b  %-54s%b║%b\n' "$BL" "$DM" "$msg" "$BL" "$NC"
     printf '  %b║%b  [%s] %b%s%b  %b%3d%%%b\n' \
