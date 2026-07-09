@@ -22,7 +22,7 @@ from pathlib import Path
 # ── Runtime paths ──────────────────────────────────────────────────────────────
 INSTALLER_BIN  = os.environ.get('ABORA_INSTALLER', '/etc/abora/installer.sh')
 LOG_FILE       = '/tmp/abora-gui-installer.log'
-VERSION        = os.environ.get('ABORA_VERSION', 'DENALI 4.0')
+VERSION        = os.environ.get('ABORA_VERSION', 'EVEREST 4.0')
 LOGO_FILE      = os.environ.get('ABORA_LOGO', '/etc/abora/Abora-LOGO.png')
 EDITION        = os.environ.get('ABORA_EDITION', 'cosmic')
 
@@ -59,7 +59,6 @@ DESKTOPS = [
     ('awesome',       'awesome',       'Lua-configured WM'),
     ('herbstluftwm',  'herbstluftwm',  'Manual tiling WM'),
     ('fluxbox',       'Fluxbox',       'Fast & configurable'),
-    ('pantheon',      'Pantheon',      'elementaryOS desktop'),
     ('none',          'None',          'Minimal, no DE'),
 ]
 
@@ -69,8 +68,91 @@ DESKTOP_LABELS = {d[0]: d[1] for d in DESKTOPS}
 _TILING_WMS = {'hyprland', 'mangowm', 'sway', 'i3', 'niri', 'river', 'bspwm',
                'qtile', 'awesome', 'herbstluftwm', 'openbox', 'fluxbox', 'icewm'}
 # Desktop IDs that are alternative DEs (Alt Desktops edition focus)
-_ALT_DES    = {'xfce', 'cinnamon', 'mate', 'budgie', 'lxqt', 'pantheon',
+_ALT_DES    = {'xfce', 'cinnamon', 'mate', 'budgie', 'lxqt',
                'icewm', 'fluxbox', 'openbox'}
+
+
+# A distinct symbolic icon per desktop, not just "tiling vs. full DE" — real
+# per-project logos aren't bundled, but a unique glyph per card still makes
+# the grid scannable instead of every full DE sharing one repeated monitor icon.
+_DESKTOP_ICONS = {
+    'cosmic':       'start-here-symbolic',
+    'hyprland':     'view-paged-symbolic',
+    'mangowm':      'view-dual-symbolic',
+    'gnome':        'user-desktop-symbolic',
+    'plasma':       'preferences-color-symbolic',
+    'sway':         'view-continuous-symbolic',
+    'i3':           'view-grid-symbolic',
+    'icewm':        'window-symbolic',
+    'budgie':       'sidebar-show-symbolic',
+    'cinnamon':     'view-restore-symbolic',
+    'mate':         'applications-system-symbolic',
+    'xfce':         'preferences-system-symbolic',
+    'lxqt':         'window-new-symbolic',
+    'niri':         'view-fullscreen-symbolic',
+    'river':        'emblem-system-symbolic',
+    'openbox':      'application-x-executable-symbolic',
+    'bspwm':        'view-grid-symbolic',
+    'qtile':        'view-paged-symbolic',
+    'awesome':      'starred-symbolic',
+    'herbstluftwm': 'view-continuous-symbolic',
+    'fluxbox':      'window-symbolic',
+    'none':         'window-restore-symbolic',
+}
+
+
+def _desktop_icon(did: str) -> str:
+    return _DESKTOP_ICONS.get(did, 'video-display-symbolic')
+
+
+# A distinct accent color per desktop, loosely matching each project's real
+# brand color where one exists (Plasma blue, GNOME blue, Hyprland purple,
+# awesome gold, etc.) — real per-DE logos aren't bundled, so a colorful badge
+# behind a plain symbolic glyph is what actually reads as "an icon" instead
+# of a flat grey outline, closer to how a real icon grid looks.
+_DESKTOP_COLORS = {
+    'cosmic':       '#3a86ff',
+    'hyprland':     '#8338ec',
+    'mangowm':      '#fb8500',
+    'gnome':        '#3584e4',
+    'plasma':       '#1d99f3',
+    'sway':         '#68a0b0',
+    'i3':           '#e6194b',
+    'icewm':        '#00b4d8',
+    'budgie':       '#8a7f76',
+    'cinnamon':     '#a0522d',
+    'mate':         '#6b8e23',
+    'xfce':         '#1b6ea8',
+    'lxqt':         '#0099d3',
+    'niri':         '#ff5c8a',
+    'river':        '#00a884',
+    'openbox':      '#5c5c5c',
+    'bspwm':        '#ff6b6b',
+    'qtile':        '#3fa796',
+    'awesome':      '#d4a418',
+    'herbstluftwm': '#457b9d',
+    'fluxbox':      '#e07a5f',
+    'none':         '#8a8a8a',
+}
+
+
+def _desktop_color(did: str) -> str:
+    return _DESKTOP_COLORS.get(did, '#5c5c5c')
+
+
+# ── Step icons (sidebar) ───────────────────────────────────────────────────────
+STEP_ICONS = {
+    'welcome':    'go-home-symbolic',
+    'language':   'preferences-desktop-locale-symbolic',
+    'identity':   'system-users-symbolic',
+    'desktop':    'preferences-desktop-appearance-symbolic',
+    'disk':       'drive-harddisk-symbolic',
+    'apps':       'view-grid-symbolic',
+    'options':    'preferences-other-symbolic',
+    'dotfiles':   'folder-symbolic',
+    'summary':    'checkbox-checked-symbolic',
+    'installing': 'emblem-synchronizing-symbolic',
+}
 
 
 def _edition_desktops() -> list[tuple[str, str, str]]:
@@ -187,92 +269,207 @@ WALLPAPERS = [
 
 # ── CSS ────────────────────────────────────────────────────────────────────────
 
-CSS = b"""
+# One badge-background rule per desktop, generated from _DESKTOP_COLORS so
+# adding a desktop only means adding one dict entry, not a new CSS rule too.
+_DESKTOP_BADGE_CSS = '\n'.join(
+    f'.desktop-card-icon-badge-{did} {{ background: {color}; }}'
+    for did, color in _DESKTOP_COLORS.items()
+)
+
+CSS_TEMPLATE = """
 /* ---- Abora OS Installer ---- */
 
-/* Outer shell - follows Adwaita dark/light automatically */
+@define-color abora_accent #1c6fcf;
+@define-color abora_accent_hover #2480e0;
+
+/* Full-bleed shell, no floating card - a real application, not a dialog */
 .installer-shell {
-    background: shade(@window_bg_color, 0.88);
+    background: @window_bg_color;
 }
 
-/* Wizard card */
-.wizard-frame {
-    background: @window_bg_color;
-    border-radius: 10px;
-    border: 1px solid alpha(@window_fg_color, 0.09);
-    box-shadow: 0 4px 28px rgba(0,0,0,0.22);
+/* Brand title bar - blue like the reference installer's own title strip */
+.abora-titlebar {
+    background: @abora_accent;
+    box-shadow: none;
+    min-height: 52px;
+}
+
+.abora-titlebar label {
+    color: #ffffff;
+}
+
+.abora-titlebar label.title {
+    font-weight: 700;
+}
+
+.abora-titlebar label.subtitle {
+    color: alpha(#ffffff, 0.82);
+}
+
+.abora-titlebar button {
+    color: #ffffff;
+}
+
+.abora-titlebar button:hover {
+    background: alpha(#ffffff, 0.14);
+}
+
+.abora-brand-icon {
+    margin-left: 2px;
+}
+
+/* Fallback brand mark in the title bar when no logo file is present -
+   white circle on the accent title bar, distinct from the larger welcome badge */
+.abora-brand-badge {
+    margin-left: 2px;
+    border-radius: 999px;
+    background: alpha(#ffffff, 0.22);
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 0.85em;
+}
+
+/* Sidebar - persistent, always visible, lists every step */
+.installer-sidebar {
+    background: shade(@window_bg_color, 0.96);
+    border-right: 1px solid alpha(@window_fg_color, 0.08);
+    min-width: 232px;
+}
+
+.sidebar-step {
+    padding: 9px 14px;
+    border-radius: 8px;
+    margin: 1px 10px;
+}
+
+.sidebar-step-icon {
+    min-width: 20px;
+    min-height: 20px;
+    color: alpha(@window_fg_color, 0.38);
+}
+
+.sidebar-step-label {
+    font-size: 0.92em;
+    color: alpha(@window_fg_color, 0.62);
+}
+
+.sidebar-step.current {
+    background: alpha(@abora_accent, 0.13);
+}
+
+.sidebar-step.current .sidebar-step-icon,
+.sidebar-step.current .sidebar-step-label {
+    color: @abora_accent;
+}
+
+.sidebar-step.current .sidebar-step-label {
+    font-weight: 700;
+}
+
+.sidebar-step.done .sidebar-step-icon {
+    color: @abora_accent;
+}
+
+.sidebar-step.done .sidebar-step-label {
+    color: alpha(@window_fg_color, 0.75);
+}
+
+.sidebar-step.future .sidebar-step-icon,
+.sidebar-step.future .sidebar-step-label {
+    color: alpha(@window_fg_color, 0.32);
 }
 
 .wizard-nav {
     background: transparent;
 }
 
-/* Abora brand accent bar - top edge of the frame */
-.abora-accent-bar {
-    background: #1c6fcf;
-    min-height: 3px;
-    border-radius: 10px 10px 0 0;
-}
-
-headerbar {
-    background: @headerbar_bg_color;
-    border-bottom: 1px solid alpha(@window_fg_color, 0.07);
-    box-shadow: none;
-}
-
 /* Page headings - editorial, not billboard */
 .page-title {
-    font-size: 1.45em;
-    font-weight: 700;
-    letter-spacing: -0.2px;
+    font-size: 1.6em;
+    font-weight: 800;
+    letter-spacing: -0.3px;
 }
 
 .page-subtitle {
-    font-size: 0.92em;
-    color: alpha(@window_fg_color, 0.52);
+    font-size: 0.95em;
+    color: alpha(@window_fg_color, 0.55);
 }
 
 .welcome-mark {
-    margin-bottom: 12px;
+    margin-bottom: 4px;
+}
+
+/* Fallback brand badge shown when no logo file is present */
+.logo-badge {
+    min-width: 96px;
+    min-height: 96px;
+    border-radius: 999px;
+    background: linear-gradient(160deg, @abora_accent, shade(@abora_accent, 0.72));
+    color: #ffffff;
+    font-size: 2.6em;
+    font-weight: 800;
 }
 
 /* Welcome buttons */
 .choice-button {
-    min-width: 240px;
-    padding: 10px 22px;
-    border-radius: 8px;
+    min-width: 260px;
+    padding: 11px 22px;
+    border-radius: 9px;
     font-weight: 600;
     font-size: 0.95em;
 }
 
 .choice-button.suggested-action {
-    background: #1c6fcf;
+    background: @abora_accent;
     color: #ffffff;
     border: none;
-    box-shadow: 0 1px 6px alpha(#1c6fcf, 0.38);
+    box-shadow: 0 1px 6px alpha(@abora_accent, 0.38);
 }
 
 .choice-button.suggested-action:hover {
-    background: #2480e0;
+    background: @abora_accent_hover;
+}
+
+.choice-button.flat {
+    background: alpha(@window_fg_color, 0.06);
+}
+
+.choice-button.flat:hover {
+    background: alpha(@window_fg_color, 0.1);
 }
 
 /* Desktop environment cards */
 .desktop-card {
-    border-radius: 8px;
-    padding: 10px 6px;
+    border-radius: 10px;
+    padding: 14px 6px;
     border: 1px solid alpha(@window_fg_color, 0.09);
     background: @card_bg_color;
     transition: border-color 120ms ease, background-color 120ms ease;
 }
 
 .desktop-card:hover {
-    border-color: alpha(#1c6fcf, 0.50);
-    background: alpha(#1c6fcf, 0.06);
+    border-color: alpha(@abora_accent, 0.50);
+    background: alpha(@abora_accent, 0.06);
 }
 
 .desktop-card.selected {
-    border: 2px solid #1c6fcf;
-    background: alpha(#1c6fcf, 0.10);
+    border: 2px solid @abora_accent;
+    background: alpha(@abora_accent, 0.10);
+}
+
+/* Colorful icon badge behind each desktop's glyph - a flat grey outline
+   icon reads as decoration, a colored badge reads as a real icon */
+.desktop-card-icon-badge {
+    border-radius: 9px;
+    min-width: 40px;
+    min-height: 40px;
+    margin-bottom: 2px;
+}
+
+.desktop-card-icon {
+    color: #ffffff;
+    min-width: 20px;
+    min-height: 20px;
 }
 
 .desktop-card-name {
@@ -292,42 +489,10 @@ headerbar {
     color: alpha(@window_fg_color, 0.55);
 }
 
-/* Step progress */
-.step-dot {
-    font-size: 0.75em;
-    font-weight: 700;
-    color: alpha(@window_fg_color, 0.28);
-    background: alpha(@window_fg_color, 0.08);
-    border-radius: 99px;
-    min-width: 22px;
-    min-height: 22px;
-    padding: 2px;
-}
-
-.step-active {
-    color: #ffffff;
-    background: #1c6fcf;
-    border-radius: 99px;
-}
-
-.step-done {
-    color: #1c6fcf;
-    background: alpha(#1c6fcf, 0.16);
-    border-radius: 99px;
-}
-
-.step-dim {
-    color: alpha(@window_fg_color, 0.22);
-    background: alpha(@window_fg_color, 0.05);
-}
-
-/* Thin line connecting step dots */
-.step-connector {
-    background: alpha(@window_fg_color, 0.12);
-    min-width: 10px;
-    min-height: 1px;
-    margin-top: 11px;
-    margin-bottom: 11px;
+.disk-row-icon {
+    color: alpha(@window_fg_color, 0.45);
+    min-width: 24px;
+    min-height: 24px;
 }
 
 /* Misc */
@@ -339,6 +504,8 @@ headerbar {
     color: @view_fg_color;
 }
 """
+
+CSS = (CSS_TEMPLATE + '\n/* Per-desktop icon badge colors */\n' + _DESKTOP_BADGE_CSS + '\n').encode('utf-8')
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -439,14 +606,36 @@ def clamped_scroll(child: Gtk.Widget, max_width: int = 640) -> Gtk.ScrolledWindo
     return sw
 
 
-def logo_widget(size: int = 88) -> Gtk.Widget:
+def logo_widget(size: int = 96) -> Gtk.Widget:
+    """The real Abora logo when present; otherwise a branded circular badge
+    with an initial, instead of a generic/blank icon-theme fallback."""
     if Path(LOGO_FILE).exists():
         img = Gtk.Image.new_from_file(LOGO_FILE)
-    else:
-        img = Gtk.Image.new_from_icon_name('computer-symbolic')
-    img.set_pixel_size(size)
-    img.add_css_class('welcome-mark')
-    return img
+        img.set_pixel_size(size)
+        img.add_css_class('welcome-mark')
+        return img
+
+    badge = Gtk.Label(label='A', halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
+    badge.add_css_class('logo-badge')
+    badge.add_css_class('welcome-mark')
+    badge.set_size_request(size, size)
+    return badge
+
+
+def small_logo_widget(size: int = 26) -> Gtk.Widget:
+    """A compact brand mark for the title bar. 'distributor-logo-symbolic'
+    resolves to whichever distro's icon theme is installed on the host (e.g.
+    Ubuntu's logo on a dev machine) — wrong branding — so the fallback is
+    always Abora's own mark, never a borrowed system icon."""
+    if Path(LOGO_FILE).exists():
+        img = Gtk.Image.new_from_file(LOGO_FILE)
+        img.set_pixel_size(size)
+        img.add_css_class('abora-brand-icon')
+        return img
+    badge = Gtk.Label(label='A')
+    badge.add_css_class('abora-brand-badge')
+    badge.set_size_request(size, size)
+    return badge
 
 
 # ── Pages ─────────────────────────────────────────────────────────────────────
@@ -466,7 +655,7 @@ class WelcomePage(Gtk.Box):
         self.set_margin_top(32)
         self.set_margin_bottom(32)
 
-        self.append(logo_widget(92))
+        self.append(logo_widget(96))
 
         title = Gtk.Label(label='Welcome')
         title.add_css_class('page-title')
@@ -479,9 +668,10 @@ class WelcomePage(Gtk.Box):
             max_width_chars=52,
         )
         subtitle.add_css_class('page-subtitle')
+        subtitle.set_margin_bottom(8)
         self.append(subtitle)
 
-        actions = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, halign=Gtk.Align.CENTER)
+        actions = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, halign=Gtk.Align.CENTER)
         install = Gtk.Button(label='Install Abora OS to System')
         install.add_css_class('suggested-action')
         install.add_css_class('choice-button')
@@ -491,6 +681,7 @@ class WelcomePage(Gtk.Box):
 
         live = Gtk.Button(label='Use Abora OS in Live Media')
         live.add_css_class('choice-button')
+        live.add_css_class('flat')
         live.connect('clicked', lambda _btn: self.get_root().close() if self.get_root() else None)
         actions.append(live)
         self.append(actions)
@@ -638,8 +829,9 @@ class _DesktopCard(Gtk.Button):
         self.add_css_class('desktop-card')
         self.connect('clicked', lambda _: on_select(did))
 
-        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3,
+        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6,
                         halign=Gtk.Align.CENTER)
+
         nm = Gtk.Label(label=name, wrap=True, justify=Gtk.Justification.CENTER)
         nm.add_css_class('desktop-card-name')
         ds = Gtk.Label(label=desc, wrap=True, justify=Gtk.Justification.CENTER,
@@ -775,6 +967,9 @@ class DiskPage(Gtk.Box):
         self._empty_lbl.set_visible(not disks)
         for dev, size, model in disks:
             row = Adw.ActionRow(title=f'{model}  ({size})')
+            icon = Gtk.Image.new_from_icon_name('drive-harddisk-symbolic')
+            icon.add_css_class('disk-row-icon')
+            row.add_prefix(icon)
             dlbl = Gtk.Label(label=dev, valign=Gtk.Align.CENTER)
             dlbl.add_css_class('disk-row-dev')
             row.add_suffix(dlbl)
@@ -1150,76 +1345,76 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
         super().__init__(
             application=app,
             title='Install Abora OS',
-            default_width=1020,
-            default_height=740,
+            default_width=1180,
+            default_height=760,
         )
         self._state        = State()
         self._cur          = 0
         self._installing   = False
         self._pulse_id     = None
-        # Mirror Adwaita's current color scheme preference
+
+        # Light by default, but honor the system's dark-mode preference if
+        # one is set (PREFER_LIGHT tracks the system instead of forcing a
+        # side) — the manual toggle button can still force either explicitly.
         sm = Adw.StyleManager.get_default()
+        sm.set_color_scheme(Adw.ColorScheme.PREFER_LIGHT)
         self._dark_mode = sm.get_dark()
-        if not sm.get_dark():
-            sm.set_color_scheme(Adw.ColorScheme.FORCE_LIGHT)
-        else:
-            sm.set_color_scheme(Adw.ColorScheme.FORCE_DARK)
+        sm.connect('notify::dark', self._on_system_theme_changed)
+
         self._build_ui()
 
     def _build_ui(self):
-        shell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
+        shell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         shell.set_hexpand(True)
         shell.set_vexpand(True)
         shell.add_css_class('installer-shell')
         self.set_content(shell)
 
-        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        root.add_css_class('wizard-frame')
-        root.set_size_request(820, 640)
-        root.set_margin_top(24)
-        root.set_margin_bottom(24)
-        root.set_margin_start(24)
-        root.set_margin_end(24)
-        shell.append(root)
-
-        # Abora brand accent bar — 3px stripe at the very top
-        accent_bar = Gtk.Box()
-        accent_bar.add_css_class('abora-accent-bar')
-        root.append(accent_bar)
-
+        # Brand title bar — accent-colored, like the reference installer's
+        # own title strip, with a small logo mark and centered title/subtitle.
         hb = Adw.HeaderBar()
+        hb.add_css_class('abora-titlebar')
+        hb.pack_start(small_logo_widget())
         self._wt = Adw.WindowTitle(title='Install Abora OS', subtitle='')
         hb.set_title_widget(self._wt)
 
-        # Theme toggle button
         self._theme_btn = Gtk.Button()
-        self._theme_btn.set_icon_name('weather-clear-night-symbolic')
+        self._theme_btn.set_icon_name(
+            'weather-clear-night-symbolic' if self._dark_mode else 'weather-clear-symbolic'
+        )
         self._theme_btn.set_tooltip_text('Toggle light/dark mode')
         self._theme_btn.connect('clicked', self._toggle_theme)
         hb.pack_end(self._theme_btn)
-        self._dark_mode = True
+        shell.append(hb)
 
-        root.append(hb)
+        # Body: persistent sidebar (always-visible step list) + content
+        body = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, vexpand=True, hexpand=True)
+        shell.append(body)
 
-        # Step bar
-        self._step_bar = Gtk.Box(spacing=0, halign=Gtk.Align.CENTER)
-        self._step_bar.set_margin_top(8)
-        self._step_bar.set_margin_bottom(8)
-        self._step_lbls: list[Gtk.Label] = []
+        self._sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self._sidebar.add_css_class('installer-sidebar')
+        self._sidebar.set_margin_top(14)
+        self._sidebar.set_margin_bottom(14)
+        body.append(self._sidebar)
+
+        self._step_rows: list[Gtk.Box] = []
+        self._step_icons: list[Gtk.Image] = []
         for i, name in enumerate(STEP_NAMES):
-            if i > 0:
-                connector = Gtk.Box()
-                connector.add_css_class('step-connector')
-                connector.set_size_request(12, 1)
-                self._step_bar.append(connector)
-            lbl = Gtk.Label(label=str(i + 1))
-            lbl.add_css_class('step-dot')
-            lbl.set_tooltip_text(name)
-            lbl.set_size_request(24, 24)
-            self._step_bar.append(lbl)
-            self._step_lbls.append(lbl)
-        root.append(self._step_bar)
-        root.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+            key = PAGES_ORDER[i]
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            row.add_css_class('sidebar-step')
+            icon = Gtk.Image.new_from_icon_name(STEP_ICONS.get(key, 'pan-end-symbolic'))
+            icon.add_css_class('sidebar-step-icon')
+            row.append(icon)
+            lbl = Gtk.Label(label=name, xalign=0, hexpand=True)
+            lbl.add_css_class('sidebar-step-label')
+            row.append(lbl)
+            self._sidebar.append(row)
+            self._step_rows.append(row)
+            self._step_icons.append(icon)
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True, vexpand=True)
+        body.append(content)
 
         # Stack
         self._stack = Gtk.Stack(
@@ -1227,8 +1422,9 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
             transition_type=Gtk.StackTransitionType.SLIDE_LEFT_RIGHT,
             transition_duration=200,
         )
-        self._stack.set_margin_start(16)
-        self._stack.set_margin_end(16)
+        self._stack.set_margin_start(28)
+        self._stack.set_margin_end(28)
+        self._stack.set_margin_top(20)
         self._pages: dict[str, Gtk.Widget] = {}
 
         _page_list = [
@@ -1254,15 +1450,15 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
             self._pages[name] = w
             self._stack.add_named(w, name)
 
-        root.append(self._stack)
-        root.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+        content.append(self._stack)
+        content.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
 
         # Nav bar
         nav = Gtk.Box(spacing=8, halign=Gtk.Align.END)
         nav.add_css_class('wizard-nav')
-        nav.set_margin_top(12)
-        nav.set_margin_bottom(12)
-        nav.set_margin_end(16)
+        nav.set_margin_top(14)
+        nav.set_margin_bottom(14)
+        nav.set_margin_end(24)
 
         self._back = Gtk.Button(label='← Back')
         self._back.connect('clicked', self._go_back)
@@ -1273,7 +1469,7 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
         self._next.connect('clicked', self._go_next)
         nav.append(self._next)
 
-        root.append(nav)
+        content.append(nav)
 
         self._refresh_nav()
         self._refresh_steps()
@@ -1284,12 +1480,21 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
         sm = Adw.StyleManager.get_default()
         if self._dark_mode:
             sm.set_color_scheme(Adw.ColorScheme.FORCE_LIGHT)
-            self._theme_btn.set_icon_name('weather-clear-symbolic')
             self._dark_mode = False
         else:
             sm.set_color_scheme(Adw.ColorScheme.FORCE_DARK)
-            self._theme_btn.set_icon_name('weather-clear-night-symbolic')
             self._dark_mode = True
+        self._theme_btn.set_icon_name(
+            'weather-clear-night-symbolic' if self._dark_mode else 'weather-clear-symbolic'
+        )
+
+    def _on_system_theme_changed(self, sm, _pspec):
+        """Keep the toggle icon in sync if the system theme changes (e.g. via
+        the desktop's own dark-mode switch) rather than our own button."""
+        self._dark_mode = sm.get_dark()
+        self._theme_btn.set_icon_name(
+            'weather-clear-night-symbolic' if self._dark_mode else 'weather-clear-symbolic'
+        )
 
     # ── Navigation ─────────────────────────────────────────────────────────────
 
@@ -1364,16 +1569,20 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
         )
 
     def _refresh_steps(self):
-        for i, lbl in enumerate(self._step_lbls):
-            lbl.remove_css_class('step-active')
-            lbl.remove_css_class('step-done')
-            lbl.remove_css_class('step-dim')
+        for i, (row, icon) in enumerate(zip(self._step_rows, self._step_icons)):
+            row.remove_css_class('current')
+            row.remove_css_class('done')
+            row.remove_css_class('future')
+            key = PAGES_ORDER[i]
             if i == self._cur:
-                lbl.add_css_class('step-active')
+                row.add_css_class('current')
+                icon.set_from_icon_name(STEP_ICONS.get(key, 'pan-end-symbolic'))
             elif i < self._cur:
-                lbl.add_css_class('step-done')
+                row.add_css_class('done')
+                icon.set_from_icon_name('object-select-symbolic')
             else:
-                lbl.add_css_class('step-dim')
+                row.add_css_class('future')
+                icon.set_from_icon_name(STEP_ICONS.get(key, 'pan-end-symbolic'))
 
     # ── Installation ───────────────────────────────────────────────────────────
 
@@ -1505,7 +1714,12 @@ class AboraInstaller(Adw.Application):
     def __init__(self):
         super().__init__(
             application_id='org.aboraos.Installer',
-            flags=Gio.ApplicationFlags.DEFAULT_FLAGS,
+            # NON_UNIQUE: the default single-instance D-Bus activation means a
+            # second invocation just re-presents whatever instance is already
+            # registered instead of opening a fresh window (confusing during
+            # dev/testing, and this installer is never meant to run twice
+            # concurrently on the live image anyway).
+            flags=Gio.ApplicationFlags.NON_UNIQUE,
         )
         self.connect('startup',  self._on_startup)
         self.connect('activate', self._on_activate)
@@ -1518,6 +1732,20 @@ class AboraInstaller(Adw.Application):
             Gtk.StyleContext.add_provider_for_display(
                 display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
             )
+        self._warm_up_gpu(_app)
+
+    def _warm_up_gpu(self, app):
+        """On some GPU/driver combinations (notably NVIDIA), a client's first
+        EGL/GBM context creation can block for a couple of seconds. That's
+        long enough that a compositor's unresponsive-client watchdog can kill
+        the window before the user ever sees it. Absorb that one-time cost
+        against a throwaway 1x1 window here, before the real window presents,
+        so the real window always appears instantly."""
+        warm = Gtk.Window(application=app)
+        warm.set_default_size(1, 1)
+        warm.set_decorated(False)
+        warm.present()
+        warm.close()
 
     def _on_activate(self, app):
         AboraInstallerWindow(app).present()
