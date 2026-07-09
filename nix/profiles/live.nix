@@ -281,10 +281,10 @@ in
     label = version;
     extraOSReleaseArgs = {
       LOGO = "abora";
-      VERSION = "DENALI 4.0";
+      VERSION = "EVEREST 4.0";
       VERSION_ID = "4.0";
       VERSION_CODENAME = "denali";
-      PRETTY_NAME = "Abora OS DENALI 4.0";
+      PRETTY_NAME = "Abora OS EVEREST 4.0";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
       BUG_REPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
@@ -538,10 +538,10 @@ in
       "xdg/fastfetch/config.jsonc".source = ../../assets/fastfetch-config.jsonc;
       "xdg/fastfetch/abora-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "issue".text = ''
-        Abora OS DENALI 4.0
+        Abora OS EVEREST 4.0
       '';
       "issue.net".text = ''
-        Abora OS DENALI 4.0
+        Abora OS EVEREST 4.0
       '';
       "profile.d/abora-live.sh".text = ''
         # Only greet on real TTY sessions (not COSMIC/graphical login shells)
