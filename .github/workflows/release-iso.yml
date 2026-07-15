@@ -80,8 +80,10 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: abora-${{ steps.version.outputs.tag }}-release-${{ github.run_number }}
+          # The ISO itself is not attached here — it's published separately
+          # via Packages. This keeps the ISO out of both the workflow
+          # artifact and the GitHub Release assets below.
           path: |
-            out/*-${{ steps.version.outputs.tag }}.iso
             out/tinypm-*-abora-${{ steps.version.outputs.tag }}.tar.gz
             out/SHA256SUMS-${{ steps.version.outputs.tag }}.txt
             out/RELEASE_MANIFEST-${{ steps.version.outputs.tag }}.txt
@@ -98,8 +100,10 @@ jobs:
           title="Abora OS ${tag}"
           notes_file="out/RELEASE_NOTES-${tag}.md"
           shopt -s nullglob
+          # ISO is intentionally not attached to the GitHub Release — it's
+          # published via Packages instead. Only the smaller release
+          # artifacts (TinyPM package, checksums, manifest) go here.
           assets=(
-            out/*-"$tag".iso
             out/tinypm-*-abora-"$tag".tar.gz
             out/SHA256SUMS-"$tag".txt
             out/RELEASE_MANIFEST-"$tag".txt

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#7ab8e0"/>
+      <stop offset="30%"  stop-color="#a8d4ef"/>
+      <stop offset="60%"  stop-color="#cce5f6"/>
+      <stop offset="85%"  stop-color="#e4f3fb"/>
+      <stop offset="100%" stop-color="#f2f9fe"/>
+    </linearGradient>
+    <radialGradient id="sunglow" cx="65%" cy="20%" r="35%">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.45"/>
+      <stop offset="40%"  stop-color="#d8eefc" stop-opacity="0.20"/>
+      <stop offset="100%" stop-color="#7ab8e0"  stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="mtnfar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#c8e2f4"/>
+      <stop offset="100%" stop-color="#b0d4e8"/>
+    </linearGradient>
+    <linearGradient id="mtnmid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#8dbcd6"/>
+      <stop offset="100%" stop-color="#72a8c6"/>
+    </linearGradient>
+    <linearGradient id="mtnfg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#4e8caa"/>
+      <stop offset="100%" stop-color="#3a7090"/>
+    </linearGradient>
+    <linearGradient id="snowcap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.80"/>
+      <stop offset="100%" stop-color="#d8eefa" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="atmospherehaze" cx="50%" cy="85%" r="50%">
+      <stop offset="0%"   stop-color="#e4f3fb" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#a8d4ef"  stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Sky gradient -->
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+
+  <!-- Sun glow (upper right) -->
+  <rect width="1920" height="1080" fill="url(#sunglow)"/>
+
+  <!-- Subtle cloud streaks -->
+  <ellipse cx="320"  cy="180" rx="320" ry="38" fill="white" opacity="0.22"/>
+  <ellipse cx="980"  cy="140" rx="280" ry="28" fill="white" opacity="0.18"/>
+  <ellipse cx="1580" cy="220" rx="240" ry="32" fill="white" opacity="0.20"/>
+  <ellipse cx="620"  cy="280" rx="200" ry="20" fill="white" opacity="0.14"/>
+  <ellipse cx="1280" cy="300" rx="260" ry="22" fill="white" opacity="0.12"/>
+
+  <!-- Atmosphere haze near horizon -->
+  <rect width="1920" height="1080" fill="url(#atmospherehaze)"/>
+
+  <!-- Far background mountains (hazy, pale) -->
+  <path d="M0,720 L140,652 L265,618 L395,582 L488,622 L608,558 L728,594 L855,540 L948,578 L1045,532 L1148,558 L1268,582 L1378,552 L1495,590 L1612,622 L1718,598 L1835,632 L1920,652 L1920,800 L0,800 Z"
+        fill="url(#mtnfar)"/>
+
+  <!-- Snow caps on far peaks (faint) -->
+  <path d="M855,540 L875,548 L870,558 L855,555 L840,558 L836,548 Z"   fill="url(#snowcap)" opacity="0.70"/>
+  <path d="M1045,532 L1068,542 L1062,552 L1048,548 L1032,552 L1026,542 Z" fill="url(#snowcap)" opacity="0.65"/>
+  <path d="M608,558 L630,568 L625,578 L610,574 L594,578 L588,568 Z"   fill="url(#snowcap)" opacity="0.60"/>
+
+  <!-- Mid ridgeline -->
+  <path d="M0,790 L75,752 L188,715 L305,735 L408,688 L508,708 L608,662 L708,702 L812,670 L930,638 L1008,678 L1128,648 L1248,678 L1348,658 L1465,695 L1588,710 L1692,682 L1812,718 L1920,738 L1920,920 L0,920 Z"
+        fill="url(#mtnmid)"/>
+
+  <!-- Snow caps on mid peaks -->
+  <path d="M930,638 L955,650 L948,662 L932,658 L916,662 L908,650 Z"   fill="white" opacity="0.55"/>
+  <path d="M1128,648 L1152,660 L1145,672 L1130,668 L1114,672 L1106,660 Z" fill="white" opacity="0.50"/>
+  <path d="M608,662 L628,672 L622,682 L610,678 L596,682 L590,672 Z"   fill="white" opacity="0.48"/>
+
+  <!-- Foreground silhouette -->
+  <path d="M0,918 L95,888 L215,858 L335,878 L452,838 L552,865 L652,828 L768,858 L852,818 L952,840 L1052,858 L1152,828 L1288,865 L1408,838 L1528,872 L1648,845 L1788,882 L1908,860 L1920,862 L1920,1080 L0,1080 Z"
+        fill="url(#mtnfg)"/>
+
+  <!-- Abora branding watermark (bottom right, very subtle) -->
+  <text x="1896" y="1062"
+        font-family="Inter, 'Helvetica Neue', Arial, sans-serif"
+        font-size="12"
+        font-weight="300"
+        fill="#1a3a50"
+        opacity="0.18"
+        text-anchor="end"
+        letter-spacing="4">ABORA OS  ·  DENALI</text>
+</svg>

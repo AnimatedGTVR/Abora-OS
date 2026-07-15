@@ -1,6 +1,9 @@
+<p align="center">
+  <img src="/assets/Abora-Text.png" alt="Abora OS" width="650">
+</p>
+
 <div align="center">
 
-# Abora OS
 
 ### A NixOS-based Linux distro made to be easier to install, use, and understand.
 

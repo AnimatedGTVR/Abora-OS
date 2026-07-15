@@ -1,5 +1,42 @@
-{ lib, pkgs, version, ... }:
+{ lib, pkgs, version, liveEdition ? "cosmic", ... }:
 let
+  liveEditions = {
+    cosmic = {
+      id = "cosmic";
+      label = "COSMIC Edition";
+      desktop = "cosmic";
+      session = "cosmic";
+    };
+    hyprland = {
+      id = "hyprland";
+      label = "Hyprland Edition";
+      desktop = "hyprland";
+      session = "hyprland-uwsm";
+    };
+    gnome = {
+      id = "gnome";
+      label = "GNOME Edition";
+      desktop = "gnome";
+      session = "gnome";
+    };
+    kde = {
+      id = "kde";
+      label = "KDE Plasma Edition";
+      desktop = "plasma";
+      session = "plasma";
+    };
+    other = {
+      id = "other";
+      label = "Other Desktops Edition";
+      desktop = "mangowm";
+      session = "mango";
+    };
+  };
+  selectedEdition =
+    if builtins.hasAttr liveEdition liveEditions
+    then builtins.getAttr liveEdition liveEditions
+    else liveEditions.cosmic;
+
   aboraApps = pkgs.writeShellScriptBin "abora-apps" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/apps.sh "$@"
   '';
@@ -11,6 +48,9 @@ let
   '';
   aboraDesktop = pkgs.writeShellScriptBin "abora-desktop" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/desktop.sh "$@"
+  '';
+  aboraDotfilesImport = pkgs.writeShellScriptBin "abora-dotfiles-import" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/dotfiles-import.sh "$@"
   '';
   aboraDoctor = pkgs.writeShellScriptBin "abora-doctor" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/doctor.sh "$@"
@@ -96,6 +136,28 @@ let
   wallpaperDir = ../../assets/wallpapers/collection;
   wallpaperThemeDir = ../../assets/wallpaper-themes;
   tinypmDir = ../../vendor/tinypm;
+  aboraInstallerGui =
+    let
+      python = pkgs.python3.withPackages (ps: with ps; [ pygobject3 ]);
+      giPath = lib.makeSearchPath "lib/girepository-1.0" (with pkgs; [
+        gtk4 libadwaita glib gdk-pixbuf (lib.getLib pango) harfbuzz graphene cairo gobject-introspection
+      ]);
+      libPath = lib.makeLibraryPath (with pkgs; [
+        gtk4 libadwaita glib gdk-pixbuf cairo
+      ]);
+    in
+    pkgs.writeShellScriptBin "abora-installer-gui" ''
+      export GI_TYPELIB_PATH="${giPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+      export LD_LIBRARY_PATH="${libPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      export ABORA_INSTALLER="''${ABORA_INSTALLER:-/etc/abora/installer.sh}"
+      export ABORA_DEFAULT_DESKTOP="''${ABORA_DEFAULT_DESKTOP:-${selectedEdition.desktop}}"
+      export ABORA_EDITION="''${ABORA_EDITION:-${selectedEdition.id}}"
+      # Force software renderer so the installer works in QEMU and on
+      # hardware without accelerated GL (black window otherwise).
+      export GSK_RENDERER="''${GSK_RENDERER:-cairo}"
+      export GDK_BACKEND="''${GDK_BACKEND:-wayland,x11}"
+      exec ${python}/bin/python3 /etc/abora/installer-gui.py "$@"
+    '';
   aboraWallpapersPackage = pkgs.runCommandLocal "abora-wallpapers" { } ''
     mkdir -p "$out/share/backgrounds/abora" "$out/share/abora/themes" "$out/share/gnome-background-properties"
     find ${wallpaperDir} -maxdepth 1 -type f -exec cp {} "$out/share/backgrounds/abora/" \;
@@ -104,6 +166,24 @@ let
     <?xml version="1.0"?>
     <!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd">
     <wallpapers>
+      <wallpaper deleted="false">
+        <name>Abora Dark</name>
+        <filename>/run/current-system/sw/share/backgrounds/abora/abora-dark.svg</filename>
+        <filename-dark>/run/current-system/sw/share/backgrounds/abora/abora-dark.svg</filename-dark>
+        <options>zoom</options>
+        <shade_type>solid</shade_type>
+        <pcolor>#030812</pcolor>
+        <scolor>#030812</scolor>
+      </wallpaper>
+      <wallpaper deleted="false">
+        <name>Abora Light</name>
+        <filename>/run/current-system/sw/share/backgrounds/abora/abora-light.svg</filename>
+        <filename-dark>/run/current-system/sw/share/backgrounds/abora/abora-dark.svg</filename-dark>
+        <options>zoom</options>
+        <shade_type>solid</shade_type>
+        <pcolor>#f2f9fe</pcolor>
+        <scolor>#030812</scolor>
+      </wallpaper>
       <wallpaper deleted="false">
         <name>Mountain (Day/Night)</name>
         <filename>/run/current-system/sw/share/backgrounds/abora/Daytime-MNT.jpg</filename>
@@ -197,14 +277,14 @@ in
     vendorId = "abora";
     vendorName = "Abora OS";
     variant_id = "live";
-    variantName = "Abora OS DENALI 3.14 Live Image";
+    variantName = "Abora OS ${selectedEdition.label} Live";
     label = version;
     extraOSReleaseArgs = {
       LOGO = "abora";
-      VERSION = "DENALI 3.14";
-      VERSION_ID = "3.14";
+      VERSION = "EVEREST 4.0";
+      VERSION_ID = "4.0";
       VERSION_CODENAME = "denali";
-      PRETTY_NAME = "Abora OS DENALI 3.14";
+      PRETTY_NAME = "Abora OS EVEREST 4.0";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
       BUG_REPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
@@ -260,16 +340,14 @@ in
   ];
   boot.consoleLogLevel = 3;
   boot.kernelParams = [
-    "quiet"
-    "splash"
-    "loglevel=3"
-    "udev.log_level=3"
-    "rd.udev.log_level=3"
+    "loglevel=4"
+    "udev.log_level=4"
+    "rd.udev.log_level=4"
     "systemd.log_level=notice"
     "rd.systemd.log_level=notice"
-    "systemd.show_status=false"
-    "rd.systemd.show_status=false"
-    "vt.global_cursor_default=0"
+    "systemd.show_status=true"
+    "rd.systemd.show_status=true"
+    "vt.global_cursor_default=1"
   ];
   boot.plymouth = {
     enable = true;
@@ -277,7 +355,7 @@ in
     themePackages = [ aboraPlymouthTheme ];
   };
 
-  environment.systemPackages = with pkgs; [
+  environment.systemPackages = (with pkgs; [
     # ── Abora installer toolchain ────────────────────────────────────────────
     (mkGrabCmd "tinypm")
     (mkGrabCmd "tiny")
@@ -294,6 +372,7 @@ in
     anixCommand
     aboraConfig
     aboraDesktop
+    aboraDotfilesImport
     aboraDoctor
     aboraHardwareTest
     aboraRecovery
@@ -310,9 +389,14 @@ in
     upgradeCommand
     rollbackCommand
 
+    # ── GUI installer ────────────────────────────────────────────────────────
+    aboraInstallerGui
+    cage        # kiosk Wayland compositor — lets the GUI installer run from TTY1
+
     # ── Shell / UI ───────────────────────────────────────────────────────────
     bashInteractive
     fastfetch   # shown in the live welcome banner
+    gum         # charmbracelet TUI toolkit — used by the installer
     htop
     kdePackages.konsole
     newt        # provides nmtui for Wi-Fi setup
@@ -350,7 +434,16 @@ in
 
     # ── Keyboard ─────────────────────────────────────────────────────────────
     kbd
-  ];
+
+  ]) ++ lib.optionals (selectedEdition.id == "other") (with pkgs; [
+    mango
+    foot
+    waybar
+    wofi
+    icewm
+    i3
+    sway
+  ]);
 
   environment.variables = {
     ABORA_VERSION = version;
@@ -380,6 +473,10 @@ in
         source = ../../scripts/abora-desktop.sh;
         mode = "0755";
       };
+      "abora/dotfiles-import.sh" = {
+        source = ../../scripts/abora-dotfiles-import.sh;
+        mode = "0755";
+      };
       "abora/doctor.sh" = {
         source = ../../scripts/abora-doctor.sh;
         mode = "0755";
@@ -402,6 +499,20 @@ in
       };
       "abora/default-wallpaper.png".source = ../../assets/wallpapers/collection/Daytime-MNT.jpg;
       "abora/Abora-LOGO.png".source = ../../assets/Abora-LOGO.png;
+      "abora/live-cosmic-background-all".text = ''
+        (
+            output: "all",
+            source: Path("/run/current-system/sw/share/backgrounds/abora/NightTime-MNT.png"),
+            filter_by_theme: false,
+            rotation_frequency: 3600,
+            filter_method: Lanczos,
+            scaling_mode: Zoom,
+            sampling_method: Alphanumeric,
+        )
+      '';
+      "abora/live-cosmic-backgrounds".text = ''
+        [All]
+      '';
       "abora/title.txt".source = ../../assets/abora-title.txt;
       "abora/VERSION".source = ../../VERSION;
       "abora/fastfetch-logo.txt".source = ../../assets/fastfetch-logo.txt;
@@ -427,24 +538,27 @@ in
       "xdg/fastfetch/config.jsonc".source = ../../assets/fastfetch-config.jsonc;
       "xdg/fastfetch/abora-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "issue".text = ''
-        Abora OS DENALI 3.14
+        Abora OS EVEREST 4.0
       '';
       "issue.net".text = ''
-        Abora OS DENALI 3.14
+        Abora OS EVEREST 4.0
       '';
       "profile.d/abora-live.sh".text = ''
-        if [ -z "$ABORA_LIVE_GREETED" ]; then
-          export ABORA_LIVE_GREETED=1
-          printf '\n'
-          printf '\033[1;36m  ◈  ABORA OS \033[0;37m${version}\033[0m  —  Live Shell\033[0m\n'
-          printf '\033[90m  ─────────────────────────────────────────────\033[0m\n'
-          printf '\n'
-          printf '  \033[1;37mabora-install\033[0m        Start the installer\n'
-          printf '  \033[90mabora-install --force\033[0m  Force-restart installer\n'
-          printf '\n'
-          printf '  \033[90mType a command or press Ctrl+D to power off.\033[0m\n'
-          printf '\n'
-        fi
+        # Only greet on real TTY sessions (not COSMIC/graphical login shells)
+        case "$(tty 2>/dev/null)" in /dev/tty[0-9]*)
+          if [ -z "$ABORA_LIVE_GREETED" ]; then
+            export ABORA_LIVE_GREETED=1
+            printf '\n'
+            printf '\033[1;36m  ◈  ABORA OS \033[0;37m${version}\033[0m  —  Live Shell\033[0m\n'
+            printf '\033[90m  ─────────────────────────────────────────────\033[0m\n'
+            printf '\n'
+            printf '  \033[1;37mabora-install\033[0m        Start the installer\n'
+            printf '  \033[90mabora-install --force\033[0m  Force-restart installer\n'
+            printf '\n'
+            printf '  \033[90mType a command or press Ctrl+D to power off.\033[0m\n'
+            printf '\n'
+          fi
+        esac
       '';
       "abora/boot.sh" = {
         source = ../../scripts/abora-boot.sh;
@@ -452,6 +566,10 @@ in
       };
       "abora/installer.sh" = {
         source = ../../scripts/abora-installer.sh;
+        mode = "0755";
+      };
+      "abora/installer-gui.py" = {
+        source = ../../scripts/abora-installer-gui.py;
         mode = "0755";
       };
       "abora/setup-launcher.sh" = {
@@ -502,21 +620,21 @@ in
       '';
       "xdg/gtk-3.0/settings.ini".text = ''
         [Settings]
-        gtk-application-prefer-dark-theme=1
-        gtk-theme-name=Adwaita-dark
-        gtk-icon-theme-name=Papirus-Dark
+        gtk-application-prefer-dark-theme=0
+        gtk-theme-name=Adwaita
+        gtk-icon-theme-name=Adwaita
       '';
       "xdg/gtk-4.0/settings.ini".text = ''
         [Settings]
-        gtk-application-prefer-dark-theme=1
-        gtk-theme-name=Adwaita-dark
-        gtk-icon-theme-name=Papirus-Dark
+        gtk-application-prefer-dark-theme=0
+        gtk-theme-name=Adwaita
+        gtk-icon-theme-name=Adwaita
       '';
       "xdg/qt5ct/qt5ct.conf".text = ''
         [Appearance]
         color_scheme_path=/run/current-system/sw/share/qt5ct/colors/darker.conf
         custom_palette=true
-        icon_theme=Papirus-Dark
+        icon_theme=Adwaita
         standard_dialogs=default
         style=Fusion
       '';
@@ -524,7 +642,7 @@ in
         [Appearance]
         color_scheme_path=/run/current-system/sw/share/qt6ct/colors/darker.conf
         custom_palette=true
-        icon_theme=Papirus-Dark
+        icon_theme=Adwaita
         standard_dialogs=default
         style=Fusion
       '';
@@ -566,7 +684,82 @@ in
       "abora/desktops".source = ../modules/desktops;
     };
 
-  services.xserver.enable = false;
+  # ── Live user ─────────────────────────────────────────────────────────────────
+  users.mutableUsers = false;
+  users.users.liveuser = {
+    isNormalUser = true;
+    initialPassword = "";
+    uid = 1000;
+    extraGroups = [ "wheel" "video" "audio" "networkmanager" "input" "seat" ];
+  };
+  security.sudo.extraRules = [{
+    users = [ "liveuser" ];
+    commands = [{ command = "ALL"; options = [ "NOPASSWD" ]; }];
+  }];
+
+  # ── COSMIC live desktop ─────────────────────────────────────────────────────
+  # Boot straight into the edition's graphical live session with an
+  # "Install Abora OS" launcher, similar to desktop-first distro installers.
+  # The TUI installer is still available from a terminal with `abora-install`.
+  hardware.graphics.enable = true;
+  services.displayManager.autoLogin = {
+    enable = true;
+    user = "liveuser";
+  };
+  services.displayManager.defaultSession = selectedEdition.session;
+  services.getty.autologinUser = "liveuser";
+
+  services.xserver.enable = lib.mkDefault (selectedEdition.id != "cosmic");
+
+  services.desktopManager.cosmic.enable = lib.mkIf (selectedEdition.id == "cosmic") true;
+
+  services.desktopManager.gnome.enable = lib.mkIf (selectedEdition.id == "gnome") true;
+  services.displayManager.gdm.enable = lib.mkIf (selectedEdition.id == "gnome") true;
+  services.gnome.gnome-keyring.enable = lib.mkIf (selectedEdition.id == "gnome") true;
+
+  services.desktopManager.plasma6.enable = lib.mkIf (selectedEdition.id == "kde") true;
+
+  programs.hyprland = lib.mkIf (selectedEdition.id == "hyprland") {
+    enable = true;
+    withUWSM = true;
+    xwayland.enable = true;
+  };
+
+  services.displayManager.sessionPackages = lib.mkIf (selectedEdition.id == "other") [ pkgs.mango ];
+  programs.xwayland.enable = lib.mkIf (selectedEdition.id == "other") true;
+
+  services.displayManager.sddm = lib.mkIf (selectedEdition.id != "gnome") {
+    enable = true;
+    wayland.enable = true;
+  };
+
+  xdg.portal = lib.mkIf (selectedEdition.id == "hyprland" || selectedEdition.id == "other") {
+    enable = true;
+    extraPortals = if selectedEdition.id == "hyprland"
+      then with pkgs; [ xdg-desktop-portal-hyprland xdg-desktop-portal-gtk ]
+      else with pkgs; [ xdg-desktop-portal-wlr xdg-desktop-portal-gtk ];
+    wlr.enable = selectedEdition.id == "other";
+    config = if selectedEdition.id == "hyprland" then {
+      hyprland.default = lib.mkForce [ "hyprland" "gtk" ];
+      hyprland-uwsm.default = lib.mkForce [ "hyprland" "gtk" ];
+      common.default = lib.mkForce [ "gtk" ];
+    } else {
+      mango.default = lib.mkForce [ "wlr" "gtk" ];
+      common.default = lib.mkForce [ "gtk" ];
+    };
+  };
+
+  systemd.tmpfiles.rules = [
+    "d /home/liveuser/Desktop 0755 liveuser users -"
+    "C /home/liveuser/Desktop/abora-setup.desktop 0755 liveuser users - /etc/abora/setup.desktop"
+    "d /home/liveuser/.config 0755 liveuser users -"
+    "d /home/liveuser/.config/cosmic 0755 liveuser users -"
+    "d /home/liveuser/.config/cosmic/com.system76.CosmicBackground 0755 liveuser users -"
+    "d /home/liveuser/.config/cosmic/com.system76.CosmicBackground/v1 0755 liveuser users -"
+    "C /home/liveuser/.config/cosmic/com.system76.CosmicBackground/v1/all 0644 liveuser users - /etc/abora/live-cosmic-background-all"
+    "C /home/liveuser/.config/cosmic/com.system76.CosmicBackground/v1/backgrounds 0644 liveuser users - /etc/abora/live-cosmic-backgrounds"
+  ];
+
   systemd.services.ModemManager = {
     enable = lib.mkForce true;
     wantedBy = lib.mkForce [ "multi-user.target" ];
@@ -577,16 +770,13 @@ in
   virtualisation.virtualbox.guest.enable = pkgs.stdenv.hostPlatform.isx86;
   virtualisation.hypervGuest.enable =
     pkgs.stdenv.hostPlatform.isx86 || pkgs.stdenv.hostPlatform.isAarch64;
-  systemd.settings.Manager = {
-    ReserveVT = 2;
-  };
+
   environment.shellAliases.fastfetch = "fastfetch -c /etc/xdg/fastfetch/config.jsonc";
 
   programs.bash.interactiveShellInit = ''
     [[ $SHLVL -eq 1 ]] && fastfetch -c /etc/xdg/fastfetch/config.jsonc
   '';
 
-  systemd.services."getty@tty1".enable = lib.mkForce false;
   systemd.services.NetworkManager = {
     enable = lib.mkForce true;
     wantedBy = lib.mkForce [ "multi-user.target" ];
@@ -608,7 +798,7 @@ in
   };
   systemd.services.abora-boot = {
     description = "Abora OS installer boot";
-    wantedBy    = [ "multi-user.target" ];
+    wantedBy    = lib.mkForce [];
     wants       = [ "NetworkManager.service" ];
     # Conflict with both the static and auto-vt getty on tty1 so neither
     # can race with us for the terminal.

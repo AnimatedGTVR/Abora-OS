@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#020810"/>
+      <stop offset="35%"  stop-color="#060f1e"/>
+      <stop offset="70%"  stop-color="#0a1828"/>
+      <stop offset="100%" stop-color="#0d2035"/>
+    </linearGradient>
+    <radialGradient id="aurora" cx="50%" cy="65%" r="55%">
+      <stop offset="0%"   stop-color="#1050c0" stop-opacity="0.20"/>
+      <stop offset="45%"  stop-color="#083080" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#020810"  stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="horizglow" cx="50%" cy="100%" r="55%">
+      <stop offset="0%"   stop-color="#2060d8" stop-opacity="0.18"/>
+      <stop offset="60%"  stop-color="#1040a0" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#020810"  stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="mtnbg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#0c1c30"/>
+      <stop offset="100%" stop-color="#070e1c"/>
+    </linearGradient>
+    <linearGradient id="mtnmid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#070e1c"/>
+      <stop offset="100%" stop-color="#040810"/>
+    </linearGradient>
+    <linearGradient id="mtnfg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#030609"/>
+      <stop offset="100%" stop-color="#010304"/>
+    </linearGradient>
+    <linearGradient id="ridge" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#1a6bff" stop-opacity="0"/>
+      <stop offset="20%"  stop-color="#1a6bff" stop-opacity="0.35"/>
+      <stop offset="50%"  stop-color="#47a8ff" stop-opacity="0.60"/>
+      <stop offset="80%"  stop-color="#1a6bff" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#1a6bff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="starblur">
+      <feGaussianBlur stdDeviation="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Sky -->
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <!-- Aurora glow -->
+  <rect width="1920" height="1080" fill="url(#aurora)"/>
+  <!-- Horizon radial glow -->
+  <rect width="1920" height="1080" fill="url(#horizglow)"/>
+
+  <!-- Stars — bright layer -->
+  <g fill="white" filter="url(#starblur)">
+    <ellipse cx="88"   cy="72"  rx="1.3" ry="1.3" opacity="0.85"/>
+    <ellipse cx="213"  cy="38"  rx="1.6" ry="1.6" opacity="0.80"/>
+    <ellipse cx="360"  cy="118" rx="1.0" ry="1.0" opacity="0.75"/>
+    <ellipse cx="512"  cy="55"  rx="1.4" ry="1.4" opacity="0.85"/>
+    <ellipse cx="690"  cy="88"  rx="1.1" ry="1.1" opacity="0.70"/>
+    <ellipse cx="840"  cy="42"  rx="1.7" ry="1.7" opacity="0.88"/>
+    <ellipse cx="1020" cy="98"  rx="1.0" ry="1.0" opacity="0.72"/>
+    <ellipse cx="1165" cy="52"  rx="1.5" ry="1.5" opacity="0.80"/>
+    <ellipse cx="1310" cy="75"  rx="1.2" ry="1.2" opacity="0.78"/>
+    <ellipse cx="1470" cy="40"  rx="1.6" ry="1.6" opacity="0.85"/>
+    <ellipse cx="1628" cy="82"  rx="1.1" ry="1.1" opacity="0.70"/>
+    <ellipse cx="1785" cy="108" rx="1.3" ry="1.3" opacity="0.75"/>
+    <ellipse cx="160"  cy="168" rx="1.2" ry="1.2" opacity="0.65"/>
+    <ellipse cx="435"  cy="195" rx="1.4" ry="1.4" opacity="0.70"/>
+    <ellipse cx="642"  cy="152" rx="1.1" ry="1.1" opacity="0.60"/>
+    <ellipse cx="955"  cy="188" rx="1.0" ry="1.0" opacity="0.65"/>
+    <ellipse cx="1108" cy="162" rx="1.3" ry="1.3" opacity="0.68"/>
+    <ellipse cx="1395" cy="182" rx="1.0" ry="1.0" opacity="0.60"/>
+    <ellipse cx="1730" cy="198" rx="1.2" ry="1.2" opacity="0.64"/>
+    <ellipse cx="28"   cy="230" rx="1.0" ry="1.0" opacity="0.55"/>
+    <ellipse cx="745"  cy="245" rx="0.9" ry="0.9" opacity="0.52"/>
+    <ellipse cx="1520" cy="220" rx="1.1" ry="1.1" opacity="0.58"/>
+    <ellipse cx="1880" cy="255" rx="0.9" ry="0.9" opacity="0.50"/>
+  </g>
+
+  <!-- Stars — faint layer -->
+  <g fill="white" opacity="0.35">
+    <circle cx="48"   cy="142" r="0.7"/>
+    <circle cx="148"  cy="248" r="0.8"/>
+    <circle cx="298"  cy="302" r="0.6"/>
+    <circle cx="425"  cy="145" r="0.7"/>
+    <circle cx="608"  cy="238" r="0.8"/>
+    <circle cx="768"  cy="168" r="0.6"/>
+    <circle cx="848"  cy="285" r="0.7"/>
+    <circle cx="988"  cy="205" r="0.8"/>
+    <circle cx="1088" cy="278" r="0.6"/>
+    <circle cx="1208" cy="228" r="0.7"/>
+    <circle cx="1368" cy="148" r="0.8"/>
+    <circle cx="1455" cy="258" r="0.6"/>
+    <circle cx="1575" cy="188" r="0.7"/>
+    <circle cx="1692" cy="275" r="0.8"/>
+    <circle cx="1842" cy="158" r="0.6"/>
+    <circle cx="72"   cy="318" r="0.7"/>
+    <circle cx="332"  cy="375" r="0.6"/>
+    <circle cx="585"  cy="348" r="0.8"/>
+    <circle cx="812"  cy="398" r="0.7"/>
+    <circle cx="1025" cy="368" r="0.6"/>
+    <circle cx="1285" cy="338" r="0.8"/>
+    <circle cx="1508" cy="388" r="0.7"/>
+    <circle cx="1755" cy="355" r="0.6"/>
+    <circle cx="1905" cy="420" r="0.7"/>
+  </g>
+
+  <!-- Background ridgeline (very distant, faint) -->
+  <path d="M0,740 L140,668 L265,632 L395,598 L488,638 L608,572 L728,608 L855,555 L948,592 L1045,548 L1148,572 L1268,595 L1378,568 L1495,605 L1612,638 L1718,612 L1835,648 L1920,668 L1920,820 L0,820 Z"
+        fill="url(#mtnbg)" opacity="0.7"/>
+
+  <!-- Mid ridgeline -->
+  <path d="M0,800 L75,762 L188,725 L305,745 L408,698 L508,718 L608,672 L708,712 L812,680 L930,648 L1008,688 L1128,658 L1248,688 L1348,668 L1465,705 L1588,720 L1692,692 L1812,728 L1920,748 L1920,920 L0,920 Z"
+        fill="url(#mtnmid)"/>
+
+  <!-- Horizon ridge glow line -->
+  <path d="M0,800 L75,762 L188,725 L305,745 L408,698 L508,718 L608,672 L708,712 L812,680 L930,648 L1008,688 L1128,658 L1248,688 L1348,668 L1465,705 L1588,720 L1692,692 L1812,728 L1920,748"
+        fill="none" stroke="url(#ridge)" stroke-width="1.2" opacity="0.7"/>
+
+  <!-- Foreground silhouette (deepest / darkest) -->
+  <path d="M0,928 L95,898 L215,868 L335,888 L452,848 L552,875 L652,838 L768,868 L852,828 L952,850 L1052,868 L1152,838 L1288,875 L1408,848 L1528,882 L1648,855 L1788,892 L1908,870 L1920,872 L1920,1080 L0,1080 Z"
+        fill="url(#mtnfg)"/>
+
+  <!-- Abora branding watermark (bottom right, very subtle) -->
+  <text x="1896" y="1062"
+        font-family="Inter, 'Helvetica Neue', Arial, sans-serif"
+        font-size="12"
+        font-weight="300"
+        fill="white"
+        opacity="0.10"
+        text-anchor="end"
+        letter-spacing="4">ABORA OS  ·  DENALI</text>
+</svg>
