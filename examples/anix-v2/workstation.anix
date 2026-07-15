@@ -1,0 +1,5 @@
+# The same plan using the built-in ANIX Native frontend.
+set hostname everest-workstation
+enable bluetooth
+package add firefox
+package add git
