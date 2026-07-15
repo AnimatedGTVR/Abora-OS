@@ -1,0 +1,10 @@
+using ANIX;
+
+# Build an ANIX Plan without reading or changing system state.
+main() {
+    ANIX.set("hostname", "everest-workstation");
+    ANIX.enable("bluetooth");
+    ANIX.package("firefox");
+    ANIX.package("git");
+    ANIX.finish();
+}

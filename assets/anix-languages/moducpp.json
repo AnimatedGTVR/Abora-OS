@@ -1,0 +1,7 @@
+{
+  "id": "moducpp",
+  "name": "ModuCPP",
+  "extensions": [".moducpp", ".mcpp"],
+  "command": ["moducpp-anix"],
+  "planVersion": 1
+}
