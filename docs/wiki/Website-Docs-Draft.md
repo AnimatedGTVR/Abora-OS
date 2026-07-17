@@ -1,10 +1,10 @@
-# Abora OS DENALI 3.14 — Overview
+# Abora OS EVEREST 4.0 — Overview
 
 This file is an overview of the Abora project covering what each release delivered and where the project stands now.
 
 ## Current Version
 
-**DENALI 3.14** — the current stable release.
+**EVEREST 4.0** — the current stable release.
 
 Abora OS is built on top of NixOS. The goal is not to hide NixOS; the goal is to make NixOS feel approachable from the first boot onward.
 
@@ -57,7 +57,7 @@ Installed systems include:
 - `abora config`
 - `abora desktop`
 - `abora setup`
-- `sudo nixos update`
+- `sudo abora update`
 - ANIX helper commands
 - TinyPM-flavored app commands
 
@@ -98,6 +98,17 @@ DENALI 3.14 is the identity, installer, and tooling release.
 - Limine as the installed-system bootloader with Abora branding
 - Modularity game engine added to the Developer app bundle (`grab modularity`)
 
+## What EVEREST 4.0 Delivered
+
+EVEREST 4.0 is the multi-edition, pluggable-configuration, and GPU-driver release.
+
+- five edition ISOs — Cosmic, Hyprland, GNOME, KDE, Other — built together via `make iso-all`
+- ANIX v2: configuration can be written in ANIX Native, MKO, or ModuCPP, all resolving to the same Plan JSON applied as one transaction
+- `abora.gpu` NixOS option and an installer GPU step: nouveau, nvidia, nvidia-open, amdgpu, intel, or none, with `lspci`-based detection
+- NVIDIA hardware defaults to the license-free `nouveau` driver; proprietary `nvidia` and NVIDIA's open kernel modules (`nvidia-open`) are explicit opt-ins
+- `abora config set gpu` and `abora-hardware-test` both understand the new option
+- release manifest and checksums now cover every edition ISO plus the ANIX standalone package
+
 ## Build and Release Commands
 
 ```sh
@@ -127,7 +138,7 @@ Still needs wider coverage:
 
 - more bare-metal Wi-Fi laptops
 - more BIOS systems
-- more NVIDIA systems
+- more NVIDIA systems across the nouveau/nvidia/nvidia-open matrix, especially suspend and multi-monitor
 - more Windows-host VM checks
 - longer post-install update and rollback testing
 
@@ -154,4 +165,5 @@ Wiki docs:
 - `docs/wiki/Recovery.md`
 - `docs/wiki/TinyPM-V4.md`
 - `docs/wiki/ANIX-V1.md`
+- `docs/wiki/ANIX-V2-Languages.md`
 - `docs/wiki/FAQ.md`

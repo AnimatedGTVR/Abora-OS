@@ -1,6 +1,6 @@
 # Installation
 
-This page covers the normal Abora OS install flow for v2.5+ and DENALI 3.14.
+This page covers the normal Abora OS install flow for v2.5+ through EVEREST 4.0.
 
 ## Build The ISO
 
@@ -54,7 +54,7 @@ When installation finishes:
 5. run `abora doctor`
 6. run `anix quickstart`
 7. run `tinypm sources`
-8. run `sudo nixos update` when ready to test updates
+8. run `sudo abora update` when ready to test updates
 
 ## First Installed Commands
 

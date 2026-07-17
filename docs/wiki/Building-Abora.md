@@ -7,13 +7,22 @@ This page covers local builds for Abora OS.
 - Nix with `nix-command` and `flakes`
 - QEMU for local VM tests
 
-## Build Only The ISO
+## Build The Default ISO
 
 ```sh
 make iso
 ```
 
-`make iso` only builds the ISO and copies it into `out/`.
+`make iso` builds the default Cosmic edition ISO and copies it into `out/iso/`.
+
+## Build Every Edition ISO
+
+```sh
+make iso-all
+```
+
+`make iso-all` builds the Cosmic, Hyprland, GNOME, KDE Plasma, and Other
+Desktops edition ISOs.
 
 ## Boot The ISO In QEMU
 
@@ -47,8 +56,9 @@ make release
 
 `make release` builds:
 
-- the ISO
+- all five edition ISOs
 - the TinyPM release tarball
+- the ANIX standalone tarball
 - checksums
 - release manifest
 - generated release notes
