@@ -398,6 +398,8 @@ in
     fastfetch   # shown in the live welcome banner
     gum         # charmbracelet TUI toolkit — used by the installer
     htop
+    jq          # ANIX v2 plan validation/execution (anix run/validate-plan/apply-plan)
+    moducpp-anix # ANIX v2 ModuCPP frontend — standalone, no Modularity checkout needed; bundles its own C++ compiler
     kdePackages.konsole
     newt        # provides nmtui for Wi-Fi setup
     xterm       # tiny fallback so the Start Abora launcher can always open
@@ -580,8 +582,15 @@ in
       "abora/installed-base.nix".source = ../modules/installed-base.nix;
       "abora/pkgs/mango.nix".source = ../pkgs/mango.nix;
       "abora/pkgs/modularity.nix".source = ../pkgs/modularity.nix;
+      "abora/pkgs/moducpp-anix.nix".source = ../pkgs/moducpp-anix.nix;
+      "abora/tools/moducpp-anix" = {
+        source = ../../tools/moducpp-anix;
+        mode = "0755";
+      };
       "abora/tinypm".source = tinypmDir;
       "abora/docs".source = ../../docs;
+      "abora/anix-languages".source = ../../assets/anix-languages;
+      "anix/languages".source = ../../assets/anix-languages;
       "abora/abora-options.nix".source  = ../modules/abora-options.nix;
       "abora/ui.sh" = {
         source = ../../scripts/abora-ui.sh;

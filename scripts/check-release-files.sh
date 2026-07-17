@@ -13,6 +13,7 @@ nix/modules/anix.nix
 nix/modules/desktops
 nix/pkgs/mango.nix
 nix/pkgs/modularity.nix
+nix/pkgs/moducpp-anix.nix
 scripts/abora-update.sh
 scripts/abora-installer.sh
 scripts/abora-repair-flake-purity.sh
@@ -31,7 +32,9 @@ scripts/abora-hardware-test.sh
 scripts/abora-desktop-profiles.sh
 scripts/abora-session-setup.sh
 scripts/abora-theme-sync.sh
+tools/moducpp-anix
 assets/mango/config.conf
+assets/anix-languages
 assets/abora-title.txt
 assets/fastfetch-logo.txt
 assets/fastfetch-config.jsonc

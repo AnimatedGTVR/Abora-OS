@@ -23,6 +23,14 @@ let
   anixModule           = ./anix-module.nix;
   docsDir =
     if builtins.pathExists ./docs then ./docs else null;
+  # ANIX v2 language adapter manifests (docs/wiki/ANIX-V2-Languages.md).
+  # Populated the same way as docsDir above — the live ISO ships
+  # assets/anix-languages/, and the installer's file-copy step is expected
+  # to place a copy beside installed-base.nix as ./anix-languages before the
+  # first nixos-rebuild. Absent until that copy step exists, so this stays
+  # optional rather than a hard requirement.
+  anixLanguagesDir =
+    if builtins.pathExists ./anix-languages then ./anix-languages else null;
   appCatalogScript     = ./app-catalog.sh;
   appManagerScript     = ./apps.sh;
   supportReportScript  = ./support-report.sh;
@@ -39,6 +47,7 @@ let
   desktopProfilesScript = ./desktop-profiles.sh;
   mangoConfigFile      = ./mango/config.conf;
   mangoConfigText      = builtins.readFile mangoConfigFile;
+  moducppAnixTool      = ./tools/moducpp-anix;
   installerScript      = ./installer.sh;
   setupLauncherScript  = ./setup-launcher.sh;
   setupDesktopFile     = ./setup.desktop;
@@ -232,6 +241,9 @@ in
     (final: prev: {
       mango = final.callPackage ./pkgs/mango.nix {};
       modularity = final.callPackage ./pkgs/modularity.nix {};
+      moducpp-anix = final.callPackage ./pkgs/moducpp-anix.nix {
+        moducppAnixSrc = moducppAnixTool;
+      };
     })
   ];
 
@@ -408,6 +420,8 @@ in
     git
     htop
     iw
+    jq
+    moducpp-anix
     kdePackages.konsole
     linux-firmware
     modemmanager
@@ -588,7 +602,7 @@ in
           abora welcome       first steps and quick actions
           abora doctor        check system health
           abora recovery      rollback and repair tools
-          sudo nixos update   rebuild and switch the system
+          sudo abora update   rebuild and switch the system
       '';
       "profile.d/abora-welcome.sh".text = ''
         if [ -n "''${PS1:-}" ] && [ -z "''${ABORA_WELCOME_SHOWN:-}" ] && command -v abora-welcome >/dev/null 2>&1; then
@@ -756,6 +770,9 @@ in
     }
     // lib.optionalAttrs (docsDir != null) {
       "abora/docs".source = docsDir;
+    }
+    // lib.optionalAttrs (anixLanguagesDir != null) {
+      "anix/languages".source = anixLanguagesDir;
     }
     // lib.optionalAttrs (aboraLogoFile != null) {
       "abora/Abora-LOGO.png".source = aboraLogoFile;
