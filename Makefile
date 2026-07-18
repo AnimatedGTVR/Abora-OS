@@ -1,4 +1,4 @@
-.PHONY: help iso iso-all iso-cosmic iso-hyprland iso-gnome iso-kde iso-other iso-local qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc check check-desktops preflight metadata release tinypm-package anix-package tinypm-image
+.PHONY: help iso iso-all iso-cosmic iso-hyprland iso-gnome iso-kde iso-other iso-local qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc check check-desktops check-all preflight metadata release tinypm-package anix-package tinypm-image
 
 help:
 	@echo "Usage: make <target>"
@@ -24,6 +24,7 @@ help:
 	@echo "  qmec / qemc      - Aliases for qemu"
 	@echo "  check            - Run repository script checks"
 	@echo "  check-desktops   - Evaluate every supported desktop profile"
+	@echo "  check-all        - Sweep every .sh/.nix/.py/.md file in the repo by type"
 	@echo "  preflight        - Run full release preflight checks"
 
 iso:
@@ -91,6 +92,9 @@ check:
 
 check-desktops:
 	./scripts/check-desktops.sh
+
+check-all:
+	./scripts/check-all-files.sh
 
 preflight:
 	./scripts/preflight.sh
