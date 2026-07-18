@@ -11,6 +11,23 @@ set -euo pipefail
 repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$repo_dir"
 
+# Color only when stdout is a real terminal and the user hasn't opted out
+# (NO_COLOR is the de-facto standard env var for this, TERM=dumb is the
+# traditional one). CI log viewers vary in ANSI support, so this keeps the
+# same plain [ok]/[fail]/[warn] text output check-scripts.sh and
+# check-desktops.sh already use whenever output isn't an interactive TTY.
+if [[ -t 1 && -z "${NO_COLOR:-}" && "${TERM:-}" != "dumb" ]]; then
+    C_GREEN=$'\033[38;5;77m'
+    C_RED=$'\033[38;5;203m'
+    C_YELLOW=$'\033[38;5;222m'
+    C_DIM=$'\033[38;5;242m'
+    C_CYAN=$'\033[38;5;44m'
+    C_BOLD=$'\033[1m'
+    C_NC=$'\033[0m'
+else
+    C_GREEN="" C_RED="" C_YELLOW="" C_DIM="" C_CYAN="" C_BOLD="" C_NC=""
+fi
+
 failed=0
 warned=0
 sh_count=0
@@ -22,20 +39,29 @@ anix_count=0
 yaml_count=0
 json_count=0
 desktop_count=0
+conf_count=0
 anix_skipped=0
 
 pass() {
-    printf '[ok]   %s\n' "$1"
+    printf '%b[ok]%b   %s\n' "$C_GREEN" "$C_NC" "$1"
 }
 
 fail() {
-    printf '[fail] %s\n' "$1"
+    printf '%b[fail]%b %s\n' "$C_RED" "$C_NC" "$1"
     failed=1
 }
 
 warn() {
-    printf '[warn] %s\n' "$1"
+    printf '%b[warn]%b %s\n' "$C_YELLOW" "$C_NC" "$1"
     warned=1
+}
+
+note() {
+    printf '%b  note: %s%b\n' "$C_DIM" "$1" "$C_NC"
+}
+
+section() {
+    printf '\n%b%s%b\n' "${C_BOLD}${C_CYAN}" "$1" "$C_NC"
 }
 
 # Find files by extension, excluding generated output, git internals, and
@@ -187,6 +213,26 @@ check_python() {
     fi
 }
 
+# ── Wallpaper theme .conf files ──────────────────────────────────────────────
+# assets/wallpaper-themes/*.conf are plain ABORA_THEME_*="value" shell
+# assignments — abora-theme-sync.sh sources them directly with `. "$file"`
+# despite the .conf extension, so a syntax error here breaks theme sync at
+# runtime exactly like a broken .sh file would. Not part of find_files sh
+# since they're never executed, only sourced, and mixing them into the
+# general shell-script section would misleadingly suggest they need a
+# shebang/executable bit, which sourced-only files correctly don't have.
+
+check_theme_conf() {
+    local file="$1"
+    conf_count=$((conf_count + 1))
+
+    if bash -n "$file" 2>/dev/null; then
+        pass "syntax (conf, sourced as shell): $file"
+    else
+        fail "syntax (conf, sourced as shell): $file"
+    fi
+}
+
 # ── Markdown files ────────────────────────────────────────────────────────────
 # Three things, all best-effort text analysis rather than a real Markdown
 # parser: relative file links resolve, #anchor links resolve to a real
@@ -225,7 +271,7 @@ check_markdown_links() {
         if [[ -n "$target" ]]; then
             local resolved="$dir/$target"
             if [[ ! -e "$resolved" ]]; then
-                printf '  broken link: %s -> %s\n' "$file" "$link"
+                printf '%b  broken link: %s -> %s%b\n' "$C_DIM" "$file" "$link" "$C_NC"
                 broken=1
                 continue
             fi
@@ -249,8 +295,8 @@ check_markdown_links() {
             done < <(grep -E '^#+[[:space:]]' "$heading_file" 2>/dev/null)
 
             if [[ "$found" -eq 0 ]]; then
-                printf '  broken anchor: %s -> %s (no heading slugs to "%s" in %s)\n' \
-                    "$file" "$link" "$anchor" "$heading_file"
+                printf '%b  broken anchor: %s -> %s (no heading slugs to "%s" in %s)%b\n' \
+                    "$C_DIM" "$file" "$link" "$anchor" "$heading_file" "$C_NC"
                 broken=1
             fi
         fi
@@ -301,16 +347,15 @@ check_markdown_code_blocks() {
                         # A fenced nix block is very often a fragment (an
                         # attrset body, an option snippet) rather than a
                         # complete expression, so this is advisory only.
-                        printf '  note: ```nix block #%d in %s does not parse standalone (may be a fragment)\n' \
-                            "$block_count" "$file"
+                        note "\`\`\`nix block #${block_count} in ${file} does not parse standalone (may be a fragment)"
                     fi
                 fi
             else
                 block_file="$tmpdir/block_${block_count}.sh"
                 printf '%s\n' "$block" > "$block_file"
                 if ! bash -n "$block_file" 2>/dev/null; then
-                    printf '  broken code block: ```%s block #%d in %s does not parse\n' \
-                        "$lang" "$block_count" "$file"
+                    printf '%b  broken code block: ```%s block #%d in %s does not parse%b\n' \
+                        "$C_DIM" "$lang" "$block_count" "$file" "$C_NC"
                     block_failed=1
                 fi
             fi
@@ -434,6 +479,40 @@ check_json() {
     fi
 }
 
+# ── JSONC files (JSON with optional // comments) ─────────────────────────────
+# jq has no native JSONC support, but tries plain JSON first — most JSONC
+# files (including the one currently in this repo) have zero actual
+# comments and parse as-is. Only if that fails does it fall back to
+# stripping *whole-line* `//` comments (a line whose first non-whitespace
+# characters are `//`) before retrying. Deliberately does NOT attempt to
+# strip trailing/inline `//` comments: this repo's config has a `$schema`
+# URL containing `https://`, and reliably telling "// starts a comment"
+# apart from "// is inside a string value" needs a real JSON tokenizer,
+# not a regex — safer to only handle the unambiguous whole-line case.
+
+check_jsonc() {
+    local file="$1"
+    json_count=$((json_count + 1))
+
+    if ! command -v jq >/dev/null 2>&1; then
+        return
+    fi
+
+    if jq -e . "$file" >/dev/null 2>&1; then
+        pass "jsonc: $file"
+        return
+    fi
+
+    local stripped
+    stripped="$(grep -vE '^[[:space:]]*//' "$file")"
+    if printf '%s' "$stripped" | jq -e . >/dev/null 2>&1; then
+        pass "jsonc: $file (parsed after stripping whole-line // comments)"
+    else
+        fail "jsonc: $file"
+        jq . "$file" 2>&1 | sed 's/^/    /' || true
+    fi
+}
+
 # ── .desktop files ────────────────────────────────────────────────────────────
 # Minimal freedesktop Desktop Entry Specification check: a [Desktop Entry]
 # group header, and the keys every entry needs (Type, Name, Exec for
@@ -446,14 +525,14 @@ check_desktop_file() {
     local bad=0
 
     if ! grep -q '^\[Desktop Entry\]' "$file"; then
-        printf '  missing [Desktop Entry] group header: %s\n' "$file"
+        printf '%b  missing [Desktop Entry] group header: %s%b\n' "$C_DIM" "$file" "$C_NC"
         bad=1
     fi
 
     local key
     for key in Type Name; do
         if ! grep -qE "^${key}=" "$file"; then
-            printf '  missing required key %s=: %s\n' "$key" "$file"
+            printf '%b  missing required key %s=: %s%b\n' "$C_DIM" "$key" "$file" "$C_NC"
             bad=1
         fi
     done
@@ -461,7 +540,7 @@ check_desktop_file() {
     local entry_type
     entry_type="$(sed -nE 's/^Type=(.*)$/\1/p' "$file" | head -n1)"
     if [[ "$entry_type" == "Application" ]] && ! grep -qE '^Exec=' "$file"; then
-        printf '  Type=Application but no Exec=: %s\n' "$file"
+        printf '%b  Type=Application but no Exec=: %s%b\n' "$C_DIM" "$file" "$C_NC"
         bad=1
     fi
 
@@ -474,9 +553,9 @@ check_desktop_file() {
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 
-printf 'Shell scripts\n'
+section "Shell scripts"
 if ! command -v shellcheck >/dev/null 2>&1; then
-    printf '[ok]   shellcheck unavailable (lint checks skipped, syntax checks still run)\n'
+    pass "shellcheck unavailable (lint checks skipped, syntax checks still run)"
 fi
 while IFS= read -r f; do
     [[ -n "$f" ]] || continue
@@ -487,31 +566,37 @@ while IFS= read -r f; do
     check_shell "$f"
 done < <(find_shebang_scripts)
 
-printf '\nNix files\n'
+section "Nix files"
 if ! command -v nix-instantiate >/dev/null 2>&1; then
-    printf '[ok]   nix-instantiate unavailable (nix parse checks skipped)\n'
+    pass "nix-instantiate unavailable (nix parse checks skipped)"
 fi
 while IFS= read -r f; do
     [[ -n "$f" ]] || continue
     check_nix "$f"
 done < <(find_files nix)
 
-printf '\nPython files\n'
+section "Python files"
 while IFS= read -r f; do
     [[ -n "$f" ]] || continue
     check_python "$f"
 done < <(find_files py)
 
-printf '\nMarkdown files (links, anchors, fenced code blocks)\n'
+section "Wallpaper theme .conf files (sourced as shell)"
+while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    check_theme_conf "$f"
+done < <(find_files conf | grep -F 'wallpaper-themes/' || true)
+
+section "Markdown files (links, anchors, fenced code blocks)"
 while IFS= read -r f; do
     [[ -n "$f" ]] || continue
     check_markdown_links "$f"
     check_markdown_code_blocks "$f"
 done < <(find_files md)
 
-printf '\nANIX v2 plan sources (anix diff-plan, non-destructive)\n'
+section "ANIX v2 plan sources (anix diff-plan, non-destructive)"
 if ! command -v jq >/dev/null 2>&1; then
-    printf '[ok]   jq unavailable (anix plan checks skipped)\n'
+    pass "jq unavailable (anix plan checks skipped)"
 fi
 for ext in anix mko moducpp; do
     while IFS= read -r f; do
@@ -520,41 +605,45 @@ for ext in anix mko moducpp; do
     done < <(find_files "$ext")
 done
 
-printf '\nYAML files (GitHub Actions workflows, etc.)\n'
+section "YAML files (GitHub Actions workflows, etc.)"
 if ! resolve_yaml_python; then
-    printf '[ok]   no YAML parser available (python3 -c "import yaml" failed); falling back to basic checks\n'
+    pass 'no YAML parser available (python3 -c "import yaml" failed); falling back to basic checks'
 fi
 while IFS= read -r f; do
     [[ -n "$f" ]] || continue
     check_yaml "$f"
 done < <(find_files yml; find_files yaml)
 
-printf '\nJSON files\n'
+section "JSON files"
 if ! command -v jq >/dev/null 2>&1; then
-    printf '[ok]   jq unavailable (json checks skipped)\n'
+    pass "jq unavailable (json checks skipped)"
 fi
 while IFS= read -r f; do
     [[ -n "$f" ]] || continue
     check_json "$f"
 done < <(find_files json)
+while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    check_jsonc "$f"
+done < <(find_files jsonc)
 
-printf '\n.desktop files\n'
+section ".desktop files"
 while IFS= read -r f; do
     [[ -n "$f" ]] || continue
     check_desktop_file "$f"
 done < <(find_files desktop)
 
-printf '\n%d shell, %d nix (%d possibly orphaned), %d python, %d markdown, %d anix plan(s, %d skipped), %d yaml, %d json, %d desktop file(s) checked.\n' \
-    "$sh_count" "$nix_count" "$orphan_count" "$py_count" "$md_count" "$anix_count" "$anix_skipped" \
-    "$yaml_count" "$json_count" "$desktop_count"
+printf '\n%b%d shell, %d nix (%d possibly orphaned), %d python, %d theme conf, %d markdown, %d anix plan(s, %d skipped), %d yaml, %d json/jsonc, %d desktop file(s) checked.%b\n' \
+    "$C_DIM" "$sh_count" "$nix_count" "$orphan_count" "$py_count" "$conf_count" "$md_count" "$anix_count" "$anix_skipped" \
+    "$yaml_count" "$json_count" "$desktop_count" "$C_NC"
 
 if [[ "$warned" -ne 0 && "$failed" -eq 0 ]]; then
-    printf '\nNo hard failures, but warnings were printed above — review them.\n'
+    printf '\n%bNo hard failures, but warnings were printed above — review them.%b\n' "$C_YELLOW" "$C_NC"
 fi
 
 if [[ "$failed" -ne 0 ]]; then
-    printf '\nOne or more checks failed.\n' >&2
+    printf '\n%bOne or more checks failed.%b\n' "$C_RED" "$C_NC" >&2
     exit 1
 fi
 
-printf '\nAll files passed.\n'
+printf '\n%bAll files passed.%b\n' "${C_BOLD}${C_GREEN}" "$C_NC"
