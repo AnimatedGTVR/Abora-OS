@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # check-all-files.sh — glob-based repo sweep, independent of check-scripts.sh's
 # hardcoded file lists. Walks every .sh, .nix, .py, and .md file actually on
-# disk (skipping out/, .git/, and vendor/) and validates each by type, so a
+# disk (skipping out/, .git/, and vendor/) and validates each by type, plus
+# every extensionless-but-shebanged script (e.g. tools/moducpp-anix) and
+# every ANIX v2 source file (.anix/.mko/.moducpp) via `anix diff-plan`, so a
 # new file that nobody registered anywhere still gets checked.
 set -euo pipefail
 
@@ -15,6 +17,8 @@ nix_count=0
 py_count=0
 md_count=0
 orphan_count=0
+anix_count=0
+anix_skipped=0
 
 pass() {
     printf '[ok]   %s\n' "$1"
@@ -38,6 +42,19 @@ find_files() {
         \( -path './out' -o -path './.git' -o -path './vendor' \) -prune -o \
         -type f -name "*.${ext}" -print \
         | sed 's|^\./||' | sort
+}
+
+# Find executable files with no extension but a #!/.../bash or #!/.../sh
+# shebang — e.g. tools/moducpp-anix. These are real shell scripts that
+# `find_files sh` can't see by name alone.
+find_shebang_scripts() {
+    find . \
+        \( -path './out' -o -path './.git' -o -path './vendor' \) -prune -o \
+        -type f -executable ! -name '*.*' -print 2>/dev/null \
+        | sed 's|^\./||' | sort \
+        | while IFS= read -r f; do
+            head -c 64 "$f" 2>/dev/null | grep -qE '^#! ?/.*\b(bash|sh)$' && printf '%s\n' "$f"
+        done
 }
 
 # ── Shell scripts ────────────────────────────────────────────────────────────
@@ -78,8 +95,7 @@ check_shell() {
 
     if command -v shellcheck >/dev/null 2>&1; then
         local sc_output sc_status
-        sc_output="$(shellcheck -e SC1091 -f gcc "$file" 2>&1)"
-        sc_status=$?
+        sc_output="$(shellcheck -e SC1091 -f gcc "$file" 2>&1)" && sc_status=0 || sc_status=$?
         if [[ "$sc_status" -eq 0 ]]; then
             pass "shellcheck: $file"
         else
@@ -312,6 +328,46 @@ check_markdown_code_blocks() {
     fi
 }
 
+# ── ANIX v2 plan sources ──────────────────────────────────────────────────────
+# .anix/.mko/.moducpp files are ANIX's own configuration languages, not
+# scripts in the usual sense — but they're still executable specifications
+# with their own syntax to get wrong. `anix diff-plan <file>` resolves the
+# right language adapter, parses/compiles the source into Plan JSON, and
+# validates that JSON, all without applying anything (no nixos-rebuild, no
+# state written) — exactly the non-destructive check this sweep needs.
+#
+# If the adapter for a given language isn't installed on this machine (MKO
+# or ModuCPP toolchains are a separate install from Abora itself), that's an
+# environment gap, not a broken plan file, so it's counted as skipped rather
+# than failed.
+
+check_anix_plan() {
+    local file="$1"
+    anix_count=$((anix_count + 1))
+
+    if ! command -v jq >/dev/null 2>&1 || [[ ! -f scripts/anix.sh ]]; then
+        anix_skipped=$((anix_skipped + 1))
+        return
+    fi
+
+    local output status
+    output="$(bash scripts/anix.sh diff-plan "$file" 2>&1)" && status=0 || status=$?
+
+    if [[ "$status" -eq 0 ]]; then
+        pass "anix diff-plan: $file"
+        return
+    fi
+
+    if printf '%s\n' "$output" | grep -q 'No language adapter found'; then
+        anix_skipped=$((anix_skipped + 1))
+        printf '[ok]   anix diff-plan: %s (adapter not installed, skipped)\n' "$file"
+        return
+    fi
+
+    fail "anix diff-plan: $file"
+    printf '%s\n' "$output" | grep -E '✗|error' | sed 's/^/    /' || true
+}
+
 # ── Run ───────────────────────────────────────────────────────────────────────
 
 printf 'Shell scripts\n'
@@ -322,6 +378,10 @@ while IFS= read -r f; do
     [[ -n "$f" ]] || continue
     check_shell "$f"
 done < <(find_files sh)
+while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    check_shell "$f"
+done < <(find_shebang_scripts)
 
 printf '\nNix files\n'
 if ! command -v nix-instantiate >/dev/null 2>&1; then
@@ -345,8 +405,19 @@ while IFS= read -r f; do
     check_markdown_code_blocks "$f"
 done < <(find_files md)
 
-printf '\n%d shell, %d nix (%d possibly orphaned), %d python, %d markdown files checked.\n' \
-    "$sh_count" "$nix_count" "$orphan_count" "$py_count" "$md_count"
+printf '\nANIX v2 plan sources (anix diff-plan, non-destructive)\n'
+if ! command -v jq >/dev/null 2>&1; then
+    printf '[ok]   jq unavailable (anix plan checks skipped)\n'
+fi
+for ext in anix mko moducpp; do
+    while IFS= read -r f; do
+        [[ -n "$f" ]] || continue
+        check_anix_plan "$f"
+    done < <(find_files "$ext")
+done
+
+printf '\n%d shell, %d nix (%d possibly orphaned), %d python, %d markdown, %d anix plan(s, %d skipped) checked.\n' \
+    "$sh_count" "$nix_count" "$orphan_count" "$py_count" "$md_count" "$anix_count" "$anix_skipped"
 
 if [[ "$warned" -ne 0 && "$failed" -eq 0 ]]; then
     printf '\nNo hard failures, but warnings were printed above — review them.\n'
