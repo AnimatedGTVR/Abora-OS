@@ -59,6 +59,14 @@ tinypm_doc_file="${ANIX_TINYPM_DOC_FILE:-$docs_dir/TinyPM-V4.md}"
 abora_tools_doc_file="${ANIX_ABORA_TOOLS_DOC_FILE:-$docs_dir/Abora-Tools.md}"
 recovery_doc_file="${ANIX_RECOVERY_DOC_FILE:-$docs_dir/Recovery.md}"
 
+# ANIX v2 — pluggable configuration languages (docs/wiki/ANIX-V2-Languages.md).
+# System adapters are installed by packages; user adapters are personal,
+# per-account additions. Both are plain JSON manifests naming an id,
+# extensions, and an argv command that emits an ANIX Plan on stdout.
+anix_system_language_dir="${ANIX_SYSTEM_LANGUAGE_DIR:-/etc/anix/languages}"
+anix_user_language_dir="${ANIX_USER_LANGUAGE_DIR:-$HOME/.config/anix/languages}"
+anix_plan_version=1
+
 valid_desktops=(
     none gnome plasma hyprland sway xfce cinnamon mate budgie lxqt pantheon
     i3 awesome openbox niri river qtile bspwm fluxbox
@@ -68,10 +76,10 @@ valid_desktops=(
 default_wallpapers=(
     Daytime-MNT.jpg
     NightTime-MNT.png
-    oceandusk.png
-    bluehorizon.png
-    astronautwallpaper.png
-    glacierreflection.png
+    alpine-glacier.jpg
+    tannheimer-mountains.jpg
+    titlis-alps.jpg
+    aurora-lofoten.jpg
 )
 
 current_system_link="${ANIX_CURRENT_SYSTEM:-/run/current-system}"
@@ -797,6 +805,39 @@ do_set() {
     printf '\n'
 }
 
+# Single source of truth for feature name -> anix.nix key, shared by
+# do_toggle (writes), validate_plan_json (allowlist), and do_diff_plan
+# (reads current state) so the three can never drift out of sync with each
+# other. Prints the key on success; returns non-zero and prints nothing on
+# an unknown feature.
+feature_to_anix_key() {
+    local name="$1"
+    case "$name" in
+        allowUnfree|unfree) printf 'allowUnfree' ;;
+        experimentalNix|flakes) printf 'experimentalNix' ;;
+        bluetooth) printf 'services.bluetooth' ;;
+        printing|printers) printf 'services.printing' ;;
+        flatpak) printf 'services.flatpak' ;;
+        audio|sound) printf 'services.audio' ;;
+        openssh|ssh) printf 'services.openssh' ;;
+        thermald) printf 'power.thermald' ;;
+        tlp) printf 'power.tlp' ;;
+        tinypm) printf 'tinypm.enable' ;;
+        garbageCollect|gc) printf 'garbageCollect.enable' ;;
+        *) return 1 ;;
+    esac
+}
+
+# Reads a boolean anix.<key> value (unquoted true/false, as written by
+# write_anix_raw_option) — the boolean counterpart to read_anix_option,
+# which only matches quoted string values.
+read_anix_bool_option() {
+    local key="$1"
+    local escaped_key="${key//./\\.}"
+    [[ -f "$anix_file" ]] || return 0
+    sed -nE "s@^[[:space:]]*anix\\.${escaped_key}[[:space:]]*=[[:space:]]*(true|false);.*@\1@p" "$anix_file" | head -n1
+}
+
 do_toggle() {
     local wanted="$1"
     local name="${2:-}"
@@ -807,24 +848,11 @@ do_toggle() {
         exit 1
     fi
 
-    case "$name" in
-        allowUnfree|unfree) key="allowUnfree" ;;
-        experimentalNix|flakes) key="experimentalNix" ;;
-        bluetooth) key="services.bluetooth" ;;
-        printing|printers) key="services.printing" ;;
-        flatpak) key="services.flatpak" ;;
-        audio|sound) key="services.audio" ;;
-        openssh|ssh) key="services.openssh" ;;
-        thermald) key="power.thermald" ;;
-        tlp) key="power.tlp" ;;
-        tinypm) key="tinypm.enable" ;;
-        garbageCollect|gc) key="garbageCollect.enable" ;;
-        *)
-            abora_error "Unknown feature: ${name}"
-            abora_dim_line "Known: allowUnfree experimentalNix bluetooth printing flatpak audio openssh thermald tlp tinypm garbageCollect"
-            exit 1
-            ;;
-    esac
+    if ! key="$(feature_to_anix_key "$name")"; then
+        abora_error "Unknown feature: ${name}"
+        abora_dim_line "Known: allowUnfree experimentalNix bluetooth printing flatpak audio openssh thermald tlp tinypm garbageCollect"
+        exit 1
+    fi
 
     write_anix_raw_option "$key" "$wanted"
     abora_success "'anix.${key}' set to '${wanted}'"
@@ -1890,6 +1918,489 @@ do_generations() {
     printf '\n'
 }
 
+# ── ANIX v2: pluggable configuration languages ──────────────────────────────
+#
+# One engine, several frontends (docs/wiki/ANIX-V2-Languages.md). A frontend
+# is either the built-in ANIX Native file form (plain `set`/`enable`/
+# `package add` lines, extension .anix) or an installed language adapter — a
+# small JSON manifest naming an argv command that turns a source file into
+# an ANIX Plan (JSON) on stdout. Only this engine ever mutates anix.nix or
+# calls nixos-rebuild; adapters run unprivileged and produce data, not
+# actions.
+
+list_language_adapters() {
+    local dir=""
+    for dir in "$anix_user_language_dir" "$anix_system_language_dir"; do
+        [[ -d "$dir" ]] || continue
+        local manifest=""
+        for manifest in "$dir"/*.json; do
+            [[ -f "$manifest" ]] || continue
+            printf '%s\n' "$manifest"
+        done
+    done
+}
+
+# Prints the adapter manifest matching a language id, or the extension of a
+# source file (last dot-segment, including the dot). Native `.anix` files
+# never need a manifest — they're handled directly by run_native_plan_file.
+find_language_adapter() {
+    local selector="$1"
+    local manifest=""
+    while IFS= read -r manifest; do
+        [[ -n "$manifest" ]] || continue
+        local id="" extensions=""
+        id="$(jq -r '.id // empty' "$manifest" 2>/dev/null)"
+        if [[ "$id" == "$selector" ]]; then
+            printf '%s\n' "$manifest"
+            return 0
+        fi
+        extensions="$(jq -r '.extensions // [] | .[]' "$manifest" 2>/dev/null)"
+        local ext=""
+        while IFS= read -r ext; do
+            [[ "$ext" == "$selector" ]] && { printf '%s\n' "$manifest"; return 0; }
+        done <<<"$extensions"
+    done < <(list_language_adapters)
+    return 1
+}
+
+adapter_ready() {
+    local manifest="$1"
+    local first_arg=""
+    first_arg="$(jq -r '.command[0] // empty' "$manifest" 2>/dev/null)"
+    [[ -n "$first_arg" ]] && command -v "$first_arg" >/dev/null 2>&1
+}
+
+# Explains *why* an adapter isn't ready — "anix language list" reports
+# readiness honestly per the design doc, which means more than a bare
+# ready/not-installed flag once something can fail in more than one way.
+adapter_status_reason() {
+    local manifest="$1"
+    if ! jq -e . >/dev/null 2>&1 < "$manifest"; then
+        printf 'manifest is not valid JSON'
+        return 0
+    fi
+    local version=""
+    version="$(jq -r '.planVersion // empty' "$manifest" 2>/dev/null)"
+    if [[ "$version" != "$anix_plan_version" ]]; then
+        printf 'unsupported planVersion (%s)' "${version:-missing}"
+        return 0
+    fi
+    local first_arg=""
+    first_arg="$(jq -r '.command[0] // empty' "$manifest" 2>/dev/null)"
+    if [[ -z "$first_arg" ]]; then
+        printf 'manifest has no command'
+        return 0
+    fi
+    if ! command -v "$first_arg" >/dev/null 2>&1; then
+        printf "'%s' not found on PATH" "$first_arg"
+        return 0
+    fi
+    printf 'ready'
+}
+
+do_language() {
+    local action="${1:-list}"
+
+    case "$action" in
+        list)
+            require_command jq
+            local current=""
+            current="$(anix_config_get "language" "anix")"
+            abora_banner "ANIX Languages" "Frontends that can produce an ANIX Plan."
+
+            local id_col=10 name_col=12 status_col=10 cmd_col=18
+            printf '  %b%-*s  %-*s  %-*s  %-*s  %s%b\n' \
+                "$ABORA_DIM" "$id_col" "ID" "$name_col" "NAME" "$status_col" "STATUS" "$cmd_col" "COMMAND" "DETAIL" "$ABORA_NC"
+
+            local default_marker=""
+            [[ "$current" == "anix" ]] && default_marker=" (default)"
+            printf '  %b%-*s  %-*s  %-*s  %-*s  %s%b\n' \
+                "$ABORA_GREEN" "$id_col" "anix" "$name_col" "ANIX Native" "$status_col" "ready" "$cmd_col" "built in" "no adapter needed${default_marker}" "$ABORA_NC"
+
+            local -A seen_ids=()
+            local manifest=""
+            while IFS= read -r manifest; do
+                [[ -n "$manifest" ]] || continue
+                local id=""
+                # Malformed manifests must be reported, not let a failing jq
+                # call kill the whole `list` under set -e — every read below
+                # tolerates a parse failure the same way.
+                id="$(jq -r '.id // empty' "$manifest" 2>/dev/null || true)"
+                [[ -n "$id" ]] || { printf '  %b%-*s  %-*s  %-*s  %-*s  %s%b\n' "$ABORA_RED" "$id_col" "?" "$name_col" "?" "$status_col" "invalid" "$cmd_col" "-" "malformed manifest: ${manifest}" "$ABORA_NC"; continue; }
+                [[ -n "${seen_ids[$id]:-}" ]] && continue
+                seen_ids[$id]=1
+
+                local name="" command_first=""
+                name="$(jq -r '.name // .id // "?"' "$manifest" 2>/dev/null || printf '?')"
+                command_first="$(jq -r '.command[0] // "-"' "$manifest" 2>/dev/null || printf -- '-')"
+                local reason=""
+                reason="$(adapter_status_reason "$manifest")"
+                local color="$ABORA_RED"
+                local status_word="not ready"
+                if [[ "$reason" == "ready" ]]; then
+                    color="$ABORA_GREEN"
+                    status_word="ready"
+                    reason="$manifest"
+                fi
+                [[ "$id" == "$current" ]] && reason="${reason} (default)"
+                printf '  %b%-*s  %-*s  %-*s  %-*s  %s%b\n' \
+                    "$color" "$id_col" "$id" "$name_col" "$name" "$status_col" "$status_word" "$cmd_col" "$command_first" "$reason" "$ABORA_NC"
+            done < <(list_language_adapters)
+
+            printf '\n'
+            [[ "${#seen_ids[@]}" -eq 0 ]] && abora_dim_line "No installed adapters in ${anix_user_language_dir} or ${anix_system_language_dir}."
+            abora_dim_line "Run 'anix language use <id>' to change the default for 'anix run'."
+            printf '\n'
+            ;;
+        use)
+            local lang="${2:-}"
+            [[ -n "$lang" ]] || { abora_error "Usage: anix language use <id>"; exit 1; }
+            if [[ "$lang" != "anix" ]] && ! find_language_adapter "$lang" >/dev/null; then
+                abora_error "Unknown language: ${lang}"
+                abora_dim_line "Run 'anix language list' to see installed adapters."
+                exit 1
+            fi
+            anix_config_set "language" "$lang"
+            abora_success "Default language set to '${lang}'."
+            printf '\n'
+            ;;
+        *)
+            abora_error "Usage: anix language <list|use> [id]"
+            exit 1
+            ;;
+    esac
+}
+
+# Turns a .anix Native file into Plan JSON without touching state — the file
+# form of the same `set`/`enable`/`disable`/`package add`/`package remove`
+# commands, grouped into one transaction instead of running immediately.
+native_plan_from_file() {
+    local file="$1"
+    require_command jq
+    local ops="[]"
+    local line_no=0
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line_no=$((line_no + 1))
+        # shellcheck disable=SC2295
+        line="${line#"${line%%[![:space:]]*}"}"
+        [[ -z "$line" || "$line" == \#* ]] && continue
+        local words=()
+        read -r -a words <<<"$line"
+        local op_json=""
+        case "${words[0]:-}" in
+            set)
+                [[ "${#words[@]}" -eq 3 ]] || { abora_error "${file}:${line_no}: usage: set <key> <value>"; exit 1; }
+                op_json="$(jq -nc --arg key "${words[1]}" --arg value "${words[2]}" '{op:"set",key:$key,value:$value}')"
+                ;;
+            enable)
+                [[ "${#words[@]}" -eq 2 ]] || { abora_error "${file}:${line_no}: usage: enable <feature>"; exit 1; }
+                op_json="$(jq -nc --arg feature "${words[1]}" '{op:"enable",feature:$feature}')"
+                ;;
+            disable)
+                [[ "${#words[@]}" -eq 2 ]] || { abora_error "${file}:${line_no}: usage: disable <feature>"; exit 1; }
+                op_json="$(jq -nc --arg feature "${words[1]}" '{op:"disable",feature:$feature}')"
+                ;;
+            package)
+                [[ "${#words[@]}" -eq 3 ]] || { abora_error "${file}:${line_no}: usage: package <add|remove> <name>"; exit 1; }
+                case "${words[1]}" in
+                    add)    op_json="$(jq -nc --arg name "${words[2]}" '{op:"package.add",name:$name}')" ;;
+                    remove) op_json="$(jq -nc --arg name "${words[2]}" '{op:"package.remove",name:$name}')" ;;
+                    *) abora_error "${file}:${line_no}: package action must be add or remove"; exit 1 ;;
+                esac
+                ;;
+            *)
+                abora_error "${file}:${line_no}: unknown ANIX Native command: ${words[0]:-}"
+                exit 1
+                ;;
+        esac
+        ops="$(jq -c --argjson op "$op_json" '. + [$op]' <<<"$ops")"
+    done < "$file"
+    jq -nc --argjson version "$anix_plan_version" --argjson ops "$ops" \
+        '{planVersion:$version,language:"anix",operations:$ops}'
+}
+
+# Resolves a source file to a Plan JSON string, either via the ANIX Native
+# parser or by shelling out to an installed adapter's command. Adapters run
+# as the invoking user (never run_as_root) and only their stdout is treated
+# as the plan; stderr passes through for diagnostics.
+plan_from_source_file() {
+    local file="$1"
+    local language_override="${2:-}"
+
+    [[ -f "$file" ]] || { abora_error "File not found: ${file}"; exit 1; }
+
+    local selector="$language_override"
+    if [[ -z "$selector" ]]; then
+        case "$file" in
+            *.anix) native_plan_from_file "$file"; return 0 ;;
+            *.*) selector=".${file##*.}" ;;
+            *) abora_error "Cannot infer a language for '${file}' — pass --language."; exit 1 ;;
+        esac
+    fi
+    if [[ "$selector" == "anix" ]]; then
+        native_plan_from_file "$file"
+        return 0
+    fi
+
+    local manifest=""
+    if ! manifest="$(find_language_adapter "$selector")"; then
+        abora_error "No language adapter found for '${selector}'."
+        abora_dim_line "Run 'anix language list' to see installed adapters."
+        exit 1
+    fi
+    if ! adapter_ready "$manifest"; then
+        abora_error "Language adapter '${selector}' is installed but its command is not on PATH."
+        exit 1
+    fi
+
+    local command_json=() plan=""
+    mapfile -t command_json < <(jq -r '.command[]' "$manifest")
+    [[ "${#command_json[@]}" -gt 0 ]] || { abora_error "Adapter manifest has no command: ${manifest}"; exit 1; }
+    plan="$("${command_json[@]}" "$file")" || { abora_error "Language adapter failed: ${selector}"; exit 1; }
+    printf '%s' "$plan"
+}
+
+# Validates a Plan JSON string against the same allowlists do_set/do_toggle/
+# do_package already enforce, so a plan can never do anything an interactive
+# ANIX command couldn't. Never writes state; returns non-zero on any
+# violation and prints every problem found, not just the first.
+validate_plan_json() {
+    local plan="$1"
+    require_command jq
+
+    if ! jq -e . >/dev/null 2>&1 <<<"$plan"; then
+        abora_error "Plan is not valid JSON."
+        return 1
+    fi
+
+    local version=""
+    version="$(jq -r '.planVersion // empty' <<<"$plan")"
+    if [[ "$version" != "$anix_plan_version" ]]; then
+        abora_error "Unsupported plan version: '${version:-missing}' (expected ${anix_plan_version})."
+        return 1
+    fi
+
+    if [[ "$(jq -r '.operations | type' <<<"$plan" 2>/dev/null)" != "array" ]]; then
+        abora_error "Plan is missing an 'operations' array."
+        return 1
+    fi
+
+    local failures=0
+    local count=0
+    count="$(jq '.operations | length' <<<"$plan")"
+    local i=0
+    while [[ "$i" -lt "$count" ]]; do
+        local entry op
+        entry="$(jq -c ".operations[$i]" <<<"$plan")"
+        op="$(jq -r '.op // empty' <<<"$entry")"
+        case "$op" in
+            set)
+                local key
+                key="$(jq -r '.key // empty' <<<"$entry")"
+                case "$key" in
+                    hostname|timezone|keyboard|keyboard.console|keyboard.xkb|desktop|wallpaper|shell|gc.days|garbageCollect.dates|gc.dates) ;;
+                    *) abora_error "operation ${i}: unknown set key '${key}'"; failures=$((failures + 1)) ;;
+                esac
+                [[ "$(jq -r '.value // empty' <<<"$entry")" != "" ]] || { abora_error "operation ${i}: set requires a value"; failures=$((failures + 1)); }
+                ;;
+            enable|disable)
+                local feature
+                feature="$(jq -r '.feature // empty' <<<"$entry")"
+                if ! feature_to_anix_key "$feature" >/dev/null; then
+                    abora_error "operation ${i}: unknown feature '${feature}'"
+                    failures=$((failures + 1))
+                fi
+                ;;
+            package.add|package.remove)
+                local pkg_name
+                pkg_name="$(jq -r '.name // empty' <<<"$entry")"
+                if [[ ! "$pkg_name" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+                    abora_error "operation ${i}: invalid package name '${pkg_name}'"
+                    failures=$((failures + 1))
+                fi
+                ;;
+            *)
+                abora_error "operation ${i}: unknown op '${op}'"
+                failures=$((failures + 1))
+                ;;
+        esac
+        i=$((i + 1))
+    done
+
+    [[ "$failures" -eq 0 ]]
+}
+
+# Applies every operation in a validated plan as one transaction: each op
+# reuses the existing do_set/do_toggle/do_package writers (so validation,
+# desktop-change confirmation, and file formatting stay identical to running
+# those commands by hand), then a single dry-build + confirm + switch closes
+# the transaction instead of one apply per setting.
+apply_plan_json() {
+    local plan="$1"
+    local skip_confirm="${2:-no}"
+
+    validate_plan_json "$plan" || { abora_error "Refusing to apply an invalid plan."; exit 1; }
+
+    local count=0
+    count="$(jq '.operations | length' <<<"$plan")"
+    if [[ "$count" -eq 0 ]]; then
+        abora_warn "Plan has no operations."
+        return 0
+    fi
+
+    abora_banner "ANIX Plan" "$(jq -r '"\(.operations | length) operation(s) from " + (.language // "unknown")' <<<"$plan")"
+
+    local i=0
+    while [[ "$i" -lt "$count" ]]; do
+        local entry op
+        entry="$(jq -c ".operations[$i]" <<<"$plan")"
+        op="$(jq -r '.op' <<<"$entry")"
+        case "$op" in
+            set)
+                do_set "$(jq -r '.key' <<<"$entry")" "$(jq -r '.value' <<<"$entry")"
+                ;;
+            enable)
+                do_toggle true "$(jq -r '.feature' <<<"$entry")"
+                ;;
+            disable)
+                do_toggle false "$(jq -r '.feature' <<<"$entry")"
+                ;;
+            package.add)
+                do_package add "$(jq -r '.name' <<<"$entry")"
+                ;;
+            package.remove)
+                do_package remove "$(jq -r '.name' <<<"$entry")"
+                ;;
+        esac
+        i=$((i + 1))
+    done
+
+    if [[ "$skip_confirm" != "yes" ]] && ! confirm "Apply this plan with 'nixos-rebuild switch'?" "no"; then
+        abora_warn "Plan written to ${anix_file} but not applied — run 'anix apply' when ready."
+        printf '\n'
+        return 0
+    fi
+
+    do_apply
+}
+
+do_run() {
+    local file="${1:-}"
+    local language=""
+    local yes="no"
+    shift || true
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --language) language="${2:-}"; shift 2 ;;
+            --yes|-y) yes="yes"; shift ;;
+            *) abora_error "Unknown option: $1"; exit 1 ;;
+        esac
+    done
+    [[ -n "$file" ]] || { abora_error "Usage: anix run <file> [--language <id>] [--yes]"; exit 1; }
+
+    local plan=""
+    plan="$(plan_from_source_file "$file" "$language")"
+    apply_plan_json "$plan" "$yes"
+}
+
+do_validate_plan() {
+    local file="${1:-}"
+    [[ -n "$file" && -f "$file" ]] || { abora_error "Usage: anix validate-plan <plan.json>"; exit 1; }
+    local plan=""
+    plan="$(cat "$file")"
+    if validate_plan_json "$plan"; then
+        abora_success "Plan is valid: $(jq -r '.operations | length' <<<"$plan") operation(s)."
+        printf '\n'
+    else
+        abora_error "Plan is invalid."
+        exit 1
+    fi
+}
+
+do_apply_plan() {
+    local file="${1:-}"
+    local yes="no"
+    [[ "${2:-}" == "--yes" || "${2:-}" == "-y" ]] && yes="yes"
+    [[ -n "$file" && -f "$file" ]] || { abora_error "Usage: anix apply-plan <plan.json> [--yes]"; exit 1; }
+    apply_plan_json "$(cat "$file")" "$yes"
+}
+
+# Compares a plan (from a source file or a Plan JSON file) against the
+# current anix.nix state and labels each operation ADD, CHANGE, REMOVE, or
+# SAME — read-only, no writes, matching the doc's promised semantics.
+do_diff_plan() {
+    local file="${1:-}"
+    [[ -n "$file" && -f "$file" ]] || { abora_error "Usage: anix diff-plan <file>"; exit 1; }
+    require_command jq
+
+    local plan=""
+    if jq -e . >/dev/null 2>&1 < "$file"; then
+        plan="$(cat "$file")"
+    else
+        plan="$(plan_from_source_file "$file" "")"
+    fi
+    validate_plan_json "$plan" || { abora_error "Refusing to diff an invalid plan."; exit 1; }
+
+    abora_banner "ANIX Plan Diff" "$(jq -r '.language // "unknown"' <<<"$plan")"
+
+    local count=0
+    count="$(jq '.operations | length' <<<"$plan")"
+    local i=0
+    while [[ "$i" -lt "$count" ]]; do
+        local entry op label=""
+        entry="$(jq -c ".operations[$i]" <<<"$plan")"
+        op="$(jq -r '.op' <<<"$entry")"
+        case "$op" in
+            set)
+                local key value current
+                key="$(jq -r '.key' <<<"$entry")"
+                value="$(jq -r '.value' <<<"$entry")"
+                current="$( [[ -f "$anix_file" ]] && read_anix_option "$key" || true )"
+                if [[ -z "$current" ]]; then label="ADD"
+                elif [[ "$current" == "$value" ]]; then label="SAME"
+                else label="CHANGE"; fi
+                printf '  %-7s set %s = "%s"' "$label" "$key" "$value"
+                [[ "$label" == "CHANGE" ]] && printf ' (was "%s")' "$current"
+                printf '\n'
+                ;;
+            enable|disable)
+                local feature wanted current_bool anix_key
+                feature="$(jq -r '.feature' <<<"$entry")"
+                wanted="$([[ "$op" == "enable" ]] && printf 'true' || printf 'false')"
+                current_bool=""
+                if anix_key="$(feature_to_anix_key "$feature")"; then
+                    current_bool="$(read_anix_bool_option "$anix_key")"
+                fi
+                if [[ -z "$current_bool" ]]; then
+                    label="$([[ "$wanted" == "true" ]] && printf 'ADD' || printf 'REMOVE')"
+                elif [[ "$current_bool" == "$wanted" ]]; then
+                    label="SAME"
+                else
+                    label="CHANGE"
+                fi
+                printf '  %-7s %s %s\n' "$label" "$op" "$feature"
+                ;;
+            package.add)
+                local name
+                name="$(jq -r '.name' <<<"$entry")"
+                if [[ -f "$anix_file" ]] && grep -Eq "anix\\.packages = with pkgs; \\[[^]]*(^|[[:space:]])${name}($|[[:space:]])" "$anix_file"; then
+                    label="SAME"
+                else
+                    label="ADD"
+                fi
+                printf '  %-7s package %s\n' "$label" "$name"
+                ;;
+            package.remove)
+                local name
+                name="$(jq -r '.name' <<<"$entry")"
+                printf '  %-7s package %s\n' "REMOVE" "$name"
+                ;;
+        esac
+        i=$((i + 1))
+    done
+    printf '\n'
+}
+
 do_diff() {
     local family="${1:-nix}"
     local profile="${2:-$flake_config_name}"
@@ -2381,6 +2892,21 @@ usage() {
     printf '  %banix apply%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Rebuild the system using the ANIX layer."
     printf '\n'
+    printf '  %banix language list%b / %banix language use <id>%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  See or choose the default frontend for 'anix run' (anix, mako, moducpp, ...)."
+    printf '\n'
+    printf '  %banix run <file> [--language <id>] [--yes]%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Turn a .anix/.mko/.moducpp file into a Plan and apply it as one transaction."
+    printf '\n'
+    printf '  %banix validate-plan <plan.json>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Check a Plan JSON file without touching system state."
+    printf '\n'
+    printf '  %banix apply-plan <plan.json> [--yes]%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Apply a pre-built Plan JSON file as one transaction."
+    printf '\n'
+    printf '  %banix diff-plan <file>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Show ADD/CHANGE/REMOVE/SAME for a source or Plan JSON file against current state."
+    printf '\n'
     printf '  %banix tinypm [status|install|reinstall]%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Manage the TinyPM per-user installation."
     printf '\n'
@@ -2425,6 +2951,11 @@ main() {
         test) shift || true; do_test "$@" ;;
         boot) shift || true; do_boot "$@" ;;
         diff) shift || true; do_diff "$@" ;;
+        language|lang) shift || true; do_language "$@" ;;
+        run) shift || true; do_run "$@" ;;
+        validate-plan) shift || true; do_validate_plan "$@" ;;
+        apply-plan) shift || true; do_apply_plan "$@" ;;
+        diff-plan) shift || true; do_diff_plan "$@" ;;
         switch) shift || true; do_switch "$@" ;;
         rollback) shift || true; do_rollback "$@" ;;
         save) shift || true; do_save "$@" ;;

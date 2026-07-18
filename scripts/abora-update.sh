@@ -24,10 +24,14 @@ flake_config_name="${ABORA_FLAKE_CONFIG_NAME:-abora}"
 fallback_ref="${ABORA_FALLBACK_REF:-}"
 fallback_mode="${ABORA_FALLBACK_MODE:-0}"
 allow_downgrade="${ABORA_ALLOW_DOWNGRADE:-0}"
+pre_alpha_mode="${ABORA_PRE_ALPHA_MODE:-0}"
+pre_alpha_ref="${ABORA_PRE_ALPHA_REF:-main}"
+dry_run="${ABORA_DRY_RUN:-0}"
 effective_ref=""
 effective_ref_reason=""
 update_tmp_files=()
 update_tmp_dirs=()
+suppress_update_failure_message=0
 
 cleanup_update_tmp_files() {
     local file
@@ -49,7 +53,7 @@ drop_upstream_git_metadata() {
 on_update_exit() {
     local rc="$1"
     cleanup_update_tmp_files
-    if [[ "$rc" -ne 0 ]]; then
+    if [[ "$rc" -ne 0 && "$suppress_update_failure_message" -ne 1 ]]; then
         abora_error "Update failed before completion; existing flake.nix was left untouched unless an atomic replacement had already passed validation." >&2 || true
     fi
 }
@@ -150,6 +154,11 @@ resolve_update_ref() {
     fi
 
     case "$channel" in
+        pre-alpha|prealpha)
+            effective_ref="$pre_alpha_ref"
+            effective_ref_reason="pre-alpha build requested explicitly"
+            return 0
+            ;;
         unstable)
             effective_ref="main"
             effective_ref_reason="unstable channel tracks main"
@@ -238,14 +247,14 @@ guard_against_accidental_downgrade() {
 usage() {
     abora_banner "System Update" "Keep your Abora installation up to date."
     printf '  %bCommands%b\n\n' "$ABORA_WHITE" "$ABORA_NC"
-    printf '  %bnixos update%b  /  %bupdate%b  /  %babora-update%b\n' \
-        "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora update%b  /  %bnixos update%b  /  %bupdate%b  /  %babora-update%b\n' \
+        "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Sync the latest Abora files and rebuild the system."
     printf '\n'
-    printf '  %bnixos rollback%b  /  %brollback%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora rollback%b  /  %bnixos rollback%b  /  %brollback%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Roll back to the previous system generation."
     printf '\n'
-    printf '  %bnixos channel%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora channel%b  /  %bnixos channel%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Show the current update channel."
     printf '\n'
     printf '  %bnixos channel list%b\n' "$ABORA_CYAN" "$ABORA_NC"
@@ -256,6 +265,9 @@ usage() {
     printf '\n'
     printf '  %babora fallback --release <tag>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Intentionally downgrade or pin to an older release."
+    printf '\n'
+    printf '  %bsudo abora install pre-alpha [--dry-run] [--ref <git-ref>]%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Install unfinished pre-alpha development builds after an explicit risk prompt."
     printf '\n'
 }
 
@@ -284,6 +296,96 @@ parse_fallback_args() {
     [[ "$fallback_ref" == v* || "$fallback_ref" == "main" ]] || fallback_ref="v${fallback_ref}"
     fallback_mode=1
     allow_downgrade=1
+}
+
+show_pre_alpha_warning() {
+    cat <<'EOF'
+WARNING: ABORA PRE-ALPHA BUILD
+
+Pre-alpha builds are unfinished development versions intended only for testing and gathering feedback.
+
+Installing this build may:
+
+- Prevent your system from booting
+- Break existing applications or configurations
+- Cause data loss
+- Require manual recovery or a complete reinstall
+- Include incomplete, unstable, or missing features
+
+Do not install this build on your primary computer or any system containing important data.
+
+Back up all important files before continuing.
+
+Type `I ACCEPT THE RISK` to continue:
+EOF
+}
+
+confirm_pre_alpha_risk() {
+    local expected="I ACCEPT THE RISK"
+    local answer="${ABORA_PRE_ALPHA_ACCEPT:-}"
+
+    show_pre_alpha_warning
+
+    if [[ -z "$answer" ]]; then
+        if [[ -r /dev/tty ]]; then
+            read -r answer </dev/tty || answer=""
+        elif [[ -t 0 ]]; then
+            read -r answer || answer=""
+        else
+            suppress_update_failure_message=1
+            abora_error "Pre-alpha install requires an interactive confirmation."
+            abora_error "Type exactly: ${expected}"
+            return 1
+        fi
+    fi
+
+    if [[ "$answer" != "$expected" ]]; then
+        suppress_update_failure_message=1
+        abora_error "Confirmation did not match; pre-alpha install cancelled."
+        return 1
+    fi
+}
+
+parse_install_args() {
+    local target="${1:-}"
+    shift || true
+
+    case "$target" in
+        pre-alpha|prealpha)
+            pre_alpha_mode=1
+            ;;
+        help|--help|-h|"")
+            printf 'Usage: sudo abora install pre-alpha [--dry-run] [--ref <git-ref>]\n'
+            exit 0
+            ;;
+        *)
+            abora_error "Unknown install target: ${target}"
+            abora_error "Usage: sudo abora install pre-alpha [--dry-run] [--ref <git-ref>]"
+            exit 1
+            ;;
+    esac
+
+    while [[ "$#" -gt 0 ]]; do
+        case "$1" in
+            --dry-run)
+                dry_run=1
+                shift
+                ;;
+            --ref)
+                pre_alpha_ref="${2:-}"
+                if [[ -z "$pre_alpha_ref" ]]; then
+                    abora_error "Usage: sudo abora install pre-alpha [--dry-run] [--ref <git-ref>]"
+                    exit 1
+                fi
+                shift 2
+                ;;
+            *)
+                abora_error "Unknown install option: $1"
+                abora_error "Usage: sudo abora install pre-alpha [--dry-run] [--ref <git-ref>]"
+                exit 1
+                ;;
+        esac
+    done
 }
 
 # ── Channel subcommand ────────────────────────────────────────────────────────
@@ -481,6 +583,25 @@ release_uses_modern_layout() {
     ! version_lt "$(tag_base_version "$selected_ref")" "3.14"
 }
 
+release_has_anix_languages() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "main" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.0"
+}
+
+# The uncredited wallpaper set (oceandusk.png/bluehorizon.png/
+# astronautwallpaper.png/glacierreflection.png) was replaced with credited
+# PickPik photos partway through the 4.0 line, after v3.14 was already
+# tagged — so this can't reuse release_has_anix_languages's ">= 4.0" cutoff
+# without also requiring a file older 4.0-line checkouts never had.
+release_has_alpine_wallpapers() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "main" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
+}
+
 required_upstream_paths() {
     local selected_ref="${1:-main}"
     cat <<'EOF'
@@ -514,7 +635,6 @@ assets/plymouth/abora.plymouth
 assets/plymouth/abora.script
 assets/Effects/LaunchingAbora.mp3
 assets/wallpapers/collection
-assets/wallpapers/collection/oceandusk.png
 assets/wallpaper-themes
 EOF
 
@@ -525,6 +645,20 @@ nix/pkgs/mango.nix
 nix/pkgs/modularity.nix
 scripts/abora-repair-flake-purity.sh
 assets/mango/config.conf
+EOF
+    fi
+
+    if release_has_anix_languages "$selected_ref"; then
+        cat <<'EOF'
+assets/anix-languages
+nix/pkgs/moducpp-anix.nix
+tools/moducpp-anix
+EOF
+    fi
+
+    if release_has_alpine_wallpapers "$selected_ref"; then
+        cat <<'EOF'
+assets/wallpapers/collection/aurora-lofoten.jpg
 EOF
     fi
 }
@@ -685,10 +819,14 @@ sync_abora_files() {
     copy_first_existing_upstream_file \
         "$abora_dir/default-wallpaper.png" \
         "$upstream_dir/assets/wallpapers/collection/Daytime-MNT.jpg" \
-        "$upstream_dir/assets/wallpapers/collection/bluehorizon.png" \
-        "$upstream_dir/assets/wallpapers/collection/astronautwallpaper.png"
+        "$upstream_dir/assets/wallpapers/collection/tannheimer-mountains.jpg" \
+        "$upstream_dir/assets/wallpapers/collection/titlis-alps.jpg"
     copy_upstream_file "$upstream_dir/scripts/abora-desktop-profiles.sh" "$abora_dir/desktop-profiles.sh"
     copy_upstream_file "$upstream_dir/nix/modules/installed-base.nix" "$abora_dir/installed-base.nix"
+    if [[ -d "$upstream_dir/assets/anix-languages" ]]; then
+        rm -rf "$abora_dir/anix-languages"
+        cp -R "$upstream_dir/assets/anix-languages" "$abora_dir/anix-languages"
+    fi
     copy_upstream_file "$upstream_dir/scripts/abora-session-setup.sh" "$abora_dir/session-setup.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-theme-sync.sh" "$abora_dir/theme-sync.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-update.sh" "$abora_dir/update.sh"
@@ -719,7 +857,7 @@ sync_abora_files() {
     install -Dm0644 "$upstream_background" "$abora_dir/bootloader/background.png"
     install -Dm0644 "$limine_source" "$abora_dir/bootloader/limine-background.png"
     install -Dm0644 "$upstream_theme" "$abora_dir/bootloader/theme.txt"
-    mkdir -p "$abora_dir/wallpapers" "$abora_dir/themes" "$abora_dir/pkgs"
+    mkdir -p "$abora_dir/wallpapers" "$abora_dir/themes" "$abora_dir/pkgs" "$abora_dir/tools"
     cp "$upstream_dir/assets/wallpapers/collection/"* "$abora_dir/wallpapers/"
     cp "$upstream_dir/assets/wallpaper-themes/"* "$abora_dir/themes/"
     if [[ -f "$upstream_dir/nix/pkgs/mango.nix" ]]; then
@@ -727,6 +865,13 @@ sync_abora_files() {
     fi
     if [[ -f "$upstream_dir/nix/pkgs/modularity.nix" ]]; then
         copy_upstream_file "$upstream_dir/nix/pkgs/modularity.nix" "$abora_dir/pkgs/modularity.nix"
+    fi
+    if [[ -f "$upstream_dir/nix/pkgs/moducpp-anix.nix" ]]; then
+        copy_upstream_file "$upstream_dir/nix/pkgs/moducpp-anix.nix" "$abora_dir/pkgs/moducpp-anix.nix"
+    fi
+    if [[ -f "$upstream_dir/tools/moducpp-anix" ]]; then
+        copy_upstream_file "$upstream_dir/tools/moducpp-anix" "$abora_dir/tools/moducpp-anix"
+        chmod 0755 "$abora_dir/tools/moducpp-anix" 2>/dev/null || true
     fi
 
     if [[ ! -f "$abora_dir/apps.list" ]]; then
@@ -908,21 +1053,9 @@ if [[ "${1:-}" == "__test-resolve-fallback" ]]; then
     exit 0
 fi
 
-# ── Pre-flight checks ─────────────────────────────────────────────────────────
-
-if ! command -v nix >/dev/null 2>&1; then
-    abora_error "The nix command is not available on this system."
-    exit 1
-fi
-
-if ! command -v nixos-rebuild >/dev/null 2>&1; then
-    abora_error "The nixos-rebuild command is not available on this system."
-    exit 1
-fi
-
-if [[ ! -d "$config_dir" ]]; then
-    abora_error "NixOS config directory not found: $config_dir"
-    exit 1
+if [[ "${1:-}" == "__test-pre-alpha-confirm" ]]; then
+    confirm_pre_alpha_risk
+    exit 0
 fi
 
 # ── Command routing ───────────────────────────────────────────────────────────
@@ -957,10 +1090,21 @@ case "$command_name" in
 esac
 
 case "${1:-}" in
+    channel)
+        shift
+        handle_channel_command "$@"
+        exit 0
+        ;;
     fallback)
         command_name="fallback"
         shift
         parse_fallback_args "$@"
+        set --
+        ;;
+    install)
+        command_name="install"
+        shift
+        parse_install_args "$@"
         set --
         ;;
 esac
@@ -971,8 +1115,13 @@ if [[ "$#" -gt 0 ]]; then
     exit 1
 fi
 
+if [[ ! -d "$config_dir" && "$dry_run" -ne 1 ]]; then
+    abora_error "NixOS config directory not found: $config_dir"
+    exit 1
+fi
+
 # Re-exec as root, forwarding channel env vars too.
-if [[ "$(id -u)" -ne 0 ]]; then
+if [[ "$(id -u)" -ne 0 && "$dry_run" -ne 1 ]]; then
     run_as_root env \
         ABORA_UPDATE_COMMAND="$command_name" \
         ABORA_SYSTEM_CONFIG="$config_dir" \
@@ -983,6 +1132,9 @@ if [[ "$(id -u)" -ne 0 ]]; then
         ABORA_FALLBACK_REF="$fallback_ref" \
         ABORA_FALLBACK_MODE="$fallback_mode" \
         ABORA_ALLOW_DOWNGRADE="$allow_downgrade" \
+        ABORA_PRE_ALPHA_MODE="$pre_alpha_mode" \
+        ABORA_PRE_ALPHA_REF="$pre_alpha_ref" \
+        ABORA_DRY_RUN="$dry_run" \
         ABORA_UI_LIB="$ui_lib" \
         bash "$script_self" "$@"
     exit 0
@@ -991,6 +1143,11 @@ fi
 # ── Rollback ──────────────────────────────────────────────────────────────────
 
 if [[ "$command_name" == "rollback" ]]; then
+    if ! command -v nixos-rebuild >/dev/null 2>&1; then
+        abora_error "The nixos-rebuild command is not available on this system."
+        exit 1
+    fi
+
     abora_banner "System Rollback" "Reverting to the previous system generation."
     abora_step "Rolling back to the previous generation"
     printf '\n'
@@ -1007,16 +1164,44 @@ current_version="$(installed_version)"
 channel="$(read_channel)"
 if [[ "$fallback_mode" -eq 1 ]]; then
     channel="fallback"
+elif [[ "$pre_alpha_mode" -eq 1 || "$command_name" == "install" ]]; then
+    confirm_pre_alpha_risk || exit 1
+    channel="pre-alpha"
 fi
 
 resolve_update_ref "$channel" "$current_version" || exit 1
 guard_against_accidental_downgrade "$current_version" "$effective_ref" || exit 1
 
-abora_banner "System Update" "Channel: ${channel}  ·  Ref: ${effective_ref}"
+if [[ "$channel" == "pre-alpha" ]]; then
+    abora_banner "Pre-Alpha Install" "One-shot development build · Ref: ${effective_ref}"
+else
+    abora_banner "System Update" "Channel: ${channel}  ·  Ref: ${effective_ref}"
+fi
 printf '  %bCurrent installed version%b  %s\n' "$ABORA_DIM" "$ABORA_NC" "$current_version"
 printf '  %bSelected channel%b           %s\n' "$ABORA_DIM" "$ABORA_NC" "$channel"
 printf '  %bSelected update ref%b        %s\n' "$ABORA_DIM" "$ABORA_NC" "$effective_ref"
 printf '  %bReason%b                     %s\n\n' "$ABORA_DIM" "$ABORA_NC" "$effective_ref_reason"
+
+if [[ "$dry_run" -eq 1 ]]; then
+    abora_success "Dry run complete. No files were changed and no rebuild was started."
+    printf '\n'
+    exit 0
+fi
+
+if ! command -v nix >/dev/null 2>&1; then
+    abora_error "The nix command is not available on this system."
+    exit 1
+fi
+
+if ! command -v nixos-rebuild >/dev/null 2>&1; then
+    abora_error "The nixos-rebuild command is not available on this system."
+    exit 1
+fi
+
+if [[ ! -d "$config_dir" ]]; then
+    abora_error "NixOS config directory not found: $config_dir"
+    exit 1
+fi
 
 if [[ -x "$config_dir/abora/anix.sh" ]]; then
     if confirm "Save a local ANIX snapshot before updating?"; then

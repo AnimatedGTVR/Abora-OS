@@ -12,10 +12,10 @@ let
   bundledWallpaperNames = [
     "Daytime-MNT.jpg"
     "NightTime-MNT.png"
-    "oceandusk.png"
-    "bluehorizon.png"
-    "astronautwallpaper.png"
-    "glacierreflection.png"
+    "alpine-glacier.jpg"
+    "tannheimer-mountains.jpg"
+    "titlis-alps.jpg"
+    "aurora-lofoten.jpg"
   ];
   discoveredWallpaperNames =
     builtins.attrNames (builtins.readDir wallpaperDir);
@@ -126,6 +126,27 @@ in
       description = "Install disk for the Limine bootloader (e.g. /dev/sda, /dev/nvme0n1).";
     };
 
+    gpu = lib.mkOption {
+      type = lib.types.enum [ "nouveau" "nvidia" "nvidia-open" "amdgpu" "intel" "none" ];
+      default = "none";
+      description = ''
+        GPU driver selection. This module only accepts a resolved, concrete
+        value — pure Nix evaluation cannot safely probe real hardware, so
+        detecting "auto" happens one layer up, in the installer or
+        `abora config set gpu auto`, both of which run lspci on the actual
+        target machine and write the resolved value here.
+
+        - nouveau: open-source NVIDIA driver (the safe default for NVIDIA
+          hardware, since it needs no license acceptance).
+        - nvidia: proprietary NVIDIA driver.
+        - nvidia-open: NVIDIA's open-source kernel modules (Turing and newer GPUs).
+        - amdgpu: open-source AMD driver (also the kernel default; setting it
+          explicitly just makes the choice visible to `abora config`).
+        - intel: open-source Intel driver (also already the kernel default).
+        - none: skip Abora's GPU wiring entirely; configure hardware.* yourself.
+      '';
+    };
+
     stateVersion = lib.mkOption {
       type    = lib.types.str;
       default = "26.05";
@@ -176,6 +197,29 @@ in
           hashedPassword = cfg.user.hashedPassword;
         };
       }
+
+      # ── GPU ────────────────────────────────────────────────────────────
+      # amdgpu and intel (i915/xe) are already the kernel's own default
+      # drivers, so those two branches exist mainly to make the choice
+      # explicit to `abora config get gpu` rather than to change behavior.
+      (lib.mkIf (cfg.gpu == "nouveau") {
+        services.xserver.videoDrivers = lib.mkDefault [ "nouveau" ];
+      })
+      (lib.mkIf (cfg.gpu == "nvidia" || cfg.gpu == "nvidia-open") {
+        services.xserver.videoDrivers = lib.mkDefault [ "nvidia" ];
+        hardware.nvidia = {
+          modesetting.enable = true;
+          open = cfg.gpu == "nvidia-open";
+          nvidiaSettings = true;
+          package = config.boot.kernelPackages.nvidiaPackages.stable;
+        };
+      })
+      (lib.mkIf (cfg.gpu == "amdgpu") {
+        services.xserver.videoDrivers = lib.mkDefault [ "amdgpu" ];
+      })
+      (lib.mkIf (cfg.gpu == "intel") {
+        services.xserver.videoDrivers = lib.mkDefault [ "modesetting" ];
+      })
 
       # ── Bootloader ─────────────────────────────────────────────────────
       (lib.mkIf (cfg.disk != null) {

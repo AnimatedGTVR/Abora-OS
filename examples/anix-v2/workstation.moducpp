@@ -1,0 +1,11 @@
+add ANIX;
+
+int main() {
+    ANIX::Plan plan;
+    plan.Set("hostname", "everest-workstation");
+    plan.Enable("bluetooth");
+    plan.Package("firefox");
+    plan.Package("git");
+    plan.Finish();
+    return 0;
+}

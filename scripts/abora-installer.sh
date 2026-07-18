@@ -26,6 +26,7 @@ desktop_profile="cosmic"
 desktop_label="COSMIC"
 desktop_variant_id="cosmic"
 wallpaper_name="Daytime-MNT.jpg"
+gpu_value="auto"
 starter_apps_bundle="favorites"
 starter_apps_label="Fan Favorites"
 install_apps_during_setup="${ABORA_INSTALL_APPS_DURING_SETUP:-no}"
@@ -115,7 +116,7 @@ _init_gum
 
 # ── Abora TUI engine ───────────────────────────────────────────────────────────
 
-_TABS=("Language" "Network" "Identity" "Desktop" "Apps" "Options" "Preflight" "Disk" "Confirm")
+_TABS=("Language" "Network" "Identity" "Desktop" "Apps" "Options" "GPU" "Preflight" "Disk" "Confirm")
 
 draw_logo() {
     printf '  %bABORA OS%b  %b▸%b  %bEVEREST 4.0%b\n' \
@@ -423,6 +424,68 @@ apply_language_defaults() {
     esac
 }
 
+valid_gpus=(nouveau nvidia nvidia-open amdgpu intel none)
+
+# Detect the primary GPU vendor via lspci and resolve it to a concrete
+# abora.gpu value. Never resolves to the proprietary "nvidia" driver on its
+# own — NVIDIA hardware resolves to "nouveau" (open-source, no license to
+# accept) unless the user explicitly picks "nvidia" or "nvidia-open" in
+# step_gpu.
+detect_gpu() {
+    local gpu_line=""
+    if command -v lspci >/dev/null 2>&1; then
+        gpu_line="$(lspci 2>/dev/null | grep -Ei 'VGA compatible controller|3D controller|Display controller' | head -n1)"
+    fi
+
+    case "$gpu_line" in
+        *NVIDIA*|*nvidia*) printf 'nouveau\n' ;;
+        *AMD*|*ATI*|*amd*) printf 'amdgpu\n' ;;
+        *Intel*|*intel*)   printf 'intel\n' ;;
+        *)                 printf 'none\n' ;;
+    esac
+}
+
+# Render the raw NixOS config lines for the selected GPU driver. Kept in
+# sync with nix/modules/abora-options.nix's abora.gpu handling — this is
+# only needed here because the installer writes abora-local.nix as plain
+# NixOS options rather than through the abora.* options module.
+gpu_config_block() {
+    local gpu="$1"
+    case "$gpu" in
+        nouveau)
+            cat <<'EOF'
+  services.xserver.videoDrivers = lib.mkDefault [ "nouveau" ];
+EOF
+            ;;
+        nvidia|nvidia-open)
+            local open_flag="false"
+            [[ "$gpu" == "nvidia-open" ]] && open_flag="true"
+            cat <<EOF
+  services.xserver.videoDrivers = lib.mkDefault [ "nvidia" ];
+  hardware.nvidia = {
+    modesetting.enable = true;
+    open = ${open_flag};
+    nvidiaSettings = true;
+    package = config.boot.kernelPackages.nvidiaPackages.stable;
+  };
+EOF
+            ;;
+        amdgpu)
+            cat <<'EOF'
+  services.xserver.videoDrivers = lib.mkDefault [ "amdgpu" ];
+EOF
+            ;;
+        intel)
+            cat <<'EOF'
+  services.xserver.videoDrivers = lib.mkDefault [ "modesetting" ];
+EOF
+            ;;
+        *)
+            : # none / unrecognised — leave NixOS's own defaults in place.
+            ;;
+    esac
+}
+
 detect_defaults() {
     local d
     d="$(timedatectl show --property=Timezone --value 2>/dev/null || true)"
@@ -431,6 +494,7 @@ detect_defaults() {
     if [[ "$d" =~ ^[a-z][a-z0-9_-]*$ ]]; then
         keyboard_value="$d"; sync_xkb_layout
     fi
+    gpu_value="$(detect_gpu)"
 }
 
 refresh_github_identity() {
@@ -515,6 +579,8 @@ check_install_environment() {
         /etc/abora/mango/config.conf
         /etc/abora/pkgs/mango.nix
         /etc/abora/pkgs/modularity.nix
+        /etc/abora/pkgs/moducpp-anix.nix
+        /etc/abora/tools/moducpp-anix
         /etc/abora/installed-base.nix
         /etc/abora/anix.sh
         /etc/abora/anix-module.nix
@@ -979,12 +1045,64 @@ step_options() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  STEP 7 — PREFLIGHT
+#  STEP 7 — GPU
+# ═══════════════════════════════════════════════════════════════════════════════
+
+step_gpu() {
+    tab_header 7
+
+    local detected="$gpu_value"
+    msg "Detected GPU driver: ${detected}"
+    printf '\n'
+
+    case "$detected" in
+        nouveau)
+            menu "NVIDIA GPU detected" \
+                "Use open-source (nouveau)|Recommended — no license to accept, works out of the box" \
+                "Use proprietary (nvidia)|Best performance/features on most NVIDIA cards" \
+                "Use open kernel modules (nvidia-open)|NVIDIA's open-source modules — Turing (2018+) or newer only"
+            case "$MENU_RESULT" in
+                0) gpu_value="nouveau" ;;
+                1) gpu_value="nvidia" ;;
+                2) gpu_value="nvidia-open" ;;
+            esac
+            ;;
+        amdgpu)
+            ok "AMD GPU detected — amdgpu (open-source) will be used."
+            gpu_value="amdgpu"
+            ;;
+        intel)
+            ok "Intel GPU detected — the open-source Intel driver will be used."
+            gpu_value="intel"
+            ;;
+        *)
+            warn "No GPU vendor was detected automatically."
+            menu "GPU driver" \
+                "None (kernel default)|Let NixOS pick a driver automatically" \
+                "NVIDIA (nouveau, open-source)" \
+                "NVIDIA (proprietary)" \
+                "NVIDIA (open kernel modules)" \
+                "AMD (amdgpu)" \
+                "Intel"
+            case "$MENU_RESULT" in
+                0) gpu_value="none" ;;
+                1) gpu_value="nouveau" ;;
+                2) gpu_value="nvidia" ;;
+                3) gpu_value="nvidia-open" ;;
+                4) gpu_value="amdgpu" ;;
+                5) gpu_value="intel" ;;
+            esac
+            ;;
+    esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  STEP 8 — PREFLIGHT
 # ═══════════════════════════════════════════════════════════════════════════════
 
 step_preflight() {
     while true; do
-        tab_header 7
+        tab_header 8
         printf '  %bInstall Preflight%b\n\n' "${B}${CS}" "$R"
         msg "Checking tools, installer assets, Nix paths, and selected values."
         printf '\n'
@@ -1008,11 +1126,11 @@ step_preflight() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  STEP 8 — DISK
+#  STEP 9 — DISK
 # ═══════════════════════════════════════════════════════════════════════════════
 
 step_disk() {
-    tab_header 8
+    tab_header 9
     warn "All data on the selected disk will be permanently erased!"
     printf '\n'
 
@@ -1053,6 +1171,7 @@ _print_summary() {
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Timezone:" "$R" "$timezone_value"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Keyboard:" "$R" "${keyboard_value} / ${xkb_layout_value}"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Desktop:"  "$R" "${desktop_label} (${desktop_profile})"
+    printf '  %b  %-16s%b  %s\n' "${D}${CI}" "GPU:"      "$R" "$gpu_value"
     if [[ "$starter_apps_bundle" == "none" ]]; then
         printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Apps:" "$R" "$starter_apps_label"
     elif [[ "$install_apps_during_setup" == "yes" ]]; then
@@ -1068,7 +1187,7 @@ _print_summary() {
 
 step_confirm() {
     while true; do
-        tab_header 9
+        tab_header 10
         printf '  %bInstallation Summary%b\n\n' "${B}${CS}" "$R"
         _print_summary
 
@@ -1334,7 +1453,9 @@ write_branding_assets() {
              "${root}/etc/nixos/abora/pkgs" \
              "${root}/etc/nixos/abora/wallpapers" \
              "${root}/etc/nixos/abora/themes" \
-             "${root}/etc/nixos/abora/effects"
+             "${root}/etc/nixos/abora/effects" \
+             "${root}/etc/nixos/abora/anix-languages" \
+             "${root}/etc/nixos/abora/tools"
 
     local f
     for f in VERSION title.txt abora.sh ui.sh config.sh desktop.sh doctor.sh \
@@ -1352,6 +1473,8 @@ write_branding_assets() {
     install_mango_config_asset "$root"
     cp_required /etc/abora/pkgs/mango.nix          "${root}/etc/nixos/abora/pkgs/mango.nix"
     cp_required /etc/abora/pkgs/modularity.nix     "${root}/etc/nixos/abora/pkgs/modularity.nix"
+    cp_required /etc/abora/pkgs/moducpp-anix.nix   "${root}/etc/nixos/abora/pkgs/moducpp-anix.nix"
+    cp_required /etc/abora/tools/moducpp-anix      "${root}/etc/nixos/abora/tools/moducpp-anix"
     cp_required /etc/abora/anix-module.nix         "${root}/etc/nixos/abora/anix-module.nix"
     cp_required /etc/abora/abora-options.nix       "${root}/etc/nixos/abora/abora-options.nix"
 
@@ -1360,6 +1483,9 @@ write_branding_assets() {
         cp /etc/abora/effects/v3StartingAbora.mp3 "${root}/etc/nixos/abora/effects/v3StartingAbora.mp3"
 
     cp -a /etc/abora/desktops/. "${root}/etc/nixos/abora/desktops/"
+    if [[ -d /etc/abora/anix-languages ]]; then
+        cp -a /etc/abora/anix-languages/. "${root}/etc/nixos/abora/anix-languages/"
+    fi
     rewrite_installed_mango_config_paths "$root"
 
     if [[ -e /etc/abora/tinypm ]]; then
@@ -1430,6 +1556,8 @@ generate_nixos_config() {
     xkb_nix="$(nix_string "$xkb_layout_value")"
     desktop_nix="$(nix_string "$desktop_profile")"
     wallpaper_nix="$(nix_string "$wallpaper_name")"
+    local gpu_block
+    gpu_block="$(gpu_config_block "$gpu_value")"
 
     # Keep starter apps out of the default install closure. The selected IDs are
     # saved for abora-apps after first boot; only explicitly requested slow-path
@@ -1486,7 +1614,7 @@ ${anix_import_line}
 EOF
 
     cat > "${cfgdir}/abora-local.nix" <<EOF
-{ pkgs, lib, ... }:
+{ pkgs, lib, config, ... }:
 {
   system.nixos.variantName = "Abora OS EVEREST 4.0 ${desktop_label} Edition";
   system.nixos.variant_id = "${desktop_variant_id}";
@@ -1518,6 +1646,8 @@ EOF
   console.keyMap = "${keyboard_nix}";
 
 ${desktop_block}
+
+${gpu_block}
 
   users.users."${user_nix}" = {
     isNormalUser = true;
@@ -2316,8 +2446,9 @@ main() {
         step_desktop
         step_apps
         step_options
+        step_gpu
 
-        tab_header 9
+        tab_header 10
         printf '  %bReconfiguration Summary%b\n\n' "${B}${CS}" "$R"
         _print_summary
 
@@ -2335,6 +2466,7 @@ main() {
         step_desktop
         step_apps
         step_options
+        step_gpu
         step_preflight
         step_disk
         step_confirm

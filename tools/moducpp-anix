@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source_file="${1:-}"
+[[ -f "$source_file" ]] || { printf 'moducpp-anix: source file not found: %s\n' "$source_file" >&2; exit 1; }
+
+compiler="${CXX:-c++}"
+command -v "$compiler" >/dev/null 2>&1 || { printf 'moducpp-anix: C++ compiler not found: %s\n' "$compiler" >&2; exit 1; }
+
+work_dir="$(mktemp -d "${TMPDIR:-/tmp}/moducpp-anix.XXXXXX")"
+trap 'rm -rf "$work_dir"' EXIT
+generated="$work_dir/plan.cpp"
+binary="$work_dir/plan"
+header="$work_dir/AnixPlanScriptApi.h"
+
+# The ANIX plan API header is embedded here rather than resolved via a
+# repo-relative -I path, so this script keeps working once installed
+# standalone (e.g. ~/.local/bin/moducpp-anix) with no Modularity checkout
+# nearby — the failure mode that shipped originally. Keep this in sync with
+# include/AnixPlanScriptApi.h in the Modularity repo.
+cat > "$header" <<'ANIX_PLAN_API_HEADER'
+#pragma once
+
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+
+namespace ANIX {
+
+class Plan {
+public:
+    void Set(const std::string& key, const std::string& value) {
+        operations_.push_back("{\"op\":\"set\",\"key\":" + Quote(key) + ",\"value\":" + Quote(value) + "}");
+    }
+
+    void Enable(const std::string& feature) {
+        operations_.push_back("{\"op\":\"enable\",\"feature\":" + Quote(feature) + "}");
+    }
+
+    void Disable(const std::string& feature) {
+        operations_.push_back("{\"op\":\"disable\",\"feature\":" + Quote(feature) + "}");
+    }
+
+    void Package(const std::string& name) {
+        operations_.push_back("{\"op\":\"package.add\",\"name\":" + Quote(name) + "}");
+    }
+
+    void RemovePackage(const std::string& name) {
+        operations_.push_back("{\"op\":\"package.remove\",\"name\":" + Quote(name) + "}");
+    }
+
+    std::string Json() const {
+        std::ostringstream out;
+        out << "{\"planVersion\":1,\"language\":\"moducpp\",\"operations\":[";
+        for (std::size_t i = 0; i < operations_.size(); ++i) {
+            if (i != 0) out << ',';
+            out << operations_[i];
+        }
+        out << "]}";
+        return out.str();
+    }
+
+    void Finish() const { std::cout << Json() << '\n'; }
+
+private:
+    static std::string Quote(const std::string& value) {
+        std::ostringstream out;
+        out << '"';
+        for (char c : value) {
+            switch (c) {
+                case '"': out << "\\\""; break;
+                case '\\': out << "\\\\"; break;
+                case '\n': out << "\\n"; break;
+                case '\r': out << "\\r"; break;
+                case '\t': out << "\\t"; break;
+                default:
+                    if (static_cast<unsigned char>(c) < 0x20) out << '?';
+                    else out << c;
+            }
+        }
+        out << '"';
+        return out.str();
+    }
+
+    std::vector<std::string> operations_;
+};
+
+} // namespace ANIX
+ANIX_PLAN_API_HEADER
+
+# ANIX configuration scripts use ModuCPP's explicit module form. Everything
+# else is normal C++ pass-through, matching ModuCPP's documented language
+# behavior without loading the game engine runtime.
+awk '
+  /^[[:space:]]*add[[:space:]]+ANIX[[:space:]]*;[[:space:]]*$/ {
+    print "#include \"AnixPlanScriptApi.h\""
+    next
+  }
+  { print }
+' "$source_file" > "$generated"
+
+if ! grep -q 'AnixPlanScriptApi.h' "$generated"; then
+    printf 'moducpp-anix: script must begin with: add ANIX;\n' >&2
+    exit 1
+fi
+
+"$compiler" -std=c++14 -O2 -Wall -Wextra -pedantic -I"$work_dir" "$generated" -o "$binary"
+exec "$binary"

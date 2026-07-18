@@ -76,7 +76,7 @@ write_option() {
 show_config() {
     require_local_module
 
-    local hostname timezone kb_console kb_xkb user_name desktop wallpaper disk state_ver
+    local hostname timezone kb_console kb_xkb user_name desktop wallpaper disk gpu state_ver
     hostname="$(read_option "hostname")"
     timezone="$(read_option "timezone")"
     kb_console="$(read_option "keyboard.console")"
@@ -85,6 +85,7 @@ show_config() {
     desktop="$(read_option "desktop")"
     wallpaper="$(read_option "wallpaper")"
     disk="$(read_option "disk")"
+    gpu="$(read_option "gpu")"
     state_ver="$(read_option "stateVersion")"
 
     if ! is_options_format; then
@@ -108,6 +109,7 @@ show_config() {
         "$ABORA_DIM" "${kb_xkb:-—}" "$ABORA_NC"
     abora_kv "desktop"       "${desktop:-—}"
     abora_kv "wallpaper"     "${wallpaper:-—}"
+    abora_kv "gpu"           "${gpu:-—}"
     abora_kv "user"          "${user_name:-—}"
     abora_kv_faint "disk"    "${disk:-—}"
     abora_kv_faint "state version" "${state_ver:-—}"
@@ -137,10 +139,10 @@ wallpaper_candidates() {
     printf '%s\n' \
         Daytime-MNT.jpg \
         NightTime-MNT.png \
-        oceandusk.png \
-        bluehorizon.png \
-        astronautwallpaper.png \
-        glacierreflection.png
+        alpine-glacier.jpg \
+        tannheimer-mountains.jpg \
+        titlis-alps.jpg \
+        aurora-lofoten.jpg
 }
 
 validate_wallpaper() {
@@ -153,6 +155,36 @@ validate_wallpaper() {
     printf '  %bAvailable wallpapers:%b\n' "$ABORA_DIM" "$ABORA_NC"
     wallpaper_candidates | sed 's/^/    /'
     printf '\n'
+    exit 1
+}
+
+valid_gpus=(nouveau nvidia nvidia-open amdgpu intel none)
+
+# Detect the primary GPU vendor via lspci and resolve it to a concrete
+# abora.gpu value. Never resolves to the proprietary "nvidia" driver on its
+# own — NVIDIA hardware resolves to "nouveau" (open-source, no license to
+# accept) unless the caller explicitly asks for "nvidia" or "nvidia-open".
+detect_gpu() {
+    local gpu_line=""
+    if command -v lspci >/dev/null 2>&1; then
+        gpu_line="$(lspci 2>/dev/null | grep -Ei 'VGA compatible controller|3D controller|Display controller' | head -n1)"
+    fi
+
+    case "$gpu_line" in
+        *NVIDIA*|*nvidia*) printf 'nouveau\n' ;;
+        *AMD*|*ATI*|*amd*) printf 'amdgpu\n' ;;
+        *Intel*|*intel*)   printf 'intel\n' ;;
+        *)                 printf 'none\n' ;;
+    esac
+}
+
+validate_gpu() {
+    local candidate="$1"
+    for valid in "${valid_gpus[@]}"; do
+        [[ "$candidate" == "$valid" ]] && return 0
+    done
+    abora_error "Unknown gpu: '${candidate}'"
+    printf '  %bValid options:%b %s auto\n\n' "$ABORA_DIM" "$ABORA_NC" "${valid_gpus[*]}"
     exit 1
 }
 
@@ -218,9 +250,16 @@ do_set() {
         wallpaper)
             validate_wallpaper "$value"
             ;;
+        gpu)
+            if [[ "$value" == "auto" ]]; then
+                value="$(detect_gpu)"
+                abora_dim_line "Detected GPU vendor → resolved to '${value}'."
+            fi
+            validate_gpu "$value"
+            ;;
         *)
             abora_error "Unknown key: '${key}'"
-            printf '  %bSettable keys:%b  hostname  timezone  keyboard  keyboard.xkb  desktop  wallpaper\n\n' \
+            printf '  %bSettable keys:%b  hostname  timezone  keyboard  keyboard.xkb  desktop  wallpaper  gpu\n\n' \
                 "$ABORA_DIM" "$ABORA_NC"
             exit 1
             ;;
@@ -270,6 +309,7 @@ usage() {
     printf '  %babora config set keyboard   <value>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     printf '  %babora config set desktop    <value>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     printf '  %babora config set wallpaper  <value>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora config set gpu        <value>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Update a setting in abora-local.nix."
     printf '\n'
 
@@ -285,6 +325,7 @@ usage() {
     abora_dim_line "  keyboard.xkb   Graphical keyboard layout"
     abora_dim_line "  desktop        Desktop environment (e.g. gnome, hyprland, plasma)"
     abora_dim_line "  wallpaper      Shipped Abora wallpaper filename"
+    abora_dim_line "  gpu            GPU driver: nouveau, nvidia, nvidia-open, amdgpu, intel, none, or auto"
     printf '\n'
 }
 

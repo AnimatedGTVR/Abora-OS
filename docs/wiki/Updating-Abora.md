@@ -7,7 +7,7 @@ Abora uses a flake-based update flow for installed systems.
 On an installed Abora system, run:
 
 ```sh
-sudo nixos update
+sudo abora update
 ```
 
 These aliases run the same updater:
@@ -16,6 +16,7 @@ These aliases run the same updater:
 update
 upgrade
 abora-update
+nixos update
 ```
 
 ## What The Updater Does
@@ -34,24 +35,50 @@ The update helper:
 Show the current channel:
 
 ```sh
-nixos channel
+abora channel
 ```
 
 List channels:
 
 ```sh
-nixos channel list
+abora channel list
 ```
 
 Switch channels:
 
 ```sh
-sudo nixos channel set stable
-sudo nixos channel set unstable
+sudo abora channel set stable
+sudo abora channel set demo
+sudo abora channel set unstable
 ```
 
 - `stable` tracks the latest tagged Abora release
+- `demo` tracks tagged demo/dev builds for the installed release line
 - `unstable` tracks the `main` branch
+
+## Pre-Alpha Builds
+
+Pre-alpha builds are unfinished development versions intended for testing and feedback only. They may fail to boot, break applications, lose data, or require manual recovery.
+
+Preview the selected pre-alpha ref without changing the system:
+
+```sh
+sudo abora install pre-alpha --dry-run
+```
+
+Install the default pre-alpha ref after the risk prompt:
+
+```sh
+sudo abora install pre-alpha
+```
+
+Install a specific branch or tag:
+
+```sh
+sudo abora install pre-alpha --ref my-test-branch
+```
+
+This is a one-shot path. It does not save your update channel as pre-alpha, and it requires typing `I ACCEPT THE RISK` exactly.
 
 ## Safer Update Habit
 
@@ -60,7 +87,7 @@ Before a larger update:
 ```sh
 anix save "before update"
 anix status
-sudo nixos update
+sudo abora update
 ```
 
 ## Rollback
@@ -68,7 +95,7 @@ sudo nixos update
 If the update is not good:
 
 ```sh
-sudo nixos rollback
+sudo abora rollback
 ```
 
 Or with ANIX:

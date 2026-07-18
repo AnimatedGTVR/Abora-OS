@@ -194,40 +194,40 @@ let
         <scolor>#0a0e1a</scolor>
       </wallpaper>
       <wallpaper deleted="false">
-        <name>Ocean Dusk</name>
-        <filename>/run/current-system/sw/share/backgrounds/abora/oceandusk.png</filename>
-        <filename-dark>/run/current-system/sw/share/backgrounds/abora/oceandusk.png</filename-dark>
+        <name>Alpine Glacier</name>
+        <filename>/run/current-system/sw/share/backgrounds/abora/alpine-glacier.jpg</filename>
+        <filename-dark>/run/current-system/sw/share/backgrounds/abora/alpine-glacier.jpg</filename-dark>
         <options>zoom</options>
         <shade_type>solid</shade_type>
-        <pcolor>#07111f</pcolor>
-        <scolor>#07111f</scolor>
+        <pcolor>#1a1030</pcolor>
+        <scolor>#1a1030</scolor>
       </wallpaper>
       <wallpaper deleted="false">
-        <name>Blue Horizon</name>
-        <filename>/run/current-system/sw/share/backgrounds/abora/bluehorizon.png</filename>
-        <filename-dark>/run/current-system/sw/share/backgrounds/abora/bluehorizon.png</filename-dark>
+        <name>Tannheimer Mountains</name>
+        <filename>/run/current-system/sw/share/backgrounds/abora/tannheimer-mountains.jpg</filename>
+        <filename-dark>/run/current-system/sw/share/backgrounds/abora/tannheimer-mountains.jpg</filename-dark>
         <options>zoom</options>
         <shade_type>solid</shade_type>
-        <pcolor>#081223</pcolor>
-        <scolor>#081223</scolor>
+        <pcolor>#0b3a63</pcolor>
+        <scolor>#0b3a63</scolor>
       </wallpaper>
       <wallpaper deleted="false">
-        <name>Astronaut Wallpaper</name>
-        <filename>/run/current-system/sw/share/backgrounds/abora/astronautwallpaper.png</filename>
-        <filename-dark>/run/current-system/sw/share/backgrounds/abora/astronautwallpaper.png</filename-dark>
+        <name>Titlis Alps</name>
+        <filename>/run/current-system/sw/share/backgrounds/abora/titlis-alps.jpg</filename>
+        <filename-dark>/run/current-system/sw/share/backgrounds/abora/titlis-alps.jpg</filename-dark>
         <options>zoom</options>
         <shade_type>solid</shade_type>
-        <pcolor>#0b1020</pcolor>
-        <scolor>#0b1020</scolor>
+        <pcolor>#0e4a7a</pcolor>
+        <scolor>#0e4a7a</scolor>
       </wallpaper>
       <wallpaper deleted="false">
-        <name>Glacier Reflection</name>
-        <filename>/run/current-system/sw/share/backgrounds/abora/glacierreflection.png</filename>
-        <filename-dark>/run/current-system/sw/share/backgrounds/abora/glacierreflection.png</filename-dark>
+        <name>Aurora, Lofoten</name>
+        <filename>/run/current-system/sw/share/backgrounds/abora/aurora-lofoten.jpg</filename>
+        <filename-dark>/run/current-system/sw/share/backgrounds/abora/aurora-lofoten.jpg</filename-dark>
         <options>zoom</options>
         <shade_type>solid</shade_type>
-        <pcolor>#0b1625</pcolor>
-        <scolor>#0b1625</scolor>
+        <pcolor>#081625</pcolor>
+        <scolor>#081625</scolor>
       </wallpaper>
     </wallpapers>
     EOF
@@ -398,6 +398,8 @@ in
     fastfetch   # shown in the live welcome banner
     gum         # charmbracelet TUI toolkit — used by the installer
     htop
+    jq          # ANIX v2 plan validation/execution (anix run/validate-plan/apply-plan)
+    moducpp-anix # ANIX v2 ModuCPP frontend — standalone, no Modularity checkout needed; bundles its own C++ compiler
     kdePackages.konsole
     newt        # provides nmtui for Wi-Fi setup
     xterm       # tiny fallback so the Start Abora launcher can always open
@@ -580,8 +582,15 @@ in
       "abora/installed-base.nix".source = ../modules/installed-base.nix;
       "abora/pkgs/mango.nix".source = ../pkgs/mango.nix;
       "abora/pkgs/modularity.nix".source = ../pkgs/modularity.nix;
+      "abora/pkgs/moducpp-anix.nix".source = ../pkgs/moducpp-anix.nix;
+      "abora/tools/moducpp-anix" = {
+        source = ../../tools/moducpp-anix;
+        mode = "0755";
+      };
       "abora/tinypm".source = tinypmDir;
       "abora/docs".source = ../../docs;
+      "abora/anix-languages".source = ../../assets/anix-languages;
+      "anix/languages".source = ../../assets/anix-languages;
       "abora/abora-options.nix".source  = ../modules/abora-options.nix;
       "abora/ui.sh" = {
         source = ../../scripts/abora-ui.sh;

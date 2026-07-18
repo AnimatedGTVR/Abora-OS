@@ -41,9 +41,12 @@ This does not replace a real Abora boot, but it catches obvious problems:
 - older BIOS system if available
 - NVMe storage
 - SATA SSD or HDD
-- Intel graphics
-- AMD graphics
-- NVIDIA graphics if available
+- Intel graphics (driver: `intel`, open-source, kernel default)
+- AMD graphics (driver: `amdgpu`, open-source, kernel default)
+- NVIDIA graphics if available — the installer's GPU step (and `abora config
+  set gpu`) offers `nouveau` (open-source, default), `nvidia` (proprietary),
+  and `nvidia-open` (NVIDIA's open kernel modules, Turing/2018+ only). Test
+  boot graphics, suspend, and multi-monitor behavior on whichever one you pick.
 - Wi-Fi laptop
 - Bluetooth laptop
 
@@ -94,7 +97,7 @@ This does not replace a real Abora boot, but it catches obvious problems:
 - `abora desktop list` shows supported desktop profiles
 - `abora config` shows hostname, timezone, keyboard, desktop, wallpaper, user, disk, and state version
 - `grab`, `search`, `term`, `start`, and `supdate` are available
-- `sudo nixos update` works
+- `sudo abora update` works
 - rollback works if an update is tested
 - default wallpaper is applied
 - dark mode defaults are applied for the chosen desktop

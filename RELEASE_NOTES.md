@@ -1,26 +1,69 @@
-# Abora OS DENALI 3.14
+# Abora OS EVEREST 4.0
 
-**DENALI 3.14 is the release where Abora becomes a real operating system.**
+**EVEREST 4.0 is the multi-edition release: five ready-made ISOs, a second-generation ANIX with pluggable configuration languages, and real GPU driver support.**
 
-DENALI 3.14 ships a rebuilt installer, a full OS identity, 21 desktop environments, ANIX v1, TinyPM v4, and Modularity — all on top of the NixOS foundation that v2 laid down. If you have been waiting for the right time to try Abora, this is it.
+EVEREST 4.0 builds on the DENALI 3.14 foundation — the rebuilt installer, 23 desktop environments, and app catalog are all still here — and adds edition-based ISOs, ANIX v2, and first-class NVIDIA/AMD/Intel driver selection.
 
 ---
 
 ## What's New
 
-### Installer — rebuilt from the ground up
+### Multi-edition ISOs
 
-The installer is now an Omarchy-inspired terminal UI with a large Abora wordmark header, compact boxed fields, and numbered menus. It is calmer, faster to read, and safer when things go wrong.
+Instead of one general-purpose ISO, EVEREST 4.0 ships five editions, each defaulting to a different desktop so the download matches what you actually want to boot into:
 
-- Config is validated before `nixos-install` — bad configs fail early with a clear message
-- Live install progress with a log panel and elapsed timer
-- Failed installs drop to a live shell with `/tmp/abora-install.log` and the full error context
-- Bootloader files are verified on disk before the installer declares success
-- QEMU installs auto-power off and tell you to run `make qemu-disk` to boot the installed system
+| Edition | Default desktop |
+|---|---|
+| Cosmic | COSMIC |
+| Hyprland | Hyprland |
+| GNOME | GNOME |
+| KDE | Plasma |
+| Other | Console-first, pick any of the 23 profiles at install |
 
-### 22 Desktop Environments
+Every edition still installs the full desktop matrix — the edition just decides the ISO's live-session default. Build every edition for release validation:
 
-Choose your desktop at install time from the full supported matrix:
+```sh
+make iso-all
+```
+
+### GPU driver support
+
+Abora now configures your graphics driver instead of leaving NVIDIA on whatever NixOS defaults to:
+
+- New `abora.gpu` option: `nouveau`, `nvidia`, `nvidia-open`, `amdgpu`, `intel`, or `none`
+- The installer detects your GPU vendor via `lspci` and offers the right choices — NVIDIA hardware defaults to the safe, no-license-required `nouveau` driver, with proprietary `nvidia` and NVIDIA's open kernel modules (`nvidia-open`, Turing and newer) available as explicit opt-ins
+- AMD and Intel already work out of the box through the kernel's own open-source drivers; the option mainly makes that choice visible to `abora config`
+- Change it any time post-install:
+
+```sh
+abora config set gpu nvidia   # or nouveau, nvidia-open, amdgpu, intel, none, auto
+abora config apply
+```
+
+- `abora-hardware-test` now points at the GPU step and `abora config set gpu` when it detects NVIDIA hardware
+
+### ANIX v2 — pluggable configuration languages
+
+ANIX no longer speaks only its own command language. A system's configuration can now be written in whichever adapter is installed:
+
+- **ANIX Native** (`.anix`) — the same short command language ANIX has always used
+- **MKO** (`.mko`) — the MAKO project's systems language
+- **ModuCPP** (`.moducpp`) — via the new `moducpp-anix` adapter, with a dedicated `add ANIX;` plan module
+
+```sh
+anix language list
+anix language use anix        # or mako, moducpp
+anix run workstation.mko
+anix validate-plan plan.json
+anix apply-plan plan.json
+anix diff-plan workstation.mko
+```
+
+Every adapter resolves to the same underlying Plan JSON, applied as one transaction — `anix diff-plan` works against any source language and labels each setting `ADD`, `CHANGE`, or `SAME` before you apply anything. See `examples/anix-v2/` for minimal and multi-operation examples in all three languages, and `docs/wiki/ANIX-V2-Languages.md` for the full adapter contract.
+
+### 23 Desktop Environments
+
+The full desktop matrix is unchanged from DENALI 3.14 and remains available on every edition:
 
 | Desktop | Type |
 |---|---|
@@ -48,70 +91,37 @@ Choose your desktop at install time from the full supported matrix:
 | IceWM | Floating WM |
 | No desktop | Console-only |
 
-COSMIC Desktop is new in DENALI 3.14, using its own COSMIC Greeter display manager. All 21 profiles are evaluated in CI before every release via `make check-desktops`.
+All 23 profiles are evaluated in CI before every release via `make check-desktops`.
 
-### Abora Branding
+### App Catalog — 7 starter bundles
 
-The installed system now identifies itself as **Abora OS DENALI 3.14** everywhere — OS release metadata, issue reporter URLs, installer copy, and first-run surfaces.
-
-The Abora visual identity is applied across the full session:
-
-- Limine bootloader with Abora branding on installed systems
-- Plymouth splash theme
-- Abora wallpaper pack: Mountain Day, Mountain Night, Ocean Dusk, Blue Horizon, Astronaut, Glacier Reflection
-- Dark-first defaults across all supported desktop sessions
-- Papirus Dark icon defaults
-- Fastfetch with the Abora logo on first shell open
-- zsh with Spaceship prompt
-- GNOME wallpaper and accent color auto-sync
-
-### ANIX v1
-
-ANIX is the human layer for NixOS. It gives you profile switching, rollback, snapshots, and health checks without requiring you to know the rebuild and flake syntax.
-
-```sh
-anix quickstart          # first-run setup
-anix status              # profile, generation, and snapshot state
-anix profiles            # list available profiles
-anix diff nix gaming     # preview changes before applying
-anix test nix gaming     # temp-activate a profile
-anix switch nix gaming   # apply now
-anix rollback nix        # roll back a generation
-anix save                # local Git snapshot of /etc/nixos
-anix doctor --fix        # health checks and auto-repair
-anix set desktop gnome   # change settings without editing Nix
-anix --gui               # graphical helper via zenity
-```
-
-Named flake profiles available out of the box: `stable`, `minimal`, `gaming`, `creator`, `developer`.
+Select a starter bundle at install time: **Fan Favorites**, **Essentials**, **Social**, **Creator**, **Developer**, **Gaming**, or **System Tools**. Every bundle is opt-in — you can also skip all of them. Modularity (a game engine editor by Tareno Labs with PhysX, Vulkan, and Mono support) is included in the Developer bundle.
 
 ### TinyPM v4
 
-TinyPM is the app layer. v4 is the first version with first-class Abora, ANIX, and NixOS awareness.
+TinyPM is the app layer, unchanged from DENALI 3.14:
 
 ```sh
 grab firefox             # install through the best available source
-tinypm sources           # show native/Flatpak/Snap availability
-tinypm system            # Abora/NixOS/ANIX bridge status
-tinypm repair            # repair-focused doctor checks
-tinypm anix status       # forward to ANIX
-tinypm abora doctor      # forward to Abora
+tinypm sources            # show native/Flatpak/Snap availability
+tinypm system              # Abora/NixOS/ANIX bridge status
+tinypm repair              # repair-focused doctor checks
 ```
 
-### App Catalog — 53 apps across 6 bundles
+### Installer and Abora Branding
 
-Select a starter bundle at install time: **Fan Favorites**, **Essentials**, **Social**, **Creator**, **Developer**, or **Gaming**. Every bundle is opt-in — you can also skip all of them.
+Carried forward from DENALI 3.14 and updated for EVEREST 4.0 throughout — installer copy, OS release metadata, issue reporter URLs, and first-run surfaces all identify as **Abora OS EVEREST 4.0**.
 
-New in DENALI 3.14: **Modularity** is included in the Developer bundle — a game engine editor by Tareno Labs with PhysX, Vulkan, and Mono support baked in.
+- Omarchy-inspired TUI installer with a GPU step alongside identity, desktop, and disk selection
+- Limine bootloader, Plymouth splash, and the Abora wallpaper pack
+- Dark-first defaults, Papirus Dark icons, Fastfetch on first shell open, zsh with Spaceship prompt
 
 ### Hardware and Live Image
-
-The live image now comes up with the hardware services you expect before install:
 
 - NetworkManager with radio unblock at boot
 - Bluetooth, Blueman, and ModemManager
 - Redistributable firmware, Intel and AMD microcode
-- Common Wi-Fi, Ethernet, Bluetooth, storage, and VM driver modules
+- GPU driver selection (see above) in addition to the existing Wi-Fi, Ethernet, Bluetooth, storage, and VM driver modules
 - Flathub added automatically on first boot of the installed system
 
 ---
@@ -125,6 +135,12 @@ make iso
 make qemu-fresh
 ```
 
+For release validation, build every edition:
+
+```sh
+make iso-all
+```
+
 **After installing in QEMU, boot the installed system:**
 
 ```sh
@@ -134,8 +150,8 @@ make qemu-disk
 **On an installed system, update or roll back:**
 
 ```sh
-sudo nixos update
-sudo nixos rollback
+sudo abora update
+sudo abora rollback
 ```
 
 ---
@@ -144,10 +160,15 @@ sudo nixos rollback
 
 | File | Description |
 |---|---|
-| `abora-2026.05.30-x86_64-3.14.iso` | Bootable live ISO |
-| `tinypm-v4.0.0-abora-3.14.tar.gz` | TinyPM v4 package |
-| `SHA256SUMS-3.14.txt` | Checksums |
-| `RELEASE_MANIFEST-3.14.txt` | Full release manifest |
+| `abora-cosmic-<date>-x86_64-4.0.iso` | Cosmic edition live ISO |
+| `abora-hyprland-<date>-x86_64-4.0.iso` | Hyprland edition live ISO |
+| `abora-gnome-<date>-x86_64-4.0.iso` | GNOME edition live ISO |
+| `abora-kde-<date>-x86_64-4.0.iso` | KDE Plasma edition live ISO |
+| `abora-other-<date>-x86_64-4.0.iso` | Other Desktops edition live ISO |
+| `tinypm-v4.0.0-abora-4.0.tar.gz` | TinyPM v4 package |
+| `anix-*-abora-4.0.tar.gz` | ANIX standalone package (with v2 language adapters) |
+| `SHA256SUMS-4.0.txt` | Checksums |
+| `RELEASE_MANIFEST-4.0.txt` | Full release manifest |
 
 ---
 
@@ -156,10 +177,10 @@ sudo nixos rollback
 From an existing Abora install:
 
 ```sh
-sudo nixos update
+sudo abora update
 ```
 
-For the cleanest Denali experience — especially from older v2 or pre-release builds — a fresh install is recommended.
+For the cleanest EVEREST experience — especially from DENALI or earlier v2/pre-release builds — a fresh install is recommended.
 
 ---
 
@@ -169,6 +190,7 @@ For the cleanest Denali experience — especially from older v2 or pre-release b
 - Flatpak and app bundle installs require network after first boot.
 - Modularity requires the Developer bundle to be selected at install, or `grab modularity` post-install.
 - COSMIC Greeter manages its own session; GNOME auto-login settings do not apply to COSMIC.
+- The proprietary `nvidia` and `nvidia-open` GPU drivers require accepting NVIDIA's license via the normal NixOS `nixpkgs.config.allowUnfree` prompt; `nouveau` needs no license.
 - Hardware support depends on Linux kernel support for your exact device.
 
 ---
@@ -177,8 +199,8 @@ For the cleanest Denali experience — especially from older v2 or pre-release b
 
 Completed before this release:
 
-- `make check` — 79 script checks: syntax, executability, runtime ANIX behaviors
-- `make check-desktops` — all 21 desktop profiles evaluated against nixpkgs
+- `make check` — full script check suite: syntax, executability, runtime ANIX v1/v2 behaviors, GPU option evaluation
+- `make check-desktops` — all 23 desktop profiles evaluated against nixpkgs
 - `make preflight` — full release preflight
 - QEMU fresh install and disk boot
 - TinyPM v4 package generation and smoke test

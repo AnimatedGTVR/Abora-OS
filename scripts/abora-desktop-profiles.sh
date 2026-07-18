@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# abora-desktop-profiles.sh — per-desktop config/package block definitions.
+# Source this file; do not execute it directly.
 
 abora_default_wallpaper_name() {
     printf 'Daytime-MNT.jpg\n'
@@ -14,10 +16,10 @@ abora-dark.svg
 abora-light.svg
 Daytime-MNT.jpg
 NightTime-MNT.png
-oceandusk.png
-bluehorizon.png
-astronautwallpaper.png
-glacierreflection.png
+alpine-glacier.jpg
+tannheimer-mountains.jpg
+titlis-alps.jpg
+aurora-lofoten.jpg
 EOF
 }
 
@@ -35,17 +37,17 @@ abora_sync_wallpaper_label() {
         NightTime-MNT.png)
             wallpaper_label="Mountain — Night"
             ;;
-        oceandusk.png)
-            wallpaper_label="Ocean Dusk"
+        alpine-glacier.jpg)
+            wallpaper_label="Alpine Glacier"
             ;;
-        bluehorizon.png)
-            wallpaper_label="Blue Horizon"
+        tannheimer-mountains.jpg)
+            wallpaper_label="Tannheimer Mountains"
             ;;
-        astronautwallpaper.png)
-            wallpaper_label="Astronaut Wallpaper"
+        titlis-alps.jpg)
+            wallpaper_label="Titlis Alps"
             ;;
-        glacierreflection.png)
-            wallpaper_label="Glacier Reflection"
+        aurora-lofoten.jpg)
+            wallpaper_label="Aurora, Lofoten"
             ;;
         *)
             wallpaper_label="$1"
