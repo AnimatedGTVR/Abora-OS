@@ -95,7 +95,11 @@ for file in "${bash_scripts[@]}"; do
 done
 
 if command -v shellcheck >/dev/null 2>&1; then
-  if shellcheck scripts/abora-update.sh scripts/abora-repair-flake-purity.sh scripts/check-release-files.sh; then
+  # -S error matches the dedicated "ShellCheck scripts" CI workflow step —
+  # info/warning-level style nits (SC1007, SC2015, SC2016, SC2086, etc.) are
+  # exactly the kind of thing check-all's shellcheck warning tier is for, not
+  # a hard gate here on every push.
+  if shellcheck -S error scripts/abora-update.sh scripts/abora-repair-flake-purity.sh scripts/check-release-files.sh; then
     pass "shellcheck: updater and repair scripts"
   else
     fail "shellcheck: updater and repair scripts"

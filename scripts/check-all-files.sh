@@ -155,15 +155,29 @@ check_shell() {
         if [[ "$sc_status" -eq 0 ]]; then
             pass "shellcheck: $file"
         else
-            local errors warnings
+            # The -f gcc output has three severities, worst to best: error,
+            # warning, note. Only "error" is elevated here — this repo's
+            # dedicated CI lint workflow step already runs with -S error,
+            # and a live run against every script in the repo showed 20 of
+            # 35 files carry pre-existing warning/note-level style nits
+            # (SC1007 space-after-equals, SC2015 A&&B||C, etc.) that were
+            # never treated as blocking anywhere else here. Elevating on
+            # mere "warning" would make check-all fail on almost every
+            # commit — not a useful signal. Both stay visible as ordinary
+            # warnings.
+            local errors warnings notes
             errors="$(printf '%s\n' "$sc_output" | grep -c ': error:' || true)"
             warnings="$(printf '%s\n' "$sc_output" | grep -c ': warning:' || true)"
+            notes="$(printf '%s\n' "$sc_output" | grep -c ': note:' || true)"
             if [[ "$errors" -gt 0 ]]; then
-                fail "shellcheck: $file (${errors} error(s), ${warnings} warning(s))"
+                fail "shellcheck: $file (${errors} error(s), ${warnings} warning(s), ${notes} note(s))"
                 printf '%s\n' "$sc_output" | grep ': error:' | sed 's/^/    /'
-            else
-                warn_elevated "shellcheck: $file (${warnings} warning(s), no errors)"
+            elif [[ "$warnings" -gt 0 ]]; then
+                warn "shellcheck: $file (${warnings} warning(s), ${notes} note(s), no errors)"
                 printf '%s\n' "$sc_output" | grep ': warning:' | sed 's/^/    /'
+            else
+                warn "shellcheck: $file (${notes} note(s) only)"
+                printf '%s\n' "$sc_output" | grep ': note:' | sed 's/^/    /'
             fi
         fi
     fi
