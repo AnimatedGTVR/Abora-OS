@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Abora OS — live boot script
 # Runs on tty1 via systemd.  Plymouth is quit by ExecStartPre before this runs.
+set -euo pipefail
 
 export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 export TERM="${TERM:-linux}"

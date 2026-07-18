@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# abora-app-catalog.sh — starter app catalog data.
+# Source this file; do not execute it directly.
 
 abora_app_catalog() {
     cat <<'EOF'

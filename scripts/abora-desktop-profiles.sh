@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# abora-desktop-profiles.sh — per-desktop config/package block definitions.
+# Source this file; do not execute it directly.
 
 abora_default_wallpaper_name() {
     printf 'Daytime-MNT.jpg\n'

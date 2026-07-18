@@ -134,10 +134,16 @@ check_shell() {
 
     # set -euo pipefail (in one line or split across several) is this repo's
     # documented convention (CLAUDE.md) — missing it isn't a hard failure
-    # since a few entry points intentionally opt out (e.g. installers that
-    # need to keep running after a step fails to show their own error UI),
-    # but it's worth flagging so that's a deliberate choice, not an oversight.
-    if ! grep -qE 'set -[a-zA-Z]*e' "$file" \
+    # since a few entry points intentionally opt out (e.g. abora-installer.sh,
+    # which needs to keep running after a step fails so its own die()/
+    # recovery-menu UI can show, rather than have -e yank control away), and
+    # source-only libraries correctly never set it at all (sourcing a file
+    # that does would impose -e on whatever sourced it). A file that marks
+    # itself "Source this file; do not execute it directly." is trusted to
+    # have made that choice on purpose.
+    if grep -qF 'Source this file; do not execute it directly' "$file"; then
+        :
+    elif ! grep -qE 'set -[a-zA-Z]*e' "$file" \
         || ! grep -qE 'set -[a-zA-Z]*u|set -o nounset' "$file" \
         || ! grep -qE 'pipefail' "$file"; then
         warn "no 'set -euo pipefail' (or equivalent split form): $file"
