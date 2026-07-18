@@ -20,16 +20,18 @@ if [[ -t 1 && -z "${NO_COLOR:-}" && "${TERM:-}" != "dumb" ]]; then
     C_GREEN=$'\033[38;5;77m'
     C_RED=$'\033[38;5;203m'
     C_YELLOW=$'\033[38;5;222m'
+    C_ORANGE=$'\033[38;5;208m'
     C_DIM=$'\033[38;5;242m'
     C_CYAN=$'\033[38;5;44m'
     C_BOLD=$'\033[1m'
     C_NC=$'\033[0m'
 else
-    C_GREEN="" C_RED="" C_YELLOW="" C_DIM="" C_CYAN="" C_BOLD="" C_NC=""
+    C_GREEN="" C_RED="" C_YELLOW="" C_ORANGE="" C_DIM="" C_CYAN="" C_BOLD="" C_NC=""
 fi
 
 failed=0
 warned=0
+elevated=0
 sh_count=0
 nix_count=0
 py_count=0
@@ -51,9 +53,27 @@ fail() {
     failed=1
 }
 
+# Ordinary warning: printed, tallied, but never stops the run — used for
+# style conventions and heuristics that have known, legitimate exceptions
+# (missing set -euo pipefail on a source-only library, a possibly-orphaned
+# Nix file that's actually reached through a chain the text search can't
+# follow). Reviewed by a human at their own pace.
 warn() {
     printf '%b[warn]%b %s\n' "$C_YELLOW" "$C_NC" "$1"
     warned=1
+}
+
+# Elevated warning: real static-analysis signal (shellcheck actually flagged
+# something, not just "this is unconventional") that's serious enough to
+# block the run exactly like a hard failure, but is visually and
+# semantically distinct from `fail` — a fail means "this check itself is
+# broken" (syntax error, invalid JSON); an elevated warning means "this file
+# is syntactically fine but a real tool found something worth fixing before
+# merging."
+warn_elevated() {
+    printf '%b[warn+]%b %s\n' "$C_ORANGE" "$C_NC" "$1"
+    warned=1
+    elevated=1
 }
 
 note() {
@@ -136,7 +156,7 @@ check_shell() {
                 fail "shellcheck: $file (${errors} error(s), ${warnings} warning(s))"
                 printf '%s\n' "$sc_output" | grep ': error:' | sed 's/^/    /'
             else
-                warn "shellcheck: $file (${warnings} warning(s), no errors)"
+                warn_elevated "shellcheck: $file (${warnings} warning(s), no errors)"
                 printf '%s\n' "$sc_output" | grep ': warning:' | sed 's/^/    /'
             fi
         fi
@@ -637,12 +657,18 @@ printf '\n%b%d shell, %d nix (%d possibly orphaned), %d python, %d theme conf, %
     "$C_DIM" "$sh_count" "$nix_count" "$orphan_count" "$py_count" "$conf_count" "$md_count" "$anix_count" "$anix_skipped" \
     "$yaml_count" "$json_count" "$desktop_count" "$C_NC"
 
-if [[ "$warned" -ne 0 && "$failed" -eq 0 ]]; then
+if [[ "$warned" -ne 0 && "$elevated" -eq 0 && "$failed" -eq 0 ]]; then
     printf '\n%bNo hard failures, but warnings were printed above — review them.%b\n' "$C_YELLOW" "$C_NC"
 fi
 
 if [[ "$failed" -ne 0 ]]; then
     printf '\n%bOne or more checks failed.%b\n' "$C_RED" "$C_NC" >&2
+    exit 1
+fi
+
+if [[ "$elevated" -ne 0 ]]; then
+    printf '\n%b[warn+] elevated warnings were found above — these are real findings (e.g. shellcheck), not style nits. Stopping.%b\n' \
+        "${C_BOLD}${C_ORANGE}" "$C_NC" >&2
     exit 1
 fi
 
