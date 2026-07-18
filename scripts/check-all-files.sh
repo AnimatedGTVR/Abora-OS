@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # check-all-files.sh — glob-based repo sweep, independent of check-scripts.sh's
-# hardcoded file lists. Walks every .sh, .nix, .py, and .md file actually on
-# disk (skipping out/, .git/, and vendor/) and validates each by type, plus
-# every extensionless-but-shebanged script (e.g. tools/moducpp-anix) and
-# every ANIX v2 source file (.anix/.mko/.moducpp) via `anix diff-plan`, so a
-# new file that nobody registered anywhere still gets checked.
+# hardcoded file lists. Walks every .sh, .nix, .py, .md, .yml, .json, and
+# .desktop file actually on disk (skipping out/, .git/, and vendor/) and
+# validates each by type, plus every extensionless-but-shebanged script (e.g.
+# tools/moducpp-anix) and every ANIX v2 source file (.anix/.mko/.moducpp) via
+# `anix diff-plan`, so a new file that nobody registered anywhere still gets
+# checked.
 set -euo pipefail
 
 repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
@@ -18,6 +19,9 @@ py_count=0
 md_count=0
 orphan_count=0
 anix_count=0
+yaml_count=0
+json_count=0
+desktop_count=0
 anix_skipped=0
 
 pass() {
@@ -368,6 +372,106 @@ check_anix_plan() {
     printf '%s\n' "$output" | grep -E '✗|error' | sed 's/^/    /' || true
 }
 
+# ── YAML files ────────────────────────────────────────────────────────────────
+# GitHub Actions workflows are the main thing here — a YAML syntax error is
+# invisible locally and only surfaces when CI itself fails to parse the
+# workflow. Prefers PyYAML if the system python3 already has it. Without a
+# real parser, the only fallback check kept is tab-indentation (YAML forbids
+# tabs unconditionally, so this can never false-positive) — a naive
+# duplicate-key scan was tried and dropped: GitHub Actions workflows
+# legitimately repeat keys like `run:`/`uses:`/`with:` once per step, so a
+# same-indentation text match flags normal, valid workflows as broken.
+
+yaml_python_bin=""
+resolve_yaml_python() {
+    [[ -n "$yaml_python_bin" ]] && return 0
+    for candidate in python3 python; do
+        if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import yaml' 2>/dev/null; then
+            yaml_python_bin="$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+check_yaml() {
+    local file="$1"
+    yaml_count=$((yaml_count + 1))
+
+    if resolve_yaml_python; then
+        if "$yaml_python_bin" -c "import yaml,sys; yaml.safe_load(open('$file'))" 2>/tmp/check-all-yaml-err; then
+            pass "yaml: $file"
+        else
+            fail "yaml: $file"
+            sed 's/^/    /' /tmp/check-all-yaml-err
+        fi
+        rm -f /tmp/check-all-yaml-err
+        return
+    fi
+
+    if grep -qP '^\t' "$file" 2>/dev/null; then
+        fail "yaml (basic): $file (tab-indentation — YAML forbids tabs)"
+    else
+        pass "yaml (basic, no parser available): $file"
+    fi
+}
+
+# ── JSON files ────────────────────────────────────────────────────────────────
+
+check_json() {
+    local file="$1"
+    json_count=$((json_count + 1))
+
+    if ! command -v jq >/dev/null 2>&1; then
+        return
+    fi
+
+    if jq -e . "$file" >/dev/null 2>&1; then
+        pass "json: $file"
+    else
+        fail "json: $file"
+        jq . "$file" 2>&1 | sed 's/^/    /' || true
+    fi
+}
+
+# ── .desktop files ────────────────────────────────────────────────────────────
+# Minimal freedesktop Desktop Entry Specification check: a [Desktop Entry]
+# group header, and the keys every entry needs (Type, Name, Exec for
+# Application-type entries) — not full spec validation, just the mistakes
+# that would actually break a launcher.
+
+check_desktop_file() {
+    local file="$1"
+    desktop_count=$((desktop_count + 1))
+    local bad=0
+
+    if ! grep -q '^\[Desktop Entry\]' "$file"; then
+        printf '  missing [Desktop Entry] group header: %s\n' "$file"
+        bad=1
+    fi
+
+    local key
+    for key in Type Name; do
+        if ! grep -qE "^${key}=" "$file"; then
+            printf '  missing required key %s=: %s\n' "$key" "$file"
+            bad=1
+        fi
+    done
+
+    local entry_type
+    entry_type="$(sed -nE 's/^Type=(.*)$/\1/p' "$file" | head -n1)"
+    if [[ "$entry_type" == "Application" ]] && ! grep -qE '^Exec=' "$file"; then
+        printf '  Type=Application but no Exec=: %s\n' "$file"
+        bad=1
+    fi
+
+    if [[ "$bad" -eq 0 ]]; then
+        pass "desktop entry: $file"
+    else
+        fail "desktop entry: $file"
+    fi
+}
+
 # ── Run ───────────────────────────────────────────────────────────────────────
 
 printf 'Shell scripts\n'
@@ -416,8 +520,33 @@ for ext in anix mko moducpp; do
     done < <(find_files "$ext")
 done
 
-printf '\n%d shell, %d nix (%d possibly orphaned), %d python, %d markdown, %d anix plan(s, %d skipped) checked.\n' \
-    "$sh_count" "$nix_count" "$orphan_count" "$py_count" "$md_count" "$anix_count" "$anix_skipped"
+printf '\nYAML files (GitHub Actions workflows, etc.)\n'
+if ! resolve_yaml_python; then
+    printf '[ok]   no YAML parser available (python3 -c "import yaml" failed); falling back to basic checks\n'
+fi
+while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    check_yaml "$f"
+done < <(find_files yml; find_files yaml)
+
+printf '\nJSON files\n'
+if ! command -v jq >/dev/null 2>&1; then
+    printf '[ok]   jq unavailable (json checks skipped)\n'
+fi
+while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    check_json "$f"
+done < <(find_files json)
+
+printf '\n.desktop files\n'
+while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    check_desktop_file "$f"
+done < <(find_files desktop)
+
+printf '\n%d shell, %d nix (%d possibly orphaned), %d python, %d markdown, %d anix plan(s, %d skipped), %d yaml, %d json, %d desktop file(s) checked.\n' \
+    "$sh_count" "$nix_count" "$orphan_count" "$py_count" "$md_count" "$anix_count" "$anix_skipped" \
+    "$yaml_count" "$json_count" "$desktop_count"
 
 if [[ "$warned" -ne 0 && "$failed" -eq 0 ]]; then
     printf '\nNo hard failures, but warnings were printed above — review them.\n'
