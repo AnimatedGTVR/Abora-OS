@@ -44,7 +44,7 @@ assets/plymouth/abora.plymouth
 assets/plymouth/abora.script
 assets/Effects/LaunchingAbora.mp3
 assets/wallpapers/collection
-assets/wallpapers/collection/oceandusk.png
+assets/wallpapers/collection/aurora-lofoten.jpg
 assets/wallpaper-themes
 EOF
 }

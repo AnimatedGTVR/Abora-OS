@@ -139,10 +139,10 @@ wallpaper_candidates() {
     printf '%s\n' \
         Daytime-MNT.jpg \
         NightTime-MNT.png \
-        oceandusk.png \
-        bluehorizon.png \
-        astronautwallpaper.png \
-        glacierreflection.png
+        alpine-glacier.jpg \
+        tannheimer-mountains.jpg \
+        titlis-alps.jpg \
+        aurora-lofoten.jpg
 }
 
 validate_wallpaper() {

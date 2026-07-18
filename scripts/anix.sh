@@ -76,10 +76,10 @@ valid_desktops=(
 default_wallpapers=(
     Daytime-MNT.jpg
     NightTime-MNT.png
-    oceandusk.png
-    bluehorizon.png
-    astronautwallpaper.png
-    glacierreflection.png
+    alpine-glacier.jpg
+    tannheimer-mountains.jpg
+    titlis-alps.jpg
+    aurora-lofoten.jpg
 )
 
 current_system_link="${ANIX_CURRENT_SYSTEM:-/run/current-system}"

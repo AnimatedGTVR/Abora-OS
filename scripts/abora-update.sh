@@ -590,6 +590,18 @@ release_has_anix_languages() {
     ! version_lt "$(tag_base_version "$selected_ref")" "4.0"
 }
 
+# The uncredited wallpaper set (oceandusk.png/bluehorizon.png/
+# astronautwallpaper.png/glacierreflection.png) was replaced with credited
+# PickPik photos partway through the 4.0 line, after v3.14 was already
+# tagged — so this can't reuse release_has_anix_languages's ">= 4.0" cutoff
+# without also requiring a file older 4.0-line checkouts never had.
+release_has_alpine_wallpapers() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "main" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
+}
+
 required_upstream_paths() {
     local selected_ref="${1:-main}"
     cat <<'EOF'
@@ -623,7 +635,6 @@ assets/plymouth/abora.plymouth
 assets/plymouth/abora.script
 assets/Effects/LaunchingAbora.mp3
 assets/wallpapers/collection
-assets/wallpapers/collection/oceandusk.png
 assets/wallpaper-themes
 EOF
 
@@ -642,6 +653,12 @@ EOF
 assets/anix-languages
 nix/pkgs/moducpp-anix.nix
 tools/moducpp-anix
+EOF
+    fi
+
+    if release_has_alpine_wallpapers "$selected_ref"; then
+        cat <<'EOF'
+assets/wallpapers/collection/aurora-lofoten.jpg
 EOF
     fi
 }
@@ -802,8 +819,8 @@ sync_abora_files() {
     copy_first_existing_upstream_file \
         "$abora_dir/default-wallpaper.png" \
         "$upstream_dir/assets/wallpapers/collection/Daytime-MNT.jpg" \
-        "$upstream_dir/assets/wallpapers/collection/bluehorizon.png" \
-        "$upstream_dir/assets/wallpapers/collection/astronautwallpaper.png"
+        "$upstream_dir/assets/wallpapers/collection/tannheimer-mountains.jpg" \
+        "$upstream_dir/assets/wallpapers/collection/titlis-alps.jpg"
     copy_upstream_file "$upstream_dir/scripts/abora-desktop-profiles.sh" "$abora_dir/desktop-profiles.sh"
     copy_upstream_file "$upstream_dir/nix/modules/installed-base.nix" "$abora_dir/installed-base.nix"
     if [[ -d "$upstream_dir/assets/anix-languages" ]]; then

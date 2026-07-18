@@ -261,10 +261,10 @@ WALLPAPERS = [
     ('abora-light.svg',        'Abora Light'),
     ('Daytime-MNT.jpg',        'Mountain — Day'),
     ('NightTime-MNT.png',      'Mountain — Night'),
-    ('oceandusk.png',          'Ocean Dusk'),
-    ('bluehorizon.png',        'Blue Horizon'),
-    ('astronautwallpaper.png', 'Astronaut'),
-    ('glacierreflection.png',  'Glacier Reflection'),
+    ('alpine-glacier.jpg',        'Alpine Glacier'),
+    ('tannheimer-mountains.jpg',  'Tannheimer Mountains'),
+    ('titlis-alps.jpg',           'Titlis Alps'),
+    ('aurora-lofoten.jpg',        'Aurora, Lofoten'),
 ]
 
 # ── CSS ────────────────────────────────────────────────────────────────────────

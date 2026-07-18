@@ -12,10 +12,10 @@ let
   bundledWallpaperNames = [
     "Daytime-MNT.jpg"
     "NightTime-MNT.png"
-    "oceandusk.png"
-    "bluehorizon.png"
-    "astronautwallpaper.png"
-    "glacierreflection.png"
+    "alpine-glacier.jpg"
+    "tannheimer-mountains.jpg"
+    "titlis-alps.jpg"
+    "aurora-lofoten.jpg"
   ];
   discoveredWallpaperNames =
     builtins.attrNames (builtins.readDir wallpaperDir);
