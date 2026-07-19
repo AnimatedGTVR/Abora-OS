@@ -1206,7 +1206,7 @@ class SummaryPage(Gtk.Widget):
             ('Keyboard',   state.keyboard),
             ('Wallpaper',  wp_lbl),
             ('ANIX',       'Enabled' if state.anix else 'Disabled'),
-        ] + ([('Dotfiles', state.dotfiles_url or '(skip)')] if EDITION == 'hyprland' else []):
+        ] + ([('Dotfiles', state.dotfiles_url or '(skip)')] if EDITION in ('hyprland', 'other') else []):
             row = Adw.ActionRow(title=title)
             lbl = Gtk.Label(label=value, valign=Gtk.Align.CENTER, selectable=True)
             row.add_suffix(lbl)
@@ -1324,7 +1324,7 @@ class InstallingPage(Gtk.Box):
 
 # ── Page order ─────────────────────────────────────────────────────────────────
 
-if EDITION == 'hyprland':
+if EDITION in ('hyprland', 'other'):
     PAGES_ORDER = ['welcome', 'language', 'identity', 'desktop', 'disk', 'apps',
                    'options', 'dotfiles', 'summary', 'installing']
     STEP_NAMES  = ['Welcome', 'Language', 'Identity', 'Desktop', 'Disk', 'Apps',
@@ -1436,7 +1436,7 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
             ('apps',       AppsPage),
             ('options',    OptionsPage),
         ]
-        if EDITION == 'hyprland':
+        if EDITION in ('hyprland', 'other'):
             _page_list.append(('dotfiles', DotsPage))
         _page_list += [
             ('summary',    SummaryPage),
