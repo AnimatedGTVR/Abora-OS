@@ -25,7 +25,7 @@ language_label="English (United States)"
 desktop_profile="cosmic"
 desktop_label="COSMIC"
 desktop_variant_id="cosmic"
-wallpaper_name="Daytime-MNT.jpg"
+wallpaper_name="titlis-alps.jpg"
 gpu_value="auto"
 starter_apps_bundle="favorites"
 starter_apps_label="Fan Favorites"
@@ -39,6 +39,9 @@ version="${ABORA_VERSION:-}"
 reconfig_mode="${ABORA_RECONFIG:-0}"
 batch_mode=0
 batch_params_file=""
+abora_edition="${ABORA_EDITION:-cosmic}"
+abora_default_desktop="${ABORA_DEFAULT_DESKTOP:-cosmic}"
+dotfiles_url=""
 
 # Parse args: support both --reconfig and --batch <params-file>
 _args=("$@")
@@ -116,7 +119,7 @@ _init_gum
 
 # ── Abora TUI engine ───────────────────────────────────────────────────────────
 
-_TABS=("Language" "Network" "Identity" "Desktop" "Apps" "Options" "GPU" "Preflight" "Disk" "Confirm")
+_TABS=("Language" "Network" "Identity" "Desktop" "Apps" "Options" "GPU" "Dotfiles" "Preflight" "Disk" "Confirm")
 
 draw_logo() {
     printf '  %bABORA OS%b  %b▸%b  %bEVEREST 4.0%b\n' \
@@ -972,15 +975,33 @@ step_identity() {
 step_desktop() {
     tab_header 4
 
+    # Single-desktop editions (cosmic/hyprland/gnome/kde) ship exactly one
+    # desktop — installing that edition's ISO already is the choice, so
+    # there's nothing to ask. "other" and any edition value this installer
+    # doesn't recognize fall through to the normal picker.
+    case "${abora_edition:-}" in
+        cosmic|hyprland|gnome|kde)
+            desktop_profile="${abora_default_desktop:-$abora_edition}"
+            abora_sync_desktop_label "$desktop_profile"
+            msg "This is the ${desktop_label} edition — installing ${desktop_label} automatically."
+            pause
+            return 0
+            ;;
+    esac
+
     local -a profiles=()
     local profile
+    local profile_source=abora_supported_desktop_profiles
+    [[ "${abora_edition:-}" == "other" ]] && profile_source=abora_tiling_wm_profiles
     while IFS= read -r profile; do
         [[ -n "$profile" ]] || continue
         abora_sync_desktop_label "$profile"
         profiles+=("${desktop_label}|${profile}")
-    done < <(abora_supported_desktop_profiles)
+    done < <("$profile_source")
 
-    menu "Choose Your Desktop Environment" "${profiles[@]}"
+    local title="Choose Your Desktop Environment"
+    [[ "${abora_edition:-}" == "other" ]] && title="Choose Your Window Manager"
+    menu "$title" "${profiles[@]}"
     desktop_profile="${profiles[$MENU_RESULT]#*|}"
     abora_sync_desktop_label "$desktop_profile"
 }
@@ -1097,12 +1118,44 @@ step_gpu() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  STEP 8 — PREFLIGHT
+#  STEP 8 — DOTFILES
+# ═══════════════════════════════════════════════════════════════════════════════
+# Only shown for editions where a bare tiling WM/compositor is genuinely
+# unusable without some config: hyprland (single-desktop edition) and other
+# (the tiling-WM picker). Every other edition ships a full desktop shell
+# that works out of the box, so asking about dotfiles there would just be
+# noise.
+
+step_dotfiles() {
+    case "${abora_edition:-}" in
+        hyprland|other) : ;;
+        *) return 0 ;;
+    esac
+
+    tab_header 8
+    printf '  %bDotfiles (Optional)%b\n\n' "${B}${CS}" "$R"
+    msg "Import your own config from a Git repository after first boot."
+    printf '\n'
+
+    menu "Dotfiles" \
+        "Skip|Configure ${desktop_label} manually later" \
+        "Import from a Git URL|GitHub, GitLab, Codeberg, or any public Git URL"
+
+    if [[ "$MENU_RESULT" -eq 1 ]]; then
+        printf '\n'
+        printf '  %bDotfiles Git URL:%b ' "$CW" "$R"
+        read -r dotfiles_url </dev/tty || dotfiles_url=""
+        dotfiles_url="${dotfiles_url// /}"
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  STEP 9 — PREFLIGHT
 # ═══════════════════════════════════════════════════════════════════════════════
 
 step_preflight() {
     while true; do
-        tab_header 8
+        tab_header 9
         printf '  %bInstall Preflight%b\n\n' "${B}${CS}" "$R"
         msg "Checking tools, installer assets, Nix paths, and selected values."
         printf '\n'
@@ -1126,11 +1179,11 @@ step_preflight() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  STEP 9 — DISK
+#  STEP 10 — DISK
 # ═══════════════════════════════════════════════════════════════════════════════
 
 step_disk() {
-    tab_header 9
+    tab_header 10
     warn "All data on the selected disk will be permanently erased!"
     printf '\n'
 
@@ -1172,6 +1225,9 @@ _print_summary() {
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Keyboard:" "$R" "${keyboard_value} / ${xkb_layout_value}"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Desktop:"  "$R" "${desktop_label} (${desktop_profile})"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "GPU:"      "$R" "$gpu_value"
+    if [[ -n "$dotfiles_url" ]]; then
+        printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Dotfiles:" "$R" "$dotfiles_url"
+    fi
     if [[ "$starter_apps_bundle" == "none" ]]; then
         printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Apps:" "$R" "$starter_apps_label"
     elif [[ "$install_apps_during_setup" == "yes" ]]; then
@@ -1187,7 +1243,7 @@ _print_summary() {
 
 step_confirm() {
     while true; do
-        tab_header 10
+        tab_header 11
         printf '  %bInstallation Summary%b\n\n' "${B}${CS}" "$R"
         _print_summary
 
@@ -1558,6 +1614,16 @@ generate_nixos_config() {
     wallpaper_nix="$(nix_string "$wallpaper_name")"
     local gpu_block
     gpu_block="$(gpu_config_block "$gpu_value")"
+
+    # Persist the dotfiles Git URL (if any) so the first graphical session
+    # can clone and import it automatically — see
+    # abora-session-setup.sh's import_dotfiles_once(). Written for every
+    # edition, not just hyprland/other: the field is opt-in and empty by
+    # default, so there's no reason to special-case which editions get it.
+    if [[ -n "$dotfiles_url" ]]; then
+        printf '%s\n' "$dotfiles_url" > "${root}/etc/nixos/abora/dotfiles-url"
+        chmod 644 "${root}/etc/nixos/abora/dotfiles-url"
+    fi
 
     # Keep starter apps out of the default install closure. The selected IDs are
     # saved for abora-apps after first boot; only explicitly requested slow-path
@@ -2447,8 +2513,9 @@ main() {
         step_apps
         step_options
         step_gpu
+        step_dotfiles
 
-        tab_header 10
+        tab_header 11
         printf '  %bReconfiguration Summary%b\n\n' "${B}${CS}" "$R"
         _print_summary
 
@@ -2467,6 +2534,7 @@ main() {
         step_apps
         step_options
         step_gpu
+        step_dotfiles
         step_preflight
         step_disk
         step_confirm

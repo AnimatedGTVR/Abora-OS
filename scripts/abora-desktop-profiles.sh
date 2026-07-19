@@ -3,7 +3,7 @@
 # Source this file; do not execute it directly.
 
 abora_default_wallpaper_name() {
-    printf 'Daytime-MNT.jpg\n'
+    printf 'titlis-alps.jpg\n'
 }
 
 abora_default_wallpaper_uri() {
@@ -80,6 +80,30 @@ icewm
 herbstluftwm
 cosmic
 mangowm
+EOF
+}
+
+# Tiling window managers / minimal compositors — no full desktop shell, and
+# (with the sole current exception of MangoWM's bundled config.conf) no
+# pre-made dotfiles, so they need either a hand-written config or an
+# imported one (see abora_dotfiles_import) to be usable day-to-day. This is
+# the exact desktop set the "Other Desktops" edition offers, and must stay
+# in sync with _TILING_WMS in abora-installer-gui.py.
+abora_tiling_wm_profiles() {
+    cat <<'EOF'
+hyprland
+mangowm
+sway
+i3
+niri
+river
+bspwm
+qtile
+awesome
+herbstluftwm
+openbox
+fluxbox
+icewm
 EOF
 }
 
@@ -286,8 +310,8 @@ EOF
   services.desktopManager.gnome.enable = true;
   services.desktopManager.gnome.extraGSettingsOverrides = ''
     [org.gnome.desktop.background]
-    picture-uri='file:///run/current-system/sw/share/backgrounds/abora/Daytime-MNT.jpg'
-    picture-uri-dark='file:///run/current-system/sw/share/backgrounds/abora/NightTime-MNT.png'
+    picture-uri='file:///run/current-system/sw/share/backgrounds/abora/titlis-alps.jpg'
+    picture-uri-dark='file:///run/current-system/sw/share/backgrounds/abora/titlis-alps.jpg'
     picture-options='zoom'
     color-shading-type='solid'
     primary-color='#081223'
