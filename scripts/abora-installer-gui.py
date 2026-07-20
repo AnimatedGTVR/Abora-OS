@@ -277,41 +277,54 @@ _DESKTOP_BADGE_CSS = '\n'.join(
 )
 
 CSS_TEMPLATE = """
-/* ---- Abora OS Installer ---- */
+/* ---- Abora OS Installer — macOS-style ---- */
+/* Same class names/selectors as before (no Python changes needed); values
+   restyled to read like a macOS installer/System Settings window: a
+   neutral light title bar instead of a brand-colored strip, macOS system
+   blue as the accent, a light inset sidebar with a rounded selection pill,
+   larger corner radii throughout, and an SF-Pro-shaped font stack (falls
+   back through the closest fonts actually likely to be installed on Linux,
+   since real SF Pro isn't redistributable). */
 
-@define-color abora_accent #1c6fcf;
-@define-color abora_accent_hover #2480e0;
+@define-color abora_accent #007aff;
+@define-color abora_accent_hover #0a6ee8;
+
+* {
+    font-family: -apple-system, "SF Pro Text", "SF Pro Display",
+                 "Helvetica Neue", "Inter", "Segoe UI", sans-serif;
+}
 
 /* Full-bleed shell, no floating card - a real application, not a dialog */
 .installer-shell {
     background: @window_bg_color;
 }
 
-/* Brand title bar - blue like the reference installer's own title strip */
+/* Neutral title bar, macOS-style - the window chrome stays quiet, the
+   accent color is reserved for the primary action button. */
 .abora-titlebar {
-    background: @abora_accent;
-    box-shadow: none;
+    background: @headerbar_bg_color;
+    box-shadow: inset 0 -1px 0 alpha(@window_fg_color, 0.08);
     min-height: 52px;
 }
 
 .abora-titlebar label {
-    color: #ffffff;
+    color: @window_fg_color;
 }
 
 .abora-titlebar label.title {
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .abora-titlebar label.subtitle {
-    color: alpha(#ffffff, 0.82);
+    color: alpha(@window_fg_color, 0.55);
 }
 
 .abora-titlebar button {
-    color: #ffffff;
+    color: @window_fg_color;
 }
 
 .abora-titlebar button:hover {
-    background: alpha(#ffffff, 0.14);
+    background: alpha(@window_fg_color, 0.08);
 }
 
 .abora-brand-icon {
@@ -319,51 +332,52 @@ CSS_TEMPLATE = """
 }
 
 /* Fallback brand mark in the title bar when no logo file is present -
-   white circle on the accent title bar, distinct from the larger welcome badge */
+   accent-tinted circle on the neutral title bar. */
 .abora-brand-badge {
     margin-left: 2px;
     border-radius: 999px;
-    background: alpha(#ffffff, 0.22);
-    color: #ffffff;
-    font-weight: 800;
+    background: alpha(@abora_accent, 0.14);
+    color: @abora_accent;
+    font-weight: 700;
     font-size: 0.85em;
 }
 
-/* Sidebar - persistent, always visible, lists every step */
+/* Sidebar - macOS System Settings style: inset light panel, rounded
+   selection pill that fills nearly the full row width. */
 .installer-sidebar {
-    background: shade(@window_bg_color, 0.96);
-    border-right: 1px solid alpha(@window_fg_color, 0.08);
+    background: shade(@window_bg_color, 0.97);
+    border-right: 1px solid alpha(@window_fg_color, 0.06);
     min-width: 232px;
 }
 
 .sidebar-step {
-    padding: 9px 14px;
-    border-radius: 8px;
+    padding: 8px 12px;
+    border-radius: 7px;
     margin: 1px 10px;
 }
 
 .sidebar-step-icon {
     min-width: 20px;
     min-height: 20px;
-    color: alpha(@window_fg_color, 0.38);
+    color: alpha(@window_fg_color, 0.42);
 }
 
 .sidebar-step-label {
     font-size: 0.92em;
-    color: alpha(@window_fg_color, 0.62);
+    color: alpha(@window_fg_color, 0.68);
 }
 
 .sidebar-step.current {
-    background: alpha(@abora_accent, 0.13);
+    background: @abora_accent;
 }
 
 .sidebar-step.current .sidebar-step-icon,
 .sidebar-step.current .sidebar-step-label {
-    color: @abora_accent;
+    color: #ffffff;
 }
 
 .sidebar-step.current .sidebar-step-label {
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .sidebar-step.done .sidebar-step-icon {
@@ -371,23 +385,23 @@ CSS_TEMPLATE = """
 }
 
 .sidebar-step.done .sidebar-step-label {
-    color: alpha(@window_fg_color, 0.75);
+    color: alpha(@window_fg_color, 0.78);
 }
 
 .sidebar-step.future .sidebar-step-icon,
 .sidebar-step.future .sidebar-step-label {
-    color: alpha(@window_fg_color, 0.32);
+    color: alpha(@window_fg_color, 0.34);
 }
 
 .wizard-nav {
     background: transparent;
 }
 
-/* Page headings - editorial, not billboard */
+/* Page headings - macOS System Settings weight, not a marketing headline */
 .page-title {
-    font-size: 1.6em;
-    font-weight: 800;
-    letter-spacing: -0.3px;
+    font-size: 1.45em;
+    font-weight: 700;
+    letter-spacing: -0.2px;
 }
 
 .page-subtitle {
@@ -399,22 +413,23 @@ CSS_TEMPLATE = """
     margin-bottom: 4px;
 }
 
-/* Fallback brand badge shown when no logo file is present */
+/* Fallback brand badge shown when no logo file is present - flat accent
+   tint instead of a glossy gradient, closer to a macOS app icon plate. */
 .logo-badge {
     min-width: 96px;
     min-height: 96px;
-    border-radius: 999px;
-    background: linear-gradient(160deg, @abora_accent, shade(@abora_accent, 0.72));
+    border-radius: 22px;
+    background: @abora_accent;
     color: #ffffff;
     font-size: 2.6em;
-    font-weight: 800;
+    font-weight: 700;
 }
 
-/* Welcome buttons */
+/* Welcome buttons - full pill radius, macOS button shape */
 .choice-button {
     min-width: 260px;
-    padding: 11px 22px;
-    border-radius: 9px;
+    padding: 10px 22px;
+    border-radius: 999px;
     font-weight: 600;
     font-size: 0.95em;
 }
@@ -423,7 +438,7 @@ CSS_TEMPLATE = """
     background: @abora_accent;
     color: #ffffff;
     border: none;
-    box-shadow: 0 1px 6px alpha(@abora_accent, 0.38);
+    box-shadow: none;
 }
 
 .choice-button.suggested-action:hover {
@@ -438,29 +453,30 @@ CSS_TEMPLATE = """
     background: alpha(@window_fg_color, 0.1);
 }
 
-/* Desktop environment cards */
+/* Desktop environment cards - softer corners, subtler border, matches
+   macOS's rounded card/tile language (e.g. wallpaper pickers). */
 .desktop-card {
-    border-radius: 10px;
+    border-radius: 14px;
     padding: 14px 6px;
-    border: 1px solid alpha(@window_fg_color, 0.09);
+    border: 1px solid alpha(@window_fg_color, 0.07);
     background: @card_bg_color;
     transition: border-color 120ms ease, background-color 120ms ease;
 }
 
 .desktop-card:hover {
-    border-color: alpha(@abora_accent, 0.50);
-    background: alpha(@abora_accent, 0.06);
+    border-color: alpha(@abora_accent, 0.45);
+    background: alpha(@abora_accent, 0.05);
 }
 
 .desktop-card.selected {
     border: 2px solid @abora_accent;
-    background: alpha(@abora_accent, 0.10);
+    background: alpha(@abora_accent, 0.08);
 }
 
 /* Colorful icon badge behind each desktop's glyph - a flat grey outline
    icon reads as decoration, a colored badge reads as a real icon */
 .desktop-card-icon-badge {
-    border-radius: 9px;
+    border-radius: 11px;
     min-width: 40px;
     min-height: 40px;
     margin-bottom: 2px;
@@ -473,7 +489,7 @@ CSS_TEMPLATE = """
 }
 
 .desktop-card-name {
-    font-weight: 700;
+    font-weight: 600;
     font-size: 0.85em;
 }
 
@@ -484,7 +500,7 @@ CSS_TEMPLATE = """
 
 /* Disk row */
 .disk-row-dev {
-    font-family: monospace;
+    font-family: "SF Mono", Menlo, monospace;
     font-size: 0.85em;
     color: alpha(@window_fg_color, 0.55);
 }
@@ -498,7 +514,7 @@ CSS_TEMPLATE = """
 /* Misc */
 .warn-label { color: @warning_color; }
 .log-view {
-    font-family: monospace;
+    font-family: "SF Mono", Menlo, monospace;
     font-size: 0.84em;
     background: @view_bg_color;
     color: @view_fg_color;
