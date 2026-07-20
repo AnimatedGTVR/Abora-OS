@@ -119,19 +119,96 @@ if [[ -n "$firmware_code" && -f "${firmware_vars:-}" ]]; then
     )
 fi
 
-# Boot device
-if [[ "$boot_mode" == "iso" ]]; then
-    # order=c  → HDD is the persistent default (warm reboots go to disk)
-    # once=d   → override to CD-ROM for this cold boot only
-    # Without order=c, SeaBIOS may still try the CD on warm reboots because
-    # it sees a bootable disc present — order=c prevents that.
-    qemu_args+=(
-        -boot order=c,once=d
-        -cdrom "$iso_path"
-    )
-else
-    # Disk-only boot: no ISO attached at all, hard disk is the only device.
-    qemu_args+=( -boot order=c )
+# When serial output is actually requested (headless or graphical-with-
+# mirrored-serial), the ISO's auto-selected default ISOLINUX boot label has
+# no console=ttyS0 kernel param at all — only its separate "Serial console"
+# submenu entry does, and that entry can't be selected non-interactively
+# from the QEMU command line. Without this, the guest kernel boots fine but
+# never writes anything to the serial port, which looks exactly like a
+# hung/frozen boot from here. Work around it by extracting that label's own
+# kernel/initrd/append line straight out of isolinux.cfg and booting via
+# -kernel/-initrd/-append instead of letting SeaBIOS load ISOLINUX's menu —
+# root=fstab in that same append line still resolves against whatever's
+# attached as the CD-ROM, so -cdrom stays attached exactly as before.
+want_serial_console=0
+if [[ "$boot_mode" == "iso" ]] && { [[ "$nographic" == "1" ]] || [[ "$serial_stdio" == "1" ]]; }; then
+    want_serial_console=1
+fi
+
+if [[ "$want_serial_console" == "1" ]] && ! command -v xorriso >/dev/null 2>&1; then
+    echo "  Note: xorriso not found; cannot extract the ISO's serial-console boot entry." >&2
+    echo "  Falling back to the normal boot menu (guest serial output may be silent)." >&2
+    want_serial_console=0
+fi
+
+if [[ "$want_serial_console" == "1" ]]; then
+    serial_cfg_dir="$qemu_dir/serial-boot"
+    mkdir -p "$serial_cfg_dir"
+    isolinux_cfg="$serial_cfg_dir/isolinux.cfg"
+    rm -f "$isolinux_cfg"
+    xorriso -indev "$iso_path" -osirrox on \
+        -extract /isolinux/isolinux.cfg "$isolinux_cfg" >/dev/null 2>&1 || true
+
+    serial_kernel_rel="" serial_initrd_rel="" serial_append=""
+    if [[ -f "$isolinux_cfg" ]]; then
+        # Read the boot-serial LABEL block: the LINUX/INITRD/APPEND lines
+        # that immediately follow it, stopping at the next blank line or
+        # LABEL, matching isolinux.cfg's own block structure.
+        in_block=0
+        while IFS= read -r cfg_line; do
+            if [[ "$cfg_line" == "LABEL boot-serial" ]]; then
+                in_block=1
+                continue
+            fi
+            if [[ "$in_block" == "1" ]]; then
+                case "$cfg_line" in
+                    LABEL\ *) break ;;
+                    LINUX\ *) serial_kernel_rel="${cfg_line#LINUX }" ;;
+                    INITRD\ *) serial_initrd_rel="${cfg_line#INITRD }" ;;
+                    APPEND\ *) serial_append="${cfg_line#APPEND }" ;;
+                esac
+            fi
+        done < "$isolinux_cfg"
+    fi
+
+    if [[ -n "$serial_kernel_rel" && -n "$serial_initrd_rel" && -n "$serial_append" ]]; then
+        serial_kernel="$serial_cfg_dir/vmlinuz"
+        serial_initrd="$serial_cfg_dir/initrd"
+        xorriso -indev "$iso_path" -osirrox on \
+            -extract "/$serial_kernel_rel" "$serial_kernel" >/dev/null 2>&1 || true
+        xorriso -indev "$iso_path" -osirrox on \
+            -extract "/$serial_initrd_rel" "$serial_initrd" >/dev/null 2>&1 || true
+    fi
+
+    if [[ -n "$serial_kernel_rel" && -f "$serial_kernel" && -f "$serial_initrd" ]]; then
+        qemu_args+=(
+            -kernel "$serial_kernel"
+            -initrd "$serial_initrd"
+            -append "$serial_append"
+            -cdrom "$iso_path"
+        )
+    else
+        echo "  Note: could not extract the ISO's serial-console boot entry;" >&2
+        echo "  falling back to the normal boot menu (guest serial output may be silent)." >&2
+        want_serial_console=0
+    fi
+fi
+
+# Boot device (normal path: not using the extracted serial-console kernel)
+if [[ "$want_serial_console" != "1" ]]; then
+    if [[ "$boot_mode" == "iso" ]]; then
+        # order=c  → HDD is the persistent default (warm reboots go to disk)
+        # once=d   → override to CD-ROM for this cold boot only
+        # Without order=c, SeaBIOS may still try the CD on warm reboots
+        # because it sees a bootable disc present — order=c prevents that.
+        qemu_args+=(
+            -boot order=c,once=d
+            -cdrom "$iso_path"
+        )
+    else
+        # Disk-only boot: no ISO attached at all, hard disk is the only device.
+        qemu_args+=( -boot order=c )
+    fi
 fi
 
 # Display
