@@ -15,6 +15,10 @@ theme_sync_script="${ABORA_THEME_SYNC_SCRIPT:-/etc/abora/theme-sync.sh}"
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/abora"
 marker_file="${state_dir}/wallpaper-seed"
 theme_marker_file="${state_dir}/dark-theme-seed"
+dotfiles_url_file="${ABORA_DOTFILES_URL_FILE:-/etc/nixos/abora/dotfiles-url}"
+dotfiles_marker_file="${state_dir}/dotfiles-import-seed"
+dotfiles_import_bin="${ABORA_DOTFILES_IMPORT_BIN:-abora-dotfiles-import}"
+dotfiles_checkout_dir="${XDG_CACHE_HOME:-$HOME/.cache}/abora-dotfiles"
 swaybg_pid_file="${XDG_RUNTIME_DIR:-/tmp}/abora-swaybg.pid"
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 icon_theme="${ABORA_ICON_THEME:-Papirus-Dark}"
@@ -87,6 +91,28 @@ mark_theme_seeded() {
 
 theme_already_seeded() {
     [[ -f "$theme_marker_file" ]]
+}
+
+# If the installer saved a dotfiles Git URL (Dotfiles page in the GUI
+# installer, hyprland/other editions), clone it and import it via
+# abora-dotfiles-import. Only marks itself done on success — first boot
+# commonly has no network yet (or briefly doesn't), so a failed attempt
+# is retried on the next login rather than getting stuck; a run that
+# genuinely succeeds writes the marker and never runs again.
+import_dotfiles_once() {
+    [[ -f "$dotfiles_url_file" ]] || return 0
+    [[ ! -f "$dotfiles_marker_file" ]] || return 0
+    command -v "$dotfiles_import_bin" >/dev/null 2>&1 || return 0
+
+    local url
+    url="$(tr -d '[:space:]' < "$dotfiles_url_file" 2>/dev/null || true)"
+    [[ -n "$url" ]] || return 0
+
+    mkdir -p "$state_dir"
+    if "$dotfiles_import_bin" --git-url "$url" "$dotfiles_checkout_dir" \
+        >>"${state_dir}/dotfiles-import.log" 2>&1; then
+        printf 'imported\n' > "$dotfiles_marker_file"
+    fi
 }
 
 set_gsettings_string() {
@@ -401,6 +427,8 @@ main() {
 
     [[ -f "$default_wallpaper" ]] || exit 0
     [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || exit 0
+
+    import_dotfiles_once
 
     signature="$(desktop_signature)"
 

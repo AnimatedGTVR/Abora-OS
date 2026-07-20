@@ -1212,12 +1212,13 @@ if [[ -x "$config_dir/abora/anix.sh" ]]; then
     fi
 fi
 
-sync_abora_files "$effective_ref" || {
+abora_wu_banner "Working on updates" "Don't turn off your computer"
+
+abora_wu_run "Getting things ready" "/tmp/abora-update-sync.log" -- \
+    sync_abora_files "$effective_ref" || {
     abora_error "Abora could not fetch the latest project files."
     exit 1
 }
-abora_success "Abora files synced."
-printf '\n'
 
 maybe_reexec_synced_updater
 
@@ -1226,10 +1227,8 @@ ensure_flake_layout || {
     exit 1
 }
 
-abora_step "Updating flake inputs"
-printf '\n'
-nix --extra-experimental-features "nix-command flakes" flake update --flake "$config_dir"
-printf '\n'
+abora_wu_run "Updating flake inputs" "/tmp/abora-update-flake.log" -- \
+    nix --extra-experimental-features "nix-command flakes" flake update --flake "$config_dir" || exit 1
 
 if git -C "$config_dir" rev-parse --git-dir >/dev/null 2>&1; then
     git -C "$config_dir" add \
@@ -1241,10 +1240,9 @@ if git -C "$config_dir" rev-parse --git-dir >/dev/null 2>&1; then
         2>/dev/null || true
 fi
 
-abora_step "Rebuilding Abora from $config_dir"
-printf '\n'
-nixos-rebuild switch --flake "$config_dir#${flake_config_name}"
-printf '\n'
+abora_wu_run "Rebuilding Abora from $config_dir" "/tmp/abora-update-rebuild.log" -- \
+    nixos-rebuild switch --flake "$config_dir#${flake_config_name}" || exit 1
 
+printf '\n'
 abora_success "Abora is up to date."
 printf '\n'

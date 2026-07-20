@@ -445,3 +445,82 @@ abora_checkbox() {
         printf '  %b[ ]%b %b%s%b\n' "$ABORA_FAINT" "$ABORA_NC" "$ABORA_DIM" "$label" "$ABORA_NC"
     fi
 }
+
+# ── Windows-Update-style update screen ───────────────────────────────────────
+# Scoped to abora-update.sh's rebuild flow: a solid full-width blue banner and
+# a ring-spinner status line evoking the familiar "Working on updates" screen,
+# without touching ABORA_* (the shared ocean palette every other tool uses).
+# Real percentages aren't attempted — `nix flake update`/`nixos-rebuild` don't
+# expose a parseable progress stream, so faking one would drift from reality;
+# the spinner + elapsed time communicates "still working" honestly instead.
+
+ABORA_WU_BLUE_BG=$'\033[48;5;27m'   # Windows Update blue field
+ABORA_WU_WHITE=$'\033[1;97m'
+ABORA_WU_FAINT=$'\033[38;5;153m'    # pale blue, readable on the blue field
+_abora_wu_spinner_frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+
+# Full-width blue banner, filled edge to edge like Windows Update's update
+# screen. Usage: abora_wu_banner "Title" "Subtitle"
+abora_wu_banner() {
+    local title="${1:-}" subtitle="${2:-}" cols pad
+    cols="$(abora_cols)"
+    printf '\n'
+    printf '%b%*s%b\n' "$ABORA_WU_BLUE_BG" "$cols" '' "$ABORA_NC"
+    if [[ -n "$title" ]]; then
+        pad=$((cols - ${#title} - 2))
+        [[ $pad -lt 0 ]] && pad=0
+        printf '%b  %b%s%b%*s%b\n' "$ABORA_WU_BLUE_BG" "$ABORA_WU_WHITE" "$title" "$ABORA_NC$ABORA_WU_BLUE_BG" \
+            "$pad" '' "$ABORA_NC"
+    fi
+    if [[ -n "$subtitle" ]]; then
+        pad=$((cols - ${#subtitle} - 2))
+        [[ $pad -lt 0 ]] && pad=0
+        printf '%b  %b%s%b%*s%b\n' "$ABORA_WU_BLUE_BG" "$ABORA_WU_FAINT" "$subtitle" "$ABORA_NC$ABORA_WU_BLUE_BG" \
+            "$pad" '' "$ABORA_NC"
+    fi
+    printf '%b%*s%b\n' "$ABORA_WU_BLUE_BG" "$cols" '' "$ABORA_NC"
+    printf '\n'
+}
+
+# Run a command in the background while showing a "Working on updates" status
+# line (ring spinner + elapsed time) on the current line, Windows-Update
+# style. The command's own stdout/stderr are captured to a log rather than
+# interleaved with the spinner (matches Windows Update showing a phase label,
+# not raw installer log spam); on failure the tail of that log is surfaced so
+# nothing real gets hidden. Usage:
+#   abora_wu_run "Getting things ready" logfile -- cmd arg1 arg2...
+abora_wu_run() {
+    local msg="$1" logfile="$2"
+    shift 2
+    [[ "${1:-}" == "--" ]] && shift
+
+    : > "$logfile"
+    "$@" >"$logfile" 2>&1 &
+    local cmd_pid=$!
+
+    local frame=0 start_ts elapsed idx
+    start_ts="$(date +%s)"
+    while kill -0 "$cmd_pid" 2>/dev/null; do
+        idx=$((frame % ${#_abora_wu_spinner_frames[@]}))
+        elapsed=$(( $(date +%s) - start_ts ))
+        printf '\r\033[K  %b%s%b  %b%s%b  %b(%s)%b' \
+            "$ABORA_ACCENT" "${_abora_wu_spinner_frames[$idx]}" "$ABORA_NC" \
+            "$ABORA_WHITE" "$msg" "$ABORA_NC" \
+            "$ABORA_DIM" "$(abora_format_elapsed "$elapsed")" "$ABORA_NC"
+        frame=$((frame + 1))
+        sleep 0.1
+    done
+
+    local status=0
+    wait "$cmd_pid" || status=$?
+    printf '\r\033[K'
+
+    if [[ "$status" -eq 0 ]]; then
+        abora_success "$msg"
+    else
+        abora_error "$msg failed (exit $status)"
+        printf '\n'
+        abora_log_tail "$logfile"
+    fi
+    return "$status"
+}

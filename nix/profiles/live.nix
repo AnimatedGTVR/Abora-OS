@@ -83,12 +83,16 @@ let
         TERM="''${TERM:-linux}" \
         ABORA_DESKTOP_PROFILES_LIB=/etc/abora/desktop-profiles.sh \
         ABORA_APP_CATALOG_LIB=/etc/abora/app-catalog.sh \
+        ABORA_EDITION="''${ABORA_EDITION:-${selectedEdition.id}}" \
+        ABORA_DEFAULT_DESKTOP="''${ABORA_DEFAULT_DESKTOP:-${selectedEdition.desktop}}" \
         ${pkgs.bashInteractive}/bin/bash /etc/abora/installer.sh "$@"
     fi
     exec env \
       TERM="''${TERM:-linux}" \
       ABORA_DESKTOP_PROFILES_LIB=/etc/abora/desktop-profiles.sh \
       ABORA_APP_CATALOG_LIB=/etc/abora/app-catalog.sh \
+      ABORA_EDITION="''${ABORA_EDITION:-${selectedEdition.id}}" \
+      ABORA_DEFAULT_DESKTOP="''${ABORA_DEFAULT_DESKTOP:-${selectedEdition.desktop}}" \
       ${pkgs.bashInteractive}/bin/bash /etc/abora/installer.sh "$@"
   '';
   aboraSetup = pkgs.writeShellScriptBin "abora-setup" ''
@@ -499,7 +503,7 @@ in
         source = ../../scripts/abora-repair-flake-purity.sh;
         mode = "0755";
       };
-      "abora/default-wallpaper.png".source = ../../assets/wallpapers/collection/Daytime-MNT.jpg;
+      "abora/default-wallpaper.png".source = ../../assets/wallpapers/collection/titlis-alps.jpg;
       "abora/Abora-LOGO.png".source = ../../assets/Abora-LOGO.png;
       "abora/live-cosmic-background-all".text = ''
         (
@@ -829,6 +833,8 @@ in
       ABORA_ZONEINFO_PATH          = "${pkgs.tzdata}/share/zoneinfo";
       ABORA_DESKTOP_PROFILES_LIB   = "/etc/abora/desktop-profiles.sh";
       ABORA_APP_CATALOG_LIB        = "/etc/abora/app-catalog.sh";
+      ABORA_EDITION                = selectedEdition.id;
+      ABORA_DEFAULT_DESKTOP        = selectedEdition.desktop;
     };
     serviceConfig = {
       Type   = "simple";
