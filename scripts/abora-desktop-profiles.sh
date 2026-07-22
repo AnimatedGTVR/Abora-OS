@@ -14,8 +14,6 @@ abora_supported_wallpapers() {
     cat <<'EOF'
 abora-dark.svg
 abora-light.svg
-Daytime-MNT.jpg
-NightTime-MNT.png
 alpine-glacier.jpg
 tannheimer-mountains.jpg
 titlis-alps.jpg
@@ -30,12 +28,6 @@ abora_sync_wallpaper_label() {
             ;;
         abora-light.svg)
             wallpaper_label="Abora Light"
-            ;;
-        Daytime-MNT.jpg)
-            wallpaper_label="Mountain — Day/Night"
-            ;;
-        NightTime-MNT.png)
-            wallpaper_label="Mountain — Night"
             ;;
         alpine-glacier.jpg)
             wallpaper_label="Alpine Glacier"

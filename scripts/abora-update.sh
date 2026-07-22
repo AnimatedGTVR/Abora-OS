@@ -818,9 +818,9 @@ sync_abora_files() {
     fi
     copy_first_existing_upstream_file \
         "$abora_dir/default-wallpaper.png" \
-        "$upstream_dir/assets/wallpapers/collection/Daytime-MNT.jpg" \
+        "$upstream_dir/assets/wallpapers/collection/titlis-alps.jpg" \
         "$upstream_dir/assets/wallpapers/collection/tannheimer-mountains.jpg" \
-        "$upstream_dir/assets/wallpapers/collection/titlis-alps.jpg"
+        "$upstream_dir/assets/wallpapers/collection/alpine-glacier.jpg"
     copy_upstream_file "$upstream_dir/scripts/abora-desktop-profiles.sh" "$abora_dir/desktop-profiles.sh"
     copy_upstream_file "$upstream_dir/nix/modules/installed-base.nix" "$abora_dir/installed-base.nix"
     if [[ -d "$upstream_dir/assets/anix-languages" ]]; then

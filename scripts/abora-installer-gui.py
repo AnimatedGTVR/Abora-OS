@@ -257,14 +257,12 @@ TIMEZONES = [
 ]
 
 WALLPAPERS = [
-    ('abora-dark.svg',         'Abora Dark'),
-    ('abora-light.svg',        'Abora Light'),
-    ('Daytime-MNT.jpg',        'Mountain — Day'),
-    ('NightTime-MNT.png',      'Mountain — Night'),
-    ('alpine-glacier.jpg',        'Alpine Glacier'),
-    ('tannheimer-mountains.jpg',  'Tannheimer Mountains'),
+    ('abora-dark.svg',            'Abora Dark'),
+    ('abora-light.svg',           'Abora Light'),
     ('titlis-alps.jpg',           'Titlis Alps'),
     ('aurora-lofoten.jpg',        'Aurora, Lofoten'),
+    ('alpine-glacier.jpg',        'Alpine Glacier'),
+    ('tannheimer-mountains.jpg',  'Tannheimer Mountains'),
 ]
 
 # ── CSS ────────────────────────────────────────────────────────────────────────
@@ -592,7 +590,7 @@ class State:
         desktop = 'cosmic'
     apps          = 'favorites'
     anix          = True
-    wallpaper     = 'NightTime-MNT.png'
+    wallpaper     = 'titlis-alps.jpg'
     dotfiles_url  = ''
 
 

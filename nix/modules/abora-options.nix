@@ -10,8 +10,6 @@ let
   active = cfg.user.name != null;
   wallpaperDir = ./wallpapers;
   bundledWallpaperNames = [
-    "Daytime-MNT.jpg"
-    "NightTime-MNT.png"
     "alpine-glacier.jpg"
     "tannheimer-mountains.jpg"
     "titlis-alps.jpg"
@@ -155,7 +153,7 @@ in
 
     wallpaper = lib.mkOption {
       type = lib.types.enum wallpaperNames;
-      default = "Daytime-MNT.jpg";
+      default = "titlis-alps.jpg";
       description = "Default wallpaper file shipped with Abora.";
     };
   };

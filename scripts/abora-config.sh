@@ -137,8 +137,6 @@ wallpaper_candidates() {
     fi
 
     printf '%s\n' \
-        Daytime-MNT.jpg \
-        NightTime-MNT.png \
         alpine-glacier.jpg \
         tannheimer-mountains.jpg \
         titlis-alps.jpg \

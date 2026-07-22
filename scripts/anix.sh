@@ -74,8 +74,6 @@ valid_desktops=(
 )
 
 default_wallpapers=(
-    Daytime-MNT.jpg
-    NightTime-MNT.png
     alpine-glacier.jpg
     tannheimer-mountains.jpg
     titlis-alps.jpg
@@ -570,7 +568,7 @@ render_template() {
     keyboard_console="$(seed_value "keyboard.console" "us")"
     keyboard_xkb="$(seed_value "keyboard.xkb" "$keyboard_console")"
     desktop="$(seed_value "desktop" "gnome")"
-    wallpaper="$(seed_value "wallpaper" "Daytime-MNT.jpg")"
+    wallpaper="$(seed_value "wallpaper" "titlis-alps.jpg")"
 
     cat <<EOF
 ## ANIX is the simple layer on top of NixOS.
@@ -598,7 +596,7 @@ render_template() {
   anix.desktop = "${desktop}";
 
   ## Wallpaper filename (used by Abora OS integrations when available).
-  ## Command: anix set wallpaper Daytime-MNT.jpg
+  ## Command: anix set wallpaper titlis-alps.jpg
   anix.wallpaper = "${wallpaper}";
 
   ## Allow unfree apps like Discord and Steam.

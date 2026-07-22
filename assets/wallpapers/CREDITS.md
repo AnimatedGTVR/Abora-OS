@@ -40,11 +40,4 @@ The following wallpapers are included with Abora OS.
 
 ---
 
-## Mountain (Day/Night)
-
-- Files: `collection/Daytime-MNT.jpg`, `collection/NightTime-MNT.png`
-- Source: unknown — provenance not recorded before this file existed. If you know the origin of these two images, please open an issue or PR.
-
----
-
 Abora Dark and Abora Light (`collection/abora-dark.svg`, `collection/abora-light.svg`) are original artwork created for this project.

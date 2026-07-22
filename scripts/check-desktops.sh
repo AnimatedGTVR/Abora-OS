@@ -96,7 +96,7 @@ stage_installed_abora() {
   cp "$repo_dir/assets/fastfetch-logo.txt" "$staged_abora/fastfetch-logo.txt"
   cp "$repo_dir/assets/fastfetch-config.jsonc" "$staged_abora/fastfetch-config.jsonc"
   cp "$repo_dir/assets/Abora-LOGO.png" "$staged_abora/Abora-LOGO.png"
-  cp "$repo_dir/assets/wallpapers/collection/Daytime-MNT.jpg" "$staged_abora/default-wallpaper.png"
+  cp "$repo_dir/assets/wallpapers/collection/titlis-alps.jpg" "$staged_abora/default-wallpaper.png"
   cp "$repo_dir/assets/mango/config.conf" "$staged_abora/mango/config.conf"
   cp "$repo_dir/assets/plymouth/abora.plymouth" "$staged_abora/plymouth/abora.plymouth"
   cp "$repo_dir/assets/plymouth/abora.script" "$staged_abora/plymouth/abora.script"

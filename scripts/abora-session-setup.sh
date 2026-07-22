@@ -4,7 +4,7 @@ set -euo pipefail
 export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 default_wallpaper="${ABORA_DEFAULT_WALLPAPER:-/etc/abora/default-wallpaper.png}"
-default_dark_wallpaper="${ABORA_DEFAULT_DARK_WALLPAPER:-/etc/abora/wallpapers/NightTime-MNT.png}"
+default_dark_wallpaper="${ABORA_DEFAULT_DARK_WALLPAPER:-/etc/abora/wallpapers/aurora-lofoten.jpg}"
 if [[ ! -f "$default_dark_wallpaper" ]]; then
     default_dark_wallpaper="$default_wallpaper"
 fi

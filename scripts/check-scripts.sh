@@ -445,7 +445,7 @@ printf '%s\n' \
   '  anix.keyboard.console = "us";' \
   '  anix.keyboard.xkb = "us";' \
   '  anix.desktop = "gnome";' \
-  '  anix.wallpaper = "Daytime-MNT.jpg";' \
+  '  anix.wallpaper = "titlis-alps.jpg";' \
   '}' > "$tmp_anix"
 anix_output="$(
   ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
@@ -454,7 +454,7 @@ anix_output="$(
   scripts/anix.sh show 2>&1
 )"
 if printf '%s' "$anix_output" | grep -q "testbox" \
-  && printf '%s' "$anix_output" | grep -q "Daytime-MNT.jpg"; then
+  && printf '%s' "$anix_output" | grep -q "titlis-alps.jpg"; then
   pass "runtime: anix fallback UI show"
 else
   fail "runtime: anix fallback UI show"

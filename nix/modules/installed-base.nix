@@ -161,15 +161,6 @@ let
         <scolor>#030812</scolor>
       </wallpaper>
       <wallpaper deleted="false">
-        <name>Mountain (Day/Night)</name>
-        <filename>/run/current-system/sw/share/backgrounds/abora/Daytime-MNT.jpg</filename>
-        <filename-dark>/run/current-system/sw/share/backgrounds/abora/NightTime-MNT.png</filename-dark>
-        <options>zoom</options>
-        <shade_type>solid</shade_type>
-        <pcolor>#1a2a1a</pcolor>
-        <scolor>#0a0e1a</scolor>
-      </wallpaper>
-      <wallpaper deleted="false">
         <name>Alpine Glacier</name>
         <filename>/run/current-system/sw/share/backgrounds/abora/alpine-glacier.jpg</filename>
         <filename-dark>/run/current-system/sw/share/backgrounds/abora/alpine-glacier.jpg</filename-dark>

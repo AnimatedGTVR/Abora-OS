@@ -11,13 +11,13 @@ in
   defaultWallpaperPath = "/run/current-system/sw/share/backgrounds/abora/${cfg.wallpaper}";
   defaultWallpaperUri = "file:///run/current-system/sw/share/backgrounds/abora/${cfg.wallpaper}";
   defaultDarkWallpaper =
-    if cfg.wallpaper == "Daytime-MNT.jpg" then
-      "NightTime-MNT.png"
+    if cfg.wallpaper == "titlis-alps.jpg" then
+      "aurora-lofoten.jpg"
     else
       cfg.wallpaper;
   defaultDarkWallpaperUri =
     "file:///run/current-system/sw/share/backgrounds/abora/${
-      if cfg.wallpaper == "Daytime-MNT.jpg" then "NightTime-MNT.png" else cfg.wallpaper
+      if cfg.wallpaper == "titlis-alps.jpg" then "aurora-lofoten.jpg" else cfg.wallpaper
     }";
 
   autologin = {

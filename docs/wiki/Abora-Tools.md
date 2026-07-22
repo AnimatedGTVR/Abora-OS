@@ -82,10 +82,10 @@ anix set desktop hyprland
 anix apply
 ```
 
-Bundled wallpapers: `Daytime-MNT.jpg`, `NightTime-MNT.png`, `alpine-glacier.jpg`,
-`tannheimer-mountains.jpg`, `titlis-alps.jpg`, `aurora-lofoten.jpg`, plus the
-`abora-dark.svg`/`abora-light.svg` originals. Source and license for each photo
-are in [assets/wallpapers/CREDITS.md](../../assets/wallpapers/CREDITS.md).
+Bundled wallpapers: `titlis-alps.jpg`, `aurora-lofoten.jpg`, `alpine-glacier.jpg`,
+`tannheimer-mountains.jpg`, plus the `abora-dark.svg`/`abora-light.svg`
+originals. Source and license for each photo are in
+[assets/wallpapers/CREDITS.md](../../assets/wallpapers/CREDITS.md).
 
 ```sh
 abora config set wallpaper titlis-alps.jpg
