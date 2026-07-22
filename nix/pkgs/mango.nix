@@ -31,8 +31,8 @@ stdenv.mkDerivation {
   src = fetchFromGitHub {
     owner = "mangowm";
     repo  = "mango";
-    rev   = "71278aa7a44ff4174c0a8dbb2483a291e292846d";
-    hash  = "sha256-vbL9hO4vdG5MYEDocW8ORFr/qhphEUvY0ZkmrJuhrIc=";
+    rev   = "8e71d6b0aec6db04c0e0f10fd1814a7d411c926f";
+    hash  = "sha256-Bju+I6dW+m3RofwPx+ZYd84tZn1fBhOexIRl4TOrdy8=";
   };
 
   nativeBuildInputs = [ meson ninja pkg-config wayland-scanner ];
