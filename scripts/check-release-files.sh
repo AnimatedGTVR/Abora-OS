@@ -12,6 +12,7 @@ nix/modules/installed-base.nix
 nix/modules/anix.nix
 nix/modules/desktops
 nix/pkgs/mango.nix
+nix/pkgs/scenefx-0_5.nix
 nix/pkgs/modularity.nix
 nix/pkgs/moducpp-anix.nix
 scripts/abora-update.sh

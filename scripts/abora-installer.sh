@@ -581,6 +581,7 @@ check_install_environment() {
         /etc/abora/desktop-profiles.sh
         /etc/abora/mango/config.conf
         /etc/abora/pkgs/mango.nix
+        /etc/abora/pkgs/scenefx-0_5.nix
         /etc/abora/pkgs/modularity.nix
         /etc/abora/pkgs/moducpp-anix.nix
         /etc/abora/tools/moducpp-anix
@@ -1528,6 +1529,7 @@ write_branding_assets() {
     cp_required /etc/abora/plymouth/abora.script   "${root}/etc/nixos/abora/plymouth/abora.script"
     install_mango_config_asset "$root"
     cp_required /etc/abora/pkgs/mango.nix          "${root}/etc/nixos/abora/pkgs/mango.nix"
+    cp_required /etc/abora/pkgs/scenefx-0_5.nix    "${root}/etc/nixos/abora/pkgs/scenefx-0_5.nix"
     cp_required /etc/abora/pkgs/modularity.nix     "${root}/etc/nixos/abora/pkgs/modularity.nix"
     cp_required /etc/abora/pkgs/moducpp-anix.nix   "${root}/etc/nixos/abora/pkgs/moducpp-anix.nix"
     cp_required /etc/abora/tools/moducpp-anix      "${root}/etc/nixos/abora/tools/moducpp-anix"

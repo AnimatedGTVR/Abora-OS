@@ -576,6 +576,7 @@ in
       "abora/setup.desktop".source = ../../scripts/abora-setup.desktop;
       "abora/installed-base.nix".source = ../modules/installed-base.nix;
       "abora/pkgs/mango.nix".source = ../pkgs/mango.nix;
+      "abora/pkgs/scenefx-0_5.nix".source = ../pkgs/scenefx-0_5.nix;
       "abora/pkgs/modularity.nix".source = ../pkgs/modularity.nix;
       "abora/pkgs/moducpp-anix.nix".source = ../pkgs/moducpp-anix.nix;
       "abora/tools/moducpp-anix" = {

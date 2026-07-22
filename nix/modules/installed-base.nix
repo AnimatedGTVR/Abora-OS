@@ -230,6 +230,7 @@ in
 
   nixpkgs.overlays = [
     (final: prev: {
+      scenefx-0_5 = final.callPackage ./pkgs/scenefx-0_5.nix {};
       mango = final.callPackage ./pkgs/mango.nix {};
       modularity = final.callPackage ./pkgs/modularity.nix {};
       moducpp-anix = final.callPackage ./pkgs/moducpp-anix.nix {

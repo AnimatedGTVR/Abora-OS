@@ -110,6 +110,7 @@ stage_installed_abora() {
   cp "$repo_dir/nix/modules/anix.nix" "$staged_abora/anix-module.nix"
   cp -R "$repo_dir/nix/modules/desktops/." "$staged_abora/desktops/"
   cp "$repo_dir/nix/pkgs/mango.nix" "$staged_abora/pkgs/mango.nix"
+  cp "$repo_dir/nix/pkgs/scenefx-0_5.nix" "$staged_abora/pkgs/scenefx-0_5.nix"
   cp "$repo_dir/nix/pkgs/modularity.nix" "$staged_abora/pkgs/modularity.nix"
   cp "$repo_dir/nix/pkgs/moducpp-anix.nix" "$staged_abora/pkgs/moducpp-anix.nix"
   cp "$repo_dir/tools/moducpp-anix" "$staged_abora/tools/moducpp-anix"
