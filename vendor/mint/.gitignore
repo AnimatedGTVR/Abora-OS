@@ -1,0 +1,17 @@
+# Files
+test
+.DS_Store
+
+# Binaries
+gum
+mint
+bin/
+dist
+testdata
+
+# Folders
+completions/
+manpages/
+
+# nix
+result

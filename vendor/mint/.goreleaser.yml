@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema-pro.json
+
+version: 2
+
+includes:
+  - from_url:
+      url: charmbracelet/meta/main/goreleaser-full.yaml
+
+variables:
+  main: "."
+  binary_name: gum
+  scoop_name: abora-gum
+  description: "Abora OS terminal UI tools for guided shell scripts"
+  github_url: "https://github.com/AnimatedGTVR/MINT"
+  maintainer: "Abora OS"
+  brew_commit_author_name: "Abora OS"
+  brew_commit_author_email: "noreply@abora.local"
+
+milestones:
+  - close: true
