@@ -4,8 +4,7 @@
 
 <div align="center">
 
-
-### A NixOS-based Linux distro made to be easier to install, use, and understand.
+### A NixOS-based Linux distribution built to be easier to install, use, and understand.
 
 <br/>
 
@@ -43,7 +42,7 @@
 > Abora OS has two release lines: **Stable** and **Edge**.
 
 > [!TIP]
-> Want more info, docs, downloads, screenshots, and updates? Visit **https://aboraos.org**.
+> Downloads, documentation, screenshots, and project updates are available at **https://aboraos.org**.
 
 ---
 
@@ -51,9 +50,11 @@
 
 Abora OS is a Linux distribution based on NixOS.
 
-It keeps the good parts of NixOS — rollback support, reproducible systems, and powerful configuration — while making the experience easier with better defaults, desktop options, installer work, and Abora tooling.
+The goal is not to replace what makes NixOS useful. Abora keeps features such as system rollbacks, reproducible configurations, and declarative system management while providing a more approachable starting point.
 
-Abora is built for people who want a powerful Linux system without fighting the system from the start.
+It includes its own defaults, desktop choices, installer work, and tools designed to make common system tasks less confusing.
+
+Abora is for people who want the power of NixOS without needing to build their entire setup from scratch before they can use it.
 
 ---
 
@@ -61,9 +62,9 @@ Abora is built for people who want a powerful Linux system without fighting the 
 
 ### Stable
 
-Stable is for regular installs and daily use.
+Stable is intended for normal installations and everyday use.
 
-It uses normal version numbers like:
+Stable releases use regular version numbers:
 
 ```txt
 2.5
@@ -72,37 +73,40 @@ It uses normal version numbers like:
 4.0
 ```
 
-Stable gets tested changes and is the safer choice for most users.
+Changes are tested before being included, making Stable the recommended option for most users.
 
 ### Edge
 
-Edge is the faster-moving line.
+Edge contains the newest Abora development work.
 
-It gets newer changes first, including installer updates, desktop changes, ANIX work, fixes, and early Abora development.
+This can include installer changes, desktop updates, ANIX features, fixes, experiments, and other work that has not reached Stable yet.
 
-Edge uses date-based version IDs like:
+Edge releases use date-based version numbers:
 
 ```txt
 2026.07.01
 ```
 
+Edge is useful for testing and development, but it may occasionally break.
+
 ---
 
-## Main Features
+## Features
 
-- NixOS base
-- Rollback-friendly updates
-- Multiple desktop options
-- ANIX tooling
-- Stable and Edge release lines
-- Custom installer work
-- Abora-specific defaults and cleanup
+* Built on NixOS
+* System rollback support
+* Reproducible system configuration
+* Multiple desktop options
+* Stable and Edge release lines
+* Custom installer development
+* Abora-specific defaults and tools
+* ANIX system management tools
 
 ---
 
 ## ANIX
 
-ANIX is Abora’s easier layer for common Nix-style system tasks.
+ANIX is Abora’s command-line tool for common system management tasks.
 
 ```bash
 anix update
@@ -112,13 +116,13 @@ anix status
 ```
 
 > [!NOTE]
-> ANIX is meant to make Abora easier to manage, not hide how the system works.
+> ANIX is not meant to hide NixOS. It exists to make the tasks people perform most often easier to understand and remember.
 
 ---
 
 ## Download
 
-Download Abora OS from the website or GitHub releases.
+Abora OS can be downloaded from the official website or from GitHub Releases.
 
 <div align="center">
 
@@ -142,9 +146,9 @@ git clone https://github.com/AnimatedGTVR/Abora-OS.git
 cd Abora-OS
 ```
 
-Build steps may change depending on the branch, release line, and ISO profile.
+The exact build process may differ between branches, releases, and ISO profiles.
 
-For current build info, check the website, release notes, or DeepWiki.
+Check the project website, release notes, or DeepWiki for the latest build information.
 
 <div align="center">
 
@@ -160,21 +164,22 @@ For current build info, check the website, release notes, or DeepWiki.
 
 Contributions are welcome.
 
-Useful help includes:
+Some useful ways to help include:
 
-- bug reports
-- desktop testing
-- installer testing
-- documentation fixes
-- ANIX improvements
-- cleanup work
+* Reporting bugs
+* Testing desktop environments
+* Testing the installer
+* Improving documentation
+* Working on ANIX
+* Cleaning up existing code
+* Submitting fixes and improvements
 
-Open an issue or pull request if you want to help.
+Open an issue before starting a large change so it can be discussed first. Smaller fixes can be submitted through a pull request.
 
 ---
 
 > [!WARNING]
-> Edge builds may break. Use Stable if you want the safer path.
+> Edge builds are development builds and may break. Use Stable for systems where reliability matters.
 
 ---
 
@@ -201,6 +206,6 @@ Open an issue or pull request if you want to help.
 
 ## License
 
-Abora OS is open source.
+Abora OS is open-source software.
 
-Check the repository license for exact terms.
+See the [LICENSE](LICENSE) file for the full license terms.
