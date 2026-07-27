@@ -12,8 +12,10 @@
 
       overlay = final: prev: {
         anix = final.callPackage ./nix/pkgs/anix.nix {};
+        scenefx-0_5 = final.callPackage ./nix/pkgs/scenefx-0_5.nix {};
         mango = final.callPackage ./nix/pkgs/mango.nix {};
         modularity = final.callPackage ./nix/pkgs/modularity.nix {};
+        moducpp-anix = final.callPackage ./nix/pkgs/moducpp-anix.nix {};
       };
 
 	pkgs = import nixpkgs {
@@ -76,6 +78,7 @@ mkLive = liveEdition: nixpkgs.lib.nixosSystem {
 
         mango = pkgs.mango;
         modularity = pkgs.modularity;
+        moducpp-anix = pkgs.moducpp-anix;
 
         default = self.nixosConfigurations.abora-live-cosmic.config.system.build.isoImage;
       };

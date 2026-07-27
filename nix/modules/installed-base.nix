@@ -18,11 +18,25 @@ let
   checkFullScript      = ./check-full.sh;
   recoveryScript       = ./recovery.sh;
   welcomeScript        = ./welcome.sh;
+  # New in this release; optional so systems mid-update (new installed-base.nix
+  # synced before the new .py files finish copying) don't fail evaluation.
+  welcomeGuiScript =
+    if builtins.pathExists ./welcome-gui.py then ./welcome-gui.py else null;
+  configGuiScript =
+    if builtins.pathExists ./config-gui.py then ./config-gui.py else null;
   anixScript           = ./anix.sh;
   optionsModule        = ./abora-options.nix;
   anixModule           = ./anix-module.nix;
   docsDir =
     if builtins.pathExists ./docs then ./docs else null;
+  # ANIX v2 language adapter manifests (docs/wiki/ANIX-V2-Languages.md).
+  # Populated the same way as docsDir above — the live ISO ships
+  # assets/anix-languages/, and the installer's file-copy step is expected
+  # to place a copy beside installed-base.nix as ./anix-languages before the
+  # first nixos-rebuild. Absent until that copy step exists, so this stays
+  # optional rather than a hard requirement.
+  anixLanguagesDir =
+    if builtins.pathExists ./anix-languages then ./anix-languages else null;
   appCatalogScript     = ./app-catalog.sh;
   appManagerScript     = ./apps.sh;
   supportReportScript  = ./support-report.sh;
@@ -39,6 +53,7 @@ let
   desktopProfilesScript = ./desktop-profiles.sh;
   mangoConfigFile      = ./mango/config.conf;
   mangoConfigText      = builtins.readFile mangoConfigFile;
+  moducppAnixTool      = ./tools/moducpp-anix;
   installerScript      = ./installer.sh;
   setupLauncherScript  = ./setup-launcher.sh;
   setupDesktopFile     = ./setup.desktop;
@@ -54,7 +69,22 @@ let
   tinypmDir            = ./tinypm;
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
   mkGrabCmd = name: pkgs.writeShellScriptBin name ''
-    exec env TINYPM_FLAVOR=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/tinypm/${name} "$@"
+    runtime=/etc/abora/tinypm
+    entry="$runtime/bin/${name}"
+    if [ ! -x "$entry" ]; then
+      entry="$runtime/${name}"
+    fi
+    if [ ! -x "$entry" ]; then
+      case "${name}" in
+        Parcel|version)
+          exec env TINYPM_FLAVOR=abora ${pkgs.bashInteractive}/bin/bash "$runtime/bin/tinypm" version "$@"
+          ;;
+        *)
+          exec env TINYPM_FLAVOR=abora TINYPM_ENTRYPOINT=${name} ${pkgs.bashInteractive}/bin/bash "$runtime/bin/tinypm" "$@"
+          ;;
+      esac
+    fi
+    exec env TINYPM_FLAVOR=abora TINYPM_ENTRYPOINT=${name} ${pkgs.bashInteractive}/bin/bash "$entry" "$@"
   '';
   aboraApps = pkgs.writeShellScriptBin "abora-apps" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/apps.sh "$@"
@@ -80,6 +110,25 @@ let
   aboraWelcome = pkgs.writeShellScriptBin "abora-welcome" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/welcome.sh "$@"
   '';
+  aboraGuiPython = pkgs.python3.withPackages (ps: with ps; [ pygobject3 ]);
+  aboraGuiGiPath = lib.makeSearchPath "lib/girepository-1.0" (with pkgs; [
+    gtk4 libadwaita glib gdk-pixbuf (lib.getLib pango) harfbuzz graphene cairo gobject-introspection
+  ]);
+  aboraGuiLibPath = lib.makeLibraryPath (with pkgs; [
+    gtk4 libadwaita glib gdk-pixbuf cairo
+  ]);
+  aboraWelcomeGui = pkgs.writeShellScriptBin "abora-welcome-gui" ''
+    export GI_TYPELIB_PATH="${aboraGuiGiPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+    export LD_LIBRARY_PATH="${aboraGuiLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    export ABORA_UPDATE_SCRIPT="''${ABORA_UPDATE_SCRIPT:-/etc/abora/update.sh}"
+    exec ${aboraGuiPython}/bin/python3 /etc/abora/welcome-gui.py "$@"
+  '';
+  aboraConfigGui = pkgs.writeShellScriptBin "abora-config-gui" ''
+    export GI_TYPELIB_PATH="${aboraGuiGiPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+    export LD_LIBRARY_PATH="${aboraGuiLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    export ABORA_CONFIG_SCRIPT="''${ABORA_CONFIG_SCRIPT:-/etc/abora/config.sh}"
+    exec ${aboraGuiPython}/bin/python3 /etc/abora/config-gui.py "$@"
+  '';
   anixCommand = pkgs.writeShellScriptBin "anix" ''
     exec env ANIX_SYSTEM_CONFIG=/etc/nixos ANIX_FLAKE_CONFIG_NAME=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/anix.sh "$@"
   '';
@@ -104,6 +153,34 @@ let
     mkdir -p "$out/share/applications"
     cp ${setupDesktopFile} "$out/share/applications/abora-setup.desktop"
   '';
+  aboraWelcomeDesktopPkg = pkgs.writeTextFile {
+    name = "abora-welcome-desktop";
+    destination = "/share/applications/abora-welcome.desktop";
+    text = ''
+      [Desktop Entry]
+      Type=Application
+      Name=Abora Welcome
+      Comment=First steps and update checks for Abora OS
+      Exec=abora-welcome-gui
+      Icon=distributor-logo
+      Categories=System;Settings;
+      Terminal=false
+    '';
+  };
+  aboraConfigDesktopPkg = pkgs.writeTextFile {
+    name = "abora-config-desktop";
+    destination = "/share/applications/abora-config.desktop";
+    text = ''
+      [Desktop Entry]
+      Type=Application
+      Name=Abora System Settings
+      Comment=Edit your Abora OS system configuration
+      Exec=abora-config-gui
+      Icon=preferences-system
+      Categories=System;Settings;
+      Terminal=false
+    '';
+  };
   aboraUpdate = pkgs.writeShellScriptBin "abora-update" ''
     exec env ABORA_UPDATE_COMMAND=abora-update ${pkgs.bashInteractive}/bin/bash /etc/abora/update.sh "$@"
   '';
@@ -152,49 +229,40 @@ let
         <scolor>#030812</scolor>
       </wallpaper>
       <wallpaper deleted="false">
-        <name>Mountain (Day/Night)</name>
-        <filename>/run/current-system/sw/share/backgrounds/abora/Daytime-MNT.jpg</filename>
-        <filename-dark>/run/current-system/sw/share/backgrounds/abora/NightTime-MNT.png</filename-dark>
+        <name>Alpine Glacier</name>
+        <filename>/run/current-system/sw/share/backgrounds/abora/alpine-glacier.jpg</filename>
+        <filename-dark>/run/current-system/sw/share/backgrounds/abora/alpine-glacier.jpg</filename-dark>
         <options>zoom</options>
         <shade_type>solid</shade_type>
-        <pcolor>#1a2a1a</pcolor>
-        <scolor>#0a0e1a</scolor>
+        <pcolor>#1a1030</pcolor>
+        <scolor>#1a1030</scolor>
       </wallpaper>
       <wallpaper deleted="false">
-        <name>Ocean Dusk</name>
-        <filename>/run/current-system/sw/share/backgrounds/abora/oceandusk.png</filename>
-        <filename-dark>/run/current-system/sw/share/backgrounds/abora/oceandusk.png</filename-dark>
+        <name>Tannheimer Mountains</name>
+        <filename>/run/current-system/sw/share/backgrounds/abora/tannheimer-mountains.jpg</filename>
+        <filename-dark>/run/current-system/sw/share/backgrounds/abora/tannheimer-mountains.jpg</filename-dark>
         <options>zoom</options>
         <shade_type>solid</shade_type>
-        <pcolor>#07111f</pcolor>
-        <scolor>#07111f</scolor>
+        <pcolor>#0b3a63</pcolor>
+        <scolor>#0b3a63</scolor>
       </wallpaper>
       <wallpaper deleted="false">
-        <name>Blue Horizon</name>
-        <filename>/run/current-system/sw/share/backgrounds/abora/bluehorizon.png</filename>
-        <filename-dark>/run/current-system/sw/share/backgrounds/abora/bluehorizon.png</filename-dark>
+        <name>Titlis Alps</name>
+        <filename>/run/current-system/sw/share/backgrounds/abora/titlis-alps.jpg</filename>
+        <filename-dark>/run/current-system/sw/share/backgrounds/abora/titlis-alps.jpg</filename-dark>
         <options>zoom</options>
         <shade_type>solid</shade_type>
-        <pcolor>#081223</pcolor>
-        <scolor>#081223</scolor>
+        <pcolor>#0e4a7a</pcolor>
+        <scolor>#0e4a7a</scolor>
       </wallpaper>
       <wallpaper deleted="false">
-        <name>Astronaut Wallpaper</name>
-        <filename>/run/current-system/sw/share/backgrounds/abora/astronautwallpaper.png</filename>
-        <filename-dark>/run/current-system/sw/share/backgrounds/abora/astronautwallpaper.png</filename-dark>
+        <name>Aurora, Lofoten</name>
+        <filename>/run/current-system/sw/share/backgrounds/abora/aurora-lofoten.jpg</filename>
+        <filename-dark>/run/current-system/sw/share/backgrounds/abora/aurora-lofoten.jpg</filename-dark>
         <options>zoom</options>
         <shade_type>solid</shade_type>
-        <pcolor>#0b1020</pcolor>
-        <scolor>#0b1020</scolor>
-      </wallpaper>
-      <wallpaper deleted="false">
-        <name>Glacier Reflection</name>
-        <filename>/run/current-system/sw/share/backgrounds/abora/glacierreflection.png</filename>
-        <filename-dark>/run/current-system/sw/share/backgrounds/abora/glacierreflection.png</filename-dark>
-        <options>zoom</options>
-        <shade_type>solid</shade_type>
-        <pcolor>#0b1625</pcolor>
-        <scolor>#0b1625</scolor>
+        <pcolor>#081625</pcolor>
+        <scolor>#081625</scolor>
       </wallpaper>
     </wallpapers>
     EOF
@@ -212,13 +280,13 @@ in
     vendorName = "Abora OS";
     label = version;
     variant_id = lib.mkDefault "system";
-    variantName = lib.mkDefault "Abora OS EVEREST 4.0";
+    variantName = lib.mkDefault "Abora OS 2026.7.27";
     extraOSReleaseArgs = lib.mapAttrs (_: lib.mkDefault) {
       LOGO = "abora";
-      VERSION = "EVEREST 4.0";
+      VERSION = "2026.7.27";
       VERSION_ID = "4.0";
-      VERSION_CODENAME = "denali";
-      PRETTY_NAME = "Abora OS EVEREST 4.0";
+      VERSION_CODENAME = "everest";
+      PRETTY_NAME = "Abora OS 2026.7.27";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
       BUG_REPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
@@ -230,8 +298,12 @@ in
 
   nixpkgs.overlays = [
     (final: prev: {
+      scenefx-0_5 = final.callPackage ./pkgs/scenefx-0_5.nix {};
       mango = final.callPackage ./pkgs/mango.nix {};
       modularity = final.callPackage ./pkgs/modularity.nix {};
+      moducpp-anix = final.callPackage ./pkgs/moducpp-anix.nix {
+        moducppAnixSrc = moducppAnixTool;
+      };
     })
   ];
 
@@ -241,7 +313,7 @@ in
     "nixos-config=/etc/nixos/configuration.nix"
   ];
 
-  boot.kernelPackages = lib.mkDefault pkgs.linuxPackages_6_6;
+  boot.kernelPackages = lib.mkDefault pkgs.linuxPackages_latest;
   boot.initrd.systemd.enable = lib.mkDefault true;
   boot.initrd.verbose = lib.mkDefault false;
   boot.kernelParams = lib.mkDefault [
@@ -251,6 +323,12 @@ in
     "systemd.show_status=auto"
   ];
   boot.consoleLogLevel = lib.mkDefault 3;
+  boot.initrd.kernelModules = lib.mkDefault [
+    "loop"
+    "overlay"
+    "squashfs"
+    "isofs"
+  ];
   boot.initrd.availableKernelModules = lib.mkDefault [
     "ahci"
     "ata_piix"
@@ -266,23 +344,10 @@ in
     "virtio_scsi"
     "virtio_net"
   ];
-  boot.kernelModules = lib.mkDefault [
-    "btusb"
-    "bluetooth"
-    "iwlwifi"
-    "ath9k"
-    "ath10k_pci"
-    "ath11k_pci"
-    "brcmfmac"
-    "rtw88_pci"
-    "rtw89_pci"
-    "r8169"
-    "e1000e"
-    "igb"
-    "tg3"
-    "atlantic"
-    "alx"
-  ];
+  # Let udev autoload optional NIC/Bluetooth drivers from detected hardware.
+  # Preloading a broad hardware list can make systemd-modules-load fail on
+  # machines that do not support one of the optional drivers.
+  boot.kernelModules = [];
   boot.loader.efi.canTouchEfiVariables = lib.mkDefault false;
   boot.loader.limine.style.wallpapers = [ limineWallpaperFile ];
   boot.plymouth = {
@@ -379,6 +444,9 @@ in
     (mkGrabCmd "term")
     (mkGrabCmd "start")
     (mkGrabCmd "supdate")
+    (mkGrabCmd "grab-add-repo")
+    (mkGrabCmd "grab-de")
+    (mkGrabCmd "syspm")
     aboraApps
     aboraCommand
     aboraCheckFull
@@ -392,6 +460,10 @@ in
     aboraSupportReport
     aboraUpdate
     aboraWelcome
+    aboraWelcomeGui
+    aboraWelcomeDesktopPkg
+    aboraConfigGui
+    aboraConfigDesktopPkg
     aboraWallpapersPackage
     aboraInstaller
     aboraSetup
@@ -408,6 +480,9 @@ in
     git
     htop
     iw
+    jq
+    libnotify
+    moducpp-anix
     kdePackages.konsole
     linux-firmware
     modemmanager
@@ -432,8 +507,35 @@ in
     zsh
   ];
 
+  # Purely a desktop notification nudge (--notify --quiet); does not install
+  # anything itself. Silently no-ops via `command -v` if TinyPM was never
+  # installed for this user (anix tinypm install), so this timer is safe to
+  # ship unconditionally on every desktop profile.
+  systemd.user.services.tinypm-update-check = {
+    description = "Check for TinyPM updates";
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.bashInteractive}/bin/bash -lc 'command -v tinypm >/dev/null 2>&1 && tinypm check-update --notify --quiet || true'";
+    };
+  };
+
+  systemd.user.timers.tinypm-update-check = {
+    description = "Notify when TinyPM updates are available";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "10min";
+      OnUnitActiveSec = "6h";
+      Persistent = true;
+    };
+  };
+
   programs.zsh = {
     enable = true;
+    # Only seeds a .zshrc when the user has NONE of the four zsh dotfiles at
+    # all -- a user who already has any one of them (even just a bare
+    # .zshenv) is treated as having their own zsh setup, so this never
+    # overwrites or fights with dotfiles a user (or abora-dotfiles-import)
+    # already put in place.
     shellInit = ''
       if [[ -o interactive ]]; then
         abora_zdotdir="''${ZDOTDIR:-''${HOME:-}}"
@@ -578,7 +680,7 @@ in
         mode = "0755";
       };
       "motd".text = ''
-        Abora OS EVEREST ${version}
+        Abora OS 2026.7.27
 
           grab <app>          install an app  (flatpak, nix, or snap)
           search <app>        find apps across all sources
@@ -588,10 +690,14 @@ in
           abora welcome       first steps and quick actions
           abora doctor        check system health
           abora recovery      rollback and repair tools
-          sudo nixos update   rebuild and switch the system
+          sudo abora update   rebuild and switch the system
       '';
       "profile.d/abora-welcome.sh".text = ''
-        if [ -n "''${PS1:-}" ] && [ -z "''${ABORA_WELCOME_SHOWN:-}" ] && command -v abora-welcome >/dev/null 2>&1; then
+        abora_welcome_conf="''${XDG_CONFIG_HOME:-''${HOME}/.config}/abora/welcome.conf"
+        if [ -n "''${PS1:-}" ] \
+          && [ -z "''${ABORA_WELCOME_SHOWN:-}" ] \
+          && { [ ! -f "$abora_welcome_conf" ] || ! grep -qx 'show_on_startup=false' "$abora_welcome_conf"; } \
+          && command -v abora-welcome >/dev/null 2>&1; then
           export ABORA_WELCOME_SHOWN=1
           if [ ! -f "$HOME/.cache/abora/welcome-seen" ]; then
             mkdir -p "$HOME/.cache/abora"
@@ -600,6 +706,7 @@ in
             printf '  Run %s for first-step actions.\n\n' "abora welcome"
           fi
         fi
+        unset abora_welcome_conf
       '';
       "xdg/autostart/abora-theme-sync.desktop".text = ''
         [Desktop Entry]
@@ -613,29 +720,29 @@ in
       '';
       "xdg/gtk-3.0/settings.ini".text = ''
         [Settings]
-        gtk-application-prefer-dark-theme=1
-        gtk-theme-name=Adwaita-dark
-        gtk-icon-theme-name=Papirus-Dark
+        gtk-application-prefer-dark-theme=0
+        gtk-theme-name=Adwaita
+        gtk-icon-theme-name=Papirus
       '';
       "xdg/gtk-4.0/settings.ini".text = ''
         [Settings]
-        gtk-application-prefer-dark-theme=1
-        gtk-theme-name=Adwaita-dark
-        gtk-icon-theme-name=Papirus-Dark
+        gtk-application-prefer-dark-theme=0
+        gtk-theme-name=Adwaita
+        gtk-icon-theme-name=Papirus
       '';
       "xdg/qt5ct/qt5ct.conf".text = ''
         [Appearance]
-        color_scheme_path=/run/current-system/sw/share/qt5ct/colors/darker.conf
+        color_scheme_path=/run/current-system/sw/share/qt5ct/colors/airy.conf
         custom_palette=true
-        icon_theme=Papirus-Dark
+        icon_theme=Papirus
         standard_dialogs=default
         style=Fusion
       '';
       "xdg/qt6ct/qt6ct.conf".text = ''
         [Appearance]
-        color_scheme_path=/run/current-system/sw/share/qt6ct/colors/darker.conf
+        color_scheme_path=/run/current-system/sw/share/qt6ct/colors/airy.conf
         custom_palette=true
-        icon_theme=Papirus-Dark
+        icon_theme=Papirus
         standard_dialogs=default
         style=Fusion
       '';
@@ -721,10 +828,10 @@ in
         Opacity=0.84
       '';
       "issue".text = ''
-        Abora OS EVEREST 4.0
+        Abora OS 2026.7.27
       '';
       "issue.net".text = ''
-        Abora OS EVEREST 4.0
+        Abora OS 2026.7.27
       '';
     }
     // builtins.listToAttrs (
@@ -757,11 +864,30 @@ in
     // lib.optionalAttrs (docsDir != null) {
       "abora/docs".source = docsDir;
     }
+    // lib.optionalAttrs (anixLanguagesDir != null) {
+      "anix/languages".source = anixLanguagesDir;
+    }
     // lib.optionalAttrs (aboraLogoFile != null) {
       "abora/Abora-LOGO.png".source = aboraLogoFile;
     }
     // lib.optionalAttrs (effectsDir != null) {
       "abora/effects/v3StartingAbora.mp3".source = effectsDir + "/v3StartingAbora.mp3";
+    }
+    // lib.optionalAttrs (welcomeGuiScript != null) {
+      "abora/welcome-gui.py".source = welcomeGuiScript;
+      "xdg/autostart/abora-welcome-gui.desktop".text = ''
+        [Desktop Entry]
+        Type=Application
+        Name=Abora Welcome
+        Comment=First steps and update checks for Abora OS
+        Exec=sh -c 'conf="''${XDG_CONFIG_HOME:-$HOME/.config}/abora/welcome.conf"; if [ -f "$conf" ] && grep -qx "show_on_startup=false" "$conf"; then exit 0; fi; test -f "$HOME/.cache/abora/welcome-seen" || exec abora-welcome-gui'
+        Icon=distributor-logo
+        X-GNOME-Autostart-enabled=true
+        NoDisplay=true
+      '';
+    }
+    // lib.optionalAttrs (configGuiScript != null) {
+      "abora/config-gui.py".source = configGuiScript;
     };
 
   environment.shellAliases.fastfetch = "fastfetch -c /etc/xdg/fastfetch/config.jsonc";

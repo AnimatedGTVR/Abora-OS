@@ -106,6 +106,9 @@ case "$edition" in
         ;;
 esac
 
+# COSMIC is the single-ISO default `make iso` builds; also drop a copy under
+# the old pre-multi-edition filename (no "-cosmic-" segment) so tooling or
+# docs still expecting that name (from before editions existed) keep working.
 if [[ "$edition" == "cosmic" ]]; then
     latest_cosmic="$iso_dir/abora-cosmic-${build_date}-x86_64-${version_tag}.iso"
     legacy_iso="$iso_dir/abora-${build_date}-x86_64-${version_tag}.iso"

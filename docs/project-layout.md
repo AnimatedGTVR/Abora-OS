@@ -1,6 +1,6 @@
 # Project Layout
 
-This is the quick map of the Abora OS repo for the DENALI 3.14 release.
+This is the quick map of the Abora OS repo for the Abora OS 2026.7.27 release.
 
 ## Top Level
 
@@ -71,7 +71,7 @@ Shell scripts for the live environment, installer, installed commands, ISO build
 Important files:
 
 - `scripts/abora-boot.sh`: live stage-one boot handoff
-- `scripts/abora-installer.sh`: Omarchy-inspired Denali installer and reconfiguration TUI
+- `scripts/abora-installer.sh`: Omarchy-inspired installer and reconfiguration TUI
 - `scripts/abora-setup-launcher.sh`: installed desktop launcher for `abora setup`
 - `scripts/abora-setup.desktop`: installed desktop entry
 - `scripts/abora-desktop-profiles.sh`: supported desktop profile definitions

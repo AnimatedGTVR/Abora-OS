@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Builds a Docker/container image of TinyPM (packaging/tinypm/Dockerfile) --
+# a third distribution channel alongside the Nix package (nix/pkgs/anix.nix
+# has its own TinyPM wiring) and the standalone tarball (package-tinypm.sh),
+# for running TinyPM outside any NixOS/Abora system entirely.
 repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$repo_dir"
 
 abora_version="$(tr -d '\n' < VERSION | tr -cd '[:alnum:]._-')"
 [[ -n "$abora_version" ]] || abora_version="unknown"
 
-tinypm_version="$(
-  awk -F'"' '/^tinypm_version=/{print $2; exit}' vendor/tinypm/lib/core/common.sh
-)"
+tinypm_version=""
+for common_sh in vendor/tinypm/lib/tinypm/core/common.sh vendor/tinypm/lib/core/common.sh; do
+  [[ -f "$common_sh" ]] || continue
+  tinypm_version="$(awk -F'"' '/^tinypm_version=/{print $2; exit}' "$common_sh")"
+  [[ -n "$tinypm_version" ]] && break
+done
 tinypm_version="$(printf '%s' "${tinypm_version:-unknown}" | tr -cd '[:alnum:]._-')"
 [[ -n "$tinypm_version" ]] || tinypm_version="unknown"
 

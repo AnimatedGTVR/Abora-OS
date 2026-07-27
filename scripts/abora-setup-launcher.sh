@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
 # Abora OS Setup Launcher
-# Launched from the desktop app menu. On the live ISO it tries the GUI installer
-# first; if the GUI fails it offers a fallback to the TUI installer.
-# On an installed system it opens the TUI reconfiguration flow.
+# Launched from the desktop app menu. The live ISO uses the MINT-powered TUI
+# installer. On an installed system it opens the TUI reconfiguration flow.
 
 set -euo pipefail
 
 INSTALLER="${ABORA_INSTALLER:-/etc/abora/installer.sh}"
 MODE="${ABORA_SETUP_MODE:-auto}"
-GUI_INSTALLER="${ABORA_GUI_INSTALLER:-}"
-GUI_LOG="/tmp/abora-gui-installer.log"
 
 # Fall back to well-known install paths if the env var isn't set
 if [[ ! -f "$INSTALLER" ]]; then
@@ -32,6 +29,11 @@ fi
 
 already_root() { [[ "${EUID:-$(id -u)}" -eq 0 ]]; }
 
+# Three independent signals, any one of which is enough: the NixOS ISO
+# image marker files, the live-image README text this repo's own live.nix
+# ships, and (as a last resort) simply not having an installed
+# /etc/nixos/configuration.nix at all -- which is true on every live boot
+# and false on every real install.
 is_live_iso() {
     [[ -f /iso-image/iso-info || -e /run/current-system/iso-image ]] && return 0
     grep -qi 'live image' /etc/abora/README 2>/dev/null && return 0
@@ -112,105 +114,6 @@ run_tui_installer() {
     exec "${RUNNER[@]}"
 }
 
-# ── GUI installer helpers ─────────────────────────────────────────────────────
-
-find_gui_installer() {
-    # Prefer explicit env var, then standard locations
-    if [[ -n "$GUI_INSTALLER" && -x "$GUI_INSTALLER" ]]; then
-        printf '%s\n' "$GUI_INSTALLER"; return 0
-    fi
-    for candidate in \
-        /run/current-system/sw/bin/abora-installer-gui \
-        /etc/abora/installer-gui \
-        "$(dirname "$0")/abora-installer-gui.py"; do
-        [[ -x "$candidate" ]] && { printf '%s\n' "$candidate"; return 0; }
-    done
-    command -v abora-installer-gui >/dev/null 2>&1 \
-        && { printf 'abora-installer-gui\n'; return 0; }
-    return 1
-}
-
-try_gui_installer() {
-    # Only attempt GUI in a display session, not over bare TTY
-    [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || return 1
-
-    local gui_bin
-    gui_bin="$(find_gui_installer 2>/dev/null)" || return 1
-
-    {
-        printf '\n[%s] [abora-setup] launching GUI installer: %s\n' "$(date '+%F %T')" "$gui_bin"
-        printf '[%s] [abora-setup] DISPLAY=%s WAYLAND_DISPLAY=%s\n' "$(date '+%F %T')" "${DISPLAY:-}" "${WAYLAND_DISPLAY:-}"
-    } >> "$GUI_LOG"
-    "$gui_bin" >> "$GUI_LOG" 2>&1
-    local rc=$?
-    printf '[%s] [abora-setup] GUI installer exited with code %d\n' "$(date '+%F %T')" "$rc" >> "$GUI_LOG"
-    return "$rc"
-}
-
-open_gui_log() {
-    touch "$GUI_LOG" 2>/dev/null || true
-
-    if command -v xdg-open >/dev/null 2>&1; then
-        xdg-open "$GUI_LOG" >/dev/null 2>&1 &
-        return 0
-    fi
-    if command -v gio >/dev/null 2>&1; then
-        gio open "$GUI_LOG" >/dev/null 2>&1 &
-        return 0
-    fi
-    return 1
-}
-
-offer_log_dialog() {
-    local msg="The GUI installer failed.\n\nLog file:\n${GUI_LOG}\n\nOpen the log now?"
-
-    if command -v zenity >/dev/null 2>&1; then
-        if zenity --question \
-            --title="Installer Log" \
-            --text="$msg" \
-            --ok-label="Open Log" \
-            --cancel-label="Skip" \
-            --width=520 2>/dev/null; then
-            open_gui_log || true
-        fi
-        return 0
-    fi
-
-    if command -v kdialog >/dev/null 2>&1; then
-        if kdialog --title "Installer Log" --yesno "$msg" 2>/dev/null; then
-            open_gui_log || true
-        fi
-        return 0
-    fi
-
-    printf '\nGUI installer log: %s\n' "$GUI_LOG"
-}
-
-ask_fallback_dialog() {
-    local msg="Abora OS GUI Installer failed.\n\nLog file:\n${GUI_LOG}\n\nWould you like to run the backup TUI installer?"
-
-    if command -v zenity >/dev/null 2>&1; then
-        zenity --question \
-            --title="Installer Failed" \
-            --text="$msg" \
-            --ok-label="Yes, run TUI installer" \
-            --cancel-label="No, keep live desktop" \
-            --width=420 2>/dev/null
-        return $?
-    fi
-
-    if command -v kdialog >/dev/null 2>&1; then
-        kdialog --title "Installer Failed" --yesno "$msg" 2>/dev/null
-        return $?
-    fi
-
-    # Terminal fallback
-    printf '\n\033[1;33mAbora OS GUI Installer failed.\033[0m\n'
-    printf 'Would you like to run the backup TUI installer? [Y/n] '
-    read -r _resp
-    [[ "${_resp,,}" != "n" ]]
-}
-
 # ── Build the command to run inside the terminal ──────────────────────────────
 
 RUNNER=()
@@ -234,31 +137,6 @@ else
         printf 'abora-setup: neither sudo nor pkexec found\n' >&2
         exit 1
     fi
-fi
-
-# ── GUI-first flow (install mode only, not reconfig) ─────────────────────────
-
-_mode_is_install() {
-    case "$MODE" in
-        install|live) return 0 ;;
-        reconfig|installed) return 1 ;;
-        auto|"")
-            # auto: use GUI on live ISO, TUI on installed system
-            [[ ! -f /etc/nixos/configuration.nix ]] && return 0
-            return 1
-            ;;
-        *) return 1 ;;
-    esac
-}
-
-if _mode_is_install && [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
-    try_gui_installer && exit 0
-    printf '[%s] [abora-setup] GUI installer failed\n' "$(date '+%F %T')" >> "$GUI_LOG"
-    offer_log_dialog
-    if ask_fallback_dialog; then
-        run_tui_installer
-    fi
-    exit 1
 fi
 
 run_tui_installer

@@ -102,14 +102,18 @@ passes the source path as one argv value.
 ### ANIX Native
 
 The fastest path for direct system changes. Existing commands remain valid,
-and a file form will group them into one reviewable transaction.
+and a file form will group them into one reviewable transaction. See
+`examples/anix-v2/simple.anix` for the smallest possible plan and
+`examples/anix-v2/workstation.anix` for a multi-operation one.
 
 ### MAKO
 
 MAKO now exposes a small `ANIX` package that builds a plan. It is suitable for
 conditions, reusable functions, lists, and approachable automation without
 generating Nix syntax. End an adapter script with `ANIX.finish()` so its plan is
-written to the adapter output channel. See `examples/anix-v2/workstation.mko`.
+written to the adapter output channel. See `examples/anix-v2/simple.mko` for
+the smallest possible plan and `examples/anix-v2/workstation.mko` for a
+multi-operation one.
 
 ### ModuCPP
 
@@ -117,7 +121,19 @@ ModuCPP now has a dedicated `add ANIX;` plan module and `moducpp-anix` command
 rather than using engine scene APIs. Compilation happens as the normal user;
 the resulting program emits a plan and never applies system changes itself.
 ANIX reports the frontend ready when `moducpp-anix` is installed on `PATH`.
-From a Modularity source checkout, install it with:
+
+Abora OS ships `moducpp-anix` as its own package (`nix/pkgs/moducpp-anix.nix`,
+built from `tools/moducpp-anix`) — it's on `PATH` on the live ISO and every
+installed system, with no Modularity checkout required, since the script
+embeds the small ANIX plan header it needs at compile time. Flake users can
+also add it directly:
+
+```nix
+environment.systemPackages = [ abora.packages.${pkgs.system}.moducpp-anix ];
+```
+
+From a Modularity source checkout instead (e.g. while developing the header
+itself), install the same script manually:
 
 ```bash
 install -Dm755 tools/moducpp-anix ~/.local/bin/moducpp-anix
@@ -136,7 +152,8 @@ int main() {
 }
 ```
 
-See `examples/anix-v2/workstation.moducpp` and the
+See `examples/anix-v2/simple.moducpp` for the smallest possible plan,
+`examples/anix-v2/workstation.moducpp` for a multi-operation one, and the
 [official ModuCPP documentation](https://www.moduengine.xyz/docs), especially
 the [complete guide](https://www.moduengine.xyz/docs/moducpp-guide) and
 [language reference](https://www.moduengine.xyz/docs/moducpp-reference).
@@ -144,12 +161,24 @@ the [complete guide](https://www.moduengine.xyz/docs/moducpp-guide) and
 ## Delivery order
 
 1. **Done:** freeze and test the first ANIX Plan v1 operation subset.
-2. **Started:** route supported v1 mutations through the transactional plan executor.
+2. **Done:** route supported v1 mutations through the transactional plan executor
+   (`apply_plan_json` in `scripts/anix.sh` — every operation applies through
+   the existing `set`/`enable`/`disable`/`package` writers, then one
+   dry-build-and-confirm closes the whole plan).
 3. **Done:** add `anix run`, `anix validate-plan`, and `anix apply-plan`.
 4. **Done:** ship the first ANIX Native file frontend.
 5. **Done:** ship the MAKO adapter and `using ANIX;` package.
-6. **Done:** ship the standalone ModuCPP plan module and adapter contract.
-7. Open third-party adapter discovery after the security boundary is tested.
+6. **Done:** ship the standalone ModuCPP plan module and adapter contract, and
+   package `moducpp-anix` (`nix/pkgs/moducpp-anix.nix`) so it's on `PATH` on
+   the live ISO and every installed system without a Modularity checkout.
+7. **Done:** `anix language list` reports readiness with a reason (missing
+   command, bad manifest, unsupported plan version), and `anix diff-plan`
+   compares real current state instead of assuming every operation is new.
+8. **Done:** end-to-end coverage for `simple`/`workstation` examples across
+   all three frontends, plus failure-path tests proving invalid plans,
+   malformed JSON, unresolvable languages, and failing adapters never
+   mutate `anix.nix` (`scripts/check-scripts.sh`).
+9. Open third-party adapter discovery after the security boundary is tested.
 
 ANIX v1 remains supported throughout v2. Existing commands become calls into
 the plan executor rather than being removed.

@@ -41,9 +41,12 @@ This does not replace a real Abora boot, but it catches obvious problems:
 - older BIOS system if available
 - NVMe storage
 - SATA SSD or HDD
-- Intel graphics
-- AMD graphics
-- NVIDIA graphics if available
+- Intel graphics (driver: `intel`, open-source, kernel default)
+- AMD graphics (driver: `amdgpu`, open-source, kernel default)
+- NVIDIA graphics if available — the installer's GPU step (and `abora config
+  set gpu`) offers `nouveau` (open-source, default), `nvidia` (proprietary),
+  and `nvidia-open` (NVIDIA's open kernel modules, Turing/2018+ only). Test
+  boot graphics, suspend, and multi-monitor behavior on whichever one you pick.
 - Wi-Fi laptop
 - Bluetooth laptop
 
@@ -94,7 +97,7 @@ This does not replace a real Abora boot, but it catches obvious problems:
 - `abora desktop list` shows supported desktop profiles
 - `abora config` shows hostname, timezone, keyboard, desktop, wallpaper, user, disk, and state version
 - `grab`, `search`, `term`, `start`, and `supdate` are available
-- `sudo nixos update` works
+- `sudo abora update` works
 - rollback works if an update is tested
 - default wallpaper is applied
 - dark mode defaults are applied for the chosen desktop
@@ -137,3 +140,11 @@ If the installer failed, also keep:
 - `/tmp/abora-install.log`
 
 Attach the generated `abora-support-*.tar.gz` archive to your report when possible.
+
+If Wi-Fi shows `unavailable` in `nmcli device status` (not `disconnected`)
+even though `dmesg | grep -i iwlwifi` shows the driver/firmware loading fine,
+check `journalctl -u NetworkManager -b` for a `Failed to D-Bus activate
+wpa_supplicant service` error before assuming it's a driver or rfkill issue —
+see the FAQ entry ["Wi-Fi shows as
+'unavailable'"](wiki/FAQ.md#wi-fi-shows-as-unavailable-in-nmtuinmcli-during-install--what-do-i-do)
+for the live workaround.

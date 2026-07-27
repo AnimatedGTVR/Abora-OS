@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Abora OS — live boot script
 # Runs on tty1 via systemd.  Plymouth is quit by ExecStartPre before this runs.
+set -euo pipefail
 
 export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 export TERM="${TERM:-linux}"
@@ -62,7 +63,7 @@ _boot_frame() {
     printf '\033c'
     printf '\n'
     printf '  %b╔══════════════════════════════════════════════════════╗%b\n' "$BL" "$NC"
-    printf '  %b║%b  %-54s%b║%b\n' "$BL" "$WH" "ABORA OS  —  EVEREST 4.0  ·  Starting" "$BL" "$NC"
+    printf '  %b║%b  %-54s%b║%b\n' "$BL" "$WH" "ABORA OS  —  2026.7.27  ·  Starting" "$BL" "$NC"
     printf '  %b╠══════════════════════════════════════════════════════╣%b\n' "$BL" "$NC"
     printf '  %b║%b  %-54s%b║%b\n' "$BL" "$DM" "$msg" "$BL" "$NC"
     printf '  %b║%b  [%s] %b%s%b  %b%3d%%%b\n' \
@@ -132,6 +133,14 @@ installed_system_present() {
     # detach the ISO all need a guard menu instead of another automatic wipe
     # flow. Reinstall is still available through the explicit menu path or
     # `abora-install --force`.
+    #
+    # The unconditional `return 0` below means everything past it in this
+    # function (mounting the partition and checking has_installed_system_markers)
+    # is intentionally unreachable: merely finding a device labeled ABORA_ROOT is
+    # now enough to show the guard menu, on the theory that a stray/partial
+    # ABORA_ROOT label is itself reason enough to ask before wiping. Kept in
+    # place (rather than deleted) as the more precise fallback this function
+    # used before that trade-off was made.
     return 0
 
     if command -v findmnt >/dev/null 2>&1; then
@@ -243,4 +252,15 @@ fi
 enable_serial_mirror
 
 printf '\033c'
-exec "$BASH_BIN" --login
+if command -v abora-install >/dev/null 2>&1; then
+    abora-install "${installer_args[@]}" || {
+        printf '\n'
+        printf '  %bInstaller exited. Dropping to live shell.%b\n' "$WH" "$NC"
+        printf '  Run %babora-install --force%b to start it again.\n\n' "$CY" "$NC"
+        exec "$BASH_BIN" --login
+    }
+else
+    printf '\n'
+    printf '  %babora-install was not found. Dropping to live shell.%b\n\n' "$WH" "$NC"
+    exec "$BASH_BIN" --login
+fi

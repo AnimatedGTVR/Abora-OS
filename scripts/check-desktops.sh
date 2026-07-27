@@ -44,12 +44,25 @@ resolve_nixpkgs_path() {
   fi
 
   if command -v nix >/dev/null 2>&1; then
-    nix --extra-experimental-features "nix-command flakes" \
-      eval --raw --impure \
-      --expr "(builtins.getFlake \"path:${repo_dir}\").inputs.nixpkgs.outPath" 2>/dev/null
+    local nix_eval=(
+      nix --extra-experimental-features "nix-command flakes"
+      eval --raw --impure
+      --expr "(builtins.getFlake \"path:${repo_dir}\").inputs.nixpkgs.outPath"
+    )
+
+    if command -v timeout >/dev/null 2>&1; then
+      timeout "${ABORA_NIXPKGS_RESOLVE_TIMEOUT:-30}" "${nix_eval[@]}" 2>/dev/null
+    else
+      "${nix_eval[@]}" 2>/dev/null
+    fi
   fi
 }
 
+# Every desktop profile must be listed consistently across the CLI (anix.sh,
+# abora-config.sh) and the Nix option enums (abora-options.nix, anix.nix) --
+# a profile present in abora_supported_desktop_profiles (the desktop library)
+# but missing from one of these would let a user pick a desktop the CLI or
+# option type can't actually represent.
 assert_supported_everywhere() {
   local profile="$1"
   local file
@@ -65,10 +78,16 @@ assert_supported_everywhere() {
 }
 
 if ! pkgs_path="$(resolve_nixpkgs_path)"; then
-  printf 'No nixpkgs source is available. Set ABORA_NIXPKGS_PATH or NIX_PATH.\n' >&2
+  printf 'No nixpkgs source is available.\n' >&2
+  printf 'Set ABORA_NIXPKGS_PATH to a nixpkgs checkout/store path, or configure NIX_PATH.\n' >&2
+  printf 'Example: ABORA_NIXPKGS_PATH=/nix/store/...-source ./scripts/check-desktops.sh\n' >&2
   exit 1
 fi
 
+# Recreates the same /etc/abora tree the installer/update flow copies onto a
+# real system, but under $staged_abora in a tmpdir -- installed-base.nix
+# expects to sit beside these files (VERSION, ui.sh, mango/config.conf, ...)
+# and can't be evaluated in isolation without them.
 stage_installed_abora() {
   mkdir -p \
     "$staged_abora/bootloader" \
@@ -78,6 +97,7 @@ stage_installed_abora() {
     "$staged_abora/pkgs" \
     "$staged_abora/plymouth" \
     "$staged_abora/themes" \
+    "$staged_abora/tools" \
     "$staged_abora/wallpapers"
 
   cp "$repo_dir/VERSION" "$staged_abora/VERSION"
@@ -85,7 +105,7 @@ stage_installed_abora() {
   cp "$repo_dir/assets/fastfetch-logo.txt" "$staged_abora/fastfetch-logo.txt"
   cp "$repo_dir/assets/fastfetch-config.jsonc" "$staged_abora/fastfetch-config.jsonc"
   cp "$repo_dir/assets/Abora-LOGO.png" "$staged_abora/Abora-LOGO.png"
-  cp "$repo_dir/assets/wallpapers/collection/Daytime-MNT.jpg" "$staged_abora/default-wallpaper.png"
+  cp "$repo_dir/assets/wallpapers/collection/titlis-alps.jpg" "$staged_abora/default-wallpaper.png"
   cp "$repo_dir/assets/mango/config.conf" "$staged_abora/mango/config.conf"
   cp "$repo_dir/assets/plymouth/abora.plymouth" "$staged_abora/plymouth/abora.plymouth"
   cp "$repo_dir/assets/plymouth/abora.script" "$staged_abora/plymouth/abora.script"
@@ -99,7 +119,10 @@ stage_installed_abora() {
   cp "$repo_dir/nix/modules/anix.nix" "$staged_abora/anix-module.nix"
   cp -R "$repo_dir/nix/modules/desktops/." "$staged_abora/desktops/"
   cp "$repo_dir/nix/pkgs/mango.nix" "$staged_abora/pkgs/mango.nix"
+  cp "$repo_dir/nix/pkgs/scenefx-0_5.nix" "$staged_abora/pkgs/scenefx-0_5.nix"
   cp "$repo_dir/nix/pkgs/modularity.nix" "$staged_abora/pkgs/modularity.nix"
+  cp "$repo_dir/nix/pkgs/moducpp-anix.nix" "$staged_abora/pkgs/moducpp-anix.nix"
+  cp "$repo_dir/tools/moducpp-anix" "$staged_abora/tools/moducpp-anix"
 
   cp "$repo_dir/scripts/abora-ui.sh" "$staged_abora/ui.sh"
   cp "$repo_dir/scripts/abora-config.sh" "$staged_abora/config.sh"
@@ -108,6 +131,7 @@ stage_installed_abora() {
   cp "$repo_dir/scripts/abora-doctor.sh" "$staged_abora/doctor.sh"
   cp "$repo_dir/scripts/abora-check-full.sh" "$staged_abora/check-full.sh"
   cp "$repo_dir/scripts/abora-recovery.sh" "$staged_abora/recovery.sh"
+  cp "$repo_dir/scripts/abora-repair-flake-purity.sh" "$staged_abora/repair-flake-purity.sh"
   cp "$repo_dir/scripts/abora-welcome.sh" "$staged_abora/welcome.sh"
   cp "$repo_dir/scripts/anix.sh" "$staged_abora/anix.sh"
   cp "$repo_dir/scripts/abora-app-catalog.sh" "$staged_abora/app-catalog.sh"
@@ -126,6 +150,13 @@ stage_installed_abora() {
 
 stage_installed_abora
 
+# For every supported desktop, generate a throwaway Nix file that builds a
+# real minimal NixOS system (via nixpkgs' own eval-config.nix) with that
+# desktop's config/package blocks wired in, then instantiate it below --
+# this is what actually catches a broken desktop config block (typo,
+# missing option, bad package name) that no amount of shell-level testing
+# would ever exercise, without needing a real `nixos-rebuild`/VM boot per
+# desktop.
 while IFS= read -r desktop_profile; do
   desktop_label=""
   desktop_variant_id=""

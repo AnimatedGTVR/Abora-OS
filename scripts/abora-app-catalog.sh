@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
+# abora-app-catalog.sh — starter app catalog data.
+# Source this file; do not execute it directly.
 
+# Each line: id|display name|Nix package expression|category|description|favorite(yes/no)
+# `id` is the stable identifier used everywhere else (apps.list, CLI args,
+# bundle membership); `Nix package expression` is emitted verbatim into
+# apps.nix's `environment.systemPackages` list by abora-apps.sh's
+# render_apps_module(), so it must already be a valid `with pkgs; [...]`
+# entry (e.g. `kdePackages.kdenlive`, not just `kdenlive` when it needs a
+# package set prefix).
 abora_app_catalog() {
     cat <<'EOF'
 firefox|Firefox|firefox|Essentials|Fast web browser for everyday browsing|yes

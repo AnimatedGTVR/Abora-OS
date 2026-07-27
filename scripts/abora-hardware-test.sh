@@ -230,6 +230,7 @@ main() {
         printf '%s\n' "$gpu_output" | sed 's/^/  /'
         if printf '%s\n' "$gpu_output" | grep -qi nvidia; then
             warn "NVIDIA hardware detected. Test boot graphics, suspend, and multi-monitor behavior carefully."
+            info "The installer's GPU step (and 'abora config set gpu') can pick nouveau, nvidia, or nvidia-open."
         fi
     else
         warn "No graphics controller details were detected via lspci"

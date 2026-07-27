@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Abora OS GUI Installer — DENALI 4.0"""
+"""Abora OS GUI Installer - legacy launcher for Abora OS 2026.7.27."""
 
 import gi
 gi.require_version('Gtk', '4.0')
@@ -22,7 +22,7 @@ from pathlib import Path
 # ── Runtime paths ──────────────────────────────────────────────────────────────
 INSTALLER_BIN  = os.environ.get('ABORA_INSTALLER', '/etc/abora/installer.sh')
 LOG_FILE       = '/tmp/abora-gui-installer.log'
-VERSION        = os.environ.get('ABORA_VERSION', 'EVEREST 4.0')
+VERSION        = os.environ.get('ABORA_VERSION', '2026.7.27')
 LOGO_FILE      = os.environ.get('ABORA_LOGO', '/etc/abora/Abora-LOGO.png')
 EDITION        = os.environ.get('ABORA_EDITION', 'cosmic')
 
@@ -257,14 +257,12 @@ TIMEZONES = [
 ]
 
 WALLPAPERS = [
-    ('abora-dark.svg',         'Abora Dark'),
-    ('abora-light.svg',        'Abora Light'),
-    ('Daytime-MNT.jpg',        'Mountain — Day'),
-    ('NightTime-MNT.png',      'Mountain — Night'),
-    ('oceandusk.png',          'Ocean Dusk'),
-    ('bluehorizon.png',        'Blue Horizon'),
-    ('astronautwallpaper.png', 'Astronaut'),
-    ('glacierreflection.png',  'Glacier Reflection'),
+    ('abora-dark.svg',            'Abora Dark'),
+    ('abora-light.svg',           'Abora Light'),
+    ('titlis-alps.jpg',           'Titlis Alps'),
+    ('aurora-lofoten.jpg',        'Aurora, Lofoten'),
+    ('alpine-glacier.jpg',        'Alpine Glacier'),
+    ('tannheimer-mountains.jpg',  'Tannheimer Mountains'),
 ]
 
 # ── CSS ────────────────────────────────────────────────────────────────────────
@@ -277,41 +275,54 @@ _DESKTOP_BADGE_CSS = '\n'.join(
 )
 
 CSS_TEMPLATE = """
-/* ---- Abora OS Installer ---- */
+/* ---- Abora OS Installer — macOS-style ---- */
+/* Same class names/selectors as before (no Python changes needed); values
+   restyled to read like a macOS installer/System Settings window: a
+   neutral light title bar instead of a brand-colored strip, macOS system
+   blue as the accent, a light inset sidebar with a rounded selection pill,
+   larger corner radii throughout, and an SF-Pro-shaped font stack (falls
+   back through the closest fonts actually likely to be installed on Linux,
+   since real SF Pro isn't redistributable). */
 
-@define-color abora_accent #1c6fcf;
-@define-color abora_accent_hover #2480e0;
+@define-color abora_accent #007aff;
+@define-color abora_accent_hover #0a6ee8;
+
+* {
+    font-family: -apple-system, "SF Pro Text", "SF Pro Display",
+                 "Helvetica Neue", "Inter", "Segoe UI", sans-serif;
+}
 
 /* Full-bleed shell, no floating card - a real application, not a dialog */
 .installer-shell {
     background: @window_bg_color;
 }
 
-/* Brand title bar - blue like the reference installer's own title strip */
+/* Neutral title bar, macOS-style - the window chrome stays quiet, the
+   accent color is reserved for the primary action button. */
 .abora-titlebar {
-    background: @abora_accent;
-    box-shadow: none;
+    background: @headerbar_bg_color;
+    box-shadow: inset 0 -1px 0 alpha(@window_fg_color, 0.08);
     min-height: 52px;
 }
 
 .abora-titlebar label {
-    color: #ffffff;
+    color: @window_fg_color;
 }
 
 .abora-titlebar label.title {
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .abora-titlebar label.subtitle {
-    color: alpha(#ffffff, 0.82);
+    color: alpha(@window_fg_color, 0.55);
 }
 
 .abora-titlebar button {
-    color: #ffffff;
+    color: @window_fg_color;
 }
 
 .abora-titlebar button:hover {
-    background: alpha(#ffffff, 0.14);
+    background: alpha(@window_fg_color, 0.08);
 }
 
 .abora-brand-icon {
@@ -319,51 +330,52 @@ CSS_TEMPLATE = """
 }
 
 /* Fallback brand mark in the title bar when no logo file is present -
-   white circle on the accent title bar, distinct from the larger welcome badge */
+   accent-tinted circle on the neutral title bar. */
 .abora-brand-badge {
     margin-left: 2px;
     border-radius: 999px;
-    background: alpha(#ffffff, 0.22);
-    color: #ffffff;
-    font-weight: 800;
+    background: alpha(@abora_accent, 0.14);
+    color: @abora_accent;
+    font-weight: 700;
     font-size: 0.85em;
 }
 
-/* Sidebar - persistent, always visible, lists every step */
+/* Sidebar - macOS System Settings style: inset light panel, rounded
+   selection pill that fills nearly the full row width. */
 .installer-sidebar {
-    background: shade(@window_bg_color, 0.96);
-    border-right: 1px solid alpha(@window_fg_color, 0.08);
+    background: shade(@window_bg_color, 0.97);
+    border-right: 1px solid alpha(@window_fg_color, 0.06);
     min-width: 232px;
 }
 
 .sidebar-step {
-    padding: 9px 14px;
-    border-radius: 8px;
+    padding: 8px 12px;
+    border-radius: 7px;
     margin: 1px 10px;
 }
 
 .sidebar-step-icon {
     min-width: 20px;
     min-height: 20px;
-    color: alpha(@window_fg_color, 0.38);
+    color: alpha(@window_fg_color, 0.42);
 }
 
 .sidebar-step-label {
     font-size: 0.92em;
-    color: alpha(@window_fg_color, 0.62);
+    color: alpha(@window_fg_color, 0.68);
 }
 
 .sidebar-step.current {
-    background: alpha(@abora_accent, 0.13);
+    background: @abora_accent;
 }
 
 .sidebar-step.current .sidebar-step-icon,
 .sidebar-step.current .sidebar-step-label {
-    color: @abora_accent;
+    color: #ffffff;
 }
 
 .sidebar-step.current .sidebar-step-label {
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .sidebar-step.done .sidebar-step-icon {
@@ -371,23 +383,23 @@ CSS_TEMPLATE = """
 }
 
 .sidebar-step.done .sidebar-step-label {
-    color: alpha(@window_fg_color, 0.75);
+    color: alpha(@window_fg_color, 0.78);
 }
 
 .sidebar-step.future .sidebar-step-icon,
 .sidebar-step.future .sidebar-step-label {
-    color: alpha(@window_fg_color, 0.32);
+    color: alpha(@window_fg_color, 0.34);
 }
 
 .wizard-nav {
     background: transparent;
 }
 
-/* Page headings - editorial, not billboard */
+/* Page headings - macOS System Settings weight, not a marketing headline */
 .page-title {
-    font-size: 1.6em;
-    font-weight: 800;
-    letter-spacing: -0.3px;
+    font-size: 1.45em;
+    font-weight: 700;
+    letter-spacing: -0.2px;
 }
 
 .page-subtitle {
@@ -399,22 +411,23 @@ CSS_TEMPLATE = """
     margin-bottom: 4px;
 }
 
-/* Fallback brand badge shown when no logo file is present */
+/* Fallback brand badge shown when no logo file is present - flat accent
+   tint instead of a glossy gradient, closer to a macOS app icon plate. */
 .logo-badge {
     min-width: 96px;
     min-height: 96px;
-    border-radius: 999px;
-    background: linear-gradient(160deg, @abora_accent, shade(@abora_accent, 0.72));
+    border-radius: 22px;
+    background: @abora_accent;
     color: #ffffff;
     font-size: 2.6em;
-    font-weight: 800;
+    font-weight: 700;
 }
 
-/* Welcome buttons */
+/* Welcome buttons - full pill radius, macOS button shape */
 .choice-button {
     min-width: 260px;
-    padding: 11px 22px;
-    border-radius: 9px;
+    padding: 10px 22px;
+    border-radius: 999px;
     font-weight: 600;
     font-size: 0.95em;
 }
@@ -423,7 +436,7 @@ CSS_TEMPLATE = """
     background: @abora_accent;
     color: #ffffff;
     border: none;
-    box-shadow: 0 1px 6px alpha(@abora_accent, 0.38);
+    box-shadow: none;
 }
 
 .choice-button.suggested-action:hover {
@@ -438,29 +451,30 @@ CSS_TEMPLATE = """
     background: alpha(@window_fg_color, 0.1);
 }
 
-/* Desktop environment cards */
+/* Desktop environment cards - softer corners, subtler border, matches
+   macOS's rounded card/tile language (e.g. wallpaper pickers). */
 .desktop-card {
-    border-radius: 10px;
+    border-radius: 14px;
     padding: 14px 6px;
-    border: 1px solid alpha(@window_fg_color, 0.09);
+    border: 1px solid alpha(@window_fg_color, 0.07);
     background: @card_bg_color;
     transition: border-color 120ms ease, background-color 120ms ease;
 }
 
 .desktop-card:hover {
-    border-color: alpha(@abora_accent, 0.50);
-    background: alpha(@abora_accent, 0.06);
+    border-color: alpha(@abora_accent, 0.45);
+    background: alpha(@abora_accent, 0.05);
 }
 
 .desktop-card.selected {
     border: 2px solid @abora_accent;
-    background: alpha(@abora_accent, 0.10);
+    background: alpha(@abora_accent, 0.08);
 }
 
 /* Colorful icon badge behind each desktop's glyph - a flat grey outline
    icon reads as decoration, a colored badge reads as a real icon */
 .desktop-card-icon-badge {
-    border-radius: 9px;
+    border-radius: 11px;
     min-width: 40px;
     min-height: 40px;
     margin-bottom: 2px;
@@ -473,7 +487,7 @@ CSS_TEMPLATE = """
 }
 
 .desktop-card-name {
-    font-weight: 700;
+    font-weight: 600;
     font-size: 0.85em;
 }
 
@@ -484,7 +498,7 @@ CSS_TEMPLATE = """
 
 /* Disk row */
 .disk-row-dev {
-    font-family: monospace;
+    font-family: "SF Mono", Menlo, monospace;
     font-size: 0.85em;
     color: alpha(@window_fg_color, 0.55);
 }
@@ -498,7 +512,7 @@ CSS_TEMPLATE = """
 /* Misc */
 .warn-label { color: @warning_color; }
 .log-view {
-    font-family: monospace;
+    font-family: "SF Mono", Menlo, monospace;
     font-size: 0.84em;
     background: @view_bg_color;
     color: @view_fg_color;
@@ -523,8 +537,52 @@ def hash_password(pw: str) -> str:
         return ''
 
 
+def _boot_media_disk_names() -> set[str]:
+    """Whole-disk device names (no /dev/ prefix) currently backing any live
+    mount or loop device -- e.g. the squashfs the live ISO booted from is
+    loop-mounted from a file on the boot USB/DVD itself, so a name-prefix
+    check alone can't identify it. Traces every mounted filesystem's source
+    device and every active loop device's backing file back to its parent
+    whole-disk via `lsblk -no pkname`, mirroring abora-installer.sh's
+    boot_media_disks()/collect_disks() so this GUI's disk picker excludes
+    the real boot media the same reliable way the TUI installer does,
+    rather than relying only on lsblk's HOTPLUG flag (which some USB
+    controllers/firmware don't set for the boot stick)."""
+    names: set[str] = set()
+    sources: list[str] = []
+    try:
+        r = subprocess.run(['findmnt', '-rno', 'SOURCE'], capture_output=True, text=True, timeout=8)
+        sources += [line for line in r.stdout.splitlines() if line.startswith('/dev/')]
+    except Exception:
+        pass
+    try:
+        r = subprocess.run(['losetup', '-n', '-O', 'BACK-FILE'], capture_output=True, text=True, timeout=8)
+        sources += [line for line in r.stdout.splitlines() if line.startswith('/dev/')]
+    except Exception:
+        pass
+    for src in sources:
+        try:
+            real = os.path.realpath(src) if os.path.exists(src) else src
+            r = subprocess.run(['lsblk', '-dno', 'PKNAME', real], capture_output=True, text=True, timeout=5)
+            pk = next((line for line in r.stdout.splitlines() if line.strip()), '')
+            if pk:
+                names.add(pk.strip())
+                continue
+            r2 = subprocess.run(['lsblk', '-dno', 'NAME', real], capture_output=True, text=True, timeout=5)
+            name = next((line for line in r2.stdout.splitlines() if line.strip()), '')
+            if name:
+                names.add(name.strip())
+        except Exception:
+            continue
+    return names
+
+
 def get_disks() -> list[tuple[str, str, str]]:
-    """Return [(device, size, model), …] for internal block devices."""
+    """Return [(device, size, model), …] for internal block devices,
+    excluding loop/sr/fd-prefixed names, hotplug-flagged devices, and
+    (via _boot_media_disk_names) the actual disk the live session booted
+    from."""
+    boot_names = _boot_media_disk_names()
     try:
         r = subprocess.run(
             ['lsblk', '-J', '-d', '-o', 'NAME,SIZE,TYPE,MODEL,HOTPLUG'],
@@ -539,6 +597,8 @@ def get_disks() -> list[tuple[str, str, str]]:
             if not name or name.startswith(('loop', 'sr', 'fd')):
                 continue
             if d.get('hotplug') == '1':
+                continue
+            if name in boot_names:
                 continue
             size  = d.get('size', '?')
             model = (d.get('model') or name).strip()
@@ -576,7 +636,7 @@ class State:
         desktop = 'cosmic'
     apps          = 'favorites'
     anix          = True
-    wallpaper     = 'NightTime-MNT.png'
+    wallpaper     = 'titlis-alps.jpg'
     dotfiles_url  = ''
 
 
@@ -1206,7 +1266,7 @@ class SummaryPage(Gtk.Widget):
             ('Keyboard',   state.keyboard),
             ('Wallpaper',  wp_lbl),
             ('ANIX',       'Enabled' if state.anix else 'Disabled'),
-        ] + ([('Dotfiles', state.dotfiles_url or '(skip)')] if EDITION == 'hyprland' else []):
+        ] + ([('Dotfiles', state.dotfiles_url or '(skip)')] if EDITION in ('hyprland', 'other') else []):
             row = Adw.ActionRow(title=title)
             lbl = Gtk.Label(label=value, valign=Gtk.Align.CENTER, selectable=True)
             row.add_suffix(lbl)
@@ -1324,7 +1384,7 @@ class InstallingPage(Gtk.Box):
 
 # ── Page order ─────────────────────────────────────────────────────────────────
 
-if EDITION == 'hyprland':
+if EDITION in ('hyprland', 'other'):
     PAGES_ORDER = ['welcome', 'language', 'identity', 'desktop', 'disk', 'apps',
                    'options', 'dotfiles', 'summary', 'installing']
     STEP_NAMES  = ['Welcome', 'Language', 'Identity', 'Desktop', 'Disk', 'Apps',
@@ -1436,7 +1496,7 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
             ('apps',       AppsPage),
             ('options',    OptionsPage),
         ]
-        if EDITION == 'hyprland':
+        if EDITION in ('hyprland', 'other'):
             _page_list.append(('dotfiles', DotsPage))
         _page_list += [
             ('summary',    SummaryPage),
@@ -1587,6 +1647,14 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
     # ── Installation ───────────────────────────────────────────────────────────
 
     def _write_batch_params(self, path: str):
+        # This file is `source`d directly as bash by abora-installer.sh's
+        # `--batch <params-file>` mode (see main()'s batch_mode branch) --
+        # each line becomes a real shell variable assignment feeding the
+        # same script-level variables the interactive TUI would otherwise
+        # collect one prompt at a time. shlex.quote() is what makes that
+        # safe: without it, a value containing e.g. a backtick or `$(...)`
+        # in a hostname/username typed into this GUI would execute as
+        # arbitrary shell code the moment abora-installer.sh sources it.
         pw_hash = hash_password(self._state.password)
         dl = DESKTOP_LABELS.get(self._state.desktop, self._state.desktop)
         with open(path, 'w') as f:

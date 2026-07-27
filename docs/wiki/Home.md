@@ -14,24 +14,26 @@ Abora is a distro project built on top of NixOS with one main goal: make NixOS e
 - [Recovery](Recovery.md)
 - [TinyPM v4](TinyPM-V4.md)
 - [ANIX v1](ANIX-V1.md)
+- [ANIX v2 Languages](ANIX-V2-Languages.md)
 - [ANIX standalone](ANIX-Standalone.md)
 - [FAQ](FAQ.md)
 
 ## Current Version
 
-**DENALI 3.14** is the current stable release.
+**Abora OS 2026.7.27** is the current stable release.
 
+- Abora OS 2026.7.27 shipped multi-edition ISOs (Cosmic, Hyprland, GNOME, KDE, Other), ANIX v2 with pluggable configuration languages (Native, MKO, ModuCPP), and first-class GPU driver support (`abora.gpu`: nouveau/nvidia/nvidia-open/amdgpu/intel).
 - DENALI 3.14 shipped the Omarchy-inspired TUI installer, stronger install validation, Abora branding across boot and desktop, ANIX v1, and TinyPM v4.
 - v2.5 delivered the installer reliability, NetworkManager, desktop matrix, QEMU helpers, and release-command cleanup work that v3 built on.
 
 ## What Abora Adds To NixOS
 
 - a focused live boot flow
-- a guided installer with network setup and desktop selection
+- a guided installer with network setup, desktop selection, and GPU driver selection
 - branded bootloader, Plymouth, wallpaper, and Fastfetch defaults
 - installed commands for welcome, doctor, recovery, config, desktop selection, setup, and updates
 - TinyPM-flavored app commands: `grab`, `search`, `term`, `start`, `supdate`, and Abora/ANIX system bridges
-- ANIX helper workflows for snapshots, rollback, and profile switching
+- ANIX helper workflows for snapshots, rollback, profile switching, and pluggable configuration languages
 
 ## Tool Split
 

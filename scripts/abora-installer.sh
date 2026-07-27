@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Abora OS Installer — EVEREST 4.0 Edition
+# Abora OS Installer - Abora OS 2026.7.27
 # Compact Omarchy-inspired TUI: large wordmark, boxed choices, simple prompts.
 
 set -uo pipefail
@@ -25,7 +25,8 @@ language_label="English (United States)"
 desktop_profile="cosmic"
 desktop_label="COSMIC"
 desktop_variant_id="cosmic"
-wallpaper_name="Daytime-MNT.jpg"
+wallpaper_name="titlis-alps.jpg"
+gpu_value="auto"
 starter_apps_bundle="favorites"
 starter_apps_label="Fan Favorites"
 install_apps_during_setup="${ABORA_INSTALL_APPS_DURING_SETUP:-no}"
@@ -38,6 +39,9 @@ version="${ABORA_VERSION:-}"
 reconfig_mode="${ABORA_RECONFIG:-0}"
 batch_mode=0
 batch_params_file=""
+abora_edition="${ABORA_EDITION:-cosmic}"
+abora_default_desktop="${ABORA_DEFAULT_DESKTOP:-cosmic}"
+dotfiles_url=""
 
 # Parse args: support both --reconfig and --batch <params-file>
 _args=("$@")
@@ -56,6 +60,10 @@ done
 unset _args _i
 
 # ── Library loading ────────────────────────────────────────────────────────────
+# Tries, in order: an explicit env-var override (for tests), the repo layout
+# (running from a checkout), then the installed live-ISO layout under
+# /etc/abora — so this same script works unmodified whether it's being run
+# from a git clone or from the actual live image.
 find_lib() {
     local name="$1" extra="${2:-}" candidate
     for candidate in "$extra" "$script_dir/$name" "$script_dir/abora-$name" \
@@ -87,38 +95,44 @@ D=$'\033[2m'
 CF=$'\033[38;5;17m'    # Dark navy    — frames / borders
 CI=$'\033[38;5;75m'    # Sky blue     — prompts / info
 CS=$'\033[1;97m'       # Snow white   — headings
-CG=$'\033[38;5;240m'   # Stone gray   — dim / pending steps
-CP=$'\033[38;5;82m'    # Green        — done / success
+CG=$'\033[38;5;67m'    # Blue gray    — dim / pending steps
+CP=$'\033[38;5;45m'    # Cyan blue    — done / success
 CW=$'\033[38;5;33m'    # Abora blue   — primary accent (choices, highlights)
 CB=$'\033[38;5;33m'    # Abora blue   — logo / branding
 CE=$'\033[38;5;196m'   # Red          — errors
-CY=$'\033[38;5;220m'   # Yellow       — warnings / notices
+CY=$'\033[38;5;39m'    # Bright blue  — warnings / notices
 CC=$'\033[38;5;253m'   # Cloud white  — body text
 
 # ── Gum integration ───────────────────────────────────────────────────────────
+# gum (charmbracelet/gum) renders the actual list-picker/text-input widgets
+# used below; every prompt function falls back to a plain read/case-based
+# prompt when gum isn't on PATH, so the installer still runs on a minimal
+# live image that doesn't ship it.
 GUM_BIN=""
 _init_gum() {
     GUM_BIN="$(command -v gum 2>/dev/null || true)"
     [[ -n "$GUM_BIN" ]] || return 0
-    export GUM_CHOOSE_CURSOR="  › "
-    export GUM_CHOOSE_CURSOR_FOREGROUND="214"
-    export GUM_CHOOSE_HEADER_FOREGROUND="253"
+    export GUM_CHOOSE_CURSOR="  ▸ "
+    export GUM_CHOOSE_CURSOR_FOREGROUND="33"
+    export GUM_CHOOSE_HEADER_FOREGROUND="39"
     export GUM_CHOOSE_HEADER_BOLD="true"
     export GUM_CHOOSE_ITEM_FOREGROUND="253"
-    export GUM_CHOOSE_SELECTED_FOREGROUND="214"
+    export GUM_CHOOSE_SELECTED_FOREGROUND="45"
     export GUM_CHOOSE_SELECTED_BOLD="true"
-    export GUM_INPUT_PROMPT="  › "
-    export GUM_INPUT_PROMPT_FOREGROUND="214"
-    export GUM_INPUT_CURSOR_FOREGROUND="214"
+    export GUM_INPUT_PROMPT="  ▸ "
+    export GUM_INPUT_PROMPT_FOREGROUND="33"
+    export GUM_INPUT_CURSOR_FOREGROUND="45"
+    export GUM_INPUT_HEADER_FOREGROUND="39"
+    export GUM_INPUT_HEADER_BOLD="true"
 }
 _init_gum
 
 # ── Abora TUI engine ───────────────────────────────────────────────────────────
 
-_TABS=("Language" "Network" "Identity" "Desktop" "Apps" "Options" "Preflight" "Disk" "Confirm")
+_TABS=("Language" "Network" "Identity" "Desktop" "Apps" "Options" "GPU" "Dotfiles" "Disk" "Preflight" "Confirm")
 
 draw_logo() {
-    printf '  %bABORA OS%b  %b▸%b  %bEVEREST 4.0%b\n' \
+    printf '  %bABORA OS%b  %b▸%b  %b2026.7.27%b\n' \
         "${B}${CW}" "$R" "${D}${CG}" "$R" "${D}${CG}" "$R"
 }
 
@@ -134,7 +148,7 @@ tab_header() {
     printf '\033[2J\033[H'
     printf '\n'
     printf '  %b┌────────────────────────────────────────────────────────┐%b\n' "$CF" "$R"
-    printf '  %b│%b  %bABORA OS%b  %b▸%b  EVEREST 4.0%b                              %b│%b\n' \
+    printf '  %b│%b  %bABORA OS%b  %b▸%b  2026.7.27%b                              %b│%b\n' \
         "$CF" "$R" "${B}${CW}" "$R" "${D}${CG}" "$R" "${D}${CG}" "$CF" "$R"
     printf '  %b└────────────────────────────────────────────────────────┘%b\n' "$CF" "$R"
     printf '\n'
@@ -194,6 +208,11 @@ menu() {
         local selected
         selected="$("$GUM_BIN" choose \
             --height "$(( count + 4 ))" \
+            --cursor.foreground 33 \
+            --header.foreground 39 \
+            --item.foreground 253 \
+            --selected.foreground 45 \
+            --selected.bold \
             "${gum_items[@]}" 2>/dev/tty)" || { MENU_RESULT=0; return 0; }
         for (( i=0; i<count; i++ )); do
             if [[ "${gum_items[$i]}" == "$selected" ]]; then
@@ -234,6 +253,8 @@ prompt_field() {
             --placeholder "$default" \
             --prompt "  ${prompt}  › " \
             --width 52 \
+            --prompt.foreground 33 \
+            --cursor.foreground 45 \
             2>/dev/tty)" || val=""
         printf '%s\n' "${val:-$default}"
         return
@@ -252,6 +273,8 @@ prompt_password() {
             --password \
             --prompt "  ${prompt}  › " \
             --width 52 \
+            --prompt.foreground 33 \
+            --cursor.foreground 45 \
             2>/dev/tty)" || val=""
         printf '%s\n' "$val"
         return
@@ -322,6 +345,9 @@ safe_keymap()     { [[ "$1" =~ ^[A-Za-z0-9_+.-]+$ ]]; }
 safe_locale()     { [[ "$1" =~ ^[A-Za-z][A-Za-z0-9_.@-]*$ && "$1" == *.* ]]; }
 safe_timezone()   { [[ "$1" =~ ^[A-Za-z0-9_+./-]+$ && "$1" != *..* && "$1" != /* ]]; }
 
+# Accepts a handful of common short/legacy timezone names (typed by a user,
+# or produced by some batch-mode callers) and maps them to real IANA zone
+# names before timezone_exists()/nixos-generate-config ever see them.
 normalize_timezone() {
     local tz="$1"
     tz="${tz//$'\r'/}"
@@ -350,6 +376,10 @@ normalize_timezone() {
     esac
 }
 
+# Checks a timezone name three ways so this works on both the live ISO
+# (zoneinfo files present but timedatectl may be unavailable) and other
+# environments (a chroot with only timedatectl reachable): a zoneinfo file
+# on disk, or a match against `timedatectl list-timezones`.
 timezone_exists() {
     local tz="$1" base
     tz="$(normalize_timezone "$tz")"
@@ -364,12 +394,21 @@ timezone_exists() {
     return 1
 }
 
+# SHA-512 crypt hash (openssl passwd -6) — the format NixOS's
+# users.users.<name>.hashedPassword expects, so the plaintext password
+# never gets written into the generated config.
 hash_password() {
     local password="$1"
     command -v openssl >/dev/null 2>&1 || return 1
     openssl passwd -6 -stdin <<<"$password"
 }
 
+# Escapes a value for safe interpolation into a Nix double-quoted string
+# literal: backslash and '"' are the two characters that would otherwise let
+# the value break out of the string, and '$' must be escaped so Nix doesn't
+# treat "${...}" as antiquotation. Newlines are stripped rather than escaped
+# since none of this installer's string fields (hostname, username, etc.)
+# are legitimately multi-line.
 nix_string() {
     local value="$1"
     value="${value//\\/\\\\}"
@@ -423,6 +462,68 @@ apply_language_defaults() {
     esac
 }
 
+valid_gpus=(nouveau nvidia nvidia-open amdgpu intel none)
+
+# Detect the primary GPU vendor via lspci and resolve it to a concrete
+# abora.gpu value. Never resolves to the proprietary "nvidia" driver on its
+# own — NVIDIA hardware resolves to "nouveau" (open-source, no license to
+# accept) unless the user explicitly picks "nvidia" or "nvidia-open" in
+# step_gpu.
+detect_gpu() {
+    local gpu_line=""
+    if command -v lspci >/dev/null 2>&1; then
+        gpu_line="$(lspci 2>/dev/null | grep -Ei 'VGA compatible controller|3D controller|Display controller' | head -n1)"
+    fi
+
+    case "$gpu_line" in
+        *NVIDIA*|*nvidia*) printf 'nouveau\n' ;;
+        *AMD*|*ATI*|*amd*) printf 'amdgpu\n' ;;
+        *Intel*|*intel*)   printf 'intel\n' ;;
+        *)                 printf 'none\n' ;;
+    esac
+}
+
+# Render the raw NixOS config lines for the selected GPU driver. Kept in
+# sync with nix/modules/abora-options.nix's abora.gpu handling — this is
+# only needed here because the installer writes abora-local.nix as plain
+# NixOS options rather than through the abora.* options module.
+gpu_config_block() {
+    local gpu="$1"
+    case "$gpu" in
+        nouveau)
+            cat <<'EOF'
+  services.xserver.videoDrivers = lib.mkDefault [ "nouveau" ];
+EOF
+            ;;
+        nvidia|nvidia-open)
+            local open_flag="false"
+            [[ "$gpu" == "nvidia-open" ]] && open_flag="true"
+            cat <<EOF
+  services.xserver.videoDrivers = lib.mkDefault [ "nvidia" ];
+  hardware.nvidia = {
+    modesetting.enable = true;
+    open = ${open_flag};
+    nvidiaSettings = true;
+    package = config.boot.kernelPackages.nvidiaPackages.stable;
+  };
+EOF
+            ;;
+        amdgpu)
+            cat <<'EOF'
+  services.xserver.videoDrivers = lib.mkDefault [ "amdgpu" ];
+EOF
+            ;;
+        intel)
+            cat <<'EOF'
+  services.xserver.videoDrivers = lib.mkDefault [ "modesetting" ];
+EOF
+            ;;
+        *)
+            : # none / unrecognised — leave NixOS's own defaults in place.
+            ;;
+    esac
+}
+
 detect_defaults() {
     local d
     d="$(timedatectl show --property=Timezone --value 2>/dev/null || true)"
@@ -431,6 +532,7 @@ detect_defaults() {
     if [[ "$d" =~ ^[a-z][a-z0-9_-]*$ ]]; then
         keyboard_value="$d"; sync_xkb_layout
     fi
+    gpu_value="$(detect_gpu)"
 }
 
 refresh_github_identity() {
@@ -456,6 +558,10 @@ net_connected() {
     return 1
 }
 
+# ABORA_ALLOW_OFFLINE_INSTALL=1 is the documented escape hatch for offline
+# installs — it forces this check to pass so an unreachable binary cache
+# never blocks an install that can be satisfied entirely from packages
+# already present on the ISO (see check_install_environment's use of this).
 cache_reachable() {
     [[ "${ABORA_ALLOW_OFFLINE_INSTALL:-0}" == "1" ]] && return 0
     if command -v curl >/dev/null 2>&1; then
@@ -474,10 +580,55 @@ start_nm() {
         || return 1
 }
 
+# Whole-disk device names (no /dev/ prefix, one per line) currently backing
+# any live mount or loop device -- i.e. candidates for "the disk Abora
+# actually booted from". The live squashfs is loop-mounted from a file on
+# that disk (see boot.initrd.kernelModules in nix/profiles/live.nix: loop,
+# overlay, squashfs, isofs), so a name-prefix check alone (fd/loop/ram/sr/
+# zram) never catches a USB installer stick: it enumerates as an ordinary
+# disk like any internal drive. This checks every currently mounted
+# filesystem's source device *and* every active loop device's backing file,
+# resolving each back to its parent whole-disk via `lsblk -no pkname`,
+# rather than guessing one specific mount point -- NixOS's exact squashfs
+# mount path isn't something worth hardcoding and getting subtly wrong.
+boot_media_disks() {
+    { findmnt -rno SOURCE 2>/dev/null; losetup -n -O BACK-FILE 2>/dev/null; } \
+        | while IFS= read -r src; do
+            [[ -n "$src" && "$src" == /dev/* ]] || continue
+            local real pk
+            real="$(readlink -f "$src" 2>/dev/null || printf '%s' "$src")"
+            pk="$(lsblk -dno PKNAME "$real" 2>/dev/null | head -n1)"
+            if [[ -n "$pk" ]]; then
+                printf '%s\n' "$pk"
+            else
+                lsblk -dno NAME "$real" 2>/dev/null | head -n1
+            fi
+        done | sort -u
+}
+
 collect_disks() {
-    lsblk -dn -e 7,11 -o NAME,SIZE,MODEL,TYPE | awk '
+    local -A boot_names=()
+    local name
+    while IFS= read -r name; do
+        [[ -n "$name" ]] && boot_names["$name"]=1
+    done < <(boot_media_disks)
+
+    # Deliberately not `${!boot_names[*]:-}`: bash parses `:-` stacked onto
+    # the array-keys form as indirect expansion of the first key's value,
+    # not "default when the array has no keys" -- it silently produces an
+    # empty string even when boot_names is populated. Guard emptiness with
+    # a plain conditional instead.
+    local boot_list=""
+    [[ ${#boot_names[@]} -gt 0 ]] && boot_list="${!boot_names[*]}"
+
+    lsblk -dn -e 7,11 -o NAME,SIZE,MODEL,TYPE | awk -v boot_list="$boot_list" '
+        BEGIN {
+            n = split(boot_list, arr, " ")
+            for (i = 1; i <= n; i++) boot[arr[i]] = 1
+        }
         $NF == "disk" {
             if ($1 ~ /^(fd|loop|ram|sr|zram)/) next
+            if ($1 in boot) next
             model = ""
             for (i = 3; i < NF; i++) model = model (model ? " " : "") $i
             if (model == "") model = "Unknown model"
@@ -514,7 +665,10 @@ check_install_environment() {
         /etc/abora/desktop-profiles.sh
         /etc/abora/mango/config.conf
         /etc/abora/pkgs/mango.nix
+        /etc/abora/pkgs/scenefx-0_5.nix
         /etc/abora/pkgs/modularity.nix
+        /etc/abora/pkgs/moducpp-anix.nix
+        /etc/abora/tools/moducpp-anix
         /etc/abora/installed-base.nix
         /etc/abora/anix.sh
         /etc/abora/anix-module.nix
@@ -522,6 +676,9 @@ check_install_environment() {
         /etc/abora/tinypm/grab
         /etc/abora/tinypm/Parcel
         /etc/abora/tinypm/version
+        /etc/abora/tinypm/bin/tinypm
+        /etc/abora/tinypm/lib/tinypm/core/version.sh
+        /etc/abora/tinypm/lib/tinypm/providers/anix.sh
         /etc/abora/installer.sh
         /etc/abora/setup-launcher.sh
         /etc/abora/setup.desktop
@@ -538,7 +695,6 @@ check_install_environment() {
         /etc/abora/docs/wiki/TinyPM-V4.md
         /etc/abora/docs/wiki/Abora-Tools.md
         /etc/abora/docs/wiki/Recovery.md
-        /etc/abora/tinypm/lib/core/system.sh
     )
 
     [[ -r /dev/tty ]] || { err "No readable /dev/tty; run from a real terminal."; failed=1; }
@@ -568,8 +724,14 @@ check_install_environment() {
     if cache_reachable; then
         [[ "$mode" == "detail" ]] && ok "Nix cache reachable"
     else
-        err "Nix cache unreachable; fast install needs internet."
-        failed=1
+        # Not fatal: every supported desktop/app profile already ships in the
+        # live ISO's local store, so a normal install never needs the cache.
+        # Only an explicit fast-install path (pulling newer store paths from
+        # cache.nixos.org instead of building/using what's local) would need
+        # this, and no such path exists in this installer today. This used to
+        # set failed=1 unconditionally, which made Preflight impossible to
+        # pass on any offline machine regardless of what the user chose.
+        warn "Nix cache unreachable — offline install will use only what's on the ISO."
     fi
 
     for path in "${required_paths[@]}"; do
@@ -906,15 +1068,33 @@ step_identity() {
 step_desktop() {
     tab_header 4
 
+    # Single-desktop editions (cosmic/hyprland/gnome/kde) ship exactly one
+    # desktop — installing that edition's ISO already is the choice, so
+    # there's nothing to ask. "other" and any edition value this installer
+    # doesn't recognize fall through to the normal picker.
+    case "${abora_edition:-}" in
+        cosmic|hyprland|gnome|kde)
+            desktop_profile="${abora_default_desktop:-$abora_edition}"
+            abora_sync_desktop_label "$desktop_profile"
+            msg "This is the ${desktop_label} edition — installing ${desktop_label} automatically."
+            pause
+            return 0
+            ;;
+    esac
+
     local -a profiles=()
     local profile
+    local profile_source=abora_supported_desktop_profiles
+    [[ "${abora_edition:-}" == "other" ]] && profile_source=abora_tiling_wm_profiles
     while IFS= read -r profile; do
         [[ -n "$profile" ]] || continue
         abora_sync_desktop_label "$profile"
         profiles+=("${desktop_label}|${profile}")
-    done < <(abora_supported_desktop_profiles)
+    done < <("$profile_source")
 
-    menu "Choose Your Desktop Environment" "${profiles[@]}"
+    local title="Choose Your Desktop Environment"
+    [[ "${abora_edition:-}" == "other" ]] && title="Choose Your Window Manager"
+    menu "$title" "${profiles[@]}"
     desktop_profile="${profiles[$MENU_RESULT]#*|}"
     abora_sync_desktop_label "$desktop_profile"
 }
@@ -979,12 +1159,96 @@ step_options() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  STEP 7 — PREFLIGHT
+#  STEP 7 — GPU
+# ═══════════════════════════════════════════════════════════════════════════════
+
+step_gpu() {
+    tab_header 7
+
+    local detected="$gpu_value"
+    msg "Detected GPU driver: ${detected}"
+    printf '\n'
+
+    case "$detected" in
+        nouveau)
+            menu "NVIDIA GPU detected" \
+                "Use open-source (nouveau)|Recommended — no license to accept, works out of the box" \
+                "Use proprietary (nvidia)|Best performance/features on most NVIDIA cards" \
+                "Use open kernel modules (nvidia-open)|NVIDIA's open-source modules — Turing (2018+) or newer only"
+            case "$MENU_RESULT" in
+                0) gpu_value="nouveau" ;;
+                1) gpu_value="nvidia" ;;
+                2) gpu_value="nvidia-open" ;;
+            esac
+            ;;
+        amdgpu)
+            ok "AMD GPU detected — amdgpu (open-source) will be used."
+            gpu_value="amdgpu"
+            ;;
+        intel)
+            ok "Intel GPU detected — the open-source Intel driver will be used."
+            gpu_value="intel"
+            ;;
+        *)
+            warn "No GPU vendor was detected automatically."
+            menu "GPU driver" \
+                "None (kernel default)|Let NixOS pick a driver automatically" \
+                "NVIDIA (nouveau, open-source)" \
+                "NVIDIA (proprietary)" \
+                "NVIDIA (open kernel modules)" \
+                "AMD (amdgpu)" \
+                "Intel"
+            case "$MENU_RESULT" in
+                0) gpu_value="none" ;;
+                1) gpu_value="nouveau" ;;
+                2) gpu_value="nvidia" ;;
+                3) gpu_value="nvidia-open" ;;
+                4) gpu_value="amdgpu" ;;
+                5) gpu_value="intel" ;;
+            esac
+            ;;
+    esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  STEP 8 — DOTFILES
+# ═══════════════════════════════════════════════════════════════════════════════
+# Only shown for editions where a bare tiling WM/compositor is genuinely
+# unusable without some config: hyprland (single-desktop edition) and other
+# (the tiling-WM picker). Every other edition ships a full desktop shell
+# that works out of the box, so asking about dotfiles there would just be
+# noise.
+
+step_dotfiles() {
+    case "${abora_edition:-}" in
+        hyprland|other) : ;;
+        *) return 0 ;;
+    esac
+
+    tab_header 8
+    printf '  %bDotfiles (Optional)%b\n\n' "${B}${CS}" "$R"
+    msg "Import your own config from a Git repository after first boot."
+    printf '\n'
+
+    menu "Dotfiles" \
+        "Skip|Configure ${desktop_label} manually later" \
+        "Import from a Git URL|GitHub, GitLab, Codeberg, or any public Git URL"
+
+    if [[ "$MENU_RESULT" -eq 1 ]]; then
+        printf '\n'
+        printf '  %bDotfiles Git URL:%b ' "$CW" "$R"
+        read -r dotfiles_url </dev/tty || dotfiles_url=""
+        dotfiles_url="${dotfiles_url// /}"
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  STEP 9 — PREFLIGHT
 # ═══════════════════════════════════════════════════════════════════════════════
 
 step_preflight() {
     while true; do
-        tab_header 7
+        tab_header 10
         printf '  %bInstall Preflight%b\n\n' "${B}${CS}" "$R"
         msg "Checking tools, installer assets, Nix paths, and selected values."
         printf '\n'
@@ -1008,11 +1272,11 @@ step_preflight() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  STEP 8 — DISK
+#  STEP 10 — DISK
 # ═══════════════════════════════════════════════════════════════════════════════
 
 step_disk() {
-    tab_header 8
+    tab_header 9
     warn "All data on the selected disk will be permanently erased!"
     printf '\n'
 
@@ -1053,6 +1317,10 @@ _print_summary() {
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Timezone:" "$R" "$timezone_value"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Keyboard:" "$R" "${keyboard_value} / ${xkb_layout_value}"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Desktop:"  "$R" "${desktop_label} (${desktop_profile})"
+    printf '  %b  %-16s%b  %s\n' "${D}${CI}" "GPU:"      "$R" "$gpu_value"
+    if [[ -n "$dotfiles_url" ]]; then
+        printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Dotfiles:" "$R" "$dotfiles_url"
+    fi
     if [[ "$starter_apps_bundle" == "none" ]]; then
         printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Apps:" "$R" "$starter_apps_label"
     elif [[ "$install_apps_during_setup" == "yes" ]]; then
@@ -1068,12 +1336,12 @@ _print_summary() {
 
 step_confirm() {
     while true; do
-        tab_header 9
+        tab_header 11
         printf '  %bInstallation Summary%b\n\n' "${B}${CS}" "$R"
         _print_summary
 
         menu "Ready to install?" \
-            "Install now|Erase ${disk} and install Abora OS EVEREST 4.0" \
+            "Install now|Erase ${disk} and install Abora OS 2026.7.27" \
             "Change password|Reset user password before installing" \
             "Cancel|Abort and return to the live shell"
 
@@ -1105,6 +1373,10 @@ step_confirm() {
 #  INSTALL ENGINE  (unchanged from working version)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# nvme/mmcblk/loop devices number their partitions as <disk>p<N> (e.g.
+# nvme0n1p2), while sd*/vd*/hd* disks are just <disk><N> (sda2) — this
+# suffix is what lets efi_part/root_part below be built generically for
+# either naming scheme.
 disk_part_suffix() {
     case "$disk" in *nvme*|*mmcblk*|*loop*) printf 'p' ;; *) printf '' ;; esac
 }
@@ -1113,6 +1385,9 @@ log_install_step() {
     printf '[installer] %s\n' "$*" >>"$install_log"
 }
 
+# GPT layout: a 1MiB BIOS-boot partition (for Limine's legacy-BIOS path),
+# a FAT32 ESP (UEFI), and the rest as the ext4 root — the same disk boots
+# either BIOS or UEFI without needing to know which at partition time.
 partition_disk() {
     log_install_step "partition_disk: start disk=${disk}"
     if [[ -z "$disk" || ! -b "$disk" ]]; then
@@ -1270,6 +1545,13 @@ EOF
     done
 }
 
+# Copies mango's config.conf into the installed /etc/nixos tree itself
+# (rather than referencing it from the live ISO's /nix/store) so the
+# installed flake stays self-contained: a store path from the live ISO's
+# build is a temporary GC root that can vanish, so the installed config must
+# never reference it. rewrite_installed_mango_config_paths() below then
+# patches any Nix files that got copied from the ISO already pointing at
+# that store path, redirecting them to this local copy instead.
 install_mango_config_asset() {
     local root="${1:-/mnt}"
     local dest="${root}/etc/nixos/abora/mango/config.conf"
@@ -1334,7 +1616,9 @@ write_branding_assets() {
              "${root}/etc/nixos/abora/pkgs" \
              "${root}/etc/nixos/abora/wallpapers" \
              "${root}/etc/nixos/abora/themes" \
-             "${root}/etc/nixos/abora/effects"
+             "${root}/etc/nixos/abora/effects" \
+             "${root}/etc/nixos/abora/anix-languages" \
+             "${root}/etc/nixos/abora/tools"
 
     local f
     for f in VERSION title.txt abora.sh ui.sh config.sh desktop.sh doctor.sh \
@@ -1342,7 +1626,7 @@ write_branding_assets() {
               hardware-test.sh default-wallpaper.png fastfetch-logo.txt \
               fastfetch-config.jsonc desktop-profiles.sh installed-base.nix \
               installer.sh setup-launcher.sh setup.desktop repair-flake-purity.sh \
-              session-setup.sh theme-sync.sh update.sh; do
+              session-setup.sh theme-sync.sh update.sh welcome-gui.py config-gui.py; do
         cp_required "/etc/abora/${f}" "${root}/etc/nixos/abora/${f}"
     done
     [[ -f /etc/abora/Abora-LOGO.png ]] && \
@@ -1351,7 +1635,10 @@ write_branding_assets() {
     cp_required /etc/abora/plymouth/abora.script   "${root}/etc/nixos/abora/plymouth/abora.script"
     install_mango_config_asset "$root"
     cp_required /etc/abora/pkgs/mango.nix          "${root}/etc/nixos/abora/pkgs/mango.nix"
+    cp_required /etc/abora/pkgs/scenefx-0_5.nix    "${root}/etc/nixos/abora/pkgs/scenefx-0_5.nix"
     cp_required /etc/abora/pkgs/modularity.nix     "${root}/etc/nixos/abora/pkgs/modularity.nix"
+    cp_required /etc/abora/pkgs/moducpp-anix.nix   "${root}/etc/nixos/abora/pkgs/moducpp-anix.nix"
+    cp_required /etc/abora/tools/moducpp-anix      "${root}/etc/nixos/abora/tools/moducpp-anix"
     cp_required /etc/abora/anix-module.nix         "${root}/etc/nixos/abora/anix-module.nix"
     cp_required /etc/abora/abora-options.nix       "${root}/etc/nixos/abora/abora-options.nix"
 
@@ -1360,6 +1647,9 @@ write_branding_assets() {
         cp /etc/abora/effects/v3StartingAbora.mp3 "${root}/etc/nixos/abora/effects/v3StartingAbora.mp3"
 
     cp -a /etc/abora/desktops/. "${root}/etc/nixos/abora/desktops/"
+    if [[ -d /etc/abora/anix-languages ]]; then
+        cp -a /etc/abora/anix-languages/. "${root}/etc/nixos/abora/anix-languages/"
+    fi
     rewrite_installed_mango_config_paths "$root"
 
     if [[ -e /etc/abora/tinypm ]]; then
@@ -1368,11 +1658,10 @@ write_branding_assets() {
         # symlinks as symlinks.  No -L so we never follow absolute symlinks
         # that may exist in older live ISOs.
         cp -a /etc/abora/tinypm/. "${root}/etc/nixos/abora/tinypm/"
-        # Drop any bin/ subdir — it only ever held installation-specific
-        # absolute symlinks from the dev machine, not needed at install time.
-        rm -rf "${root}/etc/nixos/abora/tinypm/bin" 2>/dev/null || true
     fi
-    if [[ ! -f "${root}/etc/nixos/abora/tinypm/lib/core/system.sh" ]]; then
+    if [[ -d "${root}/etc/nixos/abora/tinypm/lib/core" \
+          && ! -f "${root}/etc/nixos/abora/tinypm/lib/core/system.sh" \
+          && ! -f "${root}/etc/nixos/abora/tinypm/lib/tinypm/providers/anix.sh" ]]; then
         write_tinypm_system_fallback "${root}/etc/nixos/abora/tinypm/lib/core/system.sh"
     fi
 
@@ -1409,6 +1698,13 @@ write_branding_assets() {
     fi
 }
 
+# Writes the installed system's entire /etc/nixos tree: hardware-configuration.nix
+# (via nixos-generate-config), the branding/asset copy, and four hand-written
+# files — anix.nix (optional), configuration.nix (the import list),
+# abora-local.nix (the plain NixOS-option form of every installer choice —
+# this is what `abora config` reads/edits later), and flake.nix. Every
+# user-supplied string goes through nix_string() first since these are all
+# double-quoted Nix string literals.
 generate_nixos_config() {
     local root="${1:-/mnt}"
     local cfgdir="${root}/etc/nixos"
@@ -1417,11 +1713,9 @@ generate_nixos_config() {
     nixos-generate-config --root "$root" >> "$config_log" 2>&1
     write_branding_assets "$root"
 
-    local desktop_block desktop_pkgs root_pw_line host_nix user_nix locale_nix timezone_nix keyboard_nix xkb_nix desktop_nix wallpaper_nix anix_import_line
+    local desktop_pkgs root_pw_line host_nix user_nix locale_nix timezone_nix keyboard_nix xkb_nix desktop_nix wallpaper_nix anix_import_line disk_nix gpu_nix
     timezone_value="$(normalize_timezone "$timezone_value")"
-    desktop_block="$(abora_desktop_config_block "$desktop_profile" "$xkb_layout_value" "$username_value")"
     desktop_pkgs="$(abora_desktop_package_block "$desktop_profile")"
-    [[ -n "$desktop_block" ]] || die "Empty desktop block for $desktop_profile."
     host_nix="$(nix_string "$hostname_value")"
     user_nix="$(nix_string "$username_value")"
     locale_nix="$(nix_string "$locale_value")"
@@ -1430,6 +1724,18 @@ generate_nixos_config() {
     xkb_nix="$(nix_string "$xkb_layout_value")"
     desktop_nix="$(nix_string "$desktop_profile")"
     wallpaper_nix="$(nix_string "$wallpaper_name")"
+    disk_nix="$(nix_string "$disk")"
+    gpu_nix="$(nix_string "$gpu_value")"
+
+    # Persist the dotfiles Git URL (if any) so the first graphical session
+    # can clone and import it automatically — see
+    # abora-session-setup.sh's import_dotfiles_once(). Written for every
+    # edition, not just hyprland/other: the field is opt-in and empty by
+    # default, so there's no reason to special-case which editions get it.
+    if [[ -n "$dotfiles_url" ]]; then
+        printf '%s\n' "$dotfiles_url" > "${root}/etc/nixos/abora/dotfiles-url"
+        chmod 644 "${root}/etc/nixos/abora/dotfiles-url"
+    fi
 
     # Keep starter apps out of the default install closure. The selected IDs are
     # saved for abora-apps after first boot; only explicitly requested slow-path
@@ -1486,53 +1792,28 @@ ${anix_import_line}
 EOF
 
     cat > "${cfgdir}/abora-local.nix" <<EOF
-{ pkgs, lib, ... }:
+{ pkgs, lib, config, ... }:
 {
-  system.nixos.variantName = "Abora OS EVEREST 4.0 ${desktop_label} Edition";
-  system.nixos.variant_id = "${desktop_variant_id}";
-  # OS release branding is set centrally in abora/installed-base.nix.
+  abora.hostname = "${host_nix}";
+  abora.locale = "${locale_nix}";
+  abora.timezone = "${timezone_nix}";
+  abora.keyboard.console = "${keyboard_nix}";
+  abora.keyboard.xkb = "${xkb_nix}";
+  abora.desktop = "${desktop_nix}";
+  abora.wallpaper = "${wallpaper_nix}";
+  abora.gpu = "${gpu_nix}";
+  abora.disk = "${disk_nix}";
+  abora.stateVersion = "26.05";
+  abora.user.name = "${user_nix}";
+  abora.user.hashedPassword = "${user_password_hash}";
 
-  boot.loader.grub.enable = lib.mkForce false;
-  boot.loader.efi.efiSysMountPoint = "/boot";
-  boot.loader.timeout = 5;
-  boot.loader.limine = {
-    enable = true;
-    enableEditor = false;
-    maxGenerations = 8;
-    biosSupport = true;
-    biosDevice = "${disk}";
-    partitionIndex = 1;
-    force = true;
-    efiSupport = true;
-    efiInstallAsRemovable = true;
-  };
-
-  networking.hostName = "${host_nix}";
   networking.networkmanager.enable = lib.mkForce true;
-  i18n.defaultLocale = "${locale_nix}";
   i18n.supportedLocales = [
-    "${locale_nix}/UTF-8"
+    "\${config.abora.locale}/UTF-8"
     "en_US.UTF-8/UTF-8"
   ];
-  time.timeZone = "${timezone_nix}";
-  console.keyMap = "${keyboard_nix}";
-
-${desktop_block}
-
-  users.users."${user_nix}" = {
-    isNormalUser = true;
-    description = "${user_nix}";
-    createHome = true;
-    shell = pkgs.zsh;
-    extraGroups = [ "wheel" "networkmanager" "audio" "video" ];
-    hashedPassword = "${user_password_hash}";
-  };
 
 ${root_pw_line}
-
-  security.sudo.wheelNeedsPassword = true;
-
-  system.stateVersion = "26.05";
 }
 EOF
 
@@ -1575,6 +1856,10 @@ resolve_nixpkgs() {
     return 1
 }
 
+# Sanity check that nixos-install actually produced a bootable ESP —
+# either a generic UEFI fallback (BOOTX64.EFI) or a Limine EFI/BIOS binary —
+# before declaring the install a success. A missing bootloader here means a
+# silent, unbootable install, which is worse than failing loudly now.
 validate_boot() {
     [[ -f /mnt/boot/EFI/BOOT/BOOTX64.EFI ]] && return 0
     find /mnt/boot -maxdepth 3 \
@@ -1583,6 +1868,12 @@ validate_boot() {
     die "Bootloader not found after nixos-install. See ${install_log}."
 }
 
+# Limine's config uses indentation-as-nesting ("/"-prefixed lines whose
+# leading-slash count is the nesting depth) instead of a structured format,
+# so finding "the first actual bootable entry" means walking that nesting
+# by hand: tracks a stack of titles by depth, and an entry only counts once
+# it's seen both a recognized `protocol:` and a `kernel_path:`/`path:` line
+# at the same nesting level (a bare submenu heading is not itself bootable).
 limine_first_bootable_entry() {
     local conf="$1"
     awk '
@@ -1642,6 +1933,12 @@ limine_first_bootable_entry() {
     ' "$conf"
 }
 
+# NixOS's Limine generator doesn't always set default_entry to something
+# that will actually boot unattended (nested submenus, multiple stanzas),
+# so this pins default_entry to the first real bootable entry found above,
+# sets a short timeout, and disables the config editor — a fresh install
+# should reach a login prompt on its own without the user ever seeing (or
+# needing to touch) the boot menu.
 repair_limine_boot_menu() {
     local root="${1:-/mnt}"
     local conf="${root}/boot/limine/limine.conf"
@@ -1891,7 +2188,7 @@ progress_line() {
 
 draw_install_title() {
     printf '  %b┌────────────────────────────────────────────────────────┐%b\n' "$CF" "$R"
-    printf '  %b│%b  %bABORA OS%b  %b▸%b  Installing EVEREST 4.0%b                  %b│%b\n' \
+    printf '  %b│%b  %bABORA OS%b  %b▸%b  Installing 2026.7.27%b                  %b│%b\n' \
         "$CF" "$R" "${B}${CW}" "$R" "${D}${CG}" "$R" "${D}${CG}" "$CF" "$R"
     printf '  %b└────────────────────────────────────────────────────────┘%b\n' "$CF" "$R"
 }
@@ -1917,6 +2214,10 @@ file_size() {
     stat -c '%s' "$file" 2>/dev/null || wc -c < "$file" 2>/dev/null || printf '0'
 }
 
+# nixos-install gives no structured progress output, just a raw build log,
+# so this guesses a human-readable stage by pattern-matching the last few
+# lines — purely cosmetic (drives the "Status" line in draw_install_status),
+# never affects whether the install itself succeeds or fails.
 detect_install_activity() {
     local file="$1"
     [[ -s "$file" ]] || {
@@ -1924,7 +2225,9 @@ detect_install_activity() {
         return 0
     }
 
-    if tail -n 24 "$file" 2>/dev/null | grep -Eq '(^|\]| )Compiling |Running phase: (buildPhase|configurePhase)|build flags:|ninja-[0-9]|mesonConfigurePhase|Checking for (function|type|header)|Header ".*" has symbol'; then
+    if tail -n 24 "$file" 2>/dev/null | grep -Eq "building '/nix/store/.*\\.drv'|building /nix/store/.*\\.drv"; then
+        printf 'Building Nix system derivations locally'
+    elif tail -n 24 "$file" 2>/dev/null | grep -Eq '(^|\]| )Compiling |Running phase: (buildPhase|configurePhase)|build flags:|ninja-[0-9]|mesonConfigurePhase|Checking for (function|type|header)|Header ".*" has symbol'; then
         printf 'Building packages from source; this can take a while in a VM'
     elif tail -n 24 "$file" 2>/dev/null | grep -Eq 'copying path|copying .*from|these [0-9]+ paths will be fetched|downloading|fetching'; then
         printf 'Downloading/copying packages from cache'
@@ -1937,6 +2240,15 @@ detect_install_activity() {
     else
         printf 'Working'
     fi
+}
+
+process_activity() {
+    local pid="$1"
+    [[ "$pid" =~ ^[0-9]+$ ]] || {
+        printf 'starting'
+        return 0
+    }
+    ps -o comm= -p "$pid" 2>/dev/null | tr -d '\n' || printf 'running'
 }
 
 truncate_line() {
@@ -1969,10 +2281,11 @@ draw_log_tail() {
 }
 
 draw_install_status() {
-    local percent="$1" stage="$2" pid="$3" started="$4" status="${5:-Working}"
-    local now elapsed
+    local percent="$1" stage="$2" pid="$3" started="$4" status="${5:-Working}" idle="${6:-0}"
+    local now elapsed proc
     now="$(monotonic_seconds)"
     elapsed=$((now - started))
+    proc="$(process_activity "$pid")"
 
     printf '\033[2J\033[H'
     printf '\n'
@@ -1980,14 +2293,22 @@ draw_install_status() {
     printf '\n'
     progress_line "$percent" "$stage"
     printf '\n'
-    printf '  %bStatus%b   %s\n' "$CG" "$R" "$status"
-    printf '  %bElapsed%b  %s   %bPID%b  %s\n' "$CG" "$R" "$(format_elapsed "$elapsed")" "$CG" "$R" "$pid"
+    printf '  %bStatus%b   %s\n' "$CI" "$R" "$status"
+    printf '  %bElapsed%b  %s   %bPID%b  %s   %bProcess%b  %s\n' \
+        "$CI" "$R" "$(format_elapsed "$elapsed")" "$CI" "$R" "$pid" "$CI" "$R" "$proc"
+    printf '  %bLog age%b  %s since last output\n' "$CI" "$R" "$(format_elapsed "$idle")"
     printf '\n'
     draw_log_tail "$install_log" 8
     printf '\n'
-    printf '  %bNix may take a while to fetch or build packages — this is normal.%b\n' "${D}${CG}" "$R"
+    printf '  %bNix can sit on one build step for many minutes in a VM. If Log age keeps resetting, it is still alive.%b\n' "${D}${CG}" "$R"
 }
 
+# Runs a long-lived install command in the background and redraws a status
+# panel every 2s while it's alive. Distinguishes "quiet but still working"
+# from "actually stuck" by tracking the install log's file size rather than
+# just wall-clock elapsed time — Nix can legitimately sit on one derivation
+# for many minutes, so only genuine log silence (idle_timeout, 30 min) or an
+# absolute cap (hard_timeout, 90 min) ever kills the command.
 run_with_log_panel() {
     local percent="$1" stage="$2"
     shift 2
@@ -1998,7 +2319,7 @@ run_with_log_panel() {
     last_change="$started"
     last_size="$(file_size "$install_log")"
     status="Started"
-    draw_install_status "$percent" "$stage" "-" "$started" "$status"
+    draw_install_status "$percent" "$stage" "-" "$started" "$status" 0
 
     "$@" >>"$install_log" 2>&1 &
     pid=$!
@@ -2022,14 +2343,14 @@ run_with_log_panel() {
         elif (( elapsed >= 300 )); then
             status="${status} after 5 minutes"
         fi
-        draw_install_status "$percent" "$stage" "$pid" "$started" "$status"
+        draw_install_status "$percent" "$stage" "$pid" "$started" "$status" "$idle"
         if (( idle >= idle_timeout )); then
             printf '\n  %bInstall command produced no new log output for 30 minutes; stopping it.%b\n' "$CY" "$R"
             kill "$pid" >/dev/null 2>&1 || true
             sleep 5
             kill -KILL "$pid" >/dev/null 2>&1 || true
             wait "$pid" >/dev/null 2>&1 || true
-            draw_install_status "$percent" "$stage" "$pid" "$started" "Stopped after 30 minutes of no log output"
+            draw_install_status "$percent" "$stage" "$pid" "$started" "Stopped after 30 minutes of no log output" "$idle"
             return 124
         fi
         if (( elapsed >= hard_timeout )); then
@@ -2038,7 +2359,7 @@ run_with_log_panel() {
             sleep 5
             kill -KILL "$pid" >/dev/null 2>&1 || true
             wait "$pid" >/dev/null 2>&1 || true
-            draw_install_status "$percent" "$stage" "$pid" "$started" "Stopped after 90 minute timeout"
+            draw_install_status "$percent" "$stage" "$pid" "$started" "Stopped after 90 minute timeout" "$idle"
             return 124
         fi
         sleep 2
@@ -2047,9 +2368,9 @@ run_with_log_panel() {
     wait "$pid"
     rc=$?
     if (( rc == 0 )); then
-        draw_install_status "$percent" "$stage" "$pid" "$started" "Complete"
+        draw_install_status "$percent" "$stage" "$pid" "$started" "Complete" 0
     else
-        draw_install_status "$percent" "$stage" "$pid" "$started" "Failed"
+        draw_install_status "$percent" "$stage" "$pid" "$started" "Failed" 0
     fi
     return "$rc"
 }
@@ -2058,7 +2379,7 @@ run_install() {
     printf '\033[2J\033[H'
     printf '\n'
     draw_install_title
-    printf '  %bInstalling Abora EVEREST 4.0%b\n' "$CC" "$R"
+    printf '  %bInstalling Abora OS 2026.7.27%b\n' "$CC" "$R"
     printf '  %bLog: %s%b\n' "${D}${CG}" "$install_log" "$R"
     printf '\n'
 
@@ -2102,10 +2423,12 @@ run_install() {
         "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" \
         "connect-timeout = 10" \
         "stalled-download-timeout = 120" \
-        "fallback = false" \
+        "fallback = true" \
         "builders-use-substitutes = true" \
+        "max-jobs = 2" \
+        "cores = 2" \
         "max-substitution-jobs = 32" \
-        "http-connections = 128")"
+        "http-connections = 32")"
 
     msg "Running nixos-install…"
     if ! run_with_log_panel 70 "Installing system" \
@@ -2140,7 +2463,7 @@ page_done() {
     printf '  %b┌────────────────────────────────────────────────────────┐%b\n' "$CF" "$R"
     printf '  %b│%b  %b✓  Installation Complete%b                               %b│%b\n' \
         "$CF" "$R" "${B}${CP}" "$R" "$CF" "$R"
-    printf '  %b│%b  %bAbora OS EVEREST 4.0 is installed%b                     %b│%b\n' \
+    printf '  %b│%b  %bAbora OS 2026.7.27 is installed%b                     %b│%b\n' \
         "$CF" "$R" "$CS" "$R" "$CF" "$R"
     printf '  %b└────────────────────────────────────────────────────────┘%b\n' "$CF" "$R"
     printf '\n'
@@ -2193,6 +2516,13 @@ page_done() {
 # ═══════════════════════════════════════════════════════════════════════════════
 #  RECONFIG MODE
 # ═══════════════════════════════════════════════════════════════════════════════
+# Entered via `abora-install --reconfig` on an already-installed system (see
+# `abora setup`) — reuses the same step_* wizard pages to collect new values,
+# but instead of partitioning/nixos-install, run_reconfig() patches the
+# existing abora-local.nix/anix.nix in place with sed and runs
+# `nixos-rebuild switch`. read_current_config()/read_anix_config() seed the
+# wizard's fields from what's already on disk so unfilled fields don't
+# revert to installer defaults.
 
 read_current_config() {
     local f="/etc/nixos/abora-local.nix"
@@ -2276,6 +2606,265 @@ page_done_reconfig() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+#  RELEASE INSTALLER FLOW
+# ═══════════════════════════════════════════════════════════════════════════════
+
+release_header() {
+    local title="${1:-Install Abora OS}"
+    printf '\033[2J\033[H'
+    printf '\n'
+    printf '  %b┌────────────────────────────────────────────────────────┐%b\n' "$CF" "$R"
+    printf '  %b│%b  %bABORA OS%b  %b▸%b  %b2026.7.27%b                             %b│%b\n' \
+        "$CF" "$R" "${B}${CW}" "$R" "$CI" "$R" "$CS" "$R" "$CF" "$R"
+    printf '  %b└────────────────────────────────────────────────────────┘%b\n' "$CF" "$R"
+    printf '\n'
+    printf '  %b%s%b\n' "${B}${CS}" "$title" "$R"
+    rule
+    printf '\n'
+}
+
+release_welcome() {
+    release_header "Welcome"
+    msg "Fast release installer. Pick the basics; Abora handles the rest."
+    msg "This installer erases one selected disk and installs the ${desktop_label} edition."
+    printf '\n'
+    menu "Start" \
+        "Install Abora OS|Guided install to a disk" \
+        "Live shell|Exit to the live environment"
+    if [[ "$MENU_RESULT" -eq 1 ]]; then
+        printf '\n'
+        ok "Live shell selected. Run abora-install to return."
+        exit 0
+    fi
+}
+
+release_network() {
+    release_header "Network"
+    start_nm || true
+    if net_connected; then
+        ok "Network is connected."
+        pause
+        return 0
+    fi
+
+    warn "Network is not connected. The install needs access to cache.nixos.org."
+    printf '\n'
+    menu "Network setup" \
+        "Open nmtui|Connect Wi-Fi or edit networking" \
+        "Retry|Check network again" \
+        "Continue anyway|Only works if every needed Nix path is already local"
+    case "$MENU_RESULT" in
+        0)
+            nmtui || true
+            release_network
+            return
+            ;;
+        1)
+            release_network
+            return
+            ;;
+        2)
+            ABORA_ALLOW_OFFLINE_INSTALL=1
+            export ABORA_ALLOW_OFFLINE_INSTALL
+            ;;
+    esac
+}
+
+release_disk() {
+    release_header "Disk"
+    warn "This will permanently erase the selected disk."
+    printf '\n'
+
+    local -a disks=() row
+    while IFS= read -r row; do
+        [[ -n "$row" ]] && disks+=("$row")
+    done < <(collect_disks)
+    [[ ${#disks[@]} -gt 0 ]] || die "No installable disks found."
+
+    if [[ ${#disks[@]} -eq 1 ]]; then
+        disk="${disks[0]%%|*}"
+        ok "Using detected disk: ${disk} (${disks[0]#*|})"
+        printf '\n'
+    else
+        menu "Choose disk to erase" "${disks[@]}"
+        disk="${disks[$MENU_RESULT]%%|*}"
+        printf '\n'
+    fi
+
+    warn "Erase ${disk}?"
+    menu "Confirm disk" \
+        "Yes, erase ${disk}|Install Abora OS here" \
+        "No, choose again|Return to disk picker"
+    if [[ "$MENU_RESULT" -ne 0 ]]; then
+        release_disk
+        return
+    fi
+}
+
+release_identity() {
+    release_header "User"
+    while true; do
+        local v
+        v="$(prompt_field "Hostname" "$hostname_value")"
+        [[ -n "$v" ]] && hostname_value="$v"
+        safe_hostname "$hostname_value" && break
+        warn "Hostname can use letters, numbers, and hyphens."
+    done
+
+    while true; do
+        local v
+        v="$(prompt_field "Username" "$username_value")"
+        [[ -n "$v" ]] && username_value="$v"
+        safe_identifier "$username_value" && break
+        warn "Username must start with a lowercase letter and use lowercase letters, numbers, '_' or '-'."
+    done
+
+    while true; do
+        local p1 p2
+        p1="$(prompt_password "Password")"
+        p2="$(prompt_password "Confirm")"
+        [[ -n "$p1" ]] || { warn "Password cannot be empty."; continue; }
+        [[ "$p1" == "$p2" ]] || { warn "Passwords do not match."; continue; }
+        user_password_hash="$(hash_password "$p1")"
+        [[ -n "$user_password_hash" ]] || { warn "Could not hash password."; continue; }
+        root_password_mode="same"
+        root_password_hash="$user_password_hash"
+        ok "Password set."
+        pause
+        return 0
+    done
+}
+
+release_locale() {
+    release_header "Region"
+    menu "Locale" \
+        "English (United States)|en_US.UTF-8" \
+        "English (United Kingdom)|en_GB.UTF-8" \
+        "Spanish|es_ES.UTF-8" \
+        "French|fr_FR.UTF-8" \
+        "German|de_DE.UTF-8" \
+        "Custom|Type manually"
+    case "$MENU_RESULT" in
+        0) locale_value="en_US.UTF-8"; language_label="English (United States)" ;;
+        1) locale_value="en_GB.UTF-8"; language_label="English (United Kingdom)" ;;
+        2) locale_value="es_ES.UTF-8"; language_label="Spanish" ;;
+        3) locale_value="fr_FR.UTF-8"; language_label="French" ;;
+        4) locale_value="de_DE.UTF-8"; language_label="German" ;;
+        5)
+            while true; do
+                locale_value="$(prompt_field "Locale" "$locale_value")"
+                safe_locale "$locale_value" && break
+                warn "Use a locale like en_US.UTF-8."
+            done
+            language_label="$locale_value"
+            ;;
+    esac
+    apply_language_defaults
+
+    while true; do
+        local v
+        v="$(prompt_field "Timezone" "$timezone_value")"
+        [[ -n "$v" ]] && timezone_value="$(normalize_timezone "$v")"
+        timezone_exists "$timezone_value" && break
+        warn "Use America/New_York, EST, Eastern, UTC, etc."
+    done
+
+    while true; do
+        local v
+        v="$(prompt_field "Keyboard" "$keyboard_value")"
+        [[ -n "$v" ]] && keyboard_value="$v"
+        safe_keymap "$keyboard_value" && break
+        warn "Use a valid keymap like us, gb, de, fr."
+    done
+    sync_xkb_layout
+}
+
+release_desktop() {
+    release_header "Desktop"
+    local -a profiles=() profile
+    local default_profile="${abora_default_desktop:-${abora_edition:-cosmic}}"
+    [[ "$default_profile" == "kde" ]] && default_profile="plasma"
+    desktop_profile="$default_profile"
+    abora_sync_desktop_label "$desktop_profile"
+
+    case "${abora_edition:-}" in
+        cosmic|hyprland|gnome|kde)
+            ok "Recommended for this ISO: ${desktop_label}."
+            msg "If you picked the wrong ISO, you can choose a different desktop now."
+            printf '\n'
+            menu "Desktop choice" \
+                "Use ${desktop_label}|Recommended for this ISO" \
+                "Choose another desktop|GNOME, COSMIC, KDE, Hyprland, and more"
+            [[ "$MENU_RESULT" -eq 0 ]] && return 0
+            ;;
+    esac
+
+    while IFS= read -r profile; do
+        [[ -n "$profile" ]] || continue
+        abora_sync_desktop_label "$profile"
+        profiles+=("${desktop_label}|${profile}")
+    done < <(abora_supported_desktop_profiles)
+    menu "Desktop" "${profiles[@]}"
+    desktop_profile="${profiles[$MENU_RESULT]#*|}"
+    abora_sync_desktop_label "$desktop_profile"
+}
+
+release_apps() {
+    # Release default: keep installation fast and reliable. Starter bundles are
+    # saved for first boot instead of inflating nixos-install.
+    starter_apps_bundle="none"
+    starter_apps_label="None"
+    install_apps_during_setup="no"
+}
+
+release_preflight() {
+    release_header "Preflight"
+    msg "Checking disk, password, timezone, assets, tools, and Nix cache."
+    printf '\n'
+    if check_install_environment; then
+        printf '\n'
+        ok "Preflight passed."
+        pause
+        return 0
+    fi
+
+    printf '\n'
+    warn "Preflight failed. See messages above."
+    menu "Next" \
+        "Run checks again|Retry after fixing the issue" \
+        "Cancel|Drop to live shell"
+    [[ "$MENU_RESULT" -eq 0 ]] && release_preflight
+    exit 1
+}
+
+release_review() {
+    release_header "Review"
+    _print_summary
+    printf '\n'
+    warn "The next step erases ${disk} and installs Abora OS."
+    menu "Install now?" \
+        "Install Abora OS|Erase ${disk} and start installation" \
+        "Cancel|Return to live shell"
+    [[ "$MENU_RESULT" -eq 0 ]] || exit 1
+}
+
+release_install_flow() {
+    abora_sync_desktop_label "${abora_default_desktop:-${abora_edition:-cosmic}}"
+    release_welcome
+    release_network
+    release_disk
+    release_identity
+    release_locale
+    release_desktop
+    step_gpu
+    release_apps
+    release_preflight
+    release_review
+    run_install
+    page_done
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 #  ENTRY POINT
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -2305,9 +2894,8 @@ main() {
     detect_defaults
     refresh_github_identity
 
-    page_welcome
-
     if [[ "${reconfig_mode:-0}" == "1" ]]; then
+        page_welcome
         read_current_config
         read_anix_config
 
@@ -2316,8 +2904,10 @@ main() {
         step_desktop
         step_apps
         step_options
+        step_gpu
+        step_dotfiles
 
-        tab_header 9
+        tab_header 11
         printf '  %bReconfiguration Summary%b\n\n' "${B}${CS}" "$R"
         _print_summary
 
@@ -2329,17 +2919,7 @@ main() {
         run_reconfig
         page_done_reconfig
     else
-        step_language
-        step_network
-        step_identity
-        step_desktop
-        step_apps
-        step_options
-        step_preflight
-        step_disk
-        step_confirm
-        run_install
-        page_done
+        release_install_flow
     fi
 }
 

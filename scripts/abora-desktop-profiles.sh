@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
+# abora-desktop-profiles.sh — per-desktop config/package block definitions.
+# Source this file; do not execute it directly.
 
 abora_default_wallpaper_name() {
-    printf 'Daytime-MNT.jpg\n'
+    printf 'titlis-alps.jpg\n'
 }
 
 abora_default_wallpaper_uri() {
@@ -12,12 +14,10 @@ abora_supported_wallpapers() {
     cat <<'EOF'
 abora-dark.svg
 abora-light.svg
-Daytime-MNT.jpg
-NightTime-MNT.png
-oceandusk.png
-bluehorizon.png
-astronautwallpaper.png
-glacierreflection.png
+alpine-glacier.jpg
+tannheimer-mountains.jpg
+titlis-alps.jpg
+aurora-lofoten.jpg
 EOF
 }
 
@@ -29,23 +29,17 @@ abora_sync_wallpaper_label() {
         abora-light.svg)
             wallpaper_label="Abora Light"
             ;;
-        Daytime-MNT.jpg)
-            wallpaper_label="Mountain — Day/Night"
+        alpine-glacier.jpg)
+            wallpaper_label="Alpine Glacier"
             ;;
-        NightTime-MNT.png)
-            wallpaper_label="Mountain — Night"
+        tannheimer-mountains.jpg)
+            wallpaper_label="Tannheimer Mountains"
             ;;
-        oceandusk.png)
-            wallpaper_label="Ocean Dusk"
+        titlis-alps.jpg)
+            wallpaper_label="Titlis Alps"
             ;;
-        bluehorizon.png)
-            wallpaper_label="Blue Horizon"
-            ;;
-        astronautwallpaper.png)
-            wallpaper_label="Astronaut Wallpaper"
-            ;;
-        glacierreflection.png)
-            wallpaper_label="Glacier Reflection"
+        aurora-lofoten.jpg)
+            wallpaper_label="Aurora, Lofoten"
             ;;
         *)
             wallpaper_label="$1"
@@ -78,6 +72,30 @@ icewm
 herbstluftwm
 cosmic
 mangowm
+EOF
+}
+
+# Tiling window managers / minimal compositors — no full desktop shell, and
+# (with the sole current exception of MangoWM's bundled config.conf) no
+# pre-made dotfiles, so they need either a hand-written config or an
+# imported one (see abora_dotfiles_import) to be usable day-to-day. This is
+# the exact desktop set the "Other Desktops" edition offers, and must stay
+# in sync with _TILING_WMS in abora-installer-gui.py.
+abora_tiling_wm_profiles() {
+    cat <<'EOF'
+hyprland
+mangowm
+sway
+i3
+niri
+river
+bspwm
+qtile
+awesome
+herbstluftwm
+openbox
+fluxbox
+icewm
 EOF
 }
 
@@ -206,6 +224,12 @@ abora_sync_desktop_label() {
     esac
 }
 
+# Reverse-engineers which desktop profile is currently active by grepping an
+# existing generated Nix config file for that desktop's telltale enable
+# line, since there's no single "abora.desktop" value stored anywhere on an
+# older/mid-migration system to just read back directly. Order matters: more
+# specific checks (e.g. hyprland's defaultSession) must come before generic
+# ones so two profiles that both set similar-looking options can't collide.
 abora_detect_desktop_profile() {
     local file="$1"
 
@@ -268,6 +292,28 @@ abora_desktop_config_block() {
     local username_value="$3"
     local default_wallpaper_uri="${4:-$(abora_default_wallpaper_uri)}"
 
+    # Every "${xkb_layout_value}"/"${username_value}" interpolation below
+    # (40+ of them, one set per desktop) writes straight into a Nix
+    # double-quoted string with no escaping. Not reachable from the real
+    # installer/update paths today -- abora-installer.sh's own
+    # generate_nixos_config already escapes these same values via
+    # nix_string() before they ever reach installed-base.nix, and this
+    # function is currently called only from the test suite with fixed safe
+    # values -- but this file is a standalone library meant to be sourced by
+    # any future caller, so escaping unconditionally here (rather than
+    # trusting every future caller to pre-escape) is what actually closes
+    # the gap. Same escaping abora-installer.sh's nix_string() uses:
+    # backslash first (so the backslashes these two steps add don't get
+    # doubled by themselves), then $, then ", then strip newlines.
+    xkb_layout_value="${xkb_layout_value//\\/\\\\}"
+    xkb_layout_value="${xkb_layout_value//\$/\\\$}"
+    xkb_layout_value="${xkb_layout_value//\"/\\\"}"
+    xkb_layout_value="${xkb_layout_value//$'\n'/}"
+    username_value="${username_value//\\/\\\\}"
+    username_value="${username_value//\$/\\\$}"
+    username_value="${username_value//\"/\\\"}"
+    username_value="${username_value//$'\n'/}"
+
     case "$desktop_profile" in
         none)
             cat <<EOF
@@ -284,8 +330,8 @@ EOF
   services.desktopManager.gnome.enable = true;
   services.desktopManager.gnome.extraGSettingsOverrides = ''
     [org.gnome.desktop.background]
-    picture-uri='file:///run/current-system/sw/share/backgrounds/abora/Daytime-MNT.jpg'
-    picture-uri-dark='file:///run/current-system/sw/share/backgrounds/abora/NightTime-MNT.png'
+    picture-uri='file:///run/current-system/sw/share/backgrounds/abora/titlis-alps.jpg'
+    picture-uri-dark='file:///run/current-system/sw/share/backgrounds/abora/titlis-alps.jpg'
     picture-options='zoom'
     color-shading-type='solid'
     primary-color='#081223'
@@ -293,12 +339,12 @@ EOF
 
     [org.gnome.desktop.interface]
     accent-color='teal'
-    color-scheme='prefer-dark'
+    color-scheme='prefer-light'
     font-name='Inter 11'
     document-font-name='Inter 11'
     monospace-font-name='JetBrains Mono 10'
-    icon-theme='Papirus-Dark'
-    gtk-theme='adw-gtk3-dark'
+    icon-theme='Papirus'
+    gtk-theme='Adwaita'
 
     [org.gnome.desktop.wm.preferences]
     button-layout='appmenu:minimize,maximize,close'
@@ -341,7 +387,7 @@ EOF
     brightness=0.7
 
     [org.gnome.Terminal.Legacy.Settings]
-    theme-variant='dark'
+    theme-variant='light'
   '';
   services.displayManager.autoLogin.enable = true;
   services.displayManager.autoLogin.user = "${username_value}";
@@ -741,6 +787,11 @@ EOF
     esac
 }
 
+# Deliberately separate from abora_desktop_config_block above: this only
+# ever emits package names for `environment.systemPackages`'s package list,
+# never a NixOS option/service line. check-scripts.sh asserts the config
+# block contains no `environment.systemPackages` precisely so the two can't
+# get mixed together by a future edit.
 abora_desktop_package_block() {
     case "$1" in
         gnome)

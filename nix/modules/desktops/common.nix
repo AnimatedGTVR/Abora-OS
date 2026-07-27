@@ -10,15 +10,8 @@ in
 
   defaultWallpaperPath = "/run/current-system/sw/share/backgrounds/abora/${cfg.wallpaper}";
   defaultWallpaperUri = "file:///run/current-system/sw/share/backgrounds/abora/${cfg.wallpaper}";
-  defaultDarkWallpaper =
-    if cfg.wallpaper == "Daytime-MNT.jpg" then
-      "NightTime-MNT.png"
-    else
-      cfg.wallpaper;
-  defaultDarkWallpaperUri =
-    "file:///run/current-system/sw/share/backgrounds/abora/${
-      if cfg.wallpaper == "Daytime-MNT.jpg" then "NightTime-MNT.png" else cfg.wallpaper
-    }";
+  defaultDarkWallpaper = cfg.wallpaper;
+  defaultDarkWallpaperUri = "file:///run/current-system/sw/share/backgrounds/abora/${cfg.wallpaper}";
 
   autologin = {
     enable = true;

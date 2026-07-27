@@ -127,7 +127,7 @@ check_channel() {
     local channel="stable"
     [[ -f "$channel_file" ]] && channel="$(tr -d '[:space:]' < "$channel_file")"
     case "$channel" in
-        stable|unstable) ok "update channel: $channel" ;;
+        stable|demo|dev|unstable) ok "update channel: $channel" ;;
         *) warn "unknown update channel: $channel" ;;
     esac
 }

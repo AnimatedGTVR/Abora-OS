@@ -6,6 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Abora OS is a NixOS-based Linux distribution that wraps NixOS in a friendlier live image, installer TUI, and OS management CLI layer. The repo builds to a bootable ISO via Nix flakes. Current release: **EVEREST 4.0**.
 
+## Branch Policy
+
+**NEVER create a new long-lived branch.** Abora OS runs on exactly two branches:
+
+1. **`stable`** — only for changes that have been completely tested and are believed fixed, even if some edge cases remain unknown. This is what ships.
+2. **`edge`** — nightly/untested pushes. This is the newest code, not yet verified.
+
+Every change lands on one of these two. Short-lived feature/fix branches may still be used for a single in-progress change, but merge them into `edge` (or `stable` once fully verified) and delete them immediately after — never leave a third branch sitting around, and never treat one as a persistent parallel line of development.
+
 ## Common Commands
 
 ```sh

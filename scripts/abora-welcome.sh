@@ -8,6 +8,35 @@ ui_lib="${ABORA_UI_LIB:-$script_dir/abora-ui.sh}"
 # shellcheck source=/dev/null
 source "$ui_lib"
 
+welcome_config="${XDG_CONFIG_HOME:-$HOME/.config}/abora/welcome.conf"
+welcome_marker="$HOME/.cache/abora/welcome-seen"
+
+# These two files are also read directly by profile.d/abora-welcome.sh (shell
+# login banner) and the abora-welcome-gui.desktop autostart entry
+# (installed-base.nix) -- welcome_config's show_on_startup=false is the
+# permanent "don't show again" opt-out, while welcome_marker just tracks
+# whether this particular session has already shown it once.
+set_startup() {
+    local value="$1"
+    mkdir -p "$(dirname "$welcome_config")" "$(dirname "$welcome_marker")"
+    case "$value" in
+        on|true|yes|1)
+            printf 'show_on_startup=true\n' > "$welcome_config"
+            rm -f "$welcome_marker"
+            abora_success "Abora Welcome will show on startup."
+            ;;
+        off|false|no|0)
+            printf 'show_on_startup=false\n' > "$welcome_config"
+            touch "$welcome_marker"
+            abora_success "Abora Welcome will not show on startup."
+            ;;
+        *)
+            abora_error "Usage: abora-welcome startup <on|off>"
+            exit 1
+            ;;
+    esac
+}
+
 read_setting() {
     local key="$1"
     local escaped_key="${key//./\\.}"
@@ -74,7 +103,10 @@ case "${1:-menu}" in
         done
         ;;
     help|--help|-h)
-        abora_banner "Welcome" "Usage: abora-welcome [status]"
+        abora_banner "Welcome" "Usage: abora-welcome [status|startup <on|off>]"
+        ;;
+    startup)
+        set_startup "${2:-}"
         ;;
     *)
         abora_error "Unknown welcome command: $1"

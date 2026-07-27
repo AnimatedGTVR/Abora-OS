@@ -8,9 +8,20 @@ Abora OS is a distro project built on top of NixOS with a focus on a simpler fir
 
 Abora is still NixOS-based, but it adds its own live image flow, installer experience, branding, update path, desktop profiles, support tools, ANIX workflows, and TinyPM-flavored app commands.
 
+## What is Abora OS 2026.7.27?
+
+Abora OS 2026.7.27 is the current stable release. It shipped multi-edition ISOs, ANIX v2 with pluggable configuration languages, and first-class GPU driver support, on top of everything DENALI 3.14 introduced.
+
+Key additions over DENALI 3.14:
+
+- five edition ISOs (Cosmic, Hyprland, GNOME, KDE, Other) via `make iso-all`, instead of one general-purpose ISO
+- ANIX v2: configuration can be written in ANIX Native, MKO, or ModuCPP, all resolving to the same Plan JSON — see `anix language list`
+- `abora.gpu` option and an installer GPU step: choose nouveau, nvidia, nvidia-open, amdgpu, intel, or none, with NVIDIA hardware auto-detected and defaulted to the license-free `nouveau` driver
+- `abora-hardware-test` now points at the GPU step and `abora config set gpu` when it detects NVIDIA hardware
+
 ## What is DENALI 3.14?
 
-DENALI 3.14 is the current stable release. It shipped the Omarchy-inspired TUI installer, stronger install validation, Abora branding across boot and desktop, ANIX v1, and TinyPM v4.
+DENALI 3.14 shipped the Omarchy-inspired TUI installer, stronger install validation, Abora branding across boot and desktop, ANIX v1, and TinyPM v4.
 
 Key additions over v2.5:
 
@@ -37,18 +48,84 @@ v2.5 focused on reliability:
 Use:
 
 ```sh
-sudo nixos update
+sudo abora update
 ```
 
-Short aliases like `update` and `upgrade` are also available on installed systems.
+Compatibility aliases may still exist on installed systems, but `sudo abora
+update` is the intended Abora command.
+
+## How do I test a pre-alpha build?
+
+Pre-alpha builds are unfinished and may make the system unbootable or require a reinstall. Do not use them on a primary computer.
+
+Preview what would be selected:
+
+```sh
+sudo abora install pre-alpha --dry-run
+```
+
+Install after the risk prompt:
+
+```sh
+sudo abora install pre-alpha
+```
+
+You must type `I ACCEPT THE RISK` exactly. This is a one-shot install path and does not save the system update channel as pre-alpha.
+
+## How do I get a shell on the live ISO for troubleshooting?
+
+Pick **Live shell** from the installer's first screen (instead of **Install
+Abora OS**) — it drops to a root prompt on `tty1` with no login needed, and
+`abora-install` relaunches the installer from there. If you switch to another
+console (`tty2`–`tty6`) instead, log in as `aboraos` with a blank password, or
+`root` with password `linux` as a fallback. See [Installation](Installation.md#getting-a-shell-for-diagnostics).
+
+## Wi-Fi shows as "unavailable" in nmtui/nmcli during install — what do I do?
+
+If `nmcli device status` shows your Wi-Fi device (e.g. `wlp1s0`) stuck at
+`unavailable` — not `disconnected` — even though the card and driver loaded
+fine (check `dmesg | grep -i iwlwifi` for firmware load messages), check
+`journalctl -u NetworkManager -b --no-pager` for:
+
+```text
+Couldn't initialize supplicant interface: Failed to D-Bus activate wpa_supplicant service
+```
+
+This means NetworkManager can see and initialize the card but can't hand it
+off to `wpa_supplicant` at all — it's a networking-config bug in older live
+ISOs (fixed in `nix/profiles/live.nix` going forward), not a hardware or
+driver problem, and it isn't rfkill (check `rfkill list all` to rule that out
+too, but this specific error means rfkill isn't the cause).
+
+From a [live shell](#how-do-i-get-a-shell-on-the-live-iso-for-troubleshooting),
+start `wpa_supplicant` manually in the same D-Bus-controlled mode NixOS
+would otherwise configure automatically:
+
+```sh
+sudo mkdir -p /run/wpa_supplicant
+sudo wpa_supplicant -u -s -O /run/wpa_supplicant -B
+nmcli device status
+```
+
+The device should flip to `disconnected`. Run `abora-install` to relaunch
+the installer and continue normally from there — `nmtui` and the network
+step will work as expected.
 
 ## How do I build the ISO?
 
-Use:
+For quick Cosmic-edition testing:
 
 ```sh
 make iso
 ```
+
+For the full release set:
+
+```sh
+make iso-all
+```
+
+That builds Cosmic, Hyprland, GNOME, KDE Plasma, and Other Desktops editions.
 
 Then boot it with:
 

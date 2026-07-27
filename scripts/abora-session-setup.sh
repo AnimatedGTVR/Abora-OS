@@ -4,7 +4,7 @@ set -euo pipefail
 export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 default_wallpaper="${ABORA_DEFAULT_WALLPAPER:-/etc/abora/default-wallpaper.png}"
-default_dark_wallpaper="${ABORA_DEFAULT_DARK_WALLPAPER:-/etc/abora/wallpapers/NightTime-MNT.png}"
+default_dark_wallpaper="${ABORA_DEFAULT_DARK_WALLPAPER:-$default_wallpaper}"
 if [[ ! -f "$default_dark_wallpaper" ]]; then
     default_dark_wallpaper="$default_wallpaper"
 fi
@@ -14,12 +14,16 @@ gsettings_bin="${ABORA_GSETTINGS_BIN:-gsettings}"
 theme_sync_script="${ABORA_THEME_SYNC_SCRIPT:-/etc/abora/theme-sync.sh}"
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/abora"
 marker_file="${state_dir}/wallpaper-seed"
-theme_marker_file="${state_dir}/dark-theme-seed"
+theme_marker_file="${state_dir}/light-theme-seed"
+dotfiles_url_file="${ABORA_DOTFILES_URL_FILE:-/etc/nixos/abora/dotfiles-url}"
+dotfiles_marker_file="${state_dir}/dotfiles-import-seed"
+dotfiles_import_bin="${ABORA_DOTFILES_IMPORT_BIN:-abora-dotfiles-import}"
+dotfiles_checkout_dir="${XDG_CACHE_HOME:-$HOME/.cache}/abora-dotfiles"
 swaybg_pid_file="${XDG_RUNTIME_DIR:-/tmp}/abora-swaybg.pid"
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
-icon_theme="${ABORA_ICON_THEME:-Papirus-Dark}"
-qt5ct_colors="${ABORA_QT5CT_COLORS:-/run/current-system/sw/share/qt5ct/colors/darker.conf}"
-qt6ct_colors="${ABORA_QT6CT_COLORS:-/run/current-system/sw/share/qt6ct/colors/darker.conf}"
+icon_theme="${ABORA_ICON_THEME:-Papirus}"
+qt5ct_colors="${ABORA_QT5CT_COLORS:-/run/current-system/sw/share/qt5ct/colors/airy.conf}"
+qt6ct_colors="${ABORA_QT6CT_COLORS:-/run/current-system/sw/share/qt6ct/colors/airy.conf}"
 launch_sound="${ABORA_LAUNCH_SOUND:-/etc/abora/effects/v3StartingAbora.mp3}"
 launch_sound_marker="${XDG_RUNTIME_DIR:-/tmp}/abora-launch-sound.played"
 
@@ -82,11 +86,40 @@ already_seeded() {
 
 mark_theme_seeded() {
     mkdir -p "$state_dir"
-    printf 'dark\n' > "$theme_marker_file"
+    printf 'light\n' > "$theme_marker_file"
 }
 
 theme_already_seeded() {
     [[ -f "$theme_marker_file" ]]
+}
+
+clear_legacy_dark_theme_marker() {
+    local legacy_marker="${state_dir}/dark-theme-seed"
+    if [[ -f "$legacy_marker" && ! -f "$theme_marker_file" ]]; then
+        rm "$legacy_marker" 2>/dev/null || true
+    fi
+}
+
+# If the installer saved a dotfiles Git URL (Dotfiles page in the GUI
+# installer, hyprland/other editions), clone it and import it via
+# abora-dotfiles-import. Only marks itself done on success — first boot
+# commonly has no network yet (or briefly doesn't), so a failed attempt
+# is retried on the next login rather than getting stuck; a run that
+# genuinely succeeds writes the marker and never runs again.
+import_dotfiles_once() {
+    [[ -f "$dotfiles_url_file" ]] || return 0
+    [[ ! -f "$dotfiles_marker_file" ]] || return 0
+    command -v "$dotfiles_import_bin" >/dev/null 2>&1 || return 0
+
+    local url
+    url="$(tr -d '[:space:]' < "$dotfiles_url_file" 2>/dev/null || true)"
+    [[ -n "$url" ]] || return 0
+
+    mkdir -p "$state_dir"
+    if "$dotfiles_import_bin" --git-url "$url" "$dotfiles_checkout_dir" \
+        >>"${state_dir}/dotfiles-import.log" 2>&1; then
+        printf 'imported\n' > "$dotfiles_marker_file"
+    fi
 }
 
 set_gsettings_string() {
@@ -109,7 +142,7 @@ set_xfconf_string() {
         || return 1
 }
 
-write_dark_gtk_settings() {
+write_light_gtk_settings() {
     local gtk3_dir="${config_home}/gtk-3.0"
     local gtk4_dir="${config_home}/gtk-4.0"
 
@@ -117,20 +150,20 @@ write_dark_gtk_settings() {
 
     cat > "${gtk3_dir}/settings.ini" <<EOF
 [Settings]
-gtk-application-prefer-dark-theme=1
-gtk-theme-name=Adwaita-dark
+gtk-application-prefer-dark-theme=0
+gtk-theme-name=Adwaita
 gtk-icon-theme-name=${icon_theme}
 EOF
 
     cat > "${gtk4_dir}/settings.ini" <<EOF
 [Settings]
-gtk-application-prefer-dark-theme=1
-gtk-theme-name=Adwaita-dark
+gtk-application-prefer-dark-theme=0
+gtk-theme-name=Adwaita
 gtk-icon-theme-name=${icon_theme}
 EOF
 }
 
-write_dark_qt_settings() {
+write_light_qt_settings() {
     local qt5_dir="${config_home}/qt5ct"
     local qt6_dir="${config_home}/qt6ct"
 
@@ -155,7 +188,7 @@ style=Fusion
 EOF
 }
 
-write_lxqt_dark_settings() {
+write_lxqt_light_settings() {
     local lxqt_dir="${config_home}/lxqt"
 
     mkdir -p "$lxqt_dir"
@@ -163,17 +196,17 @@ write_lxqt_dark_settings() {
     cat > "${lxqt_dir}/lxqt.conf" <<EOF
 [General]
 icon_theme=${icon_theme}
-theme=dark
+theme=light
 
 [Qt]
 style=Fusion
 EOF
 }
 
-export_dark_environment() {
+export_light_environment() {
     local qt_platform_theme="${1:-}"
 
-    export GTK_THEME="Adwaita:dark"
+    export GTK_THEME="Adwaita"
     export QT_STYLE_OVERRIDE="Fusion"
 
     if [[ -n "$qt_platform_theme" ]]; then
@@ -189,87 +222,93 @@ export_dark_environment() {
     fi
 }
 
-seed_gnome_dark() {
-    set_gsettings_string org.gnome.desktop.interface color-scheme "'prefer-dark'" || true
-    set_gsettings_string org.gnome.desktop.interface gtk-theme "'Adwaita-dark'" || true
+seed_gnome_light() {
+    set_gsettings_string org.gnome.desktop.interface color-scheme "'prefer-light'" || true
+    set_gsettings_string org.gnome.desktop.interface gtk-theme "'Adwaita'" || true
     set_gsettings_string org.gnome.desktop.interface icon-theme "'${icon_theme}'" || true
 }
 
-seed_cinnamon_dark() {
-    set_gsettings_string org.cinnamon.desktop.interface gtk-theme "'Adwaita-dark'" || true
+seed_cinnamon_light() {
+    set_gsettings_string org.cinnamon.desktop.interface gtk-theme "'Adwaita'" || true
     set_gsettings_string org.cinnamon.desktop.interface icon-theme "'${icon_theme}'" || true
 }
 
-seed_mate_dark() {
-    set_gsettings_string org.mate.interface gtk-theme "'Adwaita-dark'" || true
+seed_mate_light() {
+    set_gsettings_string org.mate.interface gtk-theme "'Adwaita'" || true
     set_gsettings_string org.mate.interface icon-theme "'${icon_theme}'" || true
 }
 
-seed_xfce_dark() {
-    set_xfconf_string xsettings /Net/ThemeName "Adwaita-dark" || true
+seed_xfce_light() {
+    set_xfconf_string xsettings /Net/ThemeName "Adwaita" || true
     set_xfconf_string xsettings /Net/IconThemeName "$icon_theme" || true
 }
 
-seed_plasma_dark() {
+seed_plasma_light() {
     if command_exists plasma-apply-lookandfeel; then
-        plasma-apply-lookandfeel -a org.kde.breezedark.desktop >/dev/null 2>&1 || true
+        plasma-apply-lookandfeel -a org.kde.breeze.desktop >/dev/null 2>&1 || true
     elif command_exists lookandfeeltool; then
-        lookandfeeltool -a org.kde.breezedark.desktop >/dev/null 2>&1 || true
+        lookandfeeltool -a org.kde.breeze.desktop >/dev/null 2>&1 || true
     fi
 
     if command_exists kwriteconfig6; then
-        kwriteconfig6 --file kdeglobals --group General --key ColorScheme BreezeDark >/dev/null 2>&1 || true
+        kwriteconfig6 --file kdeglobals --group General --key ColorScheme BreezeLight >/dev/null 2>&1 || true
         kwriteconfig6 --file kdeglobals --group KDE --key widgetStyle Breeze >/dev/null 2>&1 || true
-        kwriteconfig6 --file kdeglobals --group Icons --key Theme breeze-dark >/dev/null 2>&1 || true
-        kwriteconfig6 --file plasmarc --group Theme --key name breeze-dark >/dev/null 2>&1 || true
+        kwriteconfig6 --file kdeglobals --group Icons --key Theme breeze >/dev/null 2>&1 || true
+        kwriteconfig6 --file plasmarc --group Theme --key name breeze-light >/dev/null 2>&1 || true
     elif command_exists kwriteconfig5; then
-        kwriteconfig5 --file kdeglobals --group General --key ColorScheme BreezeDark >/dev/null 2>&1 || true
+        kwriteconfig5 --file kdeglobals --group General --key ColorScheme BreezeLight >/dev/null 2>&1 || true
         kwriteconfig5 --file kdeglobals --group KDE --key widgetStyle Breeze >/dev/null 2>&1 || true
-        kwriteconfig5 --file kdeglobals --group Icons --key Theme breeze-dark >/dev/null 2>&1 || true
-        kwriteconfig5 --file plasmarc --group Theme --key name breeze-dark >/dev/null 2>&1 || true
+        kwriteconfig5 --file kdeglobals --group Icons --key Theme breeze >/dev/null 2>&1 || true
+        kwriteconfig5 --file plasmarc --group Theme --key name breeze-light >/dev/null 2>&1 || true
     fi
 }
 
-seed_dark_theme_for_session() {
+# Every desktop shell defaults to a dark theme out of the box; Abora's
+# brand look is light-by-default, so this forces a light GTK/Qt/DE-native
+# theme on first login for whichever session is actually running (matched
+# by XDG_CURRENT_DESKTOP:DESKTOP_SESSION signature) — runs only once, guarded
+# by theme_already_seeded()/mark_theme_seeded(), so a user who deliberately
+# switches back to dark afterward never gets overridden again.
+seed_light_theme_for_session() {
     local signature="$1"
 
-    write_dark_gtk_settings
-    write_dark_qt_settings
+    write_light_gtk_settings
+    write_light_qt_settings
 
     case "$signature" in
         *COSMIC*:* | *cosmic*:* | *:COSMIC* | *:cosmic*)
-            export_dark_environment
+            export_light_environment
             ;;
         *mango*:* | *Mango*:* | *MangoWM*:* | *:mango* | *:Mango* | *:MangoWM*)
-            export_dark_environment "qt6ct"
+            export_light_environment "qt6ct"
             ;;
         *GNOME*:* | *gnome*:* | *:gnome* | *:GNOME* | *ubuntu:gnome* | *:ubuntu*)
-            seed_gnome_dark
-            export_dark_environment
+            seed_gnome_light
+            export_light_environment
             ;;
         *Budgie*:* | *budgie*:* | *:budgie* | *:Budgie*)
-            seed_gnome_dark
-            export_dark_environment
+            seed_gnome_light
+            export_light_environment
             ;;
         *Cinnamon*:* | *cinnamon*:* | *:cinnamon* | *:Cinnamon*)
-            seed_cinnamon_dark
-            export_dark_environment
+            seed_cinnamon_light
+            export_light_environment
             ;;
         *MATE*:* | *mate*:* | *:mate* | *:MATE*)
-            seed_mate_dark
-            export_dark_environment
+            seed_mate_light
+            export_light_environment
             ;;
         *XFCE*:* | *xfce*:* | *:xfce* | *:XFCE*)
-            seed_xfce_dark
-            export_dark_environment
+            seed_xfce_light
+            export_light_environment
             ;;
         *KDE*:* | *Plasma*:* | *plasma*:* | *:plasma* | *:Plasma*)
-            seed_plasma_dark
-            export_dark_environment
+            seed_plasma_light
+            export_light_environment
             ;;
         *LXQt*:* | *lxqt*:* | *:lxqt* | *:LXQt*)
-            write_lxqt_dark_settings
-            export_dark_environment "qt6ct"
+            write_lxqt_light_settings
+            export_light_environment "qt6ct"
             ;;
         *i3*:* | *:i3* | \
         *awesome*:* | *:awesome* | \
@@ -279,16 +318,16 @@ seed_dark_theme_for_session() {
         *fluxbox*:* | *:fluxbox* | \
         *icewm*:* | *:icewm* | \
         *herbstluftwm*:* | *:herbstluftwm*)
-            export_dark_environment "qt6ct"
+            export_light_environment "qt6ct"
             ;;
         *Hyprland*:* | *hyprland*:* | *:hyprland* | *:Hyprland* | \
         *sway*:* | *:sway* | *:sway-uwsm* | \
         *niri*:* | *:niri* | \
         *river*:* | *:river*)
-            export_dark_environment "qt6ct"
+            export_light_environment "qt6ct"
             ;;
         *)
-            export_dark_environment
+            export_light_environment
             ;;
     esac
 
@@ -364,10 +403,10 @@ seed_hyprland() {
 
 seed_cosmic() {
     local cosmic_bg_dir="${config_home}/cosmic/com.system76.CosmicBackground/v1"
-    local wallpaper_path="$default_dark_wallpaper"
+    local wallpaper_path="$default_wallpaper"
 
-    # Match GNOME's day/night mountain pairing for COSMIC live and installed
-    # sessions. Fall back to the regular default if the dark file is absent.
+    # Keep COSMIC on the bright default wallpaper too; Titlis Alps should stay
+    # visible even if the desktop has its own day/night theme state.
     if [[ ! -f "$wallpaper_path" ]]; then
         wallpaper_path="$default_wallpaper"
     fi
@@ -402,10 +441,13 @@ main() {
     [[ -f "$default_wallpaper" ]] || exit 0
     [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || exit 0
 
+    import_dotfiles_once
+
     signature="$(desktop_signature)"
+    clear_legacy_dark_theme_marker
 
     if ! theme_already_seeded; then
-        seed_dark_theme_for_session "$signature"
+        seed_light_theme_for_session "$signature"
         mark_theme_seeded
     fi
 

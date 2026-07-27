@@ -1,6 +1,11 @@
 { lib, config, options, pkgs, ... }:
 let
   cfg = config.anix;
+  # This ANIX module can be imported standalone (e.g. by a plain NixOS system
+  # that isn't Abora), so it must never assume abora-options.nix is also
+  # imported. hasAboraOptions probes for that module's option paths before
+  # ever touching config.abora.* below, so anix.desktop/anix.wallpaper are
+  # simply no-ops rather than eval errors on a non-Abora system.
   hasAboraOptions = options ? abora && options.abora ? desktop && options.abora ? wallpaper;
 in
 {

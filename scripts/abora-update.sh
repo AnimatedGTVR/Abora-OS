@@ -17,17 +17,25 @@ source "$ui_lib"
 
 config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
 command_name="${ABORA_UPDATE_COMMAND:-$(basename "$0")}"
+# The AboraProject org fallback is intentional (a registered organization
+# the repo may move to), not a stray/untrusted URL — list_release_tags()
+# below tries each of these in order and uses whichever answers first.
 repo_git_url="${ABORA_REPO_GIT_URL:-https://github.com/AnimatedGTVR/abora-os.git}"
+repo_git_fallbacks="${ABORA_REPO_GIT_URLS:-$repo_git_url https://github.com/AnimatedGTVR/Abora-OS.git https://github.com/AboraProject/Abora-OS.git}"
 repo_ref="${ABORA_REPO_REF:-main}"
 upstream_dir="${ABORA_UPSTREAM_DIR:-$config_dir/.abora-upstream}"
 flake_config_name="${ABORA_FLAKE_CONFIG_NAME:-abora}"
 fallback_ref="${ABORA_FALLBACK_REF:-}"
 fallback_mode="${ABORA_FALLBACK_MODE:-0}"
 allow_downgrade="${ABORA_ALLOW_DOWNGRADE:-0}"
+pre_alpha_mode="${ABORA_PRE_ALPHA_MODE:-0}"
+pre_alpha_ref="${ABORA_PRE_ALPHA_REF:-main}"
+dry_run="${ABORA_DRY_RUN:-0}"
 effective_ref=""
 effective_ref_reason=""
 update_tmp_files=()
 update_tmp_dirs=()
+suppress_update_failure_message=0
 
 cleanup_update_tmp_files() {
     local file
@@ -46,10 +54,16 @@ drop_upstream_git_metadata() {
     rm -rf "$upstream_dir/.git"
 }
 
+# Runs on every exit path (success, error, or an early `exit` deep in the
+# script) via the trap below, so temp files/dirs are never leaked and a
+# failed update always ends with a clear statement of what state the system
+# was left in. suppress_update_failure_message lets a caller that already
+# printed its own specific error (e.g. mid-validation) opt out of this
+# generic one.
 on_update_exit() {
     local rc="$1"
     cleanup_update_tmp_files
-    if [[ "$rc" -ne 0 ]]; then
+    if [[ "$rc" -ne 0 && "$suppress_update_failure_message" -ne 1 ]]; then
         abora_error "Update failed before completion; existing flake.nix was left untouched unless an atomic replacement had already passed validation." >&2 || true
     fi
 }
@@ -101,6 +115,9 @@ installed_version() {
     printf '0'
 }
 
+# Strips a leading "v" and any DEMO/dev/pre/RC suffix, leaving just the
+# dotted numeric version — lets a demo tag like v4.1-DEMO2 be compared
+# against the plain v4.1 final release by version number alone.
 tag_base_version() {
     local tag="${1#v}"
     sed -E 's/^([0-9]+([.][0-9]+)*).*/\1/' <<<"$tag"
@@ -114,6 +131,8 @@ is_demo_release_tag() {
     [[ "$1" =~ ^v[0-9]+([.][0-9]+)*.*(DEMO|[Dd]emo|[Dd]ev|[Pp]re|[Rr][Cc]).*$ ]]
 }
 
+# `sort -V` (version sort) rather than string comparison, so v4.9 correctly
+# sorts before v4.10.
 version_lt() {
     local a="$1" b="$2" first
     [[ "$a" == "$b" ]] && return 1
@@ -121,21 +140,36 @@ version_lt() {
     [[ "$first" == "$a" ]]
 }
 
+# Tries every URL in repo_git_fallbacks in order, returning the first one
+# that answers — ABORA_RELEASE_TAGS lets tests inject a fixed tag list
+# without any network access at all.
 list_release_tags() {
     if [[ -n "${ABORA_RELEASE_TAGS:-}" ]]; then
         printf '%s\n' $ABORA_RELEASE_TAGS
         return
     fi
-    git ls-remote --tags "$repo_git_url" 'refs/tags/v*' 2>/dev/null \
-        | grep -v '\^{}' \
-        | awk '{print $2}' \
-        | sed 's|refs/tags/||'
+    local url
+    for url in $repo_git_fallbacks; do
+        if git ls-remote --tags "$url" 'refs/tags/v*' 2>/dev/null \
+            | grep -v '\^{}' \
+            | awk '{print $2}' \
+            | sed 's|refs/tags/||'; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 latest_tag_from_list() {
     sort -V | tail -n1
 }
 
+# Resolves a channel name + the currently installed version into a single
+# concrete git ref to update to (a tag or "main"), setting effective_ref and
+# a human-readable effective_ref_reason for later display. "stable" is the
+# most involved: prefer the newest final tag that's not older than what's
+# installed, then fall back to a matching demo/dev tag for the same release
+# line, and only fall back to tracking main directly if neither exists yet.
 resolve_update_ref() {
     local channel="$1" current_version="$2" tags final_tag demo_tag older_tag
 
@@ -150,6 +184,11 @@ resolve_update_ref() {
     fi
 
     case "$channel" in
+        pre-alpha|prealpha)
+            effective_ref="$pre_alpha_ref"
+            effective_ref_reason="pre-alpha build requested explicitly"
+            return 0
+            ;;
         unstable)
             effective_ref="main"
             effective_ref_reason="unstable channel tracks main"
@@ -187,10 +226,12 @@ resolve_update_ref() {
             fi
 
             demo_tag="$(
-                printf '%s\n' "$tags" \
-                    | grep -E '^v[0-9]+([.][0-9]+)*.*(DEMO|[Dd]emo|[Dd]ev|[Pp]re|[Rr][Cc]).*$' \
-                    | awk -v cur="$current_version" 'NF && $0 ~ ("^v" cur) { print }' \
-                    | latest_tag_from_list
+                {
+                    printf '%s\n' "$tags" \
+                        | grep -E '^v[0-9]+([.][0-9]+)*.*(DEMO|[Dd]emo|[Dd]ev|[Pp]re|[Rr][Cc]).*$' \
+                        | awk -v cur="$current_version" 'NF && $0 ~ ("^v" cur) { print }' \
+                        | latest_tag_from_list
+                } || true
             )"
             if [[ -n "$demo_tag" ]]; then
                 effective_ref="$demo_tag"
@@ -200,8 +241,8 @@ resolve_update_ref() {
 
             older_tag="$(printf '%s\n' "$tags" | grep -E '^v[0-9]+([.][0-9]+)*$' | latest_tag_from_list)"
             if [[ -n "$older_tag" ]]; then
-                effective_ref="$older_tag"
-                effective_ref_reason="only older final tag was available; downgrade guard will refuse this without fallback"
+                effective_ref="main"
+                effective_ref_reason="stable channel has no final tag newer than installed version; using main"
                 return 0
             fi
             ;;
@@ -217,6 +258,10 @@ resolve_update_ref() {
     return 1
 }
 
+# A normal `abora update` should never silently move a system backwards
+# (e.g. because a stable tag got deleted/retagged) — only an explicit
+# `abora fallback --release <tag>` (which sets allow_downgrade=1) or
+# tracking main directly is allowed to move to an older version.
 guard_against_accidental_downgrade() {
     local current_version="$1" selected_ref="$2" selected_version
 
@@ -238,14 +283,17 @@ guard_against_accidental_downgrade() {
 usage() {
     abora_banner "System Update" "Keep your Abora installation up to date."
     printf '  %bCommands%b\n\n' "$ABORA_WHITE" "$ABORA_NC"
-    printf '  %bnixos update%b  /  %bupdate%b  /  %babora-update%b\n' \
-        "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora update%b  /  %bnixos update%b  /  %bupdate%b  /  %babora-update%b\n' \
+        "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Sync the latest Abora files and rebuild the system."
     printf '\n'
-    printf '  %bnixos rollback%b  /  %brollback%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora update --check%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Check whether an update is available without installing it."
+    printf '\n'
+    printf '  %babora rollback%b  /  %bnixos rollback%b  /  %brollback%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Roll back to the previous system generation."
     printf '\n'
-    printf '  %bnixos channel%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora channel%b  /  %bnixos channel%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Show the current update channel."
     printf '\n'
     printf '  %bnixos channel list%b\n' "$ABORA_CYAN" "$ABORA_NC"
@@ -256,6 +304,9 @@ usage() {
     printf '\n'
     printf '  %babora fallback --release <tag>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Intentionally downgrade or pin to an older release."
+    printf '\n'
+    printf '  %bsudo abora install pre-alpha [--dry-run] [--ref <git-ref>]%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Install unfinished pre-alpha development builds after an explicit risk prompt."
     printf '\n'
 }
 
@@ -284,6 +335,96 @@ parse_fallback_args() {
     [[ "$fallback_ref" == v* || "$fallback_ref" == "main" ]] || fallback_ref="v${fallback_ref}"
     fallback_mode=1
     allow_downgrade=1
+}
+
+show_pre_alpha_warning() {
+    cat <<'EOF'
+WARNING: ABORA PRE-ALPHA BUILD
+
+Pre-alpha builds are unfinished development versions intended only for testing and gathering feedback.
+
+Installing this build may:
+
+- Prevent your system from booting
+- Break existing applications or configurations
+- Cause data loss
+- Require manual recovery or a complete reinstall
+- Include incomplete, unstable, or missing features
+
+Do not install this build on your primary computer or any system containing important data.
+
+Back up all important files before continuing.
+
+Type `I ACCEPT THE RISK` to continue:
+EOF
+}
+
+confirm_pre_alpha_risk() {
+    local expected="I ACCEPT THE RISK"
+    local answer="${ABORA_PRE_ALPHA_ACCEPT:-}"
+
+    show_pre_alpha_warning
+
+    if [[ -z "$answer" ]]; then
+        if [[ -r /dev/tty ]]; then
+            read -r answer </dev/tty || answer=""
+        elif [[ -t 0 ]]; then
+            read -r answer || answer=""
+        else
+            suppress_update_failure_message=1
+            abora_error "Pre-alpha install requires an interactive confirmation."
+            abora_error "Type exactly: ${expected}"
+            return 1
+        fi
+    fi
+
+    if [[ "$answer" != "$expected" ]]; then
+        suppress_update_failure_message=1
+        abora_error "Confirmation did not match; pre-alpha install cancelled."
+        return 1
+    fi
+}
+
+parse_install_args() {
+    local target="${1:-}"
+    shift || true
+
+    case "$target" in
+        pre-alpha|prealpha)
+            pre_alpha_mode=1
+            ;;
+        help|--help|-h|"")
+            printf 'Usage: sudo abora install pre-alpha [--dry-run] [--ref <git-ref>]\n'
+            exit 0
+            ;;
+        *)
+            abora_error "Unknown install target: ${target}"
+            abora_error "Usage: sudo abora install pre-alpha [--dry-run] [--ref <git-ref>]"
+            exit 1
+            ;;
+    esac
+
+    while [[ "$#" -gt 0 ]]; do
+        case "$1" in
+            --dry-run)
+                dry_run=1
+                shift
+                ;;
+            --ref)
+                pre_alpha_ref="${2:-}"
+                if [[ -z "$pre_alpha_ref" ]]; then
+                    abora_error "Usage: sudo abora install pre-alpha [--dry-run] [--ref <git-ref>]"
+                    exit 1
+                fi
+                shift 2
+                ;;
+            *)
+                abora_error "Unknown install option: $1"
+                abora_error "Usage: sudo abora install pre-alpha [--dry-run] [--ref <git-ref>]"
+                exit 1
+                ;;
+        esac
+    done
 }
 
 # ── Channel subcommand ────────────────────────────────────────────────────────
@@ -380,6 +521,54 @@ handle_channel_command() {
     esac
 }
 
+# ── Check (read-only, no root, no rebuild) ───────────────────────────────────
+
+# Resolves whether an update is available without touching the system --
+# runs as the calling user, no re-exec to root, no file writes. Meant for
+# both `abora update --check` on the CLI and the Welcome GUI's status card.
+#
+# Prints one machine-parseable line to stdout:
+#   ABORA_UPDATE_AVAILABLE\t<current_version>\t<available_ref>\t<channel>
+#   ABORA_UPDATE_CURRENT\t<current_version>\t<channel>
+# Exit codes: 0 = up to date, 10 = update available, 1 = could not check.
+handle_check_command() {
+    local current_version channel
+
+    # Exit code 10 (update available) isn't a failure -- don't let the
+    # generic "update failed" trap message fire for it.
+    suppress_update_failure_message=1
+
+    current_version="$(installed_version)"
+    channel="$(read_channel)"
+
+    if ! resolve_update_ref "$channel" "$current_version"; then
+        abora_error "Could not resolve an update for channel '${channel}' — check your internet connection."
+        return 1
+    fi
+
+    local available_version
+    available_version="$(tag_base_version "$effective_ref")"
+
+    abora_banner "Update Check" "Channel: ${channel}"
+    printf '  %bInstalled version%b   %s\n' "$ABORA_DIM" "$ABORA_NC" "$current_version"
+    printf '  %bLatest on channel%b   %s\n' "$ABORA_DIM" "$ABORA_NC" "$effective_ref"
+
+    if [[ "$effective_ref" != "main" ]] && ! version_lt "$current_version" "$available_version"; then
+        printf '\n'
+        abora_success "You're up to date."
+        printf '\n'
+        printf 'ABORA_UPDATE_CURRENT\t%s\t%s\n' "$current_version" "$channel"
+        return 0
+    fi
+
+    printf '\n'
+    abora_success "Update available: ${effective_ref}"
+    abora_dim_line "Run 'sudo abora update' to install it."
+    printf '\n'
+    printf 'ABORA_UPDATE_AVAILABLE\t%s\t%s\t%s\n' "$current_version" "$effective_ref" "$channel"
+    return 10
+}
+
 # ── System helpers ────────────────────────────────────────────────────────────
 
 run_as_root() {
@@ -448,6 +637,13 @@ copy_first_existing_upstream_file() {
     return 1
 }
 
+# The update process itself just synced a possibly-newer scripts/abora-update.sh
+# from upstream into $config_dir/abora/update.sh. If that copy now differs
+# from the running script (script_hash_before, captured at the very top of
+# this file), the rest of the update should run under the NEW updater's
+# logic, not the old one still executing in memory — so this re-execs into
+# it exactly once (ABORA_UPDATE_REEXECED guards against a loop) before
+# continuing.
 maybe_reexec_synced_updater() {
     local synced_script="$config_dir/abora/update.sh"
     local script_hash_after=""
@@ -464,6 +660,7 @@ maybe_reexec_synced_updater() {
         ABORA_UPDATE_COMMAND="$command_name" \
         ABORA_SYSTEM_CONFIG="$config_dir" \
         ABORA_REPO_GIT_URL="$repo_git_url" \
+        ABORA_REPO_GIT_URLS="$repo_git_fallbacks" \
         ABORA_REPO_REF="$repo_ref" \
         ABORA_UPSTREAM_DIR="$upstream_dir" \
         ABORA_FLAKE_CONFIG_NAME="$flake_config_name" \
@@ -479,6 +676,38 @@ release_uses_modern_layout() {
     is_demo_release_tag "$selected_ref" && return 1
     is_final_release_tag "$selected_ref" || return 1
     ! version_lt "$(tag_base_version "$selected_ref")" "3.14"
+}
+
+release_has_anix_languages() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "main" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.0"
+}
+
+# These release_has_*/release_uses_* checks gate which upstream paths get
+# synced (required_upstream_paths below) based on which repo layout the
+# selected tag actually shipped with — older tags predate directories like
+# nix/modules/desktops or files like anix-languages, so unconditionally
+# requiring them would break updates/fallbacks to anything before the
+# version each feature landed in.
+# The uncredited wallpaper set (oceandusk.png/bluehorizon.png/
+# astronautwallpaper.png/glacierreflection.png) was replaced with credited
+# PickPik photos partway through the 4.0 line, after v3.14 was already
+# tagged — so this can't reuse release_has_anix_languages's ">= 4.0" cutoff
+# without also requiring a file older 4.0-line checkouts never had.
+release_has_alpine_wallpapers() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "main" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
+}
+
+release_has_welcome_config_gui() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "main" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
 }
 
 required_upstream_paths() {
@@ -514,7 +743,6 @@ assets/plymouth/abora.plymouth
 assets/plymouth/abora.script
 assets/Effects/LaunchingAbora.mp3
 assets/wallpapers/collection
-assets/wallpapers/collection/oceandusk.png
 assets/wallpaper-themes
 EOF
 
@@ -527,8 +755,35 @@ scripts/abora-repair-flake-purity.sh
 assets/mango/config.conf
 EOF
     fi
+
+    if release_has_anix_languages "$selected_ref"; then
+        cat <<'EOF'
+assets/anix-languages
+nix/pkgs/moducpp-anix.nix
+tools/moducpp-anix
+EOF
+    fi
+
+    if release_has_alpine_wallpapers "$selected_ref"; then
+        cat <<'EOF'
+assets/wallpapers/collection/aurora-lofoten.jpg
+EOF
+    fi
+
+    if release_has_welcome_config_gui "$selected_ref"; then
+        cat <<'EOF'
+scripts/abora-welcome-gui.py
+scripts/abora-config-gui.py
+EOF
+    fi
 }
 
+# Checks that every path required_upstream_paths() expects for this ref
+# actually exists in the freshly cloned checkout. This guards against a
+# truncated/corrupt clone or a ref whose layout this script doesn't know
+# about yet — it is NOT a cryptographic integrity check (no GPG/checksum
+# verification of the clone happens anywhere in this file); it only proves
+# the expected files are present, not that their contents are untampered.
 validate_upstream_checkout() {
     local checkout_dir="$1"
     local selected_ref="$2"
@@ -554,9 +809,14 @@ validate_upstream_checkout() {
     fi
 }
 
+# Shallow-clones $selected_ref into a sibling temp directory (never directly
+# into $upstream_dir, so a failed/partial clone can't corrupt a previously
+# good checkout), tries every URL in repo_git_fallbacks in turn, validates
+# the result, then atomically replaces $upstream_dir only once validation
+# passes.
 prepare_verified_upstream() {
     local selected_ref="$1"
-    local parent tmp_checkout timestamp
+    local parent tmp_checkout timestamp url cloned_url=""
 
     parent="$(dirname "$upstream_dir")"
     timestamp="$(date +%Y%m%d-%H%M%S)"
@@ -567,11 +827,21 @@ prepare_verified_upstream() {
     rm -rf "$tmp_checkout"
 
     abora_info "Fetching Abora files (${selected_ref}) into a temporary checkout."
-    if ! git clone --depth=1 --branch "$selected_ref" "$repo_git_url" "$tmp_checkout"; then
-        abora_error "Failed to clone ${repo_git_url} at ${selected_ref}."
+    for url in $repo_git_fallbacks; do
+        rm -rf "$tmp_checkout"
+        if git clone --depth=1 --branch "$selected_ref" "$url" "$tmp_checkout"; then
+            cloned_url="$url"
+            break
+        fi
+        abora_warn "Could not clone ${url} at ${selected_ref}; trying the next Abora remote."
+    done
+    if [[ -z "$cloned_url" ]]; then
+        abora_error "Failed to clone Abora OS at ${selected_ref} from every known remote."
+        abora_error "Tried: ${repo_git_fallbacks}"
         abora_error "Check your internet connection, then run: sudo ${command_name:-nixos} update"
         return 1
     fi
+    repo_git_url="$cloned_url"
 
     validate_upstream_checkout "$tmp_checkout" "$selected_ref" || return 1
 
@@ -590,6 +860,10 @@ prepare_verified_upstream() {
 
 # ── File sync ─────────────────────────────────────────────────────────────────
 
+# Update-time counterpart to abora-installer.sh's install_mango_config_asset:
+# keeps mango's config.conf as a real file under $config_dir/abora rather
+# than a reference to an ephemeral /nix/store path, so the installed flake
+# doesn't break when that store path gets garbage-collected.
 install_mango_config_asset() {
     local abora_dir="$config_dir/abora"
     local dest="$abora_dir/mango/config.conf"
@@ -674,6 +948,12 @@ sync_abora_files() {
     copy_upstream_file "$upstream_dir/scripts/abora-doctor.sh" "$abora_dir/doctor.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-recovery.sh" "$abora_dir/recovery.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-welcome.sh" "$abora_dir/welcome.sh"
+    if [[ -f "$upstream_dir/scripts/abora-welcome-gui.py" ]]; then
+        copy_upstream_file "$upstream_dir/scripts/abora-welcome-gui.py" "$abora_dir/welcome-gui.py"
+    fi
+    if [[ -f "$upstream_dir/scripts/abora-config-gui.py" ]]; then
+        copy_upstream_file "$upstream_dir/scripts/abora-config-gui.py" "$abora_dir/config-gui.py"
+    fi
     copy_upstream_file "$upstream_dir/scripts/anix.sh" "$abora_dir/anix.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-app-catalog.sh" "$abora_dir/app-catalog.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-apps.sh" "$abora_dir/apps.sh"
@@ -684,11 +964,15 @@ sync_abora_files() {
     fi
     copy_first_existing_upstream_file \
         "$abora_dir/default-wallpaper.png" \
-        "$upstream_dir/assets/wallpapers/collection/Daytime-MNT.jpg" \
-        "$upstream_dir/assets/wallpapers/collection/bluehorizon.png" \
-        "$upstream_dir/assets/wallpapers/collection/astronautwallpaper.png"
+        "$upstream_dir/assets/wallpapers/collection/titlis-alps.jpg" \
+        "$upstream_dir/assets/wallpapers/collection/tannheimer-mountains.jpg" \
+        "$upstream_dir/assets/wallpapers/collection/alpine-glacier.jpg"
     copy_upstream_file "$upstream_dir/scripts/abora-desktop-profiles.sh" "$abora_dir/desktop-profiles.sh"
     copy_upstream_file "$upstream_dir/nix/modules/installed-base.nix" "$abora_dir/installed-base.nix"
+    if [[ -d "$upstream_dir/assets/anix-languages" ]]; then
+        rm -rf "$abora_dir/anix-languages"
+        cp -R "$upstream_dir/assets/anix-languages" "$abora_dir/anix-languages"
+    fi
     copy_upstream_file "$upstream_dir/scripts/abora-session-setup.sh" "$abora_dir/session-setup.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-theme-sync.sh" "$abora_dir/theme-sync.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-update.sh" "$abora_dir/update.sh"
@@ -719,7 +1003,7 @@ sync_abora_files() {
     install -Dm0644 "$upstream_background" "$abora_dir/bootloader/background.png"
     install -Dm0644 "$limine_source" "$abora_dir/bootloader/limine-background.png"
     install -Dm0644 "$upstream_theme" "$abora_dir/bootloader/theme.txt"
-    mkdir -p "$abora_dir/wallpapers" "$abora_dir/themes" "$abora_dir/pkgs"
+    mkdir -p "$abora_dir/wallpapers" "$abora_dir/themes" "$abora_dir/pkgs" "$abora_dir/tools"
     cp "$upstream_dir/assets/wallpapers/collection/"* "$abora_dir/wallpapers/"
     cp "$upstream_dir/assets/wallpaper-themes/"* "$abora_dir/themes/"
     if [[ -f "$upstream_dir/nix/pkgs/mango.nix" ]]; then
@@ -727,6 +1011,13 @@ sync_abora_files() {
     fi
     if [[ -f "$upstream_dir/nix/pkgs/modularity.nix" ]]; then
         copy_upstream_file "$upstream_dir/nix/pkgs/modularity.nix" "$abora_dir/pkgs/modularity.nix"
+    fi
+    if [[ -f "$upstream_dir/nix/pkgs/moducpp-anix.nix" ]]; then
+        copy_upstream_file "$upstream_dir/nix/pkgs/moducpp-anix.nix" "$abora_dir/pkgs/moducpp-anix.nix"
+    fi
+    if [[ -f "$upstream_dir/tools/moducpp-anix" ]]; then
+        copy_upstream_file "$upstream_dir/tools/moducpp-anix" "$abora_dir/tools/moducpp-anix"
+        chmod 0755 "$abora_dir/tools/moducpp-anix" 2>/dev/null || true
     fi
 
     if [[ ! -f "$abora_dir/apps.list" ]]; then
@@ -748,6 +1039,14 @@ EOF
 
 # ── Flake layout check ────────────────────────────────────────────────────────
 
+# Checking syntax before ever installing a generated flake.nix over the real
+# one (write_installed_flake below) is what makes that replacement safe to
+# do without a human reviewing it first. The big-lock "Permission denied"
+# case handles running this check as a non-root user during `abora update
+# --check` (read-only path): nix-instantiate/nix eval both need to touch the
+# Nix DB lock even just to parse, so a permission failure there isn't a
+# real syntax problem — fall back to a plain grep for the two attributes
+# every generated flake must have.
 validate_flake_syntax() {
     local file="$1"
     local output=""
@@ -778,6 +1077,10 @@ validate_flake_syntax() {
     fi
 }
 
+# Regenerates flake.nix from scratch into a temp file, validates it, backs
+# up whatever was there before, and only then does the atomic `mv` — an
+# update must never leave the real flake.nix half-written or syntactically
+# broken, since that would brick the very next `nixos-rebuild`/`abora update`.
 write_installed_flake() {
     local flake_file="$config_dir/flake.nix"
     local flake_tmp backup timestamp
@@ -827,6 +1130,13 @@ EOF
     [[ "$removed" -eq 1 ]] || true
 }
 
+# Detects two symptoms of an older/broken installed layout: leftover
+# references to a live-ISO /nix/store path or a too-deep relative path
+# (both signs of the old mango-config-path bug fixed by
+# rewrite_installed_mango_config_paths), or a flake that no longer evaluates
+# at all. Either one triggers a rewrite of the affected files below so a
+# system installed under an old installer/update version self-heals instead
+# of staying permanently broken.
 repair_flake_layout_if_needed() {
     local flake_file="$config_dir/flake.nix"
     local abora_dir="$config_dir/abora"
@@ -877,6 +1187,10 @@ ensure_flake_layout() {
     repair_flake_layout_if_needed
 }
 
+# Hidden __test-* entry points let check-scripts.sh exercise these internal
+# functions directly (flake writing, upstream validation, channel/ref
+# resolution, pre-alpha confirmation) without going through the real
+# argument-parsing/re-exec-as-root/network-fetch path below.
 if [[ "${1:-}" == "__test-write-flake" ]]; then
     write_installed_flake
     validate_flake_syntax "$config_dir/flake.nix"
@@ -908,21 +1222,9 @@ if [[ "${1:-}" == "__test-resolve-fallback" ]]; then
     exit 0
 fi
 
-# ── Pre-flight checks ─────────────────────────────────────────────────────────
-
-if ! command -v nix >/dev/null 2>&1; then
-    abora_error "The nix command is not available on this system."
-    exit 1
-fi
-
-if ! command -v nixos-rebuild >/dev/null 2>&1; then
-    abora_error "The nixos-rebuild command is not available on this system."
-    exit 1
-fi
-
-if [[ ! -d "$config_dir" ]]; then
-    abora_error "NixOS config directory not found: $config_dir"
-    exit 1
+if [[ "${1:-}" == "__test-pre-alpha-confirm" ]]; then
+    confirm_pre_alpha_risk
+    exit 0
 fi
 
 # ── Command routing ───────────────────────────────────────────────────────────
@@ -957,10 +1259,25 @@ case "$command_name" in
 esac
 
 case "${1:-}" in
+    --check|check)
+        handle_check_command
+        exit "$?"
+        ;;
+    channel)
+        shift
+        handle_channel_command "$@"
+        exit 0
+        ;;
     fallback)
         command_name="fallback"
         shift
         parse_fallback_args "$@"
+        set --
+        ;;
+    install)
+        command_name="install"
+        shift
+        parse_install_args "$@"
         set --
         ;;
 esac
@@ -971,18 +1288,27 @@ if [[ "$#" -gt 0 ]]; then
     exit 1
 fi
 
+if [[ ! -d "$config_dir" && "$dry_run" -ne 1 ]]; then
+    abora_error "NixOS config directory not found: $config_dir"
+    exit 1
+fi
+
 # Re-exec as root, forwarding channel env vars too.
-if [[ "$(id -u)" -ne 0 ]]; then
+if [[ "$(id -u)" -ne 0 && "$dry_run" -ne 1 ]]; then
     run_as_root env \
         ABORA_UPDATE_COMMAND="$command_name" \
         ABORA_SYSTEM_CONFIG="$config_dir" \
         ABORA_REPO_GIT_URL="$repo_git_url" \
+        ABORA_REPO_GIT_URLS="$repo_git_fallbacks" \
         ABORA_REPO_REF="$repo_ref" \
         ABORA_UPSTREAM_DIR="$upstream_dir" \
         ABORA_FLAKE_CONFIG_NAME="$flake_config_name" \
         ABORA_FALLBACK_REF="$fallback_ref" \
         ABORA_FALLBACK_MODE="$fallback_mode" \
         ABORA_ALLOW_DOWNGRADE="$allow_downgrade" \
+        ABORA_PRE_ALPHA_MODE="$pre_alpha_mode" \
+        ABORA_PRE_ALPHA_REF="$pre_alpha_ref" \
+        ABORA_DRY_RUN="$dry_run" \
         ABORA_UI_LIB="$ui_lib" \
         bash "$script_self" "$@"
     exit 0
@@ -991,6 +1317,11 @@ fi
 # ── Rollback ──────────────────────────────────────────────────────────────────
 
 if [[ "$command_name" == "rollback" ]]; then
+    if ! command -v nixos-rebuild >/dev/null 2>&1; then
+        abora_error "The nixos-rebuild command is not available on this system."
+        exit 1
+    fi
+
     abora_banner "System Rollback" "Reverting to the previous system generation."
     abora_step "Rolling back to the previous generation"
     printf '\n'
@@ -1007,16 +1338,44 @@ current_version="$(installed_version)"
 channel="$(read_channel)"
 if [[ "$fallback_mode" -eq 1 ]]; then
     channel="fallback"
+elif [[ "$pre_alpha_mode" -eq 1 || "$command_name" == "install" ]]; then
+    confirm_pre_alpha_risk || exit 1
+    channel="pre-alpha"
 fi
 
 resolve_update_ref "$channel" "$current_version" || exit 1
 guard_against_accidental_downgrade "$current_version" "$effective_ref" || exit 1
 
-abora_banner "System Update" "Channel: ${channel}  ·  Ref: ${effective_ref}"
+if [[ "$channel" == "pre-alpha" ]]; then
+    abora_banner "Pre-Alpha Install" "One-shot development build · Ref: ${effective_ref}"
+else
+    abora_banner "System Update" "Channel: ${channel}  ·  Ref: ${effective_ref}"
+fi
 printf '  %bCurrent installed version%b  %s\n' "$ABORA_DIM" "$ABORA_NC" "$current_version"
 printf '  %bSelected channel%b           %s\n' "$ABORA_DIM" "$ABORA_NC" "$channel"
 printf '  %bSelected update ref%b        %s\n' "$ABORA_DIM" "$ABORA_NC" "$effective_ref"
 printf '  %bReason%b                     %s\n\n' "$ABORA_DIM" "$ABORA_NC" "$effective_ref_reason"
+
+if [[ "$dry_run" -eq 1 ]]; then
+    abora_success "Dry run complete. No files were changed and no rebuild was started."
+    printf '\n'
+    exit 0
+fi
+
+if ! command -v nix >/dev/null 2>&1; then
+    abora_error "The nix command is not available on this system."
+    exit 1
+fi
+
+if ! command -v nixos-rebuild >/dev/null 2>&1; then
+    abora_error "The nixos-rebuild command is not available on this system."
+    exit 1
+fi
+
+if [[ ! -d "$config_dir" ]]; then
+    abora_error "NixOS config directory not found: $config_dir"
+    exit 1
+fi
 
 if [[ -x "$config_dir/abora/anix.sh" ]]; then
     if confirm "Save a local ANIX snapshot before updating?"; then
@@ -1027,12 +1386,13 @@ if [[ -x "$config_dir/abora/anix.sh" ]]; then
     fi
 fi
 
-sync_abora_files "$effective_ref" || {
+abora_wu_banner "Working on updates" "Don't turn off your computer"
+
+abora_wu_run "Getting things ready" "/tmp/abora-update-sync.log" -- \
+    sync_abora_files "$effective_ref" || {
     abora_error "Abora could not fetch the latest project files."
     exit 1
 }
-abora_success "Abora files synced."
-printf '\n'
 
 maybe_reexec_synced_updater
 
@@ -1041,25 +1401,16 @@ ensure_flake_layout || {
     exit 1
 }
 
-abora_step "Updating flake inputs"
-printf '\n'
-nix --extra-experimental-features "nix-command flakes" flake update --flake "$config_dir"
-printf '\n'
+abora_wu_run "Updating flake inputs" "/tmp/abora-update-flake.log" -- \
+    nix --extra-experimental-features "nix-command flakes" flake update --flake "$config_dir" || exit 1
 
 if git -C "$config_dir" rev-parse --git-dir >/dev/null 2>&1; then
-    git -C "$config_dir" add \
-        abora/mango/config.conf \
-        abora/abora-options.nix \
-        abora/installed-base.nix \
-        abora/desktops/mangowm.nix \
-        abora/ \
-        2>/dev/null || true
+    git -C "$config_dir" add -A 2>/dev/null || true
 fi
 
-abora_step "Rebuilding Abora from $config_dir"
-printf '\n'
-nixos-rebuild switch --flake "$config_dir#${flake_config_name}"
-printf '\n'
+abora_wu_run "Rebuilding Abora from $config_dir" "/tmp/abora-update-rebuild.log" -- \
+    nixos-rebuild switch --flake "$config_dir#${flake_config_name}" || exit 1
 
+printf '\n'
 abora_success "Abora is up to date."
 printf '\n'

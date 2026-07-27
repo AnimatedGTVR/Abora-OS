@@ -1,0 +1,8 @@
+using ANIX;
+
+# The smallest possible ANIX Plan: one operation, no reads, no side effects
+# until "anix run"/"anix apply-plan" applies it.
+main() {
+    ANIX.set("hostname", "everest");
+    ANIX.finish();
+}

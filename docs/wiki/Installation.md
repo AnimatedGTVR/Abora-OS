@@ -1,6 +1,6 @@
 # Installation
 
-This page covers the normal Abora OS install flow for v2.5+ and DENALI 3.14.
+This page covers the normal Abora OS install flow for v2.5+ through Abora OS 2026.7.27.
 
 ## Build The ISO
 
@@ -23,18 +23,40 @@ When the ISO starts, Abora should take over `tty1` and launch the live boot flow
 The live image should:
 
 - start NetworkManager
-- open the Denali installer
+- open the guided installer (MINT, see below)
 - allow Wi-Fi setup through `nmtui` or `nmcli`
 - provide a fallback live shell if the installer exits
 
+### Getting a shell for diagnostics
+
+`tty1` is owned directly by the installer process and never asks for a
+login. If you need a shell (to run `dmesg`, `nmcli`, or `abora-support-report`
+before or during install), don't switch to another console — pick **Live
+shell** from the installer's first screen instead of **Install Abora OS**. It
+drops straight to a root prompt on the same screen; run `abora-install` when
+you're ready to relaunch the installer and continue where you left off.
+
+If you do switch to another console (`tty2`–`tty6`), it's a normal login
+prompt. Two accounts exist for exactly that case:
+
+- `aboraos` — blank password (just press Enter)
+- `root` — password `linux`, as a fallback if a blank password is rejected
+
 ## Installer Flow
 
-The installer is interactive and keyboard-first.
+The default guided installer is **MINT** (`mint abora install`), a small Go/Bubble Tea front-end that walks through every step and then hands the confirmed plan to the existing bash installer (`abora-installer.sh`) as its backend — the bash installer never went away, it's just the execution layer now instead of the thing you interact with directly. Run it manually with:
+
+```sh
+mint abora install --tty --pre-alpha
+```
+
+The flow is a step-by-step wizard, not a single linear pass — every screen (edition, hostname, timezone, disk layout, and so on) can be backed out of with `Esc` or the `← Back` list entry, re-showing the previous screen with whatever you already typed still filled in. Screens show a "Step X of Y" indicator so it's clear how far along you are.
 
 The current flow includes:
 
 - network setup
-- hostname, username, timezone, keyboard, and password setup
+- hostname, username, keyboard, and password setup
+- timezone selection: pick a region first (Americas, Europe, Africa, Asia, Australia & Oceania, or UTC), then search the real IANA timezones within it — states/regions with more than one zone (Indiana's eight, for example) all show up individually
 - desktop profile selection
 - starter app bundle selection
 - ANIX and GitHub options
@@ -42,6 +64,18 @@ The current flow includes:
 - final review
 - generated-config validation before `nixos-install`
 - install progress and clear logs
+
+Prefer the older bash-only flow instead of MINT? Pass `--batch` (or `--reconfig`/`-r`) to the installer launcher:
+
+```sh
+abora-install --batch
+```
+
+Or run the bash installer directly, bypassing the MINT/backend choice entirely:
+
+```sh
+abora-installer
+```
 
 ## After Install
 
@@ -54,7 +88,7 @@ When installation finishes:
 5. run `abora doctor`
 6. run `anix quickstart`
 7. run `tinypm sources`
-8. run `sudo nixos update` when ready to test updates
+8. run `sudo abora update` when ready to test updates
 
 ## First Installed Commands
 
