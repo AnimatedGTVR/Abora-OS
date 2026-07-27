@@ -64,6 +64,9 @@ if [[ -n "$git_url" ]]; then
   fi
   clone_dir="$(mktemp -d /tmp/abora-dotfiles.XXXXXX)"
   printf 'Cloning %s ...\n' "$git_url"
+  # The `--` stops git from treating a URL starting with `-` as an option
+  # (argument injection); $git_url is user-supplied (installer Dotfiles page
+  # or --git-url), so this isn't just style here.
   if ! git clone --depth=1 -- "$git_url" "$clone_dir"; then
     rm -rf "$clone_dir"
     printf 'Failed to clone dotfiles repository.\n' >&2

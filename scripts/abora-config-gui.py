@@ -52,6 +52,7 @@ VALID_GPUS = ['auto', 'nouveau', 'nvidia', 'nvidia-open', 'amdgpu', 'intel', 'no
 DEFAULT_WALLPAPERS = [
     'alpine-glacier.jpg', 'tannheimer-mountains.jpg', 'titlis-alps.jpg', 'aurora-lofoten.jpg',
 ]
+ANSI_RE = re.compile(r'\x1b\[[0-9;?]*[ -/]*[@-~]')
 
 # Only these top-level zoneinfo directories are real continents/areas; the
 # rest (Brazil, Canada, US, posix, right, Factory, ...) are legacy aliases
@@ -75,6 +76,10 @@ def read_setting(key: str) -> str:
     pattern = re.compile(r'^\s*abora\.' + re.escape(key.replace('.', r'\.')) + r'\s*=\s*"([^"]*)"', re.MULTILINE)
     match = pattern.search(LOCAL_MODULE.read_text(errors='replace'))
     return match.group(1) if match else ''
+
+
+def clean_cli_message(message: str) -> str:
+    return ANSI_RE.sub('', message).strip()
 
 
 def list_timezones() -> list[str]:
@@ -282,11 +287,11 @@ class ConfigWindow(Adw.ApplicationWindow):
                 capture_output=True, text=True, timeout=30,
             )
             if proc.returncode != 0:
-                GLib.idle_add(self._on_apply_done, False, f'Setting {key}: {proc.stderr.strip() or proc.stdout.strip()}')
+                GLib.idle_add(self._on_apply_done, False, f'Setting {key}: {clean_cli_message(proc.stderr or proc.stdout)}')
                 return
         proc = subprocess.run(prefix + [CONFIG_SCRIPT, 'apply'], capture_output=True, text=True, timeout=1800)
         if proc.returncode != 0:
-            GLib.idle_add(self._on_apply_done, False, proc.stderr.strip()[-800:] or 'Rebuild failed.')
+            GLib.idle_add(self._on_apply_done, False, clean_cli_message(proc.stderr)[-800:] or 'Rebuild failed.')
             return
         GLib.idle_add(self._on_apply_done, True, '')
 

@@ -1,10 +1,10 @@
-# Abora OS EVEREST 4.0 — Overview
+# Abora OS 2026.7.27 - Overview
 
 This file is an overview of the Abora project covering what each release delivered and where the project stands now.
 
 ## Current Version
 
-**EVEREST 4.0** — the current stable release.
+**Abora OS 2026.7.27** — the current stable release.
 
 Abora OS is built on top of NixOS. The goal is not to hide NixOS; the goal is to make NixOS feel approachable from the first boot onward.
 
@@ -98,9 +98,9 @@ DENALI 3.14 is the identity, installer, and tooling release.
 - Limine as the installed-system bootloader with Abora branding
 - Modularity game engine added to the Developer app bundle (`grab modularity`)
 
-## What EVEREST 4.0 Delivered
+## What Abora OS 2026.7.27 Delivers
 
-EVEREST 4.0 is the multi-edition, pluggable-configuration, and GPU-driver release.
+Abora OS 2026.7.27 is the multi-edition, pluggable-configuration, and GPU-driver release.
 
 - five edition ISOs — Cosmic, Hyprland, GNOME, KDE, Other — built together via `make iso-all`
 - ANIX v2: configuration can be written in ANIX Native, MKO, or ModuCPP, all resolving to the same Plan JSON applied as one transaction

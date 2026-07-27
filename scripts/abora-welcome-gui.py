@@ -33,6 +33,29 @@ UPDATE_SCRIPT  = os.environ.get('ABORA_UPDATE_SCRIPT', '/etc/abora/update.sh')
 CONFIG_PATH    = Path(os.environ.get('ABORA_SYSTEM_CONFIG', '/etc/nixos')) / 'abora-local.nix'
 CHANNEL_FILE   = Path(os.environ.get('ABORA_SYSTEM_CONFIG', '/etc/nixos')) / 'abora' / 'channel'
 SEEN_MARKER    = Path.home() / '.cache' / 'abora' / 'welcome-seen'
+CONFIG_DIR     = Path.home() / '.config' / 'abora'
+WELCOME_CONFIG = CONFIG_DIR / 'welcome.conf'
+
+
+def show_on_startup() -> bool:
+    if WELCOME_CONFIG.exists():
+        for line in WELCOME_CONFIG.read_text(errors='replace').splitlines():
+            if line.strip() == 'show_on_startup=false':
+                return False
+    return not SEEN_MARKER.exists()
+
+
+def set_show_on_startup(enabled: bool):
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    WELCOME_CONFIG.write_text(f'show_on_startup={str(enabled).lower()}\n')
+    SEEN_MARKER.parent.mkdir(parents=True, exist_ok=True)
+    if enabled:
+        try:
+            SEEN_MARKER.unlink()
+        except FileNotFoundError:
+            pass
+    else:
+        SEEN_MARKER.touch()
 
 
 def sudo_prefix() -> list[str]:
@@ -150,6 +173,17 @@ class WelcomeWindow(Adw.ApplicationWindow):
         subtitle.add_css_class('dim-label')
         header.append(subtitle)
         box.append(header)
+
+        self._startup_switch = Gtk.Switch(valign=Gtk.Align.CENTER)
+        self._startup_switch.set_active(show_on_startup())
+        self._startup_switch.connect('notify::active', self._on_startup_toggled)
+        startup_group = Adw.PreferencesGroup()
+        box.append(startup_group)
+        startup_row = Adw.ActionRow(title='Show on startup',
+                                    subtitle='Open this welcome screen when you sign in')
+        startup_row.add_suffix(self._startup_switch)
+        startup_row.set_activatable_widget(self._startup_switch)
+        startup_group.add(startup_row)
 
         # Status card
         status_group = Adw.PreferencesGroup(title='System')
@@ -284,11 +318,17 @@ class WelcomeWindow(Adw.ApplicationWindow):
 
     def _on_close(self, *_args):
         try:
-            SEEN_MARKER.parent.mkdir(parents=True, exist_ok=True)
-            SEEN_MARKER.touch()
+            if not self._startup_switch.get_active():
+                set_show_on_startup(False)
         except Exception:
             pass
         return False
+
+    def _on_startup_toggled(self, switch: Gtk.Switch, *_args):
+        try:
+            set_show_on_startup(switch.get_active())
+        except Exception:
+            pass
 
 
 class WelcomeApp(Adw.Application):

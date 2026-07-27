@@ -1,6 +1,6 @@
 # Project Layout
 
-This is the quick map of the Abora OS repo for the EVEREST 4.0 release.
+This is the quick map of the Abora OS repo for the Abora OS 2026.7.27 release.
 
 ## Top Level
 

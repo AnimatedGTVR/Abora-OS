@@ -24,6 +24,11 @@
 , xwayland
 }:
 
+# Packages the upstream MangoWM compositor (not an Abora fork -- pinned to a
+# specific commit since it has no stable release tags yet). Abora's own
+# MangoWM integration (session config, desktop entry, wallpaper/theme
+# wiring) lives in nix/modules/desktops/mangowm.nix and abora-desktop-profiles.sh's
+# mangowm case, not here.
 stdenv.mkDerivation {
   pname = "mango";
   version = "0.15.4";
@@ -45,6 +50,9 @@ stdenv.mkDerivation {
 
   mesonFlags = [ (lib.mesonEnable "xwayland" true) ];
 
+  # Tells NixOS's session-list machinery this package supplies a "mango"
+  # login session, so display managers pick it up without a separate
+  # services.xserver.displayManager.session entry.
   passthru.providedSessions = [ "mango" ];
 
   meta = with lib; {

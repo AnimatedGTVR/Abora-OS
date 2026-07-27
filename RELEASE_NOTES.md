@@ -1,8 +1,8 @@
-# Abora OS EVEREST 4.0
+# Abora OS 2026.7.27
 
-**EVEREST 4.0 is the multi-edition release: five ready-made ISOs, a second-generation ANIX with pluggable configuration languages, and real GPU driver support.**
+**Abora OS 2026.7.27 is the multi-edition release: five ready-made ISOs, a second-generation ANIX with pluggable configuration languages, and real GPU driver support.**
 
-EVEREST 4.0 builds on the DENALI 3.14 foundation — the rebuilt installer, 23 desktop environments, and app catalog are all still here — and adds edition-based ISOs, ANIX v2, and first-class NVIDIA/AMD/Intel driver selection.
+Abora OS 2026.7.27 builds on the DENALI 3.14 foundation — the rebuilt installer, 23 desktop environments, and app catalog are all still here — and adds edition-based ISOs, ANIX v2, and first-class NVIDIA/AMD/Intel driver selection.
 
 ---
 
@@ -10,7 +10,7 @@ EVEREST 4.0 builds on the DENALI 3.14 foundation — the rebuilt installer, 23 d
 
 ### Multi-edition ISOs
 
-Instead of one general-purpose ISO, EVEREST 4.0 ships five editions, each defaulting to a different desktop so the download matches what you actually want to boot into:
+Instead of one general-purpose ISO, Abora OS 2026.7.27 ships five editions, each defaulting to a different desktop so the download matches what you actually want to boot into:
 
 | Edition | Default desktop |
 |---|---|
@@ -110,7 +110,7 @@ tinypm repair              # repair-focused doctor checks
 
 ### Installer and Abora Branding
 
-Carried forward from DENALI 3.14 and updated for EVEREST 4.0 throughout — installer copy, OS release metadata, issue reporter URLs, and first-run surfaces all identify as **Abora OS EVEREST 4.0**.
+Carried forward from DENALI 3.14 and updated for Abora OS 2026.7.27 throughout - installer copy, OS release metadata, issue reporter URLs, and first-run surfaces all identify as **Abora OS 2026.7.27**.
 
 - Omarchy-inspired TUI installer with a GPU step alongside identity, desktop, and disk selection
 - Limine bootloader, Plymouth splash, and the Abora wallpaper pack

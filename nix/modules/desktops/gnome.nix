@@ -18,8 +18,8 @@ in
 
       [org.gnome.desktop.interface]
       accent-color='blue'
-      color-scheme='prefer-dark'
-      icon-theme='Papirus-Dark'
+      color-scheme='prefer-light'
+      icon-theme='Papirus'
     '';
     services.displayManager.autoLogin = common.autologin;
     services.displayManager.defaultSession = "gnome";

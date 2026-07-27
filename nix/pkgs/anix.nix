@@ -15,6 +15,13 @@
 , procps
 , util-linux
 }:
+# The flake-native equivalent of package-anix.sh's standalone tarball: same
+# share/anix/ layout and same ANIX_* env vars anix.sh reads for its
+# docs/languages/tinypm/wallpaper paths, but wired via makeWrapper (--set/
+# --prefix PATH) instead of a generated shell wrapper script, so a plain
+# `nix profile install github:.../abora-os#anix` (or importing
+# abora.nixosModules.anix) gets a working `anix` command with no separate
+# install.sh step.
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "anix";
   version = "1.0.5-demo";

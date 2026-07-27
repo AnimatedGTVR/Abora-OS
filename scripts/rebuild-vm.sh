@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Clean-checkout build for a dedicated build VM/box: clones (or fast-forward
+# pulls) the repo into its own workspace directory rather than building from
+# whatever local working tree happens to be checked out, then runs the same
+# build-iso.sh a local `make iso` would. Meant for a persistent build
+# machine, not a one-off developer build.
 workspace="${ABORA_VM_WORKSPACE:-/var/tmp/abora-vm-build}"
 repo_dir="${ABORA_REPO_DIR:-$workspace/abora-os}"
 out_dir="${ABORA_OUT_DIR:-$workspace/out}"

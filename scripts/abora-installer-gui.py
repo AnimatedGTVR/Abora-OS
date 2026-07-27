@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Abora OS GUI Installer — DENALI 4.0"""
+"""Abora OS GUI Installer - legacy launcher for Abora OS 2026.7.27."""
 
 import gi
 gi.require_version('Gtk', '4.0')
@@ -22,7 +22,7 @@ from pathlib import Path
 # ── Runtime paths ──────────────────────────────────────────────────────────────
 INSTALLER_BIN  = os.environ.get('ABORA_INSTALLER', '/etc/abora/installer.sh')
 LOG_FILE       = '/tmp/abora-gui-installer.log'
-VERSION        = os.environ.get('ABORA_VERSION', 'EVEREST 4.0')
+VERSION        = os.environ.get('ABORA_VERSION', '2026.7.27')
 LOGO_FILE      = os.environ.get('ABORA_LOGO', '/etc/abora/Abora-LOGO.png')
 EDITION        = os.environ.get('ABORA_EDITION', 'cosmic')
 
@@ -537,8 +537,52 @@ def hash_password(pw: str) -> str:
         return ''
 
 
+def _boot_media_disk_names() -> set[str]:
+    """Whole-disk device names (no /dev/ prefix) currently backing any live
+    mount or loop device -- e.g. the squashfs the live ISO booted from is
+    loop-mounted from a file on the boot USB/DVD itself, so a name-prefix
+    check alone can't identify it. Traces every mounted filesystem's source
+    device and every active loop device's backing file back to its parent
+    whole-disk via `lsblk -no pkname`, mirroring abora-installer.sh's
+    boot_media_disks()/collect_disks() so this GUI's disk picker excludes
+    the real boot media the same reliable way the TUI installer does,
+    rather than relying only on lsblk's HOTPLUG flag (which some USB
+    controllers/firmware don't set for the boot stick)."""
+    names: set[str] = set()
+    sources: list[str] = []
+    try:
+        r = subprocess.run(['findmnt', '-rno', 'SOURCE'], capture_output=True, text=True, timeout=8)
+        sources += [line for line in r.stdout.splitlines() if line.startswith('/dev/')]
+    except Exception:
+        pass
+    try:
+        r = subprocess.run(['losetup', '-n', '-O', 'BACK-FILE'], capture_output=True, text=True, timeout=8)
+        sources += [line for line in r.stdout.splitlines() if line.startswith('/dev/')]
+    except Exception:
+        pass
+    for src in sources:
+        try:
+            real = os.path.realpath(src) if os.path.exists(src) else src
+            r = subprocess.run(['lsblk', '-dno', 'PKNAME', real], capture_output=True, text=True, timeout=5)
+            pk = next((line for line in r.stdout.splitlines() if line.strip()), '')
+            if pk:
+                names.add(pk.strip())
+                continue
+            r2 = subprocess.run(['lsblk', '-dno', 'NAME', real], capture_output=True, text=True, timeout=5)
+            name = next((line for line in r2.stdout.splitlines() if line.strip()), '')
+            if name:
+                names.add(name.strip())
+        except Exception:
+            continue
+    return names
+
+
 def get_disks() -> list[tuple[str, str, str]]:
-    """Return [(device, size, model), …] for internal block devices."""
+    """Return [(device, size, model), …] for internal block devices,
+    excluding loop/sr/fd-prefixed names, hotplug-flagged devices, and
+    (via _boot_media_disk_names) the actual disk the live session booted
+    from."""
+    boot_names = _boot_media_disk_names()
     try:
         r = subprocess.run(
             ['lsblk', '-J', '-d', '-o', 'NAME,SIZE,TYPE,MODEL,HOTPLUG'],
@@ -553,6 +597,8 @@ def get_disks() -> list[tuple[str, str, str]]:
             if not name or name.startswith(('loop', 'sr', 'fd')):
                 continue
             if d.get('hotplug') == '1':
+                continue
+            if name in boot_names:
                 continue
             size  = d.get('size', '?')
             model = (d.get('model') or name).strip()
@@ -1601,6 +1647,14 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
     # ── Installation ───────────────────────────────────────────────────────────
 
     def _write_batch_params(self, path: str):
+        # This file is `source`d directly as bash by abora-installer.sh's
+        # `--batch <params-file>` mode (see main()'s batch_mode branch) --
+        # each line becomes a real shell variable assignment feeding the
+        # same script-level variables the interactive TUI would otherwise
+        # collect one prompt at a time. shlex.quote() is what makes that
+        # safe: without it, a value containing e.g. a backtick or `$(...)`
+        # in a hostname/username typed into this GUI would execute as
+        # arbitrary shell code the moment abora-installer.sh sources it.
         pw_hash = hash_password(self._state.password)
         dl = DESKTOP_LABELS.get(self._state.desktop, self._state.desktop)
         with open(path, 'w') as f:

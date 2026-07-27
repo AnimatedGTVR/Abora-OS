@@ -16,6 +16,7 @@ Use this after a local release build or after the GitHub ISO workflow succeeds.
 
 - run `./scripts/check-scripts.sh`
 - run `./scripts/check-desktops.sh`
+- confirm `docs/screenshots.md` matches the current installer flow
 - confirm the setup launcher files are tracked by Git so flakes can include them
 - confirm `make -n iso` builds the default Cosmic ISO
 - confirm `make -n iso-all` builds all five edition ISOs
@@ -25,6 +26,7 @@ Use this after a local release build or after the GitHub ISO workflow succeeds.
 
 - boot the ISO in a VM with `make qemu-fresh`
 - confirm the live boot flow takes over `tty1`
+- confirm MINT renders with color and shows the packaged Abora logo
 - confirm NetworkManager is running before the network step
 - confirm `nmtui` opens from the installer
 - confirm Fastfetch shows the Abora logo in the live shell
@@ -45,6 +47,14 @@ Use this after a local release build or after the GitHub ISO workflow succeeds.
 - confirm the default wallpaper is applied on first login for the chosen desktop
 - confirm `abora setup` opens the installed reconfiguration launcher
 - confirm `abora config` shows the installed GPU driver and `abora config set gpu <value>` updates it
+- capture the required docs/release screenshots from `docs/screenshots.md`
+
+## ANIX Language Gate
+
+- confirm `anix language list` shows ANIX Native, MAKO, and ModuCPP
+- confirm `.mko` examples still use `using ANIX;`
+- confirm `.moducpp` examples still use `add ANIX;`
+- confirm `tools/moducpp-anix` is executable and included in the ANIX package
 
 ## Release Gate
 

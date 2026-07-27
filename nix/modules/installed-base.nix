@@ -69,7 +69,22 @@ let
   tinypmDir            = ./tinypm;
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
   mkGrabCmd = name: pkgs.writeShellScriptBin name ''
-    exec env TINYPM_FLAVOR=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/tinypm/${name} "$@"
+    runtime=/etc/abora/tinypm
+    entry="$runtime/bin/${name}"
+    if [ ! -x "$entry" ]; then
+      entry="$runtime/${name}"
+    fi
+    if [ ! -x "$entry" ]; then
+      case "${name}" in
+        Parcel|version)
+          exec env TINYPM_FLAVOR=abora ${pkgs.bashInteractive}/bin/bash "$runtime/bin/tinypm" version "$@"
+          ;;
+        *)
+          exec env TINYPM_FLAVOR=abora TINYPM_ENTRYPOINT=${name} ${pkgs.bashInteractive}/bin/bash "$runtime/bin/tinypm" "$@"
+          ;;
+      esac
+    fi
+    exec env TINYPM_FLAVOR=abora TINYPM_ENTRYPOINT=${name} ${pkgs.bashInteractive}/bin/bash "$entry" "$@"
   '';
   aboraApps = pkgs.writeShellScriptBin "abora-apps" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/apps.sh "$@"
@@ -265,13 +280,13 @@ in
     vendorName = "Abora OS";
     label = version;
     variant_id = lib.mkDefault "system";
-    variantName = lib.mkDefault "Abora OS EVEREST 4.0";
+    variantName = lib.mkDefault "Abora OS 2026.7.27";
     extraOSReleaseArgs = lib.mapAttrs (_: lib.mkDefault) {
       LOGO = "abora";
-      VERSION = "EVEREST 4.0";
+      VERSION = "2026.7.27";
       VERSION_ID = "4.0";
-      VERSION_CODENAME = "denali";
-      PRETTY_NAME = "Abora OS EVEREST 4.0";
+      VERSION_CODENAME = "everest";
+      PRETTY_NAME = "Abora OS 2026.7.27";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
       BUG_REPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
@@ -298,7 +313,7 @@ in
     "nixos-config=/etc/nixos/configuration.nix"
   ];
 
-  boot.kernelPackages = lib.mkDefault pkgs.linuxPackages_6_6;
+  boot.kernelPackages = lib.mkDefault pkgs.linuxPackages_latest;
   boot.initrd.systemd.enable = lib.mkDefault true;
   boot.initrd.verbose = lib.mkDefault false;
   boot.kernelParams = lib.mkDefault [
@@ -308,6 +323,12 @@ in
     "systemd.show_status=auto"
   ];
   boot.consoleLogLevel = lib.mkDefault 3;
+  boot.initrd.kernelModules = lib.mkDefault [
+    "loop"
+    "overlay"
+    "squashfs"
+    "isofs"
+  ];
   boot.initrd.availableKernelModules = lib.mkDefault [
     "ahci"
     "ata_piix"
@@ -323,23 +344,10 @@ in
     "virtio_scsi"
     "virtio_net"
   ];
-  boot.kernelModules = lib.mkDefault [
-    "btusb"
-    "bluetooth"
-    "iwlwifi"
-    "ath9k"
-    "ath10k_pci"
-    "ath11k_pci"
-    "brcmfmac"
-    "rtw88_pci"
-    "rtw89_pci"
-    "r8169"
-    "e1000e"
-    "igb"
-    "tg3"
-    "atlantic"
-    "alx"
-  ];
+  # Let udev autoload optional NIC/Bluetooth drivers from detected hardware.
+  # Preloading a broad hardware list can make systemd-modules-load fail on
+  # machines that do not support one of the optional drivers.
+  boot.kernelModules = [];
   boot.loader.efi.canTouchEfiVariables = lib.mkDefault false;
   boot.loader.limine.style.wallpapers = [ limineWallpaperFile ];
   boot.plymouth = {
@@ -436,6 +444,9 @@ in
     (mkGrabCmd "term")
     (mkGrabCmd "start")
     (mkGrabCmd "supdate")
+    (mkGrabCmd "grab-add-repo")
+    (mkGrabCmd "grab-de")
+    (mkGrabCmd "syspm")
     aboraApps
     aboraCommand
     aboraCheckFull
@@ -470,6 +481,7 @@ in
     htop
     iw
     jq
+    libnotify
     moducpp-anix
     kdePackages.konsole
     linux-firmware
@@ -495,8 +507,35 @@ in
     zsh
   ];
 
+  # Purely a desktop notification nudge (--notify --quiet); does not install
+  # anything itself. Silently no-ops via `command -v` if TinyPM was never
+  # installed for this user (anix tinypm install), so this timer is safe to
+  # ship unconditionally on every desktop profile.
+  systemd.user.services.tinypm-update-check = {
+    description = "Check for TinyPM updates";
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.bashInteractive}/bin/bash -lc 'command -v tinypm >/dev/null 2>&1 && tinypm check-update --notify --quiet || true'";
+    };
+  };
+
+  systemd.user.timers.tinypm-update-check = {
+    description = "Notify when TinyPM updates are available";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "10min";
+      OnUnitActiveSec = "6h";
+      Persistent = true;
+    };
+  };
+
   programs.zsh = {
     enable = true;
+    # Only seeds a .zshrc when the user has NONE of the four zsh dotfiles at
+    # all -- a user who already has any one of them (even just a bare
+    # .zshenv) is treated as having their own zsh setup, so this never
+    # overwrites or fights with dotfiles a user (or abora-dotfiles-import)
+    # already put in place.
     shellInit = ''
       if [[ -o interactive ]]; then
         abora_zdotdir="''${ZDOTDIR:-''${HOME:-}}"
@@ -641,7 +680,7 @@ in
         mode = "0755";
       };
       "motd".text = ''
-        Abora OS EVEREST ${version}
+        Abora OS 2026.7.27
 
           grab <app>          install an app  (flatpak, nix, or snap)
           search <app>        find apps across all sources
@@ -654,7 +693,11 @@ in
           sudo abora update   rebuild and switch the system
       '';
       "profile.d/abora-welcome.sh".text = ''
-        if [ -n "''${PS1:-}" ] && [ -z "''${ABORA_WELCOME_SHOWN:-}" ] && command -v abora-welcome >/dev/null 2>&1; then
+        abora_welcome_conf="''${XDG_CONFIG_HOME:-''${HOME}/.config}/abora/welcome.conf"
+        if [ -n "''${PS1:-}" ] \
+          && [ -z "''${ABORA_WELCOME_SHOWN:-}" ] \
+          && { [ ! -f "$abora_welcome_conf" ] || ! grep -qx 'show_on_startup=false' "$abora_welcome_conf"; } \
+          && command -v abora-welcome >/dev/null 2>&1; then
           export ABORA_WELCOME_SHOWN=1
           if [ ! -f "$HOME/.cache/abora/welcome-seen" ]; then
             mkdir -p "$HOME/.cache/abora"
@@ -663,6 +706,7 @@ in
             printf '  Run %s for first-step actions.\n\n' "abora welcome"
           fi
         fi
+        unset abora_welcome_conf
       '';
       "xdg/autostart/abora-theme-sync.desktop".text = ''
         [Desktop Entry]
@@ -676,29 +720,29 @@ in
       '';
       "xdg/gtk-3.0/settings.ini".text = ''
         [Settings]
-        gtk-application-prefer-dark-theme=1
-        gtk-theme-name=Adwaita-dark
-        gtk-icon-theme-name=Papirus-Dark
+        gtk-application-prefer-dark-theme=0
+        gtk-theme-name=Adwaita
+        gtk-icon-theme-name=Papirus
       '';
       "xdg/gtk-4.0/settings.ini".text = ''
         [Settings]
-        gtk-application-prefer-dark-theme=1
-        gtk-theme-name=Adwaita-dark
-        gtk-icon-theme-name=Papirus-Dark
+        gtk-application-prefer-dark-theme=0
+        gtk-theme-name=Adwaita
+        gtk-icon-theme-name=Papirus
       '';
       "xdg/qt5ct/qt5ct.conf".text = ''
         [Appearance]
-        color_scheme_path=/run/current-system/sw/share/qt5ct/colors/darker.conf
+        color_scheme_path=/run/current-system/sw/share/qt5ct/colors/airy.conf
         custom_palette=true
-        icon_theme=Papirus-Dark
+        icon_theme=Papirus
         standard_dialogs=default
         style=Fusion
       '';
       "xdg/qt6ct/qt6ct.conf".text = ''
         [Appearance]
-        color_scheme_path=/run/current-system/sw/share/qt6ct/colors/darker.conf
+        color_scheme_path=/run/current-system/sw/share/qt6ct/colors/airy.conf
         custom_palette=true
-        icon_theme=Papirus-Dark
+        icon_theme=Papirus
         standard_dialogs=default
         style=Fusion
       '';
@@ -784,10 +828,10 @@ in
         Opacity=0.84
       '';
       "issue".text = ''
-        Abora OS EVEREST 4.0
+        Abora OS 2026.7.27
       '';
       "issue.net".text = ''
-        Abora OS EVEREST 4.0
+        Abora OS 2026.7.27
       '';
     }
     // builtins.listToAttrs (
@@ -836,7 +880,7 @@ in
         Type=Application
         Name=Abora Welcome
         Comment=First steps and update checks for Abora OS
-        Exec=sh -c 'test -f "$HOME/.cache/abora/welcome-seen" || exec abora-welcome-gui'
+        Exec=sh -c 'conf="''${XDG_CONFIG_HOME:-$HOME/.config}/abora/welcome.conf"; if [ -f "$conf" ] && grep -qx "show_on_startup=false" "$conf"; then exit 0; fi; test -f "$HOME/.cache/abora/welcome-seen" || exec abora-welcome-gui'
         Icon=distributor-logo
         X-GNOME-Autostart-enabled=true
         NoDisplay=true

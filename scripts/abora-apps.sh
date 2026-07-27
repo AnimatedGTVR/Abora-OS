@@ -78,6 +78,14 @@ run_as_root() {
     exit 1
 }
 
+stage_config_for_flake() {
+    if command -v git >/dev/null 2>&1 \
+        && [[ -d "$config_dir" ]] \
+        && run_as_root git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        run_as_root git -C "$config_dir" add -A >/dev/null 2>&1 || true
+    fi
+}
+
 ensure_layout() {
     if ! is_installed_system; then
         abora_error "App installs work on an installed Abora system, not the live image."
@@ -111,6 +119,11 @@ write_selected_ids() {
     run_as_root mv "$tmp" "$apps_list"
 }
 
+# app_expr is never user-supplied text -- it's whatever abora_catalog_expr()
+# returns for a validated app_id (see validate_ids below, which checks every
+# id against the catalog before it's ever written to apps_list), so writing
+# it straight into this Nix list is safe: the only text that ends up here is
+# text this repo's own app catalog already ships.
 render_apps_module() {
     local tmp app_id app_expr
     tmp="$(mktemp)"
@@ -133,6 +146,7 @@ render_apps_module() {
 rebuild_system() {
     abora_step "Rebuilding Abora with the updated app selection"
     printf '\n'
+    stage_config_for_flake
     run_as_root nixos-rebuild switch --flake "${config_dir}#${flake_target}"
 }
 

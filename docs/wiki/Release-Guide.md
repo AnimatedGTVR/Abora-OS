@@ -52,7 +52,7 @@ The normal release bundle includes:
 
 ## Tagging A Release
 
-For the current EVEREST 4.0 line:
+For the current Abora OS 2026.7.27 line:
 
 ```sh
 git tag 4.0

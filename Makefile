@@ -3,7 +3,7 @@
 help:
 	@echo "Usage: make <target>"
 	@echo "Targets:"
-	@echo "  iso              - Build the default Cosmic ISO"
+	@echo "  iso              - Build one ISO (defaults to Cosmic; override with ABORA_EDITION=gnome)"
 	@echo "  iso-all          - Build Cosmic, Hyprland, GNOME, KDE, and Other ISOs"
 	@echo "  iso-hyprland     - Build only the Hyprland ISO"
 	@echo "  iso-gnome        - Build only the GNOME ISO"
@@ -33,7 +33,7 @@ help:
 	@echo "  preflight        - Run full release preflight checks"
 
 iso:
-	ABORA_EDITION=cosmic ./scripts/build-iso.sh
+	ABORA_EDITION=$${ABORA_EDITION:-cosmic} ./scripts/build-iso.sh
 
 iso-all:
 	ABORA_EDITION=all ./scripts/build-iso.sh

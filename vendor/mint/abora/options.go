@@ -45,7 +45,7 @@ type PrototypeOptions struct {
 type LogoOptions struct {
 	Path       string `help:"Logo image path" default:"${defaultLogoPath}"`
 	Width      string `help:"Rendered logo width in terminal columns" default:"72"`
-	Mode       string `help:"Render mode" enum:"auto,pixels,kitty,iterm,chafa,ansi,sixel,text,open,tty" default:"auto"`
+	Mode       string `help:"Render mode" enum:"auto,pixels,kitty,iterm,chafa,ansi,sixel,text,open,tty,framebuffer,fb" default:"auto"`
 	Quality    string `help:"Render quality preset" enum:"standard,2k" default:"2k"`
 	Doctor     bool   `help:"Show terminal graphics support diagnostics"`
 	NoFallback bool   `help:"Fail instead of rendering text when no image renderer is available"`

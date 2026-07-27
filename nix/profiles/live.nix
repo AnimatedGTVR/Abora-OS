@@ -37,6 +37,12 @@ let
     then builtins.getAttr liveEdition liveEditions
     else liveEditions.cosmic;
 
+  # Every Abora/ANIX CLI command is a tiny writeShellScriptBin wrapper that
+  # execs the real logic out of /etc/abora/*.sh -- the derivation only
+  # provides the `PATH`-visible command name and (where needed) env vars the
+  # script reads. This indirection is what lets `abora update` overwrite
+  # /etc/abora/update.sh at runtime (see abora-update.sh's sync_abora_files)
+  # without ever needing to rebuild/relink the wrapper derivation itself.
   aboraApps = pkgs.writeShellScriptBin "abora-apps" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/apps.sh "$@"
   '';
@@ -73,6 +79,11 @@ let
   aboraHardwareTest = pkgs.writeShellScriptBin "abora-hardware-test" ''
     exec env ABORA_SUPPORT_REPORT_SCRIPT=/etc/abora/support-report.sh ${pkgs.bashInteractive}/bin/bash /etc/abora/hardware-test.sh "$@"
   '';
+  # abora-installer.sh needs root (it partitions disks), so this wrapper
+  # self-elevates via sudo when not already root. It prefers the setuid
+  # wrapper at /run/wrappers/bin/sudo (NixOS's actual working sudo binary)
+  # over a bare `sudo` lookup, since PATH ordering on the live image isn't
+  # guaranteed to put the wrapper first.
   aboraInstall = pkgs.writeShellScriptBin "abora-install" ''
     if [ "$(id -u)" -ne 0 ]; then
       sudo_bin=/run/wrappers/bin/sudo
@@ -345,7 +356,7 @@ in
       LOGO = "abora";
       VERSION = "2026.7.27";
       VERSION_ID = "4.0";
-      VERSION_CODENAME = "denali";
+      VERSION_CODENAME = "everest";
       PRETTY_NAME = "Abora OS 2026.7.27";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";

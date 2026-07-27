@@ -47,6 +47,17 @@ func TestRenderLogoMissingFileCanFail(t *testing.T) {
 	}
 }
 
+func TestTTYWordmarkUsesReadableBrandText(t *testing.T) {
+	out, err := renderTTYWordmark("", "76", "2k")
+	if err != nil {
+		t.Fatalf("expected TTY wordmark to render: %v", err)
+	}
+	got := string(out)
+	if !strings.Contains(got, "AAAAA") || !strings.Contains(got, "ABORA OS") {
+		t.Fatalf("expected readable ASCII wordmark, got %q", got)
+	}
+}
+
 func TestTerminalInfoDetectsAlacritty(t *testing.T) {
 	if !((terminalInfo{Term: "alacritty"}).isAlacritty()) {
 		t.Fatal("expected TERM=alacritty to be detected")

@@ -21,6 +21,10 @@
 , wayland-scanner
 }:
 
+# wlroots-based rendering-effects library mango.nix needs at this exact
+# version (matching its wlroots_0_20 pin); packaged here rather than pulled
+# from nixpkgs because nixpkgs' own scenefx package can drift to a newer
+# wlroots ABI that mango's pinned commit doesn't build against.
 stdenv.mkDerivation (finalAttrs: {
   pname = "scenefx";
   version = "0.5";

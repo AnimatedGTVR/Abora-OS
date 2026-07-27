@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -43,7 +44,7 @@ func (o PrototypeOptions) Run() error {
 
 	logoMode := "auto"
 	if o.TTY {
-		logoMode = "tty"
+		logoMode = "auto"
 	}
 	if o.Kitty {
 		logoMode = "kitty"
@@ -51,7 +52,7 @@ func (o PrototypeOptions) Run() error {
 	if control {
 		clearTerminal()
 	}
-	if err := renderLogo(resolveLogoPath(defaultLogoPath), "64", logoMode, "2k", true); err != nil {
+	if err := renderLogo(resolveLogoPath(defaultLogoPath), "76", logoMode, "2k", true); err != nil {
 		return err
 	}
 
@@ -76,7 +77,7 @@ func (o PrototypeOptions) Run() error {
 
 	state := &wizardState{
 		hostname: o.Hostname,
-		disk:     o.Disk,
+		disk:     defaultTargetDisk(o.Disk),
 		username: "abora",
 		fullName: "Abora User",
 		dotfiles: "skip",
@@ -445,6 +446,25 @@ func stepHostname(o PrototypeOptions, st *wizardState, reader *bufio.Reader, int
 }
 
 func stepDisk(o PrototypeOptions, st *wizardState, reader *bufio.Reader, interactive bool, dir navResult) (navResult, error) {
+	disks := detectedInstallDisks()
+	if len(disks) == 1 {
+		st.disk = disks[0].Value
+		fmt.Fprintln(os.Stderr, prototypeHelpStyle.Render("Using detected target disk: "+disks[0].Label))
+		time.Sleep(700 * time.Millisecond)
+		return navNext, nil
+	}
+	if len(disks) > 0 {
+		value, nav, err := selectChoiceNav(reader, interactive, "Target disk", disks, true)
+		if err != nil {
+			return navNext, err
+		}
+		if nav == navBack {
+			return navBack, nil
+		}
+		st.disk = value
+		return navNext, nil
+	}
+
 	value, nav, err := collectInputNav(reader, interactive, "Target disk", "Example: /dev/nvme0n1", st.disk)
 	if err != nil {
 		return navNext, err
@@ -454,6 +474,94 @@ func stepDisk(o PrototypeOptions, st *wizardState, reader *bufio.Reader, interac
 	}
 	st.disk = value
 	return navNext, nil
+}
+
+func defaultTargetDisk(fallback string) string {
+	if isBlockDevice(fallback) {
+		return fallback
+	}
+	disks := detectedInstallDisks()
+	if len(disks) == 0 {
+		return fallback
+	}
+	return disks[0].Value
+}
+
+func detectedInstallDisks() []choiceItem {
+	entries, err := os.ReadDir("/sys/block")
+	if err != nil {
+		return nil
+	}
+	var disks []choiceItem
+	for _, entry := range entries {
+		name := entry.Name()
+		if !isInstallDiskName(name) {
+			continue
+		}
+		device := "/dev/" + name
+		if !isBlockDevice(device) {
+			continue
+		}
+		size := diskSizeLabel(name)
+		model := strings.TrimSpace(readSysBlockFile(name, "device/model"))
+		label := device
+		if size != "" {
+			label += "  " + size
+		}
+		if model != "" {
+			label += "  " + model
+		}
+		disks = append(disks, choiceItem{Label: label, Value: device})
+	}
+	sort.SliceStable(disks, func(i, j int) bool { return disks[i].Value < disks[j].Value })
+	return disks
+}
+
+func isInstallDiskName(name string) bool {
+	if strings.HasPrefix(name, "loop") || strings.HasPrefix(name, "ram") ||
+		strings.HasPrefix(name, "zram") || strings.HasPrefix(name, "dm-") ||
+		strings.HasPrefix(name, "sr") || strings.HasPrefix(name, "fd") {
+		return false
+	}
+	return strings.HasPrefix(name, "sd") || strings.HasPrefix(name, "vd") ||
+		strings.HasPrefix(name, "hd") || strings.HasPrefix(name, "xvd") ||
+		strings.HasPrefix(name, "nvme") || strings.HasPrefix(name, "mmcblk")
+}
+
+func isBlockDevice(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeDevice != 0
+}
+
+func diskSizeLabel(name string) string {
+	raw := strings.TrimSpace(readSysBlockFile(name, "size"))
+	sectors, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil || sectors == 0 {
+		return ""
+	}
+	bytes := sectors * 512
+	units := []string{"B", "KiB", "MiB", "GiB", "TiB"}
+	value := float64(bytes)
+	unit := 0
+	for value >= 1024 && unit < len(units)-1 {
+		value /= 1024
+		unit++
+	}
+	if unit < 3 {
+		return fmt.Sprintf("%.0f %s", value, units[unit])
+	}
+	return fmt.Sprintf("%.1f %s", value, units[unit])
+}
+
+func readSysBlockFile(name, rel string) string {
+	data, err := os.ReadFile(filepath.Join("/sys/block", name, rel))
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 func stepUsername(o PrototypeOptions, st *wizardState, reader *bufio.Reader, interactive bool, dir navResult) (navResult, error) {
@@ -516,8 +624,8 @@ var timezoneTopLevelRegion = map[string]string{
 }
 
 var (
-	timezoneDataOnce sync.Once
-	timezoneRegions  []string
+	timezoneDataOnce  sync.Once
+	timezoneRegions   []string
 	timezonesByRegion map[string][]choiceItem
 )
 
@@ -929,11 +1037,35 @@ func resolveLogoPath(path string) string {
 }
 
 func renderInstallerIntro() {
-	fmt.Fprintln(os.Stderr, titleStyle.Render("Abora OS Installer"))
-	fmt.Fprintln(os.Stderr, valueStyle.Render("Easy guided install"))
-	fmt.Fprintln(os.Stderr, mutedStyle.Render("Pick the basics, review once, then Abora installs the system."))
-	fmt.Fprintln(os.Stderr, mutedStyle.Render("Defaults are chosen for a simple desktop setup."))
+	renderTTYIntroPanel([]string{
+		"Abora OS Installer  EVEREST 4.0",
+		"Easy guided install",
+		"Pick the basics, review once, then Abora installs the system.",
+		"Defaults are chosen for a simple desktop setup.",
+	})
 	fmt.Fprintln(os.Stderr)
+}
+
+func renderTTYIntroPanel(rows []string) {
+	const width = 72
+	border := "+" + strings.Repeat("-", width-2) + "+"
+	fmt.Fprintf(os.Stderr, "\x1b[1;34m%s\x1b[0m\n", border)
+	fmt.Fprintf(os.Stderr, "\x1b[1;34m|\x1b[0m%s\x1b[1;34m|\x1b[0m\n", strings.Repeat(" ", width-2))
+	for i, row := range rows {
+		if len(row) > width-6 {
+			row = row[:width-6]
+		}
+		color := "\x1b[36m"
+		if i == 0 {
+			color = "\x1b[1;34m"
+		} else if i == 1 {
+			color = "\x1b[1;36m"
+		}
+		line := "  " + color + row + "\x1b[0m" + strings.Repeat(" ", width-4-len(row))
+		fmt.Fprintf(os.Stderr, "\x1b[1;34m|\x1b[0m%s\x1b[1;34m|\x1b[0m\n", line)
+	}
+	fmt.Fprintf(os.Stderr, "\x1b[1;34m|\x1b[0m%s\x1b[1;34m|\x1b[0m\n", strings.Repeat(" ", width-2))
+	fmt.Fprintf(os.Stderr, "\x1b[1;34m%s\x1b[0m\n", border)
 }
 
 func controlTerminal(title string) func() {
@@ -1014,36 +1146,38 @@ type prototypePlan struct {
 }
 
 func renderPrototypeSummary(plan prototypePlan) {
-	fmt.Fprintln(os.Stderr, titleStyle.Render("Abora OS Install Plan"))
-	fmt.Fprintln(os.Stderr, prototypeHelpStyle.Render(strings.Repeat("-", 48)))
-	for _, row := range []string{
-		kv("Edition", plan.Edition),
-		kv("Desktop", plan.Desktop),
-		kv("Hostname", plan.Hostname),
-		kv("User", plan.Username),
-		kv("Full name", plan.FullName),
-		kv("Password", present(plan.PasswordSet)),
-		kv("Disk", plan.Disk),
-		kv("Layout", plan.Layout),
-		kv("Filesystem", plan.Filesystem),
-		kv("Swap", plan.Swap),
-		kv("Encryption", plan.Encryption),
-		kv("Timezone", plan.Timezone),
-		kv("Locale", plan.Locale),
-		kv("Keyboard", plan.Keyboard),
-		kv("Network", plan.Network),
-		kv("Boot", plan.BootMode),
-		kv("Kernel", plan.Kernel),
-		kv("Drivers", plan.Drivers),
-		kv("Updates", plan.Updates),
-		kv("Extras", plan.Extras),
-		kv("First boot", plan.FirstBoot),
-		kv("Dotfiles", plan.Dotfiles),
-	} {
-		fmt.Fprintln(os.Stderr, row)
+	fmt.Fprintln(os.Stderr, "\x1b[1;34mAbora OS Install Plan\x1b[0m")
+	fmt.Fprintln(os.Stderr, "\x1b[36m"+strings.Repeat("-", 72)+"\x1b[0m")
+	rows := [][2]string{
+		{"Edition", plan.Edition}, {"Desktop", plan.Desktop},
+		{"Hostname", plan.Hostname}, {"User", plan.Username},
+		{"Full name", plan.FullName}, {"Password", present(plan.PasswordSet)},
+		{"Disk", plan.Disk}, {"Layout", plan.Layout},
+		{"Filesystem", plan.Filesystem}, {"Swap", plan.Swap},
+		{"Encryption", plan.Encryption}, {"Timezone", plan.Timezone},
+		{"Locale", plan.Locale}, {"Keyboard", plan.Keyboard},
+		{"Network", plan.Network}, {"Boot", plan.BootMode},
+		{"Kernel", plan.Kernel}, {"Drivers", plan.Drivers},
+		{"Updates", plan.Updates}, {"Extras", plan.Extras},
+		{"First boot", plan.FirstBoot}, {"Dotfiles", plan.Dotfiles},
+	}
+	for i := 0; i < len(rows); i += 2 {
+		left := summaryCell(rows[i][0], rows[i][1])
+		right := ""
+		if i+1 < len(rows) {
+			right = summaryCell(rows[i+1][0], rows[i+1][1])
+		}
+		fmt.Fprintf(os.Stderr, "%-36s%s\n", left, right)
 	}
 	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, mutedStyle.Render("Review this once. The next step starts the real Abora install."))
+	fmt.Fprintln(os.Stderr, "\x1b[36mReview this once. The next step starts the real Abora install.\x1b[0m")
+}
+
+func summaryCell(label, value string) string {
+	if value == "" {
+		value = "-"
+	}
+	return fmt.Sprintf("%-11s %s", label, value)
 }
 
 func selectChoice(reader *bufio.Reader, interactive bool, title string, choices []choiceItem) (string, error) {
@@ -1103,40 +1237,60 @@ func collectInput(reader *bufio.Reader, interactive bool, title, placeholder, fa
 }
 
 func collectPasswordHash(reader *bufio.Reader, interactive bool) (string, error) {
-	var password string
-	var err error
-	if interactive {
-		password, err = runCaptured(func() error {
-			return inputcmd.Options{
-				Header:           "Password",
-				Placeholder:      "Password for the primary user",
-				Prompt:           "> ",
-				Password:         true,
-				Width:            42,
-				CharLimit:        256,
-				ShowHelp:         true,
-				HeaderStyle:      aboraStyle("33", true),
-				PromptStyle:      aboraStyle("33", true),
-				CursorStyle:      aboraStyle("33", true),
-				PlaceholderStyle: aboraStyle("246", false),
-			}.Run()
-		})
-	} else {
-		password, err = promptText(reader, "Password", "")
+	for {
+		password, err := promptPassword(reader)
+		if err != nil {
+			return "", err
+		}
+		if password != "" {
+			cmd := exec.Command("openssl", "passwd", "-6", "-stdin")
+			cmd.Stdin = strings.NewReader(password + "\n")
+			out, err := cmd.Output()
+			if err != nil {
+				return "", fmt.Errorf("could not hash password with openssl: %w", err)
+			}
+			return strings.TrimSpace(string(out)), nil
+		}
+		fmt.Fprintln(os.Stderr, riskErrorStyle.Render("Password cannot be empty. Please type a password and press Enter."))
 	}
+}
+
+func promptPassword(reader *bufio.Reader) (string, error) {
+	password, err := promptPasswordTTY("Password for the primary user")
+	if err == nil {
+		return password, nil
+	}
+	return promptText(reader, "Password", "")
+}
+
+func promptPasswordTTY(prompt string) (string, error) {
+	ttyFile, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
 	if err != nil {
 		return "", err
 	}
-	if password == "" {
-		return "", fmt.Errorf("password cannot be empty")
+	defer ttyFile.Close()
+
+	fmt.Fprintf(ttyFile, "\n\x1b[1;34m%s\x1b[0m\n> ", prompt)
+	setTTYEcho(ttyFile, false)
+	line, readErr := bufio.NewReaderSize(ttyFile, 4096).ReadString('\n')
+	defer setTTYEcho(ttyFile, true)
+	fmt.Fprintln(ttyFile)
+	if readErr != nil && len(line) == 0 {
+		return "", readErr
 	}
-	cmd := exec.Command("openssl", "passwd", "-6", "-stdin")
-	cmd.Stdin = strings.NewReader(password + "\n")
-	out, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("could not hash password with openssl: %w", err)
+	return strings.TrimSpace(line), nil
+}
+
+func setTTYEcho(ttyFile *os.File, enabled bool) {
+	mode := "-echo"
+	if enabled {
+		mode = "echo"
 	}
-	return strings.TrimSpace(string(out)), nil
+	cmd := exec.Command("stty", mode)
+	cmd.Stdin = ttyFile
+	cmd.Stdout = ttyFile
+	cmd.Stderr = ttyFile
+	_ = cmd.Run()
 }
 
 func confirmInstall(reader *bufio.Reader, interactive bool) error {
@@ -1187,7 +1341,29 @@ func runBackend(backend string, plan prototypePlan) error {
 		"ABORA_DESKTOP_PROFILES_LIB="+envDefault("ABORA_DESKTOP_PROFILES_LIB", "/etc/abora/desktop-profiles.sh"),
 		"ABORA_APP_CATALOG_LIB="+envDefault("ABORA_APP_CATALOG_LIB", "/etc/abora/app-catalog.sh"),
 	)
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		printInstallerLogTail("/tmp/abora-install.log", 18)
+		return err
+	}
+	return nil
+}
+
+func printInstallerLogTail(path string, lines int) {
+	data, err := os.ReadFile(path)
+	if err != nil || len(data) == 0 {
+		return
+	}
+	parts := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if len(parts) > lines {
+		parts = parts[len(parts)-lines:]
+	}
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "\x1b[1;34mInstaller log tail\x1b[0m")
+	fmt.Fprintln(os.Stderr, "\x1b[36m"+strings.Repeat("-", 72)+"\x1b[0m")
+	for _, line := range parts {
+		fmt.Fprintln(os.Stderr, line)
+	}
+	fmt.Fprintln(os.Stderr, "\x1b[36m"+strings.Repeat("-", 72)+"\x1b[0m")
 }
 
 func writeBatchParams(plan prototypePlan) (string, error) {

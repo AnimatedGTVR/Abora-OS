@@ -26,6 +26,8 @@ Use this after building a release candidate ISO and after running one real insta
 
 ## Installer
 
+- MINT renders with color on `tty1`
+- Abora text/logo appears without a `logo not found` fallback
 - network step can open `nmtui`
 - disk selection and user creation remain interactive
 - password mismatch recovery works
@@ -35,6 +37,13 @@ Use this after building a release candidate ISO and after running one real insta
 - install completes without fatal errors
 - failed installs show useful recent log output
 - `/tmp/abora-install.log` and `/tmp/abora-config.log` are present on failure
+
+## ANIX Languages
+
+- `anix language list` shows ANIX Native, MAKO, and ModuCPP
+- `anix run examples/anix-v2/simple.anix --yes` works in a test config
+- `anix diff-plan examples/anix-v2/workstation.mko` resolves through MAKO when `mko` is installed
+- `anix diff-plan examples/anix-v2/workstation.moducpp` resolves through `moducpp-anix`
 
 ## Installed System
 
@@ -57,3 +66,5 @@ journalctl -b --no-pager
 ```
 
 and attach installer logs if available.
+
+For release screenshots, use [Screenshot Checklist](screenshots.md).

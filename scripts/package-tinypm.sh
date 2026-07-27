@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Packages the vendored vendor/tinypm/ tree as-is into a release tarball
+# (no staging/rewriting needed, unlike package-anix.sh, since TinyPM is
+# already self-contained and not Abora-specific).
 repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 out_dir="${ABORA_OUT_DIR:-$repo_dir/out}"
 package_dir="${ABORA_PACKAGE_DIR:-$out_dir/packages}"
@@ -24,9 +27,11 @@ case "$version_id" in
   *) version_tag="v$version_id" ;;
 esac
 
-tinypm_version="$(
-  awk -F'"' '/^tinypm_version=/{print $2; exit}' "$tinypm_dir/lib/core/common.sh"
-)"
+for common_sh in "$tinypm_dir/lib/tinypm/core/common.sh" "$tinypm_dir/lib/core/common.sh"; do
+  [[ -f "$common_sh" ]] || continue
+  tinypm_version="$(awk -F'"' '/^tinypm_version=/{print $2; exit}' "$common_sh")"
+  [[ -n "$tinypm_version" ]] && break
+done
 tinypm_version="$(printf '%s' "${tinypm_version:-unknown}" | tr -cd '[:alnum:]._-')"
 [[ -n "$tinypm_version" ]] || tinypm_version="unknown"
 case "$tinypm_version" in

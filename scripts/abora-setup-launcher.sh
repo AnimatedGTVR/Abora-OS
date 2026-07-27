@@ -29,6 +29,11 @@ fi
 
 already_root() { [[ "${EUID:-$(id -u)}" -eq 0 ]]; }
 
+# Three independent signals, any one of which is enough: the NixOS ISO
+# image marker files, the live-image README text this repo's own live.nix
+# ships, and (as a last resort) simply not having an installed
+# /etc/nixos/configuration.nix at all -- which is true on every live boot
+# and false on every real install.
 is_live_iso() {
     [[ -f /iso-image/iso-info || -e /run/current-system/iso-image ]] && return 0
     grep -qi 'live image' /etc/abora/README 2>/dev/null && return 0

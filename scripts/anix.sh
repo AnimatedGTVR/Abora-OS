@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# NixOS system binaries (nixos-rebuild, etc.) live under /run/current-system
+# and the system Nix profile, not a normal user PATH -- prepend them so ANIX
+# works the same whether it's invoked from a login shell, a systemd unit, or
+# sudo with a stripped environment.
 export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -44,12 +48,17 @@ else
     }
 fi
 
+# Every path ANIX reads or writes is a variable with an ANIX_* environment
+# override, defaulting to the real installed-system location. That's what
+# lets check-scripts.sh and the e2e tests point a whole ANIX invocation at a
+# throwaway temp directory instead of the real /etc/nixos, without any of
+# the functions below needing to know they're under test.
 config_dir="${ANIX_SYSTEM_CONFIG:-/etc/nixos}"
-anix_file="${ANIX_CONFIG_FILE:-$config_dir/anix.nix}"
-abora_local_file="${config_dir}/abora-local.nix"
-flake_config_name="${ANIX_FLAKE_CONFIG_NAME:-abora}"
+anix_file="${ANIX_CONFIG_FILE:-$config_dir/anix.nix}"       # the file `anix set`/`enable`/`package` write
+abora_local_file="${config_dir}/abora-local.nix"             # written by the installer, read-only from here
+flake_config_name="${ANIX_FLAKE_CONFIG_NAME:-abora}"         # nixosConfigurations.<this> in flake.nix
 wallpaper_dir="${ANIX_WALLPAPER_DIR:-/etc/abora/wallpapers}"
-anix_state_dir="${ANIX_STATE_DIR:-$config_dir/.anix}"
+anix_state_dir="${ANIX_STATE_DIR:-$config_dir/.anix}"        # git snapshots + this tool's own settings
 anix_tool_config="${ANIX_TOOL_CONFIG:-$anix_state_dir/config}"
 docs_dir="${ANIX_DOCS_DIR:-/etc/abora/docs/wiki}"
 tinypm_source_dir="${ANIX_TINYPM_SOURCE:-/etc/abora/tinypm}"
@@ -80,9 +89,21 @@ default_wallpapers=(
     aurora-lofoten.jpg
 )
 
+# These are NixOS's own generation symlinks, not anything ANIX creates:
+# /run/current-system always points at the profile actually booted, and
+# system_profile_link is the profile `nixos-rebuild` adds a new generation
+# to. generation_lines()/do_rollback() read these to list and switch
+# generations without needing their own bookkeeping of what's installed.
 current_system_link="${ANIX_CURRENT_SYSTEM:-/run/current-system}"
 system_profile_link="${ANIX_SYSTEM_PROFILE:-/nix/var/nix/profiles/system}"
 
+# Every state-changing command in this file goes through here instead of
+# calling sudo directly, for one reason: the test suite sets
+# ANIX_NO_SUDO=1 to run as the invoking user with no privilege escalation
+# at all (writing into a throwaway ANIX_SYSTEM_CONFIG temp dir instead of
+# the real /etc/nixos), and ANIX_ROOT_PATH lets those tests also control
+# exactly which fake `nixos-rebuild`/`git` binaries are on PATH once
+# escalated. A real install never sets either.
 run_as_root() {
     if is_yes "${ANIX_NO_SUDO:-}"; then
         if [[ -n "${ANIX_ROOT_PATH:-}" ]]; then
@@ -104,6 +125,12 @@ run_as_root() {
     exit 1
 }
 
+# ANIX never parses anix.nix as real Nix -- it's a fixed, hand-authored
+# template (see ensure_anix_file's render_template) where every setting is
+# always written as `anix.<key> = "<value>";` on its own line, so a plain
+# regex line-match is enough to read a value back out. This only handles
+# quoted string values; read_anix_bool_option (further down) is the
+# unquoted true/false counterpart for booleans like anix.services.bluetooth.
 read_anix_option() {
     local key="$1"
     local escaped_key="${key//./\\.}"
@@ -111,6 +138,10 @@ read_anix_option() {
     sed -nE "s|^[[:space:]]*anix\\.${escaped_key}[[:space:]]*=[[:space:]]*\"([^\"]+)\";.*|\1|p" "$anix_file" | head -n1
 }
 
+# Same idea as read_anix_option, but reads abora-local.nix (the installer's
+# own generated file, e.g. abora.hostname / abora.desktop) instead of
+# anix.nix -- used where ANIX needs to know what the installer originally
+# set even before any `anix set` has ever touched anix.nix itself.
 read_abora_option() {
     local key="$1"
     local escaped_key="${key//./\\.}"
@@ -118,6 +149,10 @@ read_abora_option() {
     sed -nE "s|^[[:space:]]*abora\\.${escaped_key}[[:space:]]*=[[:space:]]*\"([^\"]+)\";.*|\1|p" "$abora_local_file" | head -n1
 }
 
+# The installer sets abora.desktop once at install time; `anix set desktop`
+# later overrides it by writing anix.desktop instead (abora-local.nix isn't
+# touched again after install). Checking abora first, falling back to anix,
+# means this always returns whichever one actually reflects reality.
 current_configured_desktop() {
     local value=""
     value="$(read_abora_option "desktop")"
@@ -127,6 +162,12 @@ current_configured_desktop() {
     printf '%s' "${value:-unknown}"
 }
 
+# The "raw" counterpart to do_set: do_set always wraps its value in quotes
+# (it's for user-facing strings like hostname/timezone), but some
+# anix.<key> settings are booleans or Nix list/attrset literals
+# (anix.services.bluetooth = true;, anix.packages = with pkgs; [ ... ];)
+# that must NOT be quoted. Callers are responsible for passing $value
+# already in its final Nix-literal form.
 write_anix_raw_option() {
     local key="$1"
     local value="$2"
@@ -144,6 +185,11 @@ write_anix_raw_option() {
     fi
 }
 
+# Minimal Nix string escaper: doubles backslashes, escapes double quotes.
+# Deliberately narrower than do_set's own belt-and-suspenders check (which
+# also bans literal ${ Nix antiquotation) -- this is used only for values
+# already constrained elsewhere (see its call sites), not as a general-
+# purpose safe-for-Nix-strings function on its own.
 quote_nix_string() {
     local value="$1"
     value="${value//\\/\\\\}"
@@ -151,6 +197,12 @@ quote_nix_string() {
     printf '"%s"' "$value"
 }
 
+# nixos-rebuild's raw stderr is long and not written for end users. This
+# pattern-matches the log for the handful of failures people actually hit
+# (a typo'd option name, an unfree package with no allowUnfree, a plain
+# syntax error) and prints a one-line plain-English explanation plus the
+# relevant snippet, falling back to just the last few log lines for
+# anything it doesn't recognize.
 explain_nix_failure() {
     local log_file="$1"
     local line=""
@@ -219,6 +271,9 @@ validate_wallpaper() {
     exit 1
 }
 
+# Shared truthy-string parser for every ANIX_* boolean env override in this
+# file (ANIX_NO_SUDO, ANIX_ASSUME_YES, ...) so they all accept the same
+# set of spellings instead of each call site inventing its own.
 is_yes() {
     case "${1:-}" in
         1|yes|true|on|y|Y|YES|TRUE|ON) return 0 ;;
@@ -226,6 +281,11 @@ is_yes() {
     esac
 }
 
+# Every "are you sure?" prompt in this file goes through here. ANIX_ASSUME_YES
+# is what lets --yes flags and the test suite skip prompts entirely; running
+# with stdin that isn't a real terminal (a script, a CI runner) falls back to
+# just taking $default rather than hanging on a read that can never return
+# an answer.
 confirm() {
     local prompt="$1"
     local default="${2:-yes}"
@@ -263,6 +323,9 @@ require_command() {
     exit 1
 }
 
+# Restricting profile names to this charset (no spaces, quotes, slashes, etc.)
+# is what makes it safe to interpolate $profile directly into a flake
+# reference string (`$config_dir#$profile`) below without any escaping.
 validate_profile_name() {
     local profile="$1"
     if [[ "$profile" =~ ^[A-Za-z0-9._-]+$ ]]; then
@@ -274,6 +337,10 @@ validate_profile_name() {
     exit 1
 }
 
+# "nix" is the only profile family today, but the family/profile split
+# (`anix switch nix <profile>`) exists so non-Nix flake families (MKO,
+# ModuCPP — see ANIX v2's language list) can be added later without changing
+# the CLI shape.
 profile_target() {
     local family="$1"
     local profile="${2:-}"
@@ -296,6 +363,11 @@ profile_target() {
     printf '%s#%s' "$config_dir" "$profile"
 }
 
+# Reads a `key = value` line out of ANIX's own tool config (anix_tool_config —
+# separate from anix.nix/abora-local.nix, this one stores anix.sh's own
+# settings like snapshots.push). Missing file or missing key both fall
+# through to $fallback rather than erroring, since most callers just want a
+# sane default on a fresh system.
 anix_config_get() {
     local key="$1"
     local fallback="${2:-}"
@@ -333,6 +405,11 @@ config_is_dirty() {
     [[ -n "$(git -C "$config_dir" status --porcelain 2>/dev/null || run_as_root git -C "$config_dir" status --porcelain 2>/dev/null || true)" ]]
 }
 
+# Nix flakes only see files that Git knows about (tracked or staged) inside a
+# flake's directory — an untracked new .nix file is invisible to
+# `nixos-rebuild --flake`. So every rebuild path stages the config dir first;
+# this is silent/best-effort (errors swallowed) because it's a convenience
+# step, not the operation the user actually asked for.
 stage_config_for_flake() {
     command -v git >/dev/null 2>&1 || return 0
     [[ -d "$config_dir" ]] || return 0
@@ -340,6 +417,10 @@ stage_config_for_flake() {
     run_as_root git -C "$config_dir" add -A >/dev/null 2>&1 || true
 }
 
+# Best-effort secret scan run before any local snapshot: config repos can
+# contain hand-edited files, and it's easy to paste a real API key/password
+# into a .nix file without thinking of it as "committing a secret." This
+# doesn't block the save, just warns and asks for confirmation.
 warn_possible_secrets() {
     [[ -d "$config_dir" ]] || return 0
 
@@ -378,6 +459,9 @@ ensure_config_git_repo() {
     fi
 }
 
+# "Snapshot" == a plain local git commit of /etc/nixos. Pushing is opt-in
+# (snapshots.push) and off by default so a fresh install never silently
+# tries to push to a remote that doesn't exist/isn't authenticated.
 do_save() {
     local message="${1:-anix: local config snapshot}"
     ensure_config_git_repo
@@ -438,6 +522,10 @@ maybe_snapshot_dirty_config() {
     fi
 }
 
+# Every nixos-rebuild invocation goes through here so stderr is captured to a
+# log file (via `tee`) as well as shown live — explain_nix_failure() then
+# pattern-matches that same log on failure to turn a wall of Nix trace output
+# into a specific, friendly hint.
 run_rebuild() {
     local action="$1"
     local target="${2:-}"
@@ -494,6 +582,10 @@ git_snapshot_count() {
     git -C "$config_dir" rev-list --count HEAD 2>/dev/null || printf '0'
 }
 
+# Tries a real `nix eval` first (accurate, but needs flakes enabled and a
+# working evaluation); falls back to grepping flake.nix's text for
+# `name = nixpkgs.lib.nixosSystem` attributes if nix isn't usable, so profile
+# tab-completion/listing still works on a system without experimental-features on.
 flake_profile_candidates() {
     local flake_file="$config_dir/flake.nix"
     local profiles=""
@@ -516,6 +608,9 @@ flake_profile_candidates() {
     fi
 }
 
+# Same fallback pattern as flake_profile_candidates(): prefer nix-env's real
+# generation listing, but fall back to reading the profile's `-N-link`
+# symlinks directly off disk if nix-env isn't available.
 generation_lines() {
     if command -v nix-env >/dev/null 2>&1 && [[ -e "$system_profile_link" || -e "${system_profile_link}-1-link" ]]; then
         nix-env --list-generations --profile "$system_profile_link" 2>/dev/null || true
@@ -528,6 +623,10 @@ generation_lines() {
     done
 }
 
+# Builds $target into a throwaway result link (without switching to it) so
+# `nix store diff-closures` can compare it against /run/current-system —
+# shows the user what packages would actually change before they commit to
+# a real switch.
 show_package_changes() {
     local target="$1"
     local tmp_dir=""
@@ -658,6 +757,8 @@ render_template() {
 EOF
 }
 
+# Creates anix.nix from render_template() on first use; on an existing file,
+# repairs it instead of touching user content (see repair_anix_module_args).
 ensure_anix_file() {
     if [[ -f "$anix_file" ]]; then
         repair_anix_module_args
@@ -668,6 +769,10 @@ ensure_anix_file() {
     run_as_root bash -c "$(printf 'cat > %q <<'"'"'EOF'"'"'\n%s\nEOF' "$anix_file" "$(render_template)")"
 }
 
+# Older anix.nix files were rendered with a bare `{ ... }:` module header,
+# which breaks the moment the body references `pkgs` (as `anix.packages`/
+# `anix.fonts` do). This upgrades just that one header line in place, on an
+# already-existing user file, without touching anything else they've edited.
 repair_anix_module_args() {
     [[ -f "$anix_file" ]] || return 0
     if grep -Eq '^[[:space:]]*\{[[:space:]]*\.\.\.[[:space:]]*\}:[[:space:]]*$' "$anix_file" \
@@ -676,6 +781,9 @@ repair_anix_module_args() {
     fi
 }
 
+# All values here are read back out with sed rather than a real Nix parser
+# (anix.nix is a fixed template, not arbitrary Nix — see read_anix_option),
+# so this only ever displays what ANIX itself wrote.
 show_config() {
     if [[ ! -f "$anix_file" ]]; then
         abora_banner "ANIX" "No ANIX config exists yet."
@@ -995,6 +1103,9 @@ do_service() {
     esac
 }
 
+# Best-effort start sound: prefers a direct mpg123 play, falls back to a
+# user systemd unit if mpg123 isn't installed, and just warns (never fails)
+# if neither is available — this is cosmetic, not something worth blocking on.
 do_ringtone() {
     local action="${1:-start}"
     local sound="$sound_file"
@@ -1024,6 +1135,12 @@ do_ringtone() {
     esac
 }
 
+# Sanity-checks anix.nix before every apply, catching mistakes a raw
+# nixos-rebuild would otherwise reject deep in a Nix eval trace: a stray
+# top-level `abora =` (should be per-key `abora.desktop = ...`), a missing
+# trailing semicolon, or an unknown/changed desktop name. Also re-confirms
+# with the user when the desktop in anix.nix differs from what's actually
+# installed, since applying downloads a whole new DE stack.
 preflight_anix_config() {
     local prompt_desktop="${1:-yes}"
     local failures=0
@@ -1151,6 +1268,9 @@ do_status() {
     printf '\n'
 }
 
+# Marker file recording that this user has run TinyPM's installer through
+# ANIX before — lets `anix tinypm install` refuse to silently reinstall
+# unless the user explicitly asks for `reinstall`.
 tinypm_stamp() {
     printf '%s' "${XDG_STATE_HOME:-${HOME}/.local/state}/tinypm/anix-init-done"
 }
@@ -1228,6 +1348,11 @@ do_docs() {
     printf '\n'
 }
 
+# Everything below this point is the optional zenity-backed GUI front-end
+# (launched via `anix gui`) for the same operations the CLI already exposes.
+# It only activates with a display session and zenity installed; every
+# gui_* helper degrades to a plain terminal prompt/printout otherwise, so
+# ANIX never hard-depends on zenity being present.
 gui_available() {
     [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1
 }
@@ -1244,6 +1369,10 @@ gui_show_file() {
     fi
 }
 
+# Runs a command, capturing combined stdout+stderr to a temp file so its
+# full output can be shown in a zenity text box (or dumped to the terminal)
+# after the fact, since a running zenity dialog can't stream live command
+# output the way a terminal can.
 gui_capture() {
     local title="$1"
     shift
@@ -2651,6 +2780,10 @@ do_switch() {
     printf '\n'
 }
 
+# Argument shape is intentionally forgiving: `anix rollback` (bare),
+# `anix rollback --now`, `anix rollback nix myprofile`, and
+# `anix rollback nix myprofile --now` must all work, so family/profile are
+# read positionally only when they don't look like a `--flag` first.
 do_rollback() {
     local family="${1:-nix}"
     local profile=""

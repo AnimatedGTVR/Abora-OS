@@ -58,6 +58,11 @@ resolve_nixpkgs_path() {
   fi
 }
 
+# Every desktop profile must be listed consistently across the CLI (anix.sh,
+# abora-config.sh) and the Nix option enums (abora-options.nix, anix.nix) --
+# a profile present in abora_supported_desktop_profiles (the desktop library)
+# but missing from one of these would let a user pick a desktop the CLI or
+# option type can't actually represent.
 assert_supported_everywhere() {
   local profile="$1"
   local file
@@ -79,6 +84,10 @@ if ! pkgs_path="$(resolve_nixpkgs_path)"; then
   exit 1
 fi
 
+# Recreates the same /etc/abora tree the installer/update flow copies onto a
+# real system, but under $staged_abora in a tmpdir -- installed-base.nix
+# expects to sit beside these files (VERSION, ui.sh, mango/config.conf, ...)
+# and can't be evaluated in isolation without them.
 stage_installed_abora() {
   mkdir -p \
     "$staged_abora/bootloader" \
@@ -141,6 +150,13 @@ stage_installed_abora() {
 
 stage_installed_abora
 
+# For every supported desktop, generate a throwaway Nix file that builds a
+# real minimal NixOS system (via nixpkgs' own eval-config.nix) with that
+# desktop's config/package blocks wired in, then instantiate it below --
+# this is what actually catches a broken desktop config block (typo,
+# missing option, bad package name) that no amount of shell-level testing
+# would ever exercise, without needing a real `nixos-rebuild`/VM boot per
+# desktop.
 while IFS= read -r desktop_profile; do
   desktop_label=""
   desktop_variant_id=""

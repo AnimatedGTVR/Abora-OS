@@ -53,6 +53,10 @@ run_nix_dry_build() {
     cd /etc/nixos
     if [[ "$(id -u)" -eq 0 ]]; then
         nixos-rebuild dry-build --flake .#abora
+    # `sudo -n true` succeeds only if sudo can authenticate with zero
+    # interaction (cached credential, NOPASSWD) -- this is a diagnostic tool
+    # a user might run unattended, so it must never sit there prompting for
+    # a password; skip the dry-build cleanly instead.
     elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
         sudo nixos-rebuild dry-build --flake .#abora
     else
@@ -91,8 +95,8 @@ run_section "ANIX status" anix status
 run_section "ANIX doctor" anix doctor
 run_section "ANIX profiles" anix profiles
 run_section "ANIX generations" anix generations
-run_optional_command "TinyPM system" tinypm system
-run_optional_command "TinyPM sources" tinypm sources
+run_optional_command "TinyPM version" tinypm version
+run_optional_command "TinyPM package check" tinypm check firefox
 run_optional_command "TinyPM doctor" tinypm doctor
 run_section "Abora desktop" abora desktop list
 run_section "Display services" sh -lc 'systemctl --no-pager --failed; systemctl --no-pager status display-manager 2>/dev/null || true'

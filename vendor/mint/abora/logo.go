@@ -2,6 +2,7 @@ package abora
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"image"
 	"image/color"
@@ -12,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Run renders the Abora OS logo without writing to stdout.
@@ -35,14 +37,18 @@ func renderLogo(path, width, mode, quality string, fallback bool) error {
 	terminal := currentTerminalInfo()
 	if terminal.isLinuxTTY() {
 		switch mode {
-		case "", "auto", "tty", "pixels", "kitty", "iterm", "sixel":
-			if mode != "" && mode != "auto" && mode != "tty" && !fallback {
-				return fmt.Errorf("Linux TTY does not support inline terminal image protocols; use --mode tty or --mode chafa")
+		case "", "auto":
+			return renderLogoWithRenderers(path, width, quality, fallback, []logoRenderer{renderFramebufferSplash, renderTTYWordmark, renderChafaTTY, renderTTYBlocks, renderANSIBlocks}, "TTY logo renderer unavailable")
+		case "framebuffer", "fb":
+			return renderLogoWithRenderers(path, width, quality, fallback, []logoRenderer{renderFramebufferSplash}, "framebuffer image renderer unavailable")
+		case "tty", "pixels", "kitty", "iterm", "sixel":
+			if mode != "tty" && !fallback {
+				return fmt.Errorf("Linux TTY does not support inline terminal image protocols; use --mode framebuffer for the real PNG or --mode tty for text")
 			}
-			if mode != "" && mode != "auto" && mode != "tty" {
+			if mode != "tty" {
 				fmt.Fprintln(os.Stderr, mutedStyle.Render("Linux TTY does not support inline terminal images; using TTY-safe logo art."))
 			}
-			return renderLogoWithRenderers(path, width, quality, fallback, []logoRenderer{renderChafaTTY, renderTTYBlocks, renderANSIBlocks}, "TTY logo renderer unavailable")
+			return renderLogoWithRenderers(path, width, quality, fallback, []logoRenderer{renderTTYWordmark, renderChafaTTY, renderTTYBlocks, renderANSIBlocks}, "TTY logo renderer unavailable")
 		}
 	}
 	if terminal.isAlacritty() {
@@ -102,8 +108,10 @@ func logoRenderers(mode string) []logoRenderer {
 		return []logoRenderer{renderANSIBlocks}
 	case "sixel":
 		return []logoRenderer{renderMagickSixel, renderSixel}
+	case "framebuffer", "fb":
+		return []logoRenderer{renderFramebufferSplash}
 	case "tty":
-		return []logoRenderer{renderChafaTTY, renderTTYBlocks, renderANSIBlocks}
+		return []logoRenderer{renderTTYWordmark, renderChafaTTY, renderTTYBlocks, renderANSIBlocks}
 	case "text":
 		return nil
 	case "open":
@@ -111,6 +119,73 @@ func logoRenderers(mode string) []logoRenderer {
 	default:
 		return nil
 	}
+}
+
+func renderFramebufferSplash(path, width, quality string) ([]byte, error) {
+	if _, err := os.Stat("/dev/fb0"); err != nil {
+		logLogoRenderer("framebuffer unavailable: /dev/fb0: " + err.Error())
+		return nil, err
+	}
+	fbv, err := exec.LookPath("fbv")
+	if err != nil {
+		logLogoRenderer("framebuffer unavailable: fbv not found: " + err.Error())
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2200*time.Millisecond)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, fbv, "--noinfo", "--enlarge", "--alpha", "--skiptty", path)
+	cmd.Stdin = nil
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	if err := cmd.Run(); err != nil && ctx.Err() == nil {
+		logLogoRenderer("framebuffer failed: " + err.Error())
+		return nil, err
+	}
+	logLogoRenderer("framebuffer splash shown with fbv")
+	return []byte("\x1b[2J\x1b[H"), nil
+}
+
+func logLogoRenderer(message string) {
+	f, err := os.OpenFile("/tmp/abora-mint-logo.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "%s\n", message)
+}
+
+func renderTTYWordmark(path, width, quality string) ([]byte, error) {
+	columns := ttyColumns(width)
+	logo := []string{
+		"      /\\              AAAAA   BBBBB    OOOOO   RRRRR    AAAAA",
+		"     /  \\            AA   AA  BB   B  OO   OO  RR   R  AA   AA",
+		"    / /\\ \\           AAAAAAA  BBBBB   OO   OO  RRRRR   AAAAAAA",
+		"   / ____ \\          AA   AA  BB   B  OO   OO  RR  R   AA   AA",
+		"  /_/    \\_\\         AA   AA  BBBBB    OOOOO   RR   R  AA   AA",
+		"      ABORA OS",
+	}
+	if columns < 72 {
+		logo = []string{
+			"    /\\        AAAAA  BBBB   OOO   RRRR   AAAAA",
+			"   /  \\      AA  AA  BB  B OO OO  RR  R AA  AA",
+			"  / /\\ \\     AAAAAA  BBBB  OO OO  RRRR  AAAAAA",
+			" / ____ \\    AA  AA  BB  B OO OO  RR R  AA  AA",
+			"/_/    \\_\\   AA  AA  BBBB   OOO   RR  R AA  AA",
+		}
+	}
+
+	var buf bytes.Buffer
+	for i, line := range logo {
+		switch {
+		case i < 2:
+			fmt.Fprintf(&buf, "\x1b[1;36m%s\x1b[0m\n", line)
+		case i < len(logo)-2:
+			fmt.Fprintf(&buf, "\x1b[1;34m%s\x1b[0m\n", line)
+		default:
+			fmt.Fprintf(&buf, "\x1b[36m%s\x1b[0m\n", line)
+		}
+	}
+	return bytes.TrimRight(buf.Bytes(), "\n"), nil
 }
 
 type terminalInfo struct {

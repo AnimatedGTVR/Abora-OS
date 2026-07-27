@@ -55,6 +55,11 @@ current_wallpaper_basename() {
     fi
 }
 
+# Each wallpaper-theme .conf under theme_dir is a tiny shell snippet
+# declaring ABORA_THEME_WALLPAPER (which wallpaper it's for) and
+# ABORA_THEME_GNOME_ACCENT/_SCHEME (what to set) -- sourced directly rather
+# than parsed, so adding a new wallpaper theme is just dropping in a new
+# .conf file, no code change here required.
 find_theme_file() {
     local wallpaper_name="$1"
     local file=""
@@ -120,6 +125,11 @@ main() {
         exit 0
     fi
 
+    # GNOME has no convenient signal/event to subscribe to for "wallpaper
+    # changed" (picture-uri is just a gsettings key, not a D-Bus signal
+    # source most tools expose), so this polls it every 2s instead --
+    # cheap enough for a background per-session process, and simpler than
+    # wiring up a gsettings change-notify listener for one key.
     while sleep 2; do
         current_wallpaper="$(current_wallpaper_basename)"
         if [[ "$current_wallpaper" != "$last_wallpaper" ]]; then

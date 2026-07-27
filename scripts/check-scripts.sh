@@ -54,6 +54,11 @@ nix_files=(
   "nix/profiles/live.nix"
 )
 
+python_scripts=(
+  "scripts/abora-config-gui.py"
+  "scripts/abora-welcome-gui.py"
+)
+
 required_files=(
   "scripts/abora-check-full.sh"
   "scripts/abora-setup.desktop"
@@ -61,7 +66,9 @@ required_files=(
   "docs/wiki/TinyPM-V4.md"
   "docs/wiki/Abora-Tools.md"
   "docs/wiki/Recovery.md"
-  "vendor/tinypm/lib/core/system.sh"
+  "vendor/tinypm/bin/tinypm"
+  "vendor/tinypm/lib/tinypm/core/version.sh"
+  "vendor/tinypm/lib/tinypm/providers/anix.sh"
 )
 
 failed=0
@@ -93,6 +100,22 @@ for file in "${bash_scripts[@]}"; do
     fail "not executable: $file"
   fi
 done
+
+if command -v python3 >/dev/null 2>&1; then
+  for file in "${python_scripts[@]}"; do
+    if [[ ! -f "$file" ]]; then
+      fail "Missing file: $file"
+      continue
+    fi
+    if python3 -m py_compile "$file"; then
+      pass "syntax (python): $file"
+    else
+      fail "syntax (python): $file"
+    fi
+  done
+else
+  pass "python3 unavailable (GUI syntax checks skipped)"
+fi
 
 if command -v shellcheck >/dev/null 2>&1; then
   # -S error matches the dedicated "ShellCheck scripts" CI workflow step —
@@ -146,6 +169,8 @@ if command -v nix >/dev/null 2>&1; then
     pass "nix flake evaluation"
   elif grep -q '/nix/var/nix/db/big-lock.*Permission denied' <<<"$_nix_eval_output"; then
     pass "nix store unavailable (flake eval skipped)"
+  elif grep -q "/nix/var/nix/daemon-socket/socket.*Connection refused" <<<"$_nix_eval_output"; then
+    pass "nix daemon unavailable (flake eval skipped)"
   else
     fail "nix flake evaluation"
     printf '%s\n' "$_nix_eval_output" | sed 's/^/              /'
@@ -270,10 +295,10 @@ else
 fi
 
 _resolver_tags="v2.5.0"
-if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable >/dev/null 2>&1; then
-  fail "runtime: resolver refuses accidental downgrade to v2.5.0"
+if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable | grep -q '^main[[:space:]]'; then
+  pass "runtime: resolver avoids stable-channel downgrade"
 else
-  pass "runtime: resolver refuses accidental downgrade to v2.5.0"
+  fail "runtime: resolver avoids stable-channel downgrade"
 fi
 
 if ABORA_RELEASE_TAGS="v2.5.0" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-fallback 3.14 v2.5.0 | grep -q '^v2\.5\.0[[:space:]]'; then
@@ -352,6 +377,22 @@ else
   fail "runtime: release manifest includes ANIX language adapters"
 fi
 
+if grep -q '"id": "mako"' assets/anix-languages/mako.json \
+  && grep -q '"extensions": \[".mko"\]' assets/anix-languages/mako.json \
+  && grep -q '"command": \["mko", "run"\]' assets/anix-languages/mako.json \
+  && grep -q '"id": "moducpp"' assets/anix-languages/moducpp.json \
+  && grep -q '".moducpp"' assets/anix-languages/moducpp.json \
+  && grep -q '".mcpp"' assets/anix-languages/moducpp.json \
+  && grep -q '"command": \["moducpp-anix"\]' assets/anix-languages/moducpp.json \
+  && grep -q 'using ANIX;' examples/anix-v2/simple.mko \
+  && grep -q 'using ANIX;' examples/anix-v2/workstation.mko \
+  && grep -q 'add ANIX;' examples/anix-v2/simple.moducpp \
+  && grep -q 'add ANIX;' examples/anix-v2/workstation.moducpp; then
+  pass "runtime: MAKO and ModuCPP manifests match shipped examples"
+else
+  fail "runtime: MAKO and ModuCPP manifests match shipped examples"
+fi
+
 if grep -q 'sudo abora update' docs/wiki/FAQ.md \
   && grep -q 'make iso-all' docs/wiki/Building-Abora.md \
   && grep -q 'ANIX standalone tarball' docs/wiki/Building-Abora.md \
@@ -385,6 +426,11 @@ else
   fail "runtime: Nix ANIX package bundles v2 language support"
 fi
 
+# ── Standalone package + release-metadata smoke tests ─────────────────────────
+# These build real (throwaway) packages/manifests via package-anix.sh and
+# release-metadata.sh rather than just grepping source, since the actual
+# packaging/tarball-manifest logic is exactly what would otherwise only get
+# caught by a real `make release`.
 tmp_anix_pkg_out="$tmp_ok/anix-package-out"
 tmp_anix_pkg_list="$tmp_ok/anix-package-files.txt"
 if ABORA_OUT_DIR="$tmp_anix_pkg_out" scripts/package-anix.sh >/dev/null; then
@@ -409,7 +455,7 @@ for edition in cosmic hyprland gnome kde other; do
 done
 touch "$tmp_ok/packages/tinypm-v0.0.0-abora-${release_tag}.tar.gz"
 touch "$tmp_ok/packages/anix-v0.0.0-abora-${release_tag}.tar.gz"
-if ABORA_OUT_DIR="$tmp_ok" scripts/release-metadata.sh >/dev/null; then
+if ABORA_OUT_DIR="$tmp_ok" ABORA_RELEASE_STAMP=test scripts/release-metadata.sh >/dev/null; then
   if [[ -f "$tmp_ok/release/SHA256SUMS-${release_tag}.txt" ]] \
     && [[ -f "$tmp_ok/release/RELEASE_MANIFEST-${release_tag}.txt" ]] \
     && [[ -f "$tmp_ok/release/RELEASE_NOTES-${release_tag}.md" ]] \
@@ -435,6 +481,11 @@ else
   fail "runtime: release-metadata empty-dir guard"
 fi
 
+# ── anix.sh end-to-end behavior tests ──────────────────────────────────────────
+# Each block below runs the real scripts/anix.sh against a throwaway
+# ANIX_SYSTEM_CONFIG directory (ANIX_NO_SUDO/ANIX_ASSUME_YES bypass root and
+# prompts — see anix.sh's confirm()/run_as_root()), then asserts on the
+# actual file/git state it produced, not just its printed output.
 tmp_anix="$tmp_ok/anix.nix"
 printf '%s\n' \
   '{ ... }:' \
@@ -540,6 +591,100 @@ if PATH="$tmp_anix_bin:$PATH" \
   pass "runtime: anix switch maps flake profile"
 else
   fail "runtime: anix switch maps flake profile"
+fi
+
+# Simulates the "git needs root" case (a repo owned by a different UID —
+# git calls this "dubious ownership" and refuses to operate as the invoking
+# user): the fake `git` here fails for the calling user but succeeds via
+# ANIX_ROOT_PATH's copy, exercising stage_config_for_flake()'s run_as_root
+# fallback rather than just the happy path where a single git works for both.
+tmp_anix_untracked_dir="$tmp_ok/anix-untracked-flake"
+tmp_anix_untracked_bin="$tmp_ok/anix-untracked-bin"
+tmp_anix_untracked_rootbin="$tmp_ok/anix-untracked-rootbin"
+mkdir -p "$tmp_anix_untracked_dir" "$tmp_anix_untracked_bin" "$tmp_anix_untracked_rootbin"
+git -C "$tmp_anix_untracked_dir" -c init.defaultBranch=main init >/dev/null
+printf '%s\n' \
+  '{' \
+  '  outputs = { nixpkgs, ... }: {' \
+  '    nixosConfigurations.abora = nixpkgs.lib.nixosSystem { system = "x86_64-linux"; modules = [ ]; };' \
+  '  };' \
+  '}' > "$tmp_anix_untracked_dir/flake.nix"
+printf '%s\n' '{ ... }: { anix.hostname = "tracked"; }' > "$tmp_anix_untracked_dir/anix.nix"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'set -euo pipefail' \
+  'if [[ "${ANIX_FAKE_GIT_NEEDS_ROOT:-0}" == 1 ]]; then' \
+  '  printf "dubious ownership\n" >&2' \
+  '  exit 128' \
+  'fi' \
+  "exec $(command -v git) \"\$@\"" > "$tmp_anix_untracked_bin/git"
+chmod +x "$tmp_anix_untracked_bin/git"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'set -euo pipefail' \
+  "exec $(command -v git) \"\$@\"" > "$tmp_anix_untracked_rootbin/git"
+chmod +x "$tmp_anix_untracked_rootbin/git"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'set -euo pipefail' \
+  'target=""' \
+  'while [[ $# -gt 0 ]]; do' \
+  '  case "$1" in --flake) shift; target="${1%%#*}" ;; esac' \
+  '  shift || true' \
+  'done' \
+  'git -C "$target" ls-files --error-unmatch flake.nix >/dev/null' > "$tmp_anix_untracked_bin/nixos-rebuild"
+chmod +x "$tmp_anix_untracked_bin/nixos-rebuild"
+cp "$tmp_anix_untracked_bin/nixos-rebuild" "$tmp_anix_untracked_rootbin/nixos-rebuild"
+if PATH="$tmp_anix_untracked_bin:$PATH" \
+  ANIX_FAKE_GIT_NEEDS_ROOT=1 \
+  ANIX_ROOT_PATH="$tmp_anix_untracked_rootbin:$PATH" \
+  ANIX_NO_SUDO=1 \
+  ANIX_ASSUME_YES=1 \
+  ANIX_SYSTEM_CONFIG="$tmp_anix_untracked_dir" \
+  ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+  scripts/anix.sh apply >/dev/null 2>&1; then
+  pass "runtime: anix stages untracked flake before apply"
+else
+  fail "runtime: anix stages untracked flake before apply"
+fi
+
+tmp_anix_pkgs_dir="$tmp_ok/anix-pkgs-header"
+tmp_anix_pkgs_bin="$tmp_ok/anix-pkgs-bin"
+mkdir -p "$tmp_anix_pkgs_dir" "$tmp_anix_pkgs_bin"
+printf '%s\n' \
+  '{' \
+  '  outputs = { nixpkgs, ... }: {' \
+  '    nixosConfigurations.abora = nixpkgs.lib.nixosSystem { system = "x86_64-linux"; modules = [ ]; };' \
+  '  };' \
+  '}' > "$tmp_anix_pkgs_dir/flake.nix"
+printf '%s\n' \
+  '{ ... }:' \
+  '{' \
+  '  anix.enable = true;' \
+  '  anix.packages = with pkgs; [ git ];' \
+  '}' > "$tmp_anix_pkgs_dir/anix.nix"
+git -C "$tmp_anix_pkgs_dir" -c init.defaultBranch=main init >/dev/null
+git -C "$tmp_anix_pkgs_dir" -c user.name=ANIX -c user.email=anix@localhost add -A
+git -C "$tmp_anix_pkgs_dir" -c user.name=ANIX -c user.email=anix@localhost commit -m "initial" >/dev/null
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'set -euo pipefail' \
+  'target=""' \
+  'while [[ $# -gt 0 ]]; do' \
+  '  case "$1" in --flake) shift; target="${1%%#*}" ;; esac' \
+  '  shift || true' \
+  'done' \
+  'grep -Eq "^[[:space:]]*\\{[[:space:]]*pkgs,[[:space:]]*\\.\\.\\.[[:space:]]*\\}:" "$target/anix.nix"' > "$tmp_anix_pkgs_bin/nixos-rebuild"
+chmod +x "$tmp_anix_pkgs_bin/nixos-rebuild"
+if PATH="$tmp_anix_pkgs_bin:$PATH" \
+  ANIX_NO_SUDO=1 \
+  ANIX_ASSUME_YES=1 \
+  ANIX_SYSTEM_CONFIG="$tmp_anix_pkgs_dir" \
+  ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+  scripts/anix.sh apply >/dev/null 2>&1; then
+  pass "runtime: anix repairs pkgs module argument before apply"
+else
+  fail "runtime: anix repairs pkgs module argument before apply"
 fi
 
 anix_profiles_output="$(

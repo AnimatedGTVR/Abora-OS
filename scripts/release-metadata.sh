@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 version="$(tr -d '\n' < "$repo_dir/VERSION")"
+release_name="${ABORA_RELEASE_NAME:-Abora OS 2026.7.27}"
 out_dir="${ABORA_OUT_DIR:-$repo_dir/out}"
 iso_dir="${ABORA_ISO_DIR:-$out_dir/iso}"
 package_dir="${ABORA_PACKAGE_DIR:-$out_dir/packages}"
@@ -10,6 +11,7 @@ release_dir="${ABORA_RELEASE_DIR:-$out_dir/release}"
 release_notes_src="$repo_dir/RELEASE_NOTES.md"
 generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 release_date="$(date -u +%Y-%m-%d)"
+release_stamp="${ABORA_RELEASE_STAMP:-$(date -u +%Y.%m.%d)}"
 
 version="$(printf '%s' "$version" | tr -cd '[:alnum:]._-')"
 [[ -n "$version" ]] || version="dev"
@@ -23,7 +25,7 @@ mkdir -p "$release_dir"
 (
     cd "$release_dir"
     shopt -s nullglob
-    iso_files=("$iso_dir"/*-"$version_tag".iso)
+    iso_files=("$iso_dir"/*"$release_stamp"*-x86_64-"$version_tag".iso)
     package_files=(
         "$package_dir"/tinypm-*-abora-"$version_tag".tar.gz
         "$package_dir"/anix-*-abora-"$version_tag".tar.gz
@@ -31,7 +33,7 @@ mkdir -p "$release_dir"
     asset_files=("${iso_files[@]}")
 
     if [ "${#iso_files[@]}" -eq 0 ]; then
-        echo "No ISO files found for version ${version_tag} in: $iso_dir" >&2
+        echo "No ISO files found for ${release_stamp} ${version_tag} in: $iso_dir" >&2
         exit 1
     fi
 
@@ -48,7 +50,7 @@ mkdir -p "$release_dir"
         > "$checksum_file"
 
     {
-        printf 'Abora OS %s release manifest\n' "$version_tag"
+        printf '%s (%s) release manifest\n' "$release_name" "$version_tag"
         printf 'Generated: %s\n' "$generated_at"
         printf '\nAssets\n'
 
@@ -68,7 +70,8 @@ mkdir -p "$release_dir"
     } > "$manifest_file"
 
     {
-        printf '# Abora OS %s\n\n' "$version_tag"
+        printf '# %s\n\n' "$release_name"
+        printf '_Version tag: %s_\n\n' "$version_tag"
         printf '_Release date: %s UTC_\n\n' "$release_date"
         printf '## Downloads\n\n'
 

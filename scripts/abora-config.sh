@@ -20,6 +20,9 @@ wallpaper_dir="${ABORA_WALLPAPER_DIR:-/etc/abora/wallpapers}"
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 run_as_root() {
+    if [[ "${ABORA_NO_SUDO:-0}" == "1" ]]; then
+        "$@"; return
+    fi
     if [[ "$(id -u)" -eq 0 ]]; then
         "$@"; return
     fi
@@ -30,16 +33,141 @@ run_as_root() {
     exit 1
 }
 
+stage_config_for_flake() {
+    if command -v git >/dev/null 2>&1 \
+        && [[ -d "$config_dir" ]] \
+        && run_as_root git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        run_as_root git -C "$config_dir" add -A >/dev/null 2>&1 || true
+    fi
+}
+
 is_options_format() {
     [[ -f "$local_module" ]] && grep -q 'abora\.user\.name' "$local_module" 2>/dev/null
 }
 
+read_legacy_string() {
+    local key="$1"
+    local escaped_key="${key//./\\.}"
+    sed -nE "s|^[[:space:]]*${escaped_key}[[:space:]]*=[[:space:]]*\"([^\"]*)\".*|\\1|p" \
+        "$local_module" | head -n1
+}
+
+detect_legacy_desktop() {
+    if grep -q 'services\.desktopManager\.gnome\.enable[[:space:]]*=[[:space:]]*true' "$local_module"; then
+        printf 'gnome\n'
+    elif grep -q 'services\.desktopManager\.plasma6\.enable[[:space:]]*=[[:space:]]*true' "$local_module"; then
+        printf 'plasma\n'
+    elif grep -q 'services\.desktopManager\.cosmic\.enable[[:space:]]*=[[:space:]]*true' "$local_module"; then
+        printf 'cosmic\n'
+    elif grep -q 'programs\.hyprland\.enable[[:space:]]*=[[:space:]]*true' "$local_module"; then
+        printf 'hyprland\n'
+    else
+        read_legacy_string "system.nixos.variant_id"
+    fi
+}
+
+detect_legacy_gpu() {
+    if grep -q 'services\.xserver\.videoDrivers[[:space:]]*=[^;]*"nvidia"' "$local_module"; then
+        if grep -q 'open[[:space:]]*=[[:space:]]*true' "$local_module"; then
+            printf 'nvidia-open\n'
+        else
+            printf 'nvidia\n'
+        fi
+    elif grep -q 'services\.xserver\.videoDrivers[[:space:]]*=[^;]*"nouveau"' "$local_module"; then
+        printf 'nouveau\n'
+    elif grep -q 'services\.xserver\.videoDrivers[[:space:]]*=[^;]*"amdgpu"' "$local_module"; then
+        printf 'amdgpu\n'
+    elif grep -q 'services\.xserver\.videoDrivers[[:space:]]*=[^;]*"modesetting"' "$local_module"; then
+        printf 'intel\n'
+    else
+        printf 'none\n'
+    fi
+}
+
+# One-time upgrade path: older installs wrote abora-local.nix as raw NixOS
+# options (networking.hostName, services.desktopManager.gnome.enable, ...)
+# instead of the abora.* options module used since. is_options_format()
+# detects which form is on disk (presence of abora.user.name), and this
+# reads the old raw values back out via grep/sed (detect_legacy_desktop/
+# detect_legacy_gpu reverse-engineer desktop/GPU the same way
+# abora_detect_desktop_profile does), then rewrites abora-local.nix in the
+# new form -- backing up the original alongside it first.
+migrate_legacy_config() {
+    require_local_module
+    is_options_format && return 0
+
+    if [[ "$(id -u)" -ne 0 && "${ABORA_NO_SUDO:-0}" != "1" ]]; then
+        run_as_root env ABORA_SYSTEM_CONFIG="$config_dir" ABORA_UI_LIB="$ui_lib" "$0" migrate
+        return 0
+    fi
+
+    local hostname timezone locale kb_console kb_xkb user_name user_hash desktop disk gpu state_ver wallpaper tmp backup
+    hostname="$(read_legacy_string "networking.hostName")"
+    timezone="$(read_legacy_string "time.timeZone")"
+    locale="$(read_legacy_string "i18n.defaultLocale")"
+    kb_console="$(read_legacy_string "console.keyMap")"
+    kb_xkb="$(read_legacy_string "services.xserver.xkb.layout")"
+    user_name="$(sed -nE 's|^[[:space:]]*users\.users\."?([^".{[:space:]]]+)"?[[:space:]]*=[[:space:]]*\{.*|\1|p' "$local_module" | head -n1)"
+    user_hash="$(sed -nE 's|^[[:space:]]*hashedPassword[[:space:]]*=[[:space:]]*"([^"]*)".*|\1|p' "$local_module" | head -n1)"
+    desktop="$(detect_legacy_desktop)"
+    disk="$(read_legacy_string "boot.loader.limine.biosDevice")"
+    gpu="$(detect_legacy_gpu)"
+    state_ver="$(read_legacy_string "system.stateVersion")"
+    wallpaper="titlis-alps.jpg"
+
+    hostname="${hostname:-abora}"
+    timezone="${timezone:-UTC}"
+    locale="${locale:-en_US.UTF-8}"
+    kb_console="${kb_console:-us}"
+    kb_xkb="${kb_xkb:-$kb_console}"
+    user_name="${user_name:-abora}"
+    desktop="${desktop:-cosmic}"
+    disk="${disk:-}"
+    gpu="${gpu:-none}"
+    state_ver="${state_ver:-26.05}"
+
+    backup="${local_module}.legacy.$(date +%Y%m%d%H%M%S)"
+    tmp="$(mktemp "${local_module}.tmp.XXXXXX")"
+    cp "$local_module" "$backup"
+    cat >"$tmp" <<EOF
+{ config, ... }:
+{
+  abora.hostname = "${hostname}";
+  abora.locale = "${locale}";
+  abora.timezone = "${timezone}";
+  abora.keyboard.console = "${kb_console}";
+  abora.keyboard.xkb = "${kb_xkb}";
+  abora.desktop = "${desktop}";
+  abora.wallpaper = "${wallpaper}";
+  abora.gpu = "${gpu}";
+  abora.stateVersion = "${state_ver}";
+  abora.user.name = "${user_name}";
+  abora.user.hashedPassword = "${user_hash}";
+EOF
+    if [[ -n "$disk" ]]; then
+        printf '  abora.disk = "%s";\n' "$disk" >>"$tmp"
+    else
+        printf '  abora.disk = null;\n' >>"$tmp"
+    fi
+    cat >>"$tmp" <<'EOF'
+
+  networking.networkmanager.enable = true;
+  i18n.supportedLocales = [
+    "${config.abora.locale}/UTF-8"
+    "en_US.UTF-8/UTF-8"
+  ];
+  users.users.root.hashedPassword = "!";
+}
+EOF
+    mv "$tmp" "$local_module"
+    chmod 0644 "$local_module"
+    abora_warn "Migrated abora-local.nix to the current format."
+    abora_dim_line "Backup saved at ${backup}"
+}
+
 require_options_format() {
     if ! is_options_format; then
-        abora_error "abora-local.nix uses the legacy format."
-        abora_warn  "Reinstall or migrate to the v2.5 config format to use this command."
-        printf '\n'
-        exit 1
+        migrate_legacy_config
     fi
 }
 
@@ -280,11 +408,13 @@ do_apply() {
     local flake_target="${ABORA_FLAKE_CONFIG_NAME:-abora}"
 
     require_local_module
+    require_options_format
 
     abora_banner "Apply Configuration" "Rebuilding Abora from ${local_module}"
     abora_step "Running nixos-rebuild switch"
     printf '\n'
 
+    stage_config_for_flake
     run_as_root nixos-rebuild switch --flake "${config_dir}#${flake_target}"
 
     printf '\n'
@@ -346,6 +476,9 @@ main() {
             ;;
         apply)
             do_apply
+            ;;
+        migrate)
+            migrate_legacy_config
             ;;
         help | --help | -h)
             usage

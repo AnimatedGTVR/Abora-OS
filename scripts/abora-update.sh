@@ -17,7 +17,11 @@ source "$ui_lib"
 
 config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
 command_name="${ABORA_UPDATE_COMMAND:-$(basename "$0")}"
+# The AboraProject org fallback is intentional (a registered organization
+# the repo may move to), not a stray/untrusted URL — list_release_tags()
+# below tries each of these in order and uses whichever answers first.
 repo_git_url="${ABORA_REPO_GIT_URL:-https://github.com/AnimatedGTVR/abora-os.git}"
+repo_git_fallbacks="${ABORA_REPO_GIT_URLS:-$repo_git_url https://github.com/AnimatedGTVR/Abora-OS.git https://github.com/AboraProject/Abora-OS.git}"
 repo_ref="${ABORA_REPO_REF:-main}"
 upstream_dir="${ABORA_UPSTREAM_DIR:-$config_dir/.abora-upstream}"
 flake_config_name="${ABORA_FLAKE_CONFIG_NAME:-abora}"
@@ -50,6 +54,12 @@ drop_upstream_git_metadata() {
     rm -rf "$upstream_dir/.git"
 }
 
+# Runs on every exit path (success, error, or an early `exit` deep in the
+# script) via the trap below, so temp files/dirs are never leaked and a
+# failed update always ends with a clear statement of what state the system
+# was left in. suppress_update_failure_message lets a caller that already
+# printed its own specific error (e.g. mid-validation) opt out of this
+# generic one.
 on_update_exit() {
     local rc="$1"
     cleanup_update_tmp_files
@@ -105,6 +115,9 @@ installed_version() {
     printf '0'
 }
 
+# Strips a leading "v" and any DEMO/dev/pre/RC suffix, leaving just the
+# dotted numeric version — lets a demo tag like v4.1-DEMO2 be compared
+# against the plain v4.1 final release by version number alone.
 tag_base_version() {
     local tag="${1#v}"
     sed -E 's/^([0-9]+([.][0-9]+)*).*/\1/' <<<"$tag"
@@ -118,6 +131,8 @@ is_demo_release_tag() {
     [[ "$1" =~ ^v[0-9]+([.][0-9]+)*.*(DEMO|[Dd]emo|[Dd]ev|[Pp]re|[Rr][Cc]).*$ ]]
 }
 
+# `sort -V` (version sort) rather than string comparison, so v4.9 correctly
+# sorts before v4.10.
 version_lt() {
     local a="$1" b="$2" first
     [[ "$a" == "$b" ]] && return 1
@@ -125,21 +140,36 @@ version_lt() {
     [[ "$first" == "$a" ]]
 }
 
+# Tries every URL in repo_git_fallbacks in order, returning the first one
+# that answers — ABORA_RELEASE_TAGS lets tests inject a fixed tag list
+# without any network access at all.
 list_release_tags() {
     if [[ -n "${ABORA_RELEASE_TAGS:-}" ]]; then
         printf '%s\n' $ABORA_RELEASE_TAGS
         return
     fi
-    git ls-remote --tags "$repo_git_url" 'refs/tags/v*' 2>/dev/null \
-        | grep -v '\^{}' \
-        | awk '{print $2}' \
-        | sed 's|refs/tags/||'
+    local url
+    for url in $repo_git_fallbacks; do
+        if git ls-remote --tags "$url" 'refs/tags/v*' 2>/dev/null \
+            | grep -v '\^{}' \
+            | awk '{print $2}' \
+            | sed 's|refs/tags/||'; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 latest_tag_from_list() {
     sort -V | tail -n1
 }
 
+# Resolves a channel name + the currently installed version into a single
+# concrete git ref to update to (a tag or "main"), setting effective_ref and
+# a human-readable effective_ref_reason for later display. "stable" is the
+# most involved: prefer the newest final tag that's not older than what's
+# installed, then fall back to a matching demo/dev tag for the same release
+# line, and only fall back to tracking main directly if neither exists yet.
 resolve_update_ref() {
     local channel="$1" current_version="$2" tags final_tag demo_tag older_tag
 
@@ -196,10 +226,12 @@ resolve_update_ref() {
             fi
 
             demo_tag="$(
-                printf '%s\n' "$tags" \
-                    | grep -E '^v[0-9]+([.][0-9]+)*.*(DEMO|[Dd]emo|[Dd]ev|[Pp]re|[Rr][Cc]).*$' \
-                    | awk -v cur="$current_version" 'NF && $0 ~ ("^v" cur) { print }' \
-                    | latest_tag_from_list
+                {
+                    printf '%s\n' "$tags" \
+                        | grep -E '^v[0-9]+([.][0-9]+)*.*(DEMO|[Dd]emo|[Dd]ev|[Pp]re|[Rr][Cc]).*$' \
+                        | awk -v cur="$current_version" 'NF && $0 ~ ("^v" cur) { print }' \
+                        | latest_tag_from_list
+                } || true
             )"
             if [[ -n "$demo_tag" ]]; then
                 effective_ref="$demo_tag"
@@ -209,8 +241,8 @@ resolve_update_ref() {
 
             older_tag="$(printf '%s\n' "$tags" | grep -E '^v[0-9]+([.][0-9]+)*$' | latest_tag_from_list)"
             if [[ -n "$older_tag" ]]; then
-                effective_ref="$older_tag"
-                effective_ref_reason="only older final tag was available; downgrade guard will refuse this without fallback"
+                effective_ref="main"
+                effective_ref_reason="stable channel has no final tag newer than installed version; using main"
                 return 0
             fi
             ;;
@@ -226,6 +258,10 @@ resolve_update_ref() {
     return 1
 }
 
+# A normal `abora update` should never silently move a system backwards
+# (e.g. because a stable tag got deleted/retagged) — only an explicit
+# `abora fallback --release <tag>` (which sets allow_downgrade=1) or
+# tracking main directly is allowed to move to an older version.
 guard_against_accidental_downgrade() {
     local current_version="$1" selected_ref="$2" selected_version
 
@@ -601,6 +637,13 @@ copy_first_existing_upstream_file() {
     return 1
 }
 
+# The update process itself just synced a possibly-newer scripts/abora-update.sh
+# from upstream into $config_dir/abora/update.sh. If that copy now differs
+# from the running script (script_hash_before, captured at the very top of
+# this file), the rest of the update should run under the NEW updater's
+# logic, not the old one still executing in memory — so this re-execs into
+# it exactly once (ABORA_UPDATE_REEXECED guards against a loop) before
+# continuing.
 maybe_reexec_synced_updater() {
     local synced_script="$config_dir/abora/update.sh"
     local script_hash_after=""
@@ -617,6 +660,7 @@ maybe_reexec_synced_updater() {
         ABORA_UPDATE_COMMAND="$command_name" \
         ABORA_SYSTEM_CONFIG="$config_dir" \
         ABORA_REPO_GIT_URL="$repo_git_url" \
+        ABORA_REPO_GIT_URLS="$repo_git_fallbacks" \
         ABORA_REPO_REF="$repo_ref" \
         ABORA_UPSTREAM_DIR="$upstream_dir" \
         ABORA_FLAKE_CONFIG_NAME="$flake_config_name" \
@@ -641,6 +685,12 @@ release_has_anix_languages() {
     ! version_lt "$(tag_base_version "$selected_ref")" "4.0"
 }
 
+# These release_has_*/release_uses_* checks gate which upstream paths get
+# synced (required_upstream_paths below) based on which repo layout the
+# selected tag actually shipped with — older tags predate directories like
+# nix/modules/desktops or files like anix-languages, so unconditionally
+# requiring them would break updates/fallbacks to anything before the
+# version each feature landed in.
 # The uncredited wallpaper set (oceandusk.png/bluehorizon.png/
 # astronautwallpaper.png/glacierreflection.png) was replaced with credited
 # PickPik photos partway through the 4.0 line, after v3.14 was already
@@ -728,6 +778,12 @@ EOF
     fi
 }
 
+# Checks that every path required_upstream_paths() expects for this ref
+# actually exists in the freshly cloned checkout. This guards against a
+# truncated/corrupt clone or a ref whose layout this script doesn't know
+# about yet — it is NOT a cryptographic integrity check (no GPG/checksum
+# verification of the clone happens anywhere in this file); it only proves
+# the expected files are present, not that their contents are untampered.
 validate_upstream_checkout() {
     local checkout_dir="$1"
     local selected_ref="$2"
@@ -753,9 +809,14 @@ validate_upstream_checkout() {
     fi
 }
 
+# Shallow-clones $selected_ref into a sibling temp directory (never directly
+# into $upstream_dir, so a failed/partial clone can't corrupt a previously
+# good checkout), tries every URL in repo_git_fallbacks in turn, validates
+# the result, then atomically replaces $upstream_dir only once validation
+# passes.
 prepare_verified_upstream() {
     local selected_ref="$1"
-    local parent tmp_checkout timestamp
+    local parent tmp_checkout timestamp url cloned_url=""
 
     parent="$(dirname "$upstream_dir")"
     timestamp="$(date +%Y%m%d-%H%M%S)"
@@ -766,11 +827,21 @@ prepare_verified_upstream() {
     rm -rf "$tmp_checkout"
 
     abora_info "Fetching Abora files (${selected_ref}) into a temporary checkout."
-    if ! git clone --depth=1 --branch "$selected_ref" "$repo_git_url" "$tmp_checkout"; then
-        abora_error "Failed to clone ${repo_git_url} at ${selected_ref}."
+    for url in $repo_git_fallbacks; do
+        rm -rf "$tmp_checkout"
+        if git clone --depth=1 --branch "$selected_ref" "$url" "$tmp_checkout"; then
+            cloned_url="$url"
+            break
+        fi
+        abora_warn "Could not clone ${url} at ${selected_ref}; trying the next Abora remote."
+    done
+    if [[ -z "$cloned_url" ]]; then
+        abora_error "Failed to clone Abora OS at ${selected_ref} from every known remote."
+        abora_error "Tried: ${repo_git_fallbacks}"
         abora_error "Check your internet connection, then run: sudo ${command_name:-nixos} update"
         return 1
     fi
+    repo_git_url="$cloned_url"
 
     validate_upstream_checkout "$tmp_checkout" "$selected_ref" || return 1
 
@@ -789,6 +860,10 @@ prepare_verified_upstream() {
 
 # ── File sync ─────────────────────────────────────────────────────────────────
 
+# Update-time counterpart to abora-installer.sh's install_mango_config_asset:
+# keeps mango's config.conf as a real file under $config_dir/abora rather
+# than a reference to an ephemeral /nix/store path, so the installed flake
+# doesn't break when that store path gets garbage-collected.
 install_mango_config_asset() {
     local abora_dir="$config_dir/abora"
     local dest="$abora_dir/mango/config.conf"
@@ -964,6 +1039,14 @@ EOF
 
 # ── Flake layout check ────────────────────────────────────────────────────────
 
+# Checking syntax before ever installing a generated flake.nix over the real
+# one (write_installed_flake below) is what makes that replacement safe to
+# do without a human reviewing it first. The big-lock "Permission denied"
+# case handles running this check as a non-root user during `abora update
+# --check` (read-only path): nix-instantiate/nix eval both need to touch the
+# Nix DB lock even just to parse, so a permission failure there isn't a
+# real syntax problem — fall back to a plain grep for the two attributes
+# every generated flake must have.
 validate_flake_syntax() {
     local file="$1"
     local output=""
@@ -994,6 +1077,10 @@ validate_flake_syntax() {
     fi
 }
 
+# Regenerates flake.nix from scratch into a temp file, validates it, backs
+# up whatever was there before, and only then does the atomic `mv` — an
+# update must never leave the real flake.nix half-written or syntactically
+# broken, since that would brick the very next `nixos-rebuild`/`abora update`.
 write_installed_flake() {
     local flake_file="$config_dir/flake.nix"
     local flake_tmp backup timestamp
@@ -1043,6 +1130,13 @@ EOF
     [[ "$removed" -eq 1 ]] || true
 }
 
+# Detects two symptoms of an older/broken installed layout: leftover
+# references to a live-ISO /nix/store path or a too-deep relative path
+# (both signs of the old mango-config-path bug fixed by
+# rewrite_installed_mango_config_paths), or a flake that no longer evaluates
+# at all. Either one triggers a rewrite of the affected files below so a
+# system installed under an old installer/update version self-heals instead
+# of staying permanently broken.
 repair_flake_layout_if_needed() {
     local flake_file="$config_dir/flake.nix"
     local abora_dir="$config_dir/abora"
@@ -1093,6 +1187,10 @@ ensure_flake_layout() {
     repair_flake_layout_if_needed
 }
 
+# Hidden __test-* entry points let check-scripts.sh exercise these internal
+# functions directly (flake writing, upstream validation, channel/ref
+# resolution, pre-alpha confirmation) without going through the real
+# argument-parsing/re-exec-as-root/network-fetch path below.
 if [[ "${1:-}" == "__test-write-flake" ]]; then
     write_installed_flake
     validate_flake_syntax "$config_dir/flake.nix"
@@ -1201,6 +1299,7 @@ if [[ "$(id -u)" -ne 0 && "$dry_run" -ne 1 ]]; then
         ABORA_UPDATE_COMMAND="$command_name" \
         ABORA_SYSTEM_CONFIG="$config_dir" \
         ABORA_REPO_GIT_URL="$repo_git_url" \
+        ABORA_REPO_GIT_URLS="$repo_git_fallbacks" \
         ABORA_REPO_REF="$repo_ref" \
         ABORA_UPSTREAM_DIR="$upstream_dir" \
         ABORA_FLAKE_CONFIG_NAME="$flake_config_name" \
@@ -1306,13 +1405,7 @@ abora_wu_run "Updating flake inputs" "/tmp/abora-update-flake.log" -- \
     nix --extra-experimental-features "nix-command flakes" flake update --flake "$config_dir" || exit 1
 
 if git -C "$config_dir" rev-parse --git-dir >/dev/null 2>&1; then
-    git -C "$config_dir" add \
-        abora/mango/config.conf \
-        abora/abora-options.nix \
-        abora/installed-base.nix \
-        abora/desktops/mangowm.nix \
-        abora/ \
-        2>/dev/null || true
+    git -C "$config_dir" add -A 2>/dev/null || true
 fi
 
 abora_wu_run "Rebuilding Abora from $config_dir" "/tmp/abora-update-rebuild.log" -- \

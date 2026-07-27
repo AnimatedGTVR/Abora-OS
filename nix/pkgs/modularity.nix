@@ -11,6 +11,14 @@
 , libGL
 }:
 
+# Packages a pre-built proprietary binary (vendor/modularity/bin/Modularity,
+# not source built from here) -- dontBuild/dontConfigure skip Nix's normal
+# build phases entirely, autoPatchelfHook rewrites the binary's dynamic
+# linker/rpath to point at these Nix store paths instead of whatever paths
+# it shipped with, and makeWrapper's --chdir makes the real binary always
+# run with share/modularity/ as its working directory (it expects to find
+# its Resources folder there via a relative path), while still exposing a
+# plain `modularity` command on PATH.
 stdenv.mkDerivation rec {
   pname = "modularity";
   version = "1.0.0";

@@ -60,6 +60,10 @@ done
 unset _args _i
 
 # ── Library loading ────────────────────────────────────────────────────────────
+# Tries, in order: an explicit env-var override (for tests), the repo layout
+# (running from a checkout), then the installed live-ISO layout under
+# /etc/abora — so this same script works unmodified whether it's being run
+# from a git clone or from the actual live image.
 find_lib() {
     local name="$1" extra="${2:-}" candidate
     for candidate in "$extra" "$script_dir/$name" "$script_dir/abora-$name" \
@@ -100,6 +104,10 @@ CY=$'\033[38;5;39m'    # Bright blue  — warnings / notices
 CC=$'\033[38;5;253m'   # Cloud white  — body text
 
 # ── Gum integration ───────────────────────────────────────────────────────────
+# gum (charmbracelet/gum) renders the actual list-picker/text-input widgets
+# used below; every prompt function falls back to a plain read/case-based
+# prompt when gum isn't on PATH, so the installer still runs on a minimal
+# live image that doesn't ship it.
 GUM_BIN=""
 _init_gum() {
     GUM_BIN="$(command -v gum 2>/dev/null || true)"
@@ -337,6 +345,9 @@ safe_keymap()     { [[ "$1" =~ ^[A-Za-z0-9_+.-]+$ ]]; }
 safe_locale()     { [[ "$1" =~ ^[A-Za-z][A-Za-z0-9_.@-]*$ && "$1" == *.* ]]; }
 safe_timezone()   { [[ "$1" =~ ^[A-Za-z0-9_+./-]+$ && "$1" != *..* && "$1" != /* ]]; }
 
+# Accepts a handful of common short/legacy timezone names (typed by a user,
+# or produced by some batch-mode callers) and maps them to real IANA zone
+# names before timezone_exists()/nixos-generate-config ever see them.
 normalize_timezone() {
     local tz="$1"
     tz="${tz//$'\r'/}"
@@ -365,6 +376,10 @@ normalize_timezone() {
     esac
 }
 
+# Checks a timezone name three ways so this works on both the live ISO
+# (zoneinfo files present but timedatectl may be unavailable) and other
+# environments (a chroot with only timedatectl reachable): a zoneinfo file
+# on disk, or a match against `timedatectl list-timezones`.
 timezone_exists() {
     local tz="$1" base
     tz="$(normalize_timezone "$tz")"
@@ -379,12 +394,21 @@ timezone_exists() {
     return 1
 }
 
+# SHA-512 crypt hash (openssl passwd -6) — the format NixOS's
+# users.users.<name>.hashedPassword expects, so the plaintext password
+# never gets written into the generated config.
 hash_password() {
     local password="$1"
     command -v openssl >/dev/null 2>&1 || return 1
     openssl passwd -6 -stdin <<<"$password"
 }
 
+# Escapes a value for safe interpolation into a Nix double-quoted string
+# literal: backslash and '"' are the two characters that would otherwise let
+# the value break out of the string, and '$' must be escaped so Nix doesn't
+# treat "${...}" as antiquotation. Newlines are stripped rather than escaped
+# since none of this installer's string fields (hostname, username, etc.)
+# are legitimately multi-line.
 nix_string() {
     local value="$1"
     value="${value//\\/\\\\}"
@@ -534,6 +558,10 @@ net_connected() {
     return 1
 }
 
+# ABORA_ALLOW_OFFLINE_INSTALL=1 is the documented escape hatch for offline
+# installs — it forces this check to pass so an unreachable binary cache
+# never blocks an install that can be satisfied entirely from packages
+# already present on the ISO (see check_install_environment's use of this).
 cache_reachable() {
     [[ "${ABORA_ALLOW_OFFLINE_INSTALL:-0}" == "1" ]] && return 0
     if command -v curl >/dev/null 2>&1; then
@@ -1345,6 +1373,10 @@ step_confirm() {
 #  INSTALL ENGINE  (unchanged from working version)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# nvme/mmcblk/loop devices number their partitions as <disk>p<N> (e.g.
+# nvme0n1p2), while sd*/vd*/hd* disks are just <disk><N> (sda2) — this
+# suffix is what lets efi_part/root_part below be built generically for
+# either naming scheme.
 disk_part_suffix() {
     case "$disk" in *nvme*|*mmcblk*|*loop*) printf 'p' ;; *) printf '' ;; esac
 }
@@ -1353,6 +1385,9 @@ log_install_step() {
     printf '[installer] %s\n' "$*" >>"$install_log"
 }
 
+# GPT layout: a 1MiB BIOS-boot partition (for Limine's legacy-BIOS path),
+# a FAT32 ESP (UEFI), and the rest as the ext4 root — the same disk boots
+# either BIOS or UEFI without needing to know which at partition time.
 partition_disk() {
     log_install_step "partition_disk: start disk=${disk}"
     if [[ -z "$disk" || ! -b "$disk" ]]; then
@@ -1510,6 +1545,13 @@ EOF
     done
 }
 
+# Copies mango's config.conf into the installed /etc/nixos tree itself
+# (rather than referencing it from the live ISO's /nix/store) so the
+# installed flake stays self-contained: a store path from the live ISO's
+# build is a temporary GC root that can vanish, so the installed config must
+# never reference it. rewrite_installed_mango_config_paths() below then
+# patches any Nix files that got copied from the ISO already pointing at
+# that store path, redirecting them to this local copy instead.
 install_mango_config_asset() {
     local root="${1:-/mnt}"
     local dest="${root}/etc/nixos/abora/mango/config.conf"
@@ -1656,6 +1698,13 @@ write_branding_assets() {
     fi
 }
 
+# Writes the installed system's entire /etc/nixos tree: hardware-configuration.nix
+# (via nixos-generate-config), the branding/asset copy, and four hand-written
+# files — anix.nix (optional), configuration.nix (the import list),
+# abora-local.nix (the plain NixOS-option form of every installer choice —
+# this is what `abora config` reads/edits later), and flake.nix. Every
+# user-supplied string goes through nix_string() first since these are all
+# double-quoted Nix string literals.
 generate_nixos_config() {
     local root="${1:-/mnt}"
     local cfgdir="${root}/etc/nixos"
@@ -1807,6 +1856,10 @@ resolve_nixpkgs() {
     return 1
 }
 
+# Sanity check that nixos-install actually produced a bootable ESP —
+# either a generic UEFI fallback (BOOTX64.EFI) or a Limine EFI/BIOS binary —
+# before declaring the install a success. A missing bootloader here means a
+# silent, unbootable install, which is worse than failing loudly now.
 validate_boot() {
     [[ -f /mnt/boot/EFI/BOOT/BOOTX64.EFI ]] && return 0
     find /mnt/boot -maxdepth 3 \
@@ -1815,6 +1868,12 @@ validate_boot() {
     die "Bootloader not found after nixos-install. See ${install_log}."
 }
 
+# Limine's config uses indentation-as-nesting ("/"-prefixed lines whose
+# leading-slash count is the nesting depth) instead of a structured format,
+# so finding "the first actual bootable entry" means walking that nesting
+# by hand: tracks a stack of titles by depth, and an entry only counts once
+# it's seen both a recognized `protocol:` and a `kernel_path:`/`path:` line
+# at the same nesting level (a bare submenu heading is not itself bootable).
 limine_first_bootable_entry() {
     local conf="$1"
     awk '
@@ -1874,6 +1933,12 @@ limine_first_bootable_entry() {
     ' "$conf"
 }
 
+# NixOS's Limine generator doesn't always set default_entry to something
+# that will actually boot unattended (nested submenus, multiple stanzas),
+# so this pins default_entry to the first real bootable entry found above,
+# sets a short timeout, and disables the config editor — a fresh install
+# should reach a login prompt on its own without the user ever seeing (or
+# needing to touch) the boot menu.
 repair_limine_boot_menu() {
     local root="${1:-/mnt}"
     local conf="${root}/boot/limine/limine.conf"
@@ -2149,6 +2214,10 @@ file_size() {
     stat -c '%s' "$file" 2>/dev/null || wc -c < "$file" 2>/dev/null || printf '0'
 }
 
+# nixos-install gives no structured progress output, just a raw build log,
+# so this guesses a human-readable stage by pattern-matching the last few
+# lines — purely cosmetic (drives the "Status" line in draw_install_status),
+# never affects whether the install itself succeeds or fails.
 detect_install_activity() {
     local file="$1"
     [[ -s "$file" ]] || {
@@ -2234,6 +2303,12 @@ draw_install_status() {
     printf '  %bNix can sit on one build step for many minutes in a VM. If Log age keeps resetting, it is still alive.%b\n' "${D}${CG}" "$R"
 }
 
+# Runs a long-lived install command in the background and redraws a status
+# panel every 2s while it's alive. Distinguishes "quiet but still working"
+# from "actually stuck" by tracking the install log's file size rather than
+# just wall-clock elapsed time — Nix can legitimately sit on one derivation
+# for many minutes, so only genuine log silence (idle_timeout, 30 min) or an
+# absolute cap (hard_timeout, 90 min) ever kills the command.
 run_with_log_panel() {
     local percent="$1" stage="$2"
     shift 2
@@ -2441,6 +2516,13 @@ page_done() {
 # ═══════════════════════════════════════════════════════════════════════════════
 #  RECONFIG MODE
 # ═══════════════════════════════════════════════════════════════════════════════
+# Entered via `abora-install --reconfig` on an already-installed system (see
+# `abora setup`) — reuses the same step_* wizard pages to collect new values,
+# but instead of partitioning/nixos-install, run_reconfig() patches the
+# existing abora-local.nix/anix.nix in place with sed and runs
+# `nixos-rebuild switch`. read_current_config()/read_anix_config() seed the
+# wizard's fields from what's already on disk so unfilled fields don't
+# revert to installer defaults.
 
 read_current_config() {
     local f="/etc/nixos/abora-local.nix"

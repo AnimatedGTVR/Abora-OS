@@ -1,6 +1,6 @@
-# Abora OS EVEREST 4.1 (in progress)
+# Abora OS 2026.7.27 Changelog
 
-Guided installer overhaul and the first two graphical system tools, built on top of EVEREST 4.0.
+Release-day polish for Abora OS 2026.7.27: the MINT installer, graphical system tools, ANIX v2, TinyPM v4, update checks, and multi-edition desktop support.
 
 ## Installer
 
@@ -18,9 +18,9 @@ Guided installer overhaul and the first two graphical system tools, built on top
 
 ---
 
-# Abora OS EVEREST 4.0 Changelog
+# Abora OS v4 Foundation
 
-EVEREST 4.0 is the multi-edition release: five ready-made ISOs, a second-generation ANIX with pluggable configuration languages, and real GPU driver support.
+Abora OS 2026.7.27 is the multi-edition release: five ready-made ISOs, a second-generation ANIX with pluggable configuration languages, and real GPU driver support.
 
 ## Multi-Edition ISOs
 

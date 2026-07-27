@@ -1,8 +1,8 @@
 # Abora OS Roadmap
 
-This roadmap tracks the current Abora direction after EVEREST 4.0 and the in-progress MINT/graphical-tools work toward the next release.
+This roadmap tracks the current Abora direction after Abora OS 2026.7.27 and the in-progress MINT/graphical-tools work toward the next release.
 
-## EVEREST 4.0 Delivered
+## Abora OS 2026.7.27 Delivered
 
 - five edition ISOs (Cosmic, Hyprland, GNOME, KDE, Other), each defaulting to a different desktop while still installing the full 23-profile matrix
 - first-class GPU driver selection (`abora.gpu`: nouveau, nvidia, nvidia-open, amdgpu, intel, none), detected via `lspci` at install time

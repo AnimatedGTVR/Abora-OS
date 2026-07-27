@@ -224,6 +224,12 @@ abora_sync_desktop_label() {
     esac
 }
 
+# Reverse-engineers which desktop profile is currently active by grepping an
+# existing generated Nix config file for that desktop's telltale enable
+# line, since there's no single "abora.desktop" value stored anywhere on an
+# older/mid-migration system to just read back directly. Order matters: more
+# specific checks (e.g. hyprland's defaultSession) must come before generic
+# ones so two profiles that both set similar-looking options can't collide.
 abora_detect_desktop_profile() {
     local file="$1"
 
@@ -781,6 +787,11 @@ EOF
     esac
 }
 
+# Deliberately separate from abora_desktop_config_block above: this only
+# ever emits package names for `environment.systemPackages`'s package list,
+# never a NixOS option/service line. check-scripts.sh asserts the config
+# block contains no `environment.systemPackages` precisely so the two can't
+# get mixed together by a future edit.
 abora_desktop_package_block() {
     case "$1" in
         gnome)

@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Builds a standalone ANIX tarball for non-NixOS/non-Abora users: a
+# self-contained bin/+share/ tree with its own install.sh, so `anix` and its
+# docs/languages/TinyPM bundle work outside the Abora ISO entirely (the
+# generated bin/anix wrapper below sets ANIX_* env vars pointing at the
+# bundled share/anix/ paths instead of relying on /etc/abora).
 repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 out_dir="${ABORA_OUT_DIR:-$repo_dir/out}"
 package_dir="${ABORA_PACKAGE_DIR:-$out_dir/packages}"
