@@ -1,187 +1,65 @@
-# Abora OS 2026.7.27 Changelog
+# Abora OS EVEREST 4.0
 
-Release-day polish for Abora OS 2026.7.27: the MINT installer, graphical system tools, ANIX v2, TinyPM v4, update checks, and multi-edition desktop support.
+## Screenshots
 
-## Installer
+![Abora Welcome on GNOME](assets/Images/v4/screenshot-2026-07-27_03-54-02.png)
+![Abora System Settings](assets/Images/v4/screenshot-2026-07-27_03-56-03.png)
+![fastfetch on GNOME](assets/Images/v4/screenshot-2026-07-27_03-58-15.png)
+![fastfetch on COSMIC](assets/Images/v4/screenshot-2026-07-27_05-32-15.png)
 
-- The default guided installer is now **MINT**, a Go/Bubble Tea front-end that hands the confirmed install plan to the existing bash installer as its backend — `abora-installer` (the bash-only flow) is still there if you want it, now reachable via `abora-install --batch`
-- Every installer screen can be backed out of with `Esc` or a `← Back` list entry, previous answers preserved, instead of the old one-way linear flow
-- "Step X of Y" progress indicator on every screen
-- Timezone selection is now region-first (Americas, Europe, Africa, Asia, Australia & Oceania, UTC), then a fuzzy-searchable list of the real IANA zones in that region — states/regions with more than one zone (Indiana's eight, for example) all show up individually instead of just one
-- `abora update --check` — see whether an update is available without installing it
+## What's New?
 
-## New: Graphical Tools
+Big one this time. 5 editions now instead of one giant ISO, real GPU driver picking so you're not stuck guessing what your NVIDIA card wants, and ANIX can finally read config written in something other than its own language (MKO or ModuCPP if you're into that). Also shipped our first two actual GUI apps, welcome screen and a settings editor, both just thin wrappers over the CLI so you're never locked into clicking buttons.
 
-- `abora welcome-gui` — status card (desktop, wallpaper, update channel, Flathub), update check/install, and the same quick actions as `abora welcome`. Opens once automatically on first desktop login, always reachable afterward
-- `abora config-gui` — graphical settings editor for hostname, timezone, keyboard, desktop, wallpaper, and GPU driver; thin front-end over `abora config`, so nothing it does is GUI-exclusive
-- Both are GTK4/libadwaita apps that force a light theme by default
+Also quietly fixed a Wi-Fi bug that's been breaking installs on some laptops, a disk-safety issue in the installer, and a couple ANIX bugs that were more serious than they looked. Details below.
 
----
+## Changelog:
 
-# Abora OS v4 Foundation
+**Multi-edition ISOs**
+- 5 editions now: Cosmic, Hyprland, GNOME, KDE, and Other (console-first, all 23 desktops available at install)
+- every edition still has the full desktop matrix, the edition just picks what the live session boots into by default
+- `make iso-all` builds all of them at once
 
-Abora OS 2026.7.27 is the multi-edition release: five ready-made ISOs, a second-generation ANIX with pluggable configuration languages, and real GPU driver support.
+**GPU driver support**
+- new `abora.gpu` option: nouveau, nvidia, nvidia-open, amdgpu, intel, or none
+- installer checks your GPU with lspci and picks sane defaults, NVIDIA cards default to nouveau (no license popup, just works)
+- change it later with `abora config set gpu nvidia && abora config apply`
 
-## Multi-Edition ISOs
+**ANIX v2**
+- configs can be written in ANIX Native, MKO, or ModuCPP now, all get turned into the same plan under the hood
+- `anix language list` / `anix run` / `anix diff-plan` / `anix apply-plan`
+- diff-plan tells you ADD/CHANGE/SAME per setting before you touch anything, no matter which language you wrote it in
 
-- Five editions, each defaulting to a different desktop: Cosmic, Hyprland, GNOME, KDE, and Other (console-first, pick from all 23 profiles)
-- Every edition still installs the full desktop matrix — the edition only decides the live session's default
-- `make iso-all` builds every edition for release validation
+**First GUI apps**
+- `abora welcome-gui` — status card + update check + the same quick actions as the terminal version, opens once on first login
+- `abora config-gui` — settings editor for hostname, timezone, keyboard, desktop, wallpaper, GPU
+- both just call the existing CLI scripts, nothing GUI-only
+- `abora update --check` if you just want to know if there's an update without installing it
 
-## GPU Driver Support
+**Carried over from 3.14**
+- 23 desktops, 7 starter app bundles, TinyPM v4, the TUI installer, Limine + Plymouth, NetworkManager/Bluetooth/firmware stuff, Flathub auto-added on first boot
 
-- New `abora.gpu` option: `nouveau`, `nvidia`, `nvidia-open`, `amdgpu`, `intel`, or `none`
-- Installer detects your GPU vendor via `lspci`; NVIDIA hardware defaults to the license-free `nouveau` driver, with proprietary `nvidia`/`nvidia-open` as explicit opt-ins
-- Change anytime: `abora config set gpu nvidia && abora config apply`
-- `abora-hardware-test` points at the GPU step when it detects NVIDIA hardware
+**Fixes since release**
+- live ISO Wi-Fi: a setting was quietly blocking wpa_supplicant from ever registering over D-Bus, some cards would just sit at "unavailable" forever. installed systems were never affected, just the live/installer environment
+- installer won't let you pick the boot USB itself as the install target anymore
+- `anix package remove` actually removes packages now (the regex was broken, it was silently a no-op)
+- every anix set/apply-plan/run is atomic now, either the whole plan lands or none of it does
+- fixed a leftover `denali` codename showing up in `/etc/os-release` on 4.0 builds, says everest now
 
-## ANIX v2 — Pluggable Configuration Languages
+## 3.14
 
-- Configs can now be written in ANIX Native (`.anix`), MKO (`.mko`, the MAKO project's language), or ModuCPP (`.moducpp`)
-- Every adapter resolves to the same Plan JSON, applied as one transaction
-- `anix language list` / `anix language use` / `anix run` / `anix diff-plan` / `anix validate-plan` / `anix apply-plan`
-- `anix diff-plan` labels each setting ADD, CHANGE, or SAME before you apply anything, regardless of source language
+Abora DENALI 3.14 was the installer/identity/tooling release. Still the foundation everything above builds on:
 
-## Carried Forward From DENALI 3.14
+- the Omarchy-style TUI installer with the boxed UI
+- config gets validated before nixos-install runs
+- Abora branding everywhere (bootloader, Plymouth, wallpapers, fastfetch)
+- ANIX v1 (snapshots, diff/test/boot/switch/rollback)
+- TinyPM v4
+- 23 desktops selectable at install, COSMIC and MangoWM both added this release
+- desktop matrix gets checked in CI so we don't ship a broken profile
 
-- 23 desktop environments, evaluated in CI via `make check-desktops`
-- 7 starter app bundles at install time
-- TinyPM v4 app layer (`grab`, `tinypm sources`, `tinypm system`, `tinypm repair`)
-- Omarchy-inspired TUI installer, Limine bootloader, Plymouth splash, Abora wallpaper pack
-- NetworkManager, Bluetooth, ModemManager, redistributable firmware, Intel/AMD microcode
-- Flathub added automatically on first boot
+## Other
 
----
-
-# Abora OS DENALI 3.1.4 Changelog
-
-Abora DENALI 3.1.4 is the installer, identity, and tooling release.
-
-## Installer
-
-- Rebuilt around an Omarchy-inspired TUI: large Abora wordmark, compact boxed UI, numbered menus
-- Live install progress with log panel and elapsed timer
-- Config validation runs before `nixos-install` — bad configs fail early
-- Failed installs drop to a live shell with `/tmp/abora-install.log`
-- Bootloader verified before declaring success
-- QEMU install auto-powers off and guides users to boot with `make qemu-disk`
-
-## Developer Tools
-
-- Modularity game engine editor added to the Developer app bundle
-- Available via `grab modularity` or selectable at install time in the Developer bundle
-- Backed by a custom Nix derivation with bundled PhysX, Vulkan, and Mono support
-
-## Desktops
-
-- 22 desktop environments selectable at install time
-- COSMIC Desktop added to the supported matrix
-- MangoWM added — lightweight Wayland compositor (dwm-style, wlroots-based)
-- Desktop profile matrix fully evaluated in CI with `make check-desktops`
-- Dark-first defaults and Abora wallpapers applied across all sessions
-
-## Branding
-
-- Abora wordmark in the installer header
-- Limine bootloader with Abora branding on installed systems
-- Plymouth splash theme
-- Abora wallpaper pack: Mountain Day/Night, Ocean Dusk, Blue Horizon, Astronaut, Glacier Reflection
-- Fastfetch with Abora logo on first shell open
-- Papirus Dark icon defaults
-- zsh with Spaceship prompt
-
-## ANIX v1
-
-- `anix status` — profile, generation, and snapshot state
-- `anix quickstart` — first-run init and setup
-- `anix profiles` / `anix generations` — see what is available
-- `anix diff nix <profile>` — preview changes before applying
-- `anix test nix <profile>` — temp-activate a profile
-- `anix boot nix <profile>` — queue for next boot
-- `anix switch nix <profile>` — apply now
-- `anix rollback nix` — roll back a generation
-- `anix save` — local Git snapshot of `/etc/nixos`
-- `anix doctor` / `anix doctor --fix` — health checks and auto-repair
-- `anix set` / `anix apply` — friendly config edits without touching Nix
-- `anix --gui` — graphical helper via zenity
-
-## TinyPM v4
-
-- First-class Abora, ANIX, and NixOS awareness
-- `tinypm sources` — show native/Flatpak/Snap availability
-- `tinypm system` — Abora/NixOS/ANIX bridge status
-- `tinypm repair` — repair-focused doctor checks
-- `tinypm anix <command>` / `tinypm abora <command>` — forward to ANIX or Abora
-- Portable relative symlinks — no machine-local absolute paths
-
-## System
-
-- NetworkManager on in the live image with radio unblock at boot
-- Bluetooth, ModemManager, and Blueman ready before install
-- Redistributable firmware, Intel/AMD microcode, and common Wi-Fi/Ethernet/BT drivers included
-- Flathub added automatically on first boot
-- `sudo nixos update` / `rollback` / `update` / `upgrade` aliases on installed systems
-- `abora config set` / `abora config apply` — change settings without editing Nix
-
-## Testing
-
-- `make check` — script syntax, executability, runtime ANIX behaviors
-- `make check-desktops` — all desktop profiles evaluated against nixpkgs
-- `make qemu-fresh` — clean install test
-- `make qemu-disk` — installed system boot test
-
----
-
-# Abora OS v2.5.0 Changelog
-
-Abora v2.5 is a quality-of-life release focused on making the installed system easier to manage.
-
-## New
-
-- Added `abora welcome` for first-step status and quick actions.
-- Added `abora doctor` to check Abora system health.
-- Added `abora recovery` for rollback, rebuild, Flathub repair, and support reports.
-- Added `abora desktop list` and `abora desktop set <profile>`.
-- Added a top-level `abora` command router.
-- Added a one-time first-shell welcome status after install.
-- Added `make preflight` for release checks.
-
-## ANIX
-
-- Added profile switching:
-  ```sh
-  anix switch nix gaming
-  ```
-- Added rollback helpers:
-  ```sh
-  anix rollback nix
-  anix rollback nix minimal
-  ```
-- Added local snapshots:
-  ```sh
-  anix save
-  ```
-- Added `anix doctor`.
-- Added named flake profiles: `stable`, `minimal`, `gaming`, `creator`, `developer`.
-- Snapshots stay local by default.
-- ANIX warns before saving files that look like they may contain secrets.
-
-## Apps
-
-- App catalog is now 53 apps across 6 categories.
-- New Gaming category: Steam, Lutris, Heroic, Bottles, MangoHud, GameMode.
-- New System category: GParted, Disks, Timeshift, Flameshot, btop, Mission Center.
-- Added more picks like Chromium, Bitwarden, Discord, Slack, Zoom, RawTherapee, Zed, tmux, Alacritty, Ghostty, Lazygit, and Docker.
-
-## System
-
-- Flatpak is enabled by default.
-- Flathub is added automatically on first boot when networking is available.
-- Updates can track `stable` or `unstable`.
-- Updates now offer to save an ANIX snapshot before rebuilding.
-- Abora tools now share the same terminal UI style.
-
-## Testing
-
-- Run `make preflight` before release.
-- Hardware testing should cover `abora welcome`, `abora doctor`, `abora recovery`, `abora desktop`, `anix switch`, and `anix rollback`.
+- MINT (the Go/Bubble Tea installer front-end) is built but not wired up as the default yet, that's on hold for now
+- if you hit an install issue, `abora-support-report` or `abora-hardware-test --with-report` before asking, saves everyone time
+- as always, `stable` channel tracks tagged releases, `unstable` tracks main if you like living dangerously

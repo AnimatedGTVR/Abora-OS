@@ -47,6 +47,19 @@
 
 ---
 
+## Screenshots
+
+<div align="center">
+
+<img src="/assets/Images/v4/screenshot-2026-07-27_03-54-02.png" width="410" alt="Abora Welcome on GNOME">
+<img src="/assets/Images/v4/screenshot-2026-07-27_03-56-03.png" width="410" alt="Abora System Settings">
+<img src="/assets/Images/v4/screenshot-2026-07-27_03-58-15.png" width="410" alt="fastfetch on GNOME">
+<img src="/assets/Images/v4/screenshot-2026-07-27_05-32-15.png" width="410" alt="fastfetch on COSMIC">
+
+</div>
+
+---
+
 ## What is Abora OS?
 
 Abora OS is a Linux distribution based on NixOS.
@@ -59,11 +72,11 @@ Abora is built for people who want a powerful Linux system without fighting the 
 
 ## Release Lines
 
+Abora ships on two branches, same idea as NixOS's stable/unstable split.
+
 ### Stable
 
-Stable is for regular installs and daily use.
-
-It uses normal version numbers like:
+The tagged, tested releases. Version numbers like:
 
 ```txt
 2.5
@@ -72,19 +85,19 @@ It uses normal version numbers like:
 4.0
 ```
 
-Stable gets tested changes and is the safer choice for most users.
+This is what `abora update` tracks by default, and what most people should be running.
 
 ### Edge
 
-Edge is the faster-moving line.
+Tracks `main` directly, no waiting for a tag. Same deal as `nixos-unstable`: newest installer work, desktop changes, ANIX changes, and fixes land here first, before anything's been fully vetted. Things can and do break.
 
-It gets newer changes first, including installer updates, desktop changes, ANIX work, fixes, and early Abora development.
+Switch to it with:
 
-Edge uses date-based version IDs like:
-
-```txt
-2026.07.01
+```sh
+sudo abora channel set unstable
 ```
+
+Go back to stable the same way (`sudo abora channel set stable`) whenever you've had enough.
 
 ---
 
