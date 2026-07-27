@@ -8,9 +8,9 @@ Abora OS is a distro project built on top of NixOS with a focus on a simpler fir
 
 Abora is still NixOS-based, but it adds its own live image flow, installer experience, branding, update path, desktop profiles, support tools, ANIX workflows, and TinyPM-flavored app commands.
 
-## What is EVEREST 4.0?
+## What is Abora OS 2026.7.27?
 
-EVEREST 4.0 is the current stable release. It shipped multi-edition ISOs, ANIX v2 with pluggable configuration languages, and first-class GPU driver support, on top of everything DENALI 3.14 introduced.
+Abora OS 2026.7.27 is the current stable release. It shipped multi-edition ISOs, ANIX v2 with pluggable configuration languages, and first-class GPU driver support, on top of everything DENALI 3.14 introduced.
 
 Key additions over DENALI 3.14:
 
@@ -71,6 +71,45 @@ sudo abora install pre-alpha
 ```
 
 You must type `I ACCEPT THE RISK` exactly. This is a one-shot install path and does not save the system update channel as pre-alpha.
+
+## How do I get a shell on the live ISO for troubleshooting?
+
+Pick **Live shell** from the installer's first screen (instead of **Install
+Abora OS**) — it drops to a root prompt on `tty1` with no login needed, and
+`abora-install` relaunches the installer from there. If you switch to another
+console (`tty2`–`tty6`) instead, log in as `aboraos` with a blank password, or
+`root` with password `linux` as a fallback. See [Installation](Installation.md#getting-a-shell-for-diagnostics).
+
+## Wi-Fi shows as "unavailable" in nmtui/nmcli during install — what do I do?
+
+If `nmcli device status` shows your Wi-Fi device (e.g. `wlp1s0`) stuck at
+`unavailable` — not `disconnected` — even though the card and driver loaded
+fine (check `dmesg | grep -i iwlwifi` for firmware load messages), check
+`journalctl -u NetworkManager -b --no-pager` for:
+
+```text
+Couldn't initialize supplicant interface: Failed to D-Bus activate wpa_supplicant service
+```
+
+This means NetworkManager can see and initialize the card but can't hand it
+off to `wpa_supplicant` at all — it's a networking-config bug in older live
+ISOs (fixed in `nix/profiles/live.nix` going forward), not a hardware or
+driver problem, and it isn't rfkill (check `rfkill list all` to rule that out
+too, but this specific error means rfkill isn't the cause).
+
+From a [live shell](#how-do-i-get-a-shell-on-the-live-iso-for-troubleshooting),
+start `wpa_supplicant` manually in the same D-Bus-controlled mode NixOS
+would otherwise configure automatically:
+
+```sh
+sudo mkdir -p /run/wpa_supplicant
+sudo wpa_supplicant -u -s -O /run/wpa_supplicant -B
+nmcli device status
+```
+
+The device should flip to `disconnected`. Run `abora-install` to relaunch
+the installer and continue normally from there — `nmtui` and the network
+step will work as expected.
 
 ## How do I build the ISO?
 

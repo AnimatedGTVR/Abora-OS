@@ -140,3 +140,11 @@ If the installer failed, also keep:
 - `/tmp/abora-install.log`
 
 Attach the generated `abora-support-*.tar.gz` archive to your report when possible.
+
+If Wi-Fi shows `unavailable` in `nmcli device status` (not `disconnected`)
+even though `dmesg | grep -i iwlwifi` shows the driver/firmware loading fine,
+check `journalctl -u NetworkManager -b` for a `Failed to D-Bus activate
+wpa_supplicant service` error before assuming it's a driver or rfkill issue —
+see the FAQ entry ["Wi-Fi shows as
+'unavailable'"](wiki/FAQ.md#wi-fi-shows-as-unavailable-in-nmtuinmcli-during-install--what-do-i-do)
+for the live workaround.

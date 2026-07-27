@@ -96,9 +96,7 @@ let
       ${pkgs.bashInteractive}/bin/bash /etc/abora/installer.sh "$@"
   '';
   aboraSetup = pkgs.writeShellScriptBin "abora-setup" ''
-    exec env ABORA_INSTALLER=/etc/abora/installer.sh \
-      ABORA_SETUP_MODE=install \
-      ${pkgs.bashInteractive}/bin/bash /etc/abora/setup-launcher.sh "$@"
+    exec ${aboraInstall}/bin/abora-install "$@"
   '';
   aboraSetupDesktopPkg = pkgs.runCommandLocal "abora-setup-desktop" { } ''
     mkdir -p "$out/share/applications"
@@ -140,6 +138,15 @@ let
   wallpaperDir = ../../assets/wallpapers/collection;
   wallpaperThemeDir = ../../assets/wallpaper-themes;
   tinypmDir = ../../vendor/tinypm;
+  mintPackage = pkgs.buildGoModule {
+    pname = "mint";
+    version = version;
+    src = ../../vendor/mint;
+    vendorHash = null;
+    postInstall = ''
+      mv "$out/bin/MINT" "$out/bin/mint"
+    '';
+  };
   aboraInstallerGui =
     let
       python = pkgs.python3.withPackages (ps: with ps; [ pygobject3 ]);
@@ -161,6 +168,42 @@ let
       export GSK_RENDERER="''${GSK_RENDERER:-cairo}"
       export GDK_BACKEND="''${GDK_BACKEND:-wayland,x11}"
       exec ${python}/bin/python3 /etc/abora/installer-gui.py "$@"
+    '';
+  aboraWelcomeGui =
+    let
+      python = pkgs.python3.withPackages (ps: with ps; [ pygobject3 ]);
+      giPath = lib.makeSearchPath "lib/girepository-1.0" (with pkgs; [
+        gtk4 libadwaita glib gdk-pixbuf (lib.getLib pango) harfbuzz graphene cairo gobject-introspection
+      ]);
+      libPath = lib.makeLibraryPath (with pkgs; [
+        gtk4 libadwaita glib gdk-pixbuf cairo
+      ]);
+    in
+    pkgs.writeShellScriptBin "abora-welcome-gui" ''
+      export GI_TYPELIB_PATH="${giPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+      export LD_LIBRARY_PATH="${libPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      export ABORA_UPDATE_SCRIPT="''${ABORA_UPDATE_SCRIPT:-/etc/abora/update.sh}"
+      export GSK_RENDERER="''${GSK_RENDERER:-cairo}"
+      export GDK_BACKEND="''${GDK_BACKEND:-wayland,x11}"
+      exec ${python}/bin/python3 /etc/abora/welcome-gui.py "$@"
+    '';
+  aboraConfigGui =
+    let
+      python = pkgs.python3.withPackages (ps: with ps; [ pygobject3 ]);
+      giPath = lib.makeSearchPath "lib/girepository-1.0" (with pkgs; [
+        gtk4 libadwaita glib gdk-pixbuf (lib.getLib pango) harfbuzz graphene cairo gobject-introspection
+      ]);
+      libPath = lib.makeLibraryPath (with pkgs; [
+        gtk4 libadwaita glib gdk-pixbuf cairo
+      ]);
+    in
+    pkgs.writeShellScriptBin "abora-config-gui" ''
+      export GI_TYPELIB_PATH="${giPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+      export LD_LIBRARY_PATH="${libPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      export ABORA_CONFIG_SCRIPT="''${ABORA_CONFIG_SCRIPT:-/etc/abora/config.sh}"
+      export GSK_RENDERER="''${GSK_RENDERER:-cairo}"
+      export GDK_BACKEND="''${GDK_BACKEND:-wayland,x11}"
+      exec ${python}/bin/python3 /etc/abora/config-gui.py "$@"
     '';
   aboraWallpapersPackage = pkgs.runCommandLocal "abora-wallpapers" { } ''
     mkdir -p "$out/share/backgrounds/abora" "$out/share/abora/themes" "$out/share/gnome-background-properties"
@@ -228,14 +271,38 @@ let
     EOF
   '';
   mkGrabCmd = name: pkgs.writeShellScriptBin name ''
-    exec env TINYPM_FLAVOR=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/tinypm/${name} "$@"
+    runtime=/etc/abora/tinypm
+    entry="$runtime/bin/${name}"
+    if [ ! -x "$entry" ]; then
+      entry="$runtime/${name}"
+    fi
+    if [ ! -x "$entry" ]; then
+      case "${name}" in
+        Parcel|version)
+          exec env TINYPM_FLAVOR=abora ${pkgs.bashInteractive}/bin/bash "$runtime/bin/tinypm" version "$@"
+          ;;
+        *)
+          exec env TINYPM_FLAVOR=abora TINYPM_ENTRYPOINT=${name} ${pkgs.bashInteractive}/bin/bash "$runtime/bin/tinypm" "$@"
+          ;;
+      esac
+    fi
+    exec env TINYPM_FLAVOR=abora TINYPM_ENTRYPOINT=${name} ${pkgs.bashInteractive}/bin/bash "$entry" "$@"
   '';
 in
 {
   system.stateVersion = "26.05";
   nixpkgs.config.allowUnfree = true;
   networking.hostName = "abora";
-  networking.wireless.enable = lib.mkForce false;
+  # Do NOT force networking.wireless.enable off: with
+  # networkmanager.wifi.backend = "wpa_supplicant" (below), the
+  # NetworkManager module itself needs to set wireless.enable = true
+  # (with dbusControlled = true) to register wpa_supplicant's systemd
+  # unit for D-Bus activation. Forcing it false here (as this line used
+  # to) silently breaks that wiring: NetworkManager can detect and load
+  # the Wi-Fi driver/firmware fine, but every connection attempt fails
+  # with "Couldn't initialize supplicant interface: Failed to D-Bus
+  # activate wpa_supplicant service", leaving the device stuck at
+  # `nmcli device status` = unavailable regardless of rfkill state.
   networking.networkmanager = {
     enable = lib.mkForce true;
     wifi.backend = "wpa_supplicant";
@@ -276,10 +343,10 @@ in
     label = version;
     extraOSReleaseArgs = {
       LOGO = "abora";
-      VERSION = "EVEREST 4.0";
+      VERSION = "2026.7.27";
       VERSION_ID = "4.0";
       VERSION_CODENAME = "denali";
-      PRETTY_NAME = "Abora OS EVEREST 4.0";
+      PRETTY_NAME = "Abora OS 2026.7.27";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
       BUG_REPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
@@ -298,9 +365,15 @@ in
     "nixpkgs=${pkgs.path}"
     "nixos-config=/etc/nixos/configuration.nix"
   ];
-  boot.kernelPackages = pkgs.linuxPackages_6_6;
+  boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.initrd.systemd.enable = true;
   boot.initrd.verbose = false;
+  boot.initrd.kernelModules = lib.mkForce [
+    "loop"
+    "overlay"
+    "squashfs"
+    "isofs"
+  ];
   boot.initrd.availableKernelModules = [
     "ahci"
     "ata_piix"
@@ -316,23 +389,10 @@ in
     "virtio_scsi"
     "virtio_net"
   ];
-  boot.kernelModules = [
-    "btusb"
-    "bluetooth"
-    "iwlwifi"
-    "ath9k"
-    "ath10k_pci"
-    "ath11k_pci"
-    "brcmfmac"
-    "rtw88_pci"
-    "rtw89_pci"
-    "r8169"
-    "e1000e"
-    "igb"
-    "tg3"
-    "atlantic"
-    "alx"
-  ];
+  # Do not preload optional NIC/Bluetooth modules globally. udev will load the
+  # matching driver for detected hardware; forcing the whole list can make
+  # systemd-modules-load show a red failure on otherwise healthy boots.
+  boot.kernelModules = lib.mkForce [];
   boot.consoleLogLevel = 3;
   boot.kernelParams = [
     "loglevel=4"
@@ -360,6 +420,9 @@ in
     (mkGrabCmd "term")
     (mkGrabCmd "start")
     (mkGrabCmd "supdate")
+    (mkGrabCmd "grab-add-repo")
+    (mkGrabCmd "grab-de")
+    (mkGrabCmd "syspm")
     aboraApps
     aboraCommand
     aboraCheckFull
@@ -384,18 +447,16 @@ in
     upgradeCommand
     rollbackCommand
 
-    # ── GUI installer ────────────────────────────────────────────────────────
-    aboraInstallerGui
-    cage        # kiosk Wayland compositor — lets the GUI installer run from TTY1
-
     # ── Shell / UI ───────────────────────────────────────────────────────────
     bashInteractive
+    gum         # upstream Charm gum picker/input UI used by installer.sh
+    mintPackage # Abora helper commands; intentionally not linked as gum
     fastfetch   # shown in the live welcome banner
-    gum         # charmbracelet TUI toolkit — used by the installer
+    chafa       # terminal logo rendering fallback
+    fbv         # real framebuffer PNG splash before the TTY installer
     htop
     jq          # ANIX v2 plan validation/execution (anix run/validate-plan/apply-plan)
     moducpp-anix # ANIX v2 ModuCPP frontend — standalone, no Modularity checkout needed; bundles its own C++ compiler
-    kdePackages.konsole
     newt        # provides nmtui for Wi-Fi setup
     xterm       # tiny fallback so the Start Abora launcher can always open
     zenity      # graphical ANIX helper when launched from a desktop
@@ -432,7 +493,8 @@ in
     # ── Keyboard ─────────────────────────────────────────────────────────────
     kbd
 
-  ]) ++ lib.optionals (selectedEdition.id == "other") (with pkgs; [
+  ])
+  ++ lib.optionals (selectedEdition.id == "other") (with pkgs; [
     mango
     foot
     waybar
@@ -496,6 +558,7 @@ in
       };
       "abora/default-wallpaper.png".source = ../../assets/wallpapers/collection/titlis-alps.jpg;
       "abora/Abora-LOGO.png".source = ../../assets/Abora-LOGO.png;
+      "abora/Abora-Text.png".source = ../../assets/Abora-Text.png;
       "abora/live-cosmic-background-all".text = ''
         (
             output: "all",
@@ -535,10 +598,10 @@ in
       "xdg/fastfetch/config.jsonc".source = ../../assets/fastfetch-config.jsonc;
       "xdg/fastfetch/abora-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "issue".text = ''
-        Abora OS EVEREST 4.0
+        Abora OS 2026.7.27
       '';
       "issue.net".text = ''
-        Abora OS EVEREST 4.0
+        Abora OS 2026.7.27
       '';
       "profile.d/abora-live.sh".text = ''
         # Only greet on real TTY sessions (not COSMIC/graphical login shells)
@@ -563,10 +626,6 @@ in
       };
       "abora/installer.sh" = {
         source = ../../scripts/abora-installer.sh;
-        mode = "0755";
-      };
-      "abora/installer-gui.py" = {
-        source = ../../scripts/abora-installer-gui.py;
         mode = "0755";
       };
       "abora/setup-launcher.sh" = {
@@ -596,6 +655,8 @@ in
         source = ../../scripts/abora-config.sh;
         mode   = "0755";
       };
+      "abora/welcome-gui.py".source = ../../scripts/abora-welcome-gui.py;
+      "abora/config-gui.py".source = ../../scripts/abora-config-gui.py;
       "abora/anix.sh" = {
         source = ../../scripts/anix.sh;
         mode = "0755";
@@ -637,7 +698,7 @@ in
       '';
       "xdg/qt5ct/qt5ct.conf".text = ''
         [Appearance]
-        color_scheme_path=/run/current-system/sw/share/qt5ct/colors/darker.conf
+        color_scheme_path=/run/current-system/sw/share/qt5ct/colors/airy.conf
         custom_palette=true
         icon_theme=Adwaita
         standard_dialogs=default
@@ -645,7 +706,7 @@ in
       '';
       "xdg/qt6ct/qt6ct.conf".text = ''
         [Appearance]
-        color_scheme_path=/run/current-system/sw/share/qt6ct/colors/darker.conf
+        color_scheme_path=/run/current-system/sw/share/qt6ct/colors/airy.conf
         custom_palette=true
         icon_theme=Adwaita
         standard_dialogs=default
@@ -697,73 +758,39 @@ in
     uid = 1000;
     extraGroups = [ "wheel" "video" "audio" "networkmanager" "input" "seat" ];
   };
+  # A second, documented account for the tty2+ text-console login prompt
+  # (getty). tty1 is the installer itself and never asks for credentials, but
+  # switching to another console previously had no account anyone could log
+  # into at all -- there was nothing to type there that would ever work. This
+  # is the fix: a known username with a blank password, and root's password
+  # set as a fallback in case a given console's PAM stack rejects blank
+  # passwords outright.
+  users.users.aboraos = {
+    isNormalUser = true;
+    initialPassword = "";
+    extraGroups = [ "wheel" "video" "audio" "networkmanager" "input" "seat" ];
+  };
+  users.users.root.initialPassword = "linux";
   security.sudo.extraRules = [{
-    users = [ "liveuser" ];
+    users = [ "liveuser" "aboraos" ];
     commands = [{ command = "ALL"; options = [ "NOPASSWD" ]; }];
   }];
 
-  # ── COSMIC live desktop ─────────────────────────────────────────────────────
-  # Boot straight into the edition's graphical live session with an
-  # "Install Abora OS" launcher, similar to desktop-first distro installers.
-  # The TUI installer is still available from a terminal with `abora-install`.
-  hardware.graphics.enable = true;
-  services.displayManager.autoLogin = {
-    enable = true;
-    user = "liveuser";
-  };
-  services.displayManager.defaultSession = selectedEdition.session;
-  services.getty.autologinUser = "liveuser";
-
-  services.xserver.enable = lib.mkDefault (selectedEdition.id != "cosmic");
-
-  services.desktopManager.cosmic.enable = lib.mkIf (selectedEdition.id == "cosmic") true;
-
-  services.desktopManager.gnome.enable = lib.mkIf (selectedEdition.id == "gnome") true;
-  services.displayManager.gdm.enable = lib.mkIf (selectedEdition.id == "gnome") true;
-  services.gnome.gnome-keyring.enable = lib.mkIf (selectedEdition.id == "gnome") true;
-
-  services.desktopManager.plasma6.enable = lib.mkIf (selectedEdition.id == "kde") true;
-
-  programs.hyprland = lib.mkIf (selectedEdition.id == "hyprland") {
-    enable = true;
-    withUWSM = true;
-    xwayland.enable = true;
-  };
-
-  services.displayManager.sessionPackages = lib.mkIf (selectedEdition.id == "other") [ pkgs.mango ];
-  programs.xwayland.enable = lib.mkIf (selectedEdition.id == "other") true;
-
-  services.displayManager.sddm = lib.mkIf (selectedEdition.id != "gnome") {
-    enable = true;
-    wayland.enable = true;
-  };
-
-  xdg.portal = lib.mkIf (selectedEdition.id == "hyprland" || selectedEdition.id == "other") {
-    enable = true;
-    extraPortals = if selectedEdition.id == "hyprland"
-      then with pkgs; [ xdg-desktop-portal-hyprland xdg-desktop-portal-gtk ]
-      else with pkgs; [ xdg-desktop-portal-wlr xdg-desktop-portal-gtk ];
-    wlr.enable = selectedEdition.id == "other";
-    config = if selectedEdition.id == "hyprland" then {
-      hyprland.default = lib.mkForce [ "hyprland" "gtk" ];
-      hyprland-uwsm.default = lib.mkForce [ "hyprland" "gtk" ];
-      common.default = lib.mkForce [ "gtk" ];
-    } else {
-      mango.default = lib.mkForce [ "wlr" "gtk" ];
-      common.default = lib.mkForce [ "gtk" ];
-    };
-  };
-
-  systemd.tmpfiles.rules = [
-    "d /home/liveuser/Desktop 0755 liveuser users -"
-    "C /home/liveuser/Desktop/abora-setup.desktop 0755 liveuser users - /etc/abora/setup.desktop"
-    "d /home/liveuser/.config 0755 liveuser users -"
-    "d /home/liveuser/.config/cosmic 0755 liveuser users -"
-    "d /home/liveuser/.config/cosmic/com.system76.CosmicBackground 0755 liveuser users -"
-    "d /home/liveuser/.config/cosmic/com.system76.CosmicBackground/v1 0755 liveuser users -"
-    "C /home/liveuser/.config/cosmic/com.system76.CosmicBackground/v1/all 0644 liveuser users - /etc/abora/live-cosmic-background-all"
-    "C /home/liveuser/.config/cosmic/com.system76.CosmicBackground/v1/backgrounds 0644 liveuser users - /etc/abora/live-cosmic-backgrounds"
-  ];
+  # ── Installer live environment ──────────────────────────────────────────────
+  # The live ISO is installer-first: tty1 is owned by the direct bash Abora
+  # installer. Desktop environments remain install targets, not live sessions.
+  systemd.defaultUnit = "multi-user.target";
+  hardware.graphics.enable = lib.mkForce false;
+  services.xserver.enable = lib.mkForce false;
+  services.displayManager.autoLogin.enable = lib.mkForce false;
+  services.displayManager.gdm.enable = lib.mkForce false;
+  services.displayManager.sddm.enable = lib.mkForce false;
+  services.desktopManager.cosmic.enable = lib.mkForce false;
+  services.desktopManager.gnome.enable = lib.mkForce false;
+  services.desktopManager.plasma6.enable = lib.mkForce false;
+  programs.hyprland.enable = lib.mkForce false;
+  programs.xwayland.enable = lib.mkForce false;
+  xdg.portal.enable = lib.mkForce false;
 
   systemd.services.ModemManager = {
     enable = lib.mkForce true;
@@ -803,7 +830,7 @@ in
   };
   systemd.services.abora-boot = {
     description = "Abora OS installer boot";
-    wantedBy    = lib.mkForce [];
+    wantedBy    = [ "multi-user.target" ];
     wants       = [ "NetworkManager.service" ];
     # Conflict with both the static and auto-vt getty on tty1 so neither
     # can race with us for the terminal.
@@ -853,7 +880,7 @@ in
   image.fileName = lib.mkForce "abora-${version}-x86_64.iso";
   isoImage.makeEfiBootable = true;
   isoImage.makeUsbBootable = true;
-  isoImage.squashfsCompression = lib.mkForce "zstd -Xcompression-level 15";
+  isoImage.squashfsCompression = lib.mkForce "zstd -Xcompression-level 19";
   isoImage.prependToMenuLabel = "";
   isoImage.appendToMenuLabel = "";
   isoImage.showConfiguration = true;
