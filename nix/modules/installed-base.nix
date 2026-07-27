@@ -18,6 +18,12 @@ let
   checkFullScript      = ./check-full.sh;
   recoveryScript       = ./recovery.sh;
   welcomeScript        = ./welcome.sh;
+  # New in this release; optional so systems mid-update (new installed-base.nix
+  # synced before the new .py files finish copying) don't fail evaluation.
+  welcomeGuiScript =
+    if builtins.pathExists ./welcome-gui.py then ./welcome-gui.py else null;
+  configGuiScript =
+    if builtins.pathExists ./config-gui.py then ./config-gui.py else null;
   anixScript           = ./anix.sh;
   optionsModule        = ./abora-options.nix;
   anixModule           = ./anix-module.nix;
@@ -89,6 +95,25 @@ let
   aboraWelcome = pkgs.writeShellScriptBin "abora-welcome" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/welcome.sh "$@"
   '';
+  aboraGuiPython = pkgs.python3.withPackages (ps: with ps; [ pygobject3 ]);
+  aboraGuiGiPath = lib.makeSearchPath "lib/girepository-1.0" (with pkgs; [
+    gtk4 libadwaita glib gdk-pixbuf (lib.getLib pango) harfbuzz graphene cairo gobject-introspection
+  ]);
+  aboraGuiLibPath = lib.makeLibraryPath (with pkgs; [
+    gtk4 libadwaita glib gdk-pixbuf cairo
+  ]);
+  aboraWelcomeGui = pkgs.writeShellScriptBin "abora-welcome-gui" ''
+    export GI_TYPELIB_PATH="${aboraGuiGiPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+    export LD_LIBRARY_PATH="${aboraGuiLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    export ABORA_UPDATE_SCRIPT="''${ABORA_UPDATE_SCRIPT:-/etc/abora/update.sh}"
+    exec ${aboraGuiPython}/bin/python3 /etc/abora/welcome-gui.py "$@"
+  '';
+  aboraConfigGui = pkgs.writeShellScriptBin "abora-config-gui" ''
+    export GI_TYPELIB_PATH="${aboraGuiGiPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+    export LD_LIBRARY_PATH="${aboraGuiLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    export ABORA_CONFIG_SCRIPT="''${ABORA_CONFIG_SCRIPT:-/etc/abora/config.sh}"
+    exec ${aboraGuiPython}/bin/python3 /etc/abora/config-gui.py "$@"
+  '';
   anixCommand = pkgs.writeShellScriptBin "anix" ''
     exec env ANIX_SYSTEM_CONFIG=/etc/nixos ANIX_FLAKE_CONFIG_NAME=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/anix.sh "$@"
   '';
@@ -113,6 +138,34 @@ let
     mkdir -p "$out/share/applications"
     cp ${setupDesktopFile} "$out/share/applications/abora-setup.desktop"
   '';
+  aboraWelcomeDesktopPkg = pkgs.writeTextFile {
+    name = "abora-welcome-desktop";
+    destination = "/share/applications/abora-welcome.desktop";
+    text = ''
+      [Desktop Entry]
+      Type=Application
+      Name=Abora Welcome
+      Comment=First steps and update checks for Abora OS
+      Exec=abora-welcome-gui
+      Icon=distributor-logo
+      Categories=System;Settings;
+      Terminal=false
+    '';
+  };
+  aboraConfigDesktopPkg = pkgs.writeTextFile {
+    name = "abora-config-desktop";
+    destination = "/share/applications/abora-config.desktop";
+    text = ''
+      [Desktop Entry]
+      Type=Application
+      Name=Abora System Settings
+      Comment=Edit your Abora OS system configuration
+      Exec=abora-config-gui
+      Icon=preferences-system
+      Categories=System;Settings;
+      Terminal=false
+    '';
+  };
   aboraUpdate = pkgs.writeShellScriptBin "abora-update" ''
     exec env ABORA_UPDATE_COMMAND=abora-update ${pkgs.bashInteractive}/bin/bash /etc/abora/update.sh "$@"
   '';
@@ -396,6 +449,10 @@ in
     aboraSupportReport
     aboraUpdate
     aboraWelcome
+    aboraWelcomeGui
+    aboraWelcomeDesktopPkg
+    aboraConfigGui
+    aboraConfigDesktopPkg
     aboraWallpapersPackage
     aboraInstaller
     aboraSetup
@@ -771,6 +828,22 @@ in
     }
     // lib.optionalAttrs (effectsDir != null) {
       "abora/effects/v3StartingAbora.mp3".source = effectsDir + "/v3StartingAbora.mp3";
+    }
+    // lib.optionalAttrs (welcomeGuiScript != null) {
+      "abora/welcome-gui.py".source = welcomeGuiScript;
+      "xdg/autostart/abora-welcome-gui.desktop".text = ''
+        [Desktop Entry]
+        Type=Application
+        Name=Abora Welcome
+        Comment=First steps and update checks for Abora OS
+        Exec=sh -c 'test -f "$HOME/.cache/abora/welcome-seen" || exec abora-welcome-gui'
+        Icon=distributor-logo
+        X-GNOME-Autostart-enabled=true
+        NoDisplay=true
+      '';
+    }
+    // lib.optionalAttrs (configGuiScript != null) {
+      "abora/config-gui.py".source = configGuiScript;
     };
 
   environment.shellAliases.fastfetch = "fastfetch -c /etc/xdg/fastfetch/config.jsonc";

@@ -251,6 +251,9 @@ usage() {
         "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Sync the latest Abora files and rebuild the system."
     printf '\n'
+    printf '  %babora update --check%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Check whether an update is available without installing it."
+    printf '\n'
     printf '  %babora rollback%b  /  %bnixos rollback%b  /  %brollback%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Roll back to the previous system generation."
     printf '\n'
@@ -482,6 +485,54 @@ handle_channel_command() {
     esac
 }
 
+# ── Check (read-only, no root, no rebuild) ───────────────────────────────────
+
+# Resolves whether an update is available without touching the system --
+# runs as the calling user, no re-exec to root, no file writes. Meant for
+# both `abora update --check` on the CLI and the Welcome GUI's status card.
+#
+# Prints one machine-parseable line to stdout:
+#   ABORA_UPDATE_AVAILABLE\t<current_version>\t<available_ref>\t<channel>
+#   ABORA_UPDATE_CURRENT\t<current_version>\t<channel>
+# Exit codes: 0 = up to date, 10 = update available, 1 = could not check.
+handle_check_command() {
+    local current_version channel
+
+    # Exit code 10 (update available) isn't a failure -- don't let the
+    # generic "update failed" trap message fire for it.
+    suppress_update_failure_message=1
+
+    current_version="$(installed_version)"
+    channel="$(read_channel)"
+
+    if ! resolve_update_ref "$channel" "$current_version"; then
+        abora_error "Could not resolve an update for channel '${channel}' — check your internet connection."
+        return 1
+    fi
+
+    local available_version
+    available_version="$(tag_base_version "$effective_ref")"
+
+    abora_banner "Update Check" "Channel: ${channel}"
+    printf '  %bInstalled version%b   %s\n' "$ABORA_DIM" "$ABORA_NC" "$current_version"
+    printf '  %bLatest on channel%b   %s\n' "$ABORA_DIM" "$ABORA_NC" "$effective_ref"
+
+    if [[ "$effective_ref" != "main" ]] && ! version_lt "$current_version" "$available_version"; then
+        printf '\n'
+        abora_success "You're up to date."
+        printf '\n'
+        printf 'ABORA_UPDATE_CURRENT\t%s\t%s\n' "$current_version" "$channel"
+        return 0
+    fi
+
+    printf '\n'
+    abora_success "Update available: ${effective_ref}"
+    abora_dim_line "Run 'sudo abora update' to install it."
+    printf '\n'
+    printf 'ABORA_UPDATE_AVAILABLE\t%s\t%s\t%s\n' "$current_version" "$effective_ref" "$channel"
+    return 10
+}
+
 # ── System helpers ────────────────────────────────────────────────────────────
 
 run_as_root() {
@@ -602,6 +653,13 @@ release_has_alpine_wallpapers() {
     ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
 }
 
+release_has_welcome_config_gui() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "main" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
+}
+
 required_upstream_paths() {
     local selected_ref="${1:-main}"
     cat <<'EOF'
@@ -659,6 +717,13 @@ EOF
     if release_has_alpine_wallpapers "$selected_ref"; then
         cat <<'EOF'
 assets/wallpapers/collection/aurora-lofoten.jpg
+EOF
+    fi
+
+    if release_has_welcome_config_gui "$selected_ref"; then
+        cat <<'EOF'
+scripts/abora-welcome-gui.py
+scripts/abora-config-gui.py
 EOF
     fi
 }
@@ -808,6 +873,12 @@ sync_abora_files() {
     copy_upstream_file "$upstream_dir/scripts/abora-doctor.sh" "$abora_dir/doctor.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-recovery.sh" "$abora_dir/recovery.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-welcome.sh" "$abora_dir/welcome.sh"
+    if [[ -f "$upstream_dir/scripts/abora-welcome-gui.py" ]]; then
+        copy_upstream_file "$upstream_dir/scripts/abora-welcome-gui.py" "$abora_dir/welcome-gui.py"
+    fi
+    if [[ -f "$upstream_dir/scripts/abora-config-gui.py" ]]; then
+        copy_upstream_file "$upstream_dir/scripts/abora-config-gui.py" "$abora_dir/config-gui.py"
+    fi
     copy_upstream_file "$upstream_dir/scripts/anix.sh" "$abora_dir/anix.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-app-catalog.sh" "$abora_dir/app-catalog.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-apps.sh" "$abora_dir/apps.sh"
@@ -1090,6 +1161,10 @@ case "$command_name" in
 esac
 
 case "${1:-}" in
+    --check|check)
+        handle_check_command
+        exit "$?"
+        ;;
     channel)
         shift
         handle_channel_command "$@"

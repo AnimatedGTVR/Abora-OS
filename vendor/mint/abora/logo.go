@@ -16,10 +16,11 @@ import (
 
 // Run renders the Abora OS logo without writing to stdout.
 func (o LogoOptions) Run() error {
+	path := resolveLogoPath(o.Path)
 	if o.Doctor {
-		return logoDoctor(o.Path)
+		return logoDoctor(path)
 	}
-	return renderLogo(o.Path, o.Width, o.Mode, o.Quality, !o.NoFallback)
+	return renderLogo(path, o.Width, o.Mode, o.Quality, !o.NoFallback)
 }
 
 func renderLogo(path, width, mode, quality string, fallback bool) error {
@@ -559,8 +560,7 @@ func present(ok bool) string {
 }
 
 func renderLogoFallback(reason string) {
-	fmt.Fprintln(os.Stderr, panelStyle.Width(58).Render(
-		titleStyle.Render("ABORA OS")+"\n\n"+
-			mutedStyle.Render(reason),
-	))
+	fmt.Fprintln(os.Stderr, titleStyle.Render("ABORA OS"))
+	fmt.Fprintln(os.Stderr, mutedStyle.Render(reason))
+	fmt.Fprintln(os.Stderr)
 }

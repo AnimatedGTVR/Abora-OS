@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec "$HERE/scripts/install.sh" "$@"
+runtime_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+exec "$runtime_dir/scripts/install.sh" "$@"

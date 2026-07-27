@@ -18,6 +18,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// ErrNothingSelected is returned by Run when the user exits without
+// submitting a choice (e.g. by pressing Esc).
+var ErrNothingSelected = errors.New("nothing selected")
+
 // Run provides a shell script interface for choosing between different through
 // options.
 func (o Options) Run() error {
@@ -163,7 +167,7 @@ func (o Options) Run() error {
 	}
 	m = tm.(model)
 	if !m.submitted {
-		return errors.New("nothing selected")
+		return ErrNothingSelected
 	}
 	if o.Ordered && o.Limit > 1 {
 		sort.Slice(m.items, func(i, j int) bool {

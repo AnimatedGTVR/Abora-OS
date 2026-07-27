@@ -9,15 +9,18 @@ Use these commands for Abora health, setup, recovery, desktop selection, updates
 | Command | Purpose |
 |---|---|
 | `abora welcome` | Show first-step status and useful actions |
+| `abora welcome-gui` | Graphical version of the above — status card, update check, and quick actions in a window. Opens once automatically on first desktop login |
 | `abora doctor` | Check install health, Flatpak, themes, boot assets, updates, and ANIX |
 | `abora recovery` | Rollback, rebuild, repair, and support actions |
 | `abora setup` | Installed reconfiguration launcher |
 | `abora config` | View or change installed Abora settings |
+| `abora config-gui` | Graphical settings editor — same settings as `abora config`, no terminal required |
 | `abora desktop list` | List supported desktop profiles |
 | `abora desktop set <profile>` | Change desktop profile |
 | `abora apps` | App bundle and catalog helpers |
 | `abora support-report` | Collect support diagnostics |
 | `abora update` | Update Abora |
+| `abora update --check` | Check whether an update is available without installing it |
 | `abora channel` | View or change the update channel |
 | `abora rollback` | Roll back to the previous system generation |
 | `abora install pre-alpha` | One-shot install of unfinished pre-alpha development builds |
@@ -90,6 +93,17 @@ originals. Source and license for each photo are in
 ```sh
 abora config set wallpaper titlis-alps.jpg
 ```
+
+## Graphical Tools
+
+Prefer a window over the terminal for everyday tasks? Two GTK4/libadwaita apps cover the two most common ones, and both are thin front-ends over the same CLI commands above — nothing they do is exclusive to the GUI:
+
+```sh
+abora welcome-gui   # status card, "Check for Updates" / "Update Now", quick actions
+abora config-gui    # hostname, timezone, keyboard, desktop, wallpaper, GPU driver
+```
+
+`abora welcome-gui` opens automatically the first time you log into your desktop after installing (it won't reappear on later logins), and both are always reachable afterward from your application menu or by running the commands above directly.
 
 ## Desktop Profiles
 

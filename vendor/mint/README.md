@@ -4,13 +4,7 @@ MINT is Abora OS's terminal UI helper for guided shell scripts and installers.
 It is based on Charmbracelet Gum, with Abora-focused naming, defaults, packaging,
 and installer/TUI workflow polish.
 
-<<<<<<< HEAD
-Yep Its another tool, for AboraOS someone has made LMAO.
-
-
-A tool for glamorous shell scripts. Leverage the power of
-=======
-Use it in Abora scripts as `mint`:
+A tool for glamorous shell scripts. Use it in Abora scripts as `mint`:
 
 ```bash
 make install
@@ -19,16 +13,16 @@ mint confirm "Install Abora OS to disk?"
 mint spin --title "Installing Abora OS..." -- sudo abora install pre-alpha
 ```
 
-Try the safe Abora installer prototype:
+Try the guided Abora installer:
 
 ```bash
-mint abora prototype --tty --pre-alpha
+mint abora install --tty --pre-alpha
 ```
 
 For desktop demos in Kitty, use the real image renderer:
 
 ```bash
-mint abora prototype --kitty --pre-alpha
+mint abora install --kitty --pre-alpha
 ```
 
 This shows the logo, blue Gum-style welcome and edition pickers, input prompts,
@@ -42,7 +36,7 @@ sets the terminal title, and restores the terminal when it exits.
 Installer-specific helpers:
 
 ```bash
-mint abora logo --path /home/animatedpc/Work/abora-os/assets/Abora-Text.png
+mint abora logo --path /etc/abora/Abora-Text.png
 action="$(mint abora welcome)"
 edition="$(mint abora edition)"
 mint abora risk
@@ -61,7 +55,6 @@ mint abora logo --mode kitty
 ```
 
 MINT leverages the power of
->>>>>>> 7d767c1 (yay)
 [Bubbles](https://github.com/charmbracelet/bubbles) and [Lip
 Gloss](https://github.com/charmbracelet/lipgloss) in your scripts and aliases
 without writing any Go code!

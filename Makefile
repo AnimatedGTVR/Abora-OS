@@ -1,4 +1,4 @@
-.PHONY: help iso iso-all iso-cosmic iso-hyprland iso-gnome iso-kde iso-other iso-local qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc check check-desktops check-all preflight metadata release tinypm-package anix-package tinypm-image
+.PHONY: help iso iso-all iso-cosmic iso-hyprland iso-gnome iso-kde iso-other iso-local qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc check check-desktops check-all preflight metadata release tinypm-package anix-package tinypm-image test-installer test-installer-tty test-installer-kitty test-welcome test-config
 
 help:
 	@echo "Usage: make <target>"
@@ -22,6 +22,11 @@ help:
 	@echo "  qemu-debug       - Graphical QEMU plus live serial output in this terminal"
 	@echo "  qemu-fresh-debug - Fresh disk + graphical QEMU + terminal serial output"
 	@echo "  qmec / qemc      - Aliases for qemu"
+	@echo "  test-installer   - Run the MINT installer TUI from source, auto-detecting the terminal (no ISO build needed)"
+	@echo "  test-installer-tty   - Same, but forces TTY-safe block-art rendering"
+	@echo "  test-installer-kitty - Same, but forces real Kitty graphics-protocol rendering"
+	@echo "  test-welcome     - Run the Abora Welcome GUI from source (no ISO build needed)"
+	@echo "  test-config      - Run the Abora Config Editor GUI against a throwaway fixture config"
 	@echo "  check            - Run repository script checks"
 	@echo "  check-desktops   - Evaluate every supported desktop profile"
 	@echo "  check-all        - Sweep every .sh/.nix/.py/.md file in the repo by type"
@@ -86,6 +91,25 @@ qemu-fresh-debug:
 qmec: qemu
 
 qemc: qemu
+
+test-installer:
+	cd vendor/mint && go run . abora install --pre-alpha
+
+test-installer-tty:
+	cd vendor/mint && go run . abora install --tty --pre-alpha
+
+test-installer-kitty:
+	cd vendor/mint && go run . abora install --kitty --pre-alpha
+
+test-welcome:
+	python3 scripts/abora-welcome-gui.py
+
+test-config:
+	@tmp="$$(mktemp -d)"; \
+	cp scripts/test-fixtures/abora-local.nix "$$tmp/abora-local.nix"; \
+	ABORA_SYSTEM_CONFIG="$$tmp" ABORA_CONFIG_SCRIPT="$(CURDIR)/scripts/abora-config.sh" \
+		python3 scripts/abora-config-gui.py; \
+	rm -rf "$$tmp"
 
 check:
 	./scripts/check-scripts.sh

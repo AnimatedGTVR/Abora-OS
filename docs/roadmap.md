@@ -1,51 +1,28 @@
 # Abora OS Roadmap
 
-This roadmap tracks the current Abora direction after the v2.5 installer work and the start of v3 Denali.
+This roadmap tracks the current Abora direction after EVEREST 4.0 and the in-progress MINT/graphical-tools work toward the next release.
 
-## v2 Era Summary
+## EVEREST 4.0 Delivered
 
-The v2 line moved Abora from a branded NixOS ISO toward a real OS experience:
+- five edition ISOs (Cosmic, Hyprland, GNOME, KDE, Other), each defaulting to a different desktop while still installing the full 23-profile matrix
+- first-class GPU driver selection (`abora.gpu`: nouveau, nvidia, nvidia-open, amdgpu, intel, none), detected via `lspci` at install time
+- ANIX v2: pluggable configuration languages (ANIX Native, MKO, ModuCPP) that all resolve to one Plan JSON, applied as a single transaction with per-setting ADD/CHANGE/SAME diffing
+- everything from DENALI 3.14 carried forward — Omarchy-inspired installer, 23 desktop profiles, TinyPM v4, branding and hardware coverage
 
-- NixOS-based live ISO with branded boot, Plymouth, wallpapers, Fastfetch, and Limine assets
-- terminal-first live boot flow with a guided installer
-- selectable desktop profiles instead of one default desktop path
-- installer-generated `/etc/nixos` layout with copied Abora assets under `/etc/nixos/abora`
-- Abora commands for welcome, config, desktop selection, doctor, recovery, support reports, updates, and hardware checks
-- ANIX as a beginner-friendly management layer for snapshots, rollback, profile switching, and config edits
-- TinyPM vendored into the repo and exposed as Abora-flavored `grab`, `search`, `term`, `start`, and `supdate`
-- release output split into ISO, TinyPM package, checksums, manifest, and release notes
+## In Progress Toward the Next Release
 
-## v2.5 Delivered
+- **MINT** as the default guided installer front-end, handing the confirmed plan to the existing bash installer as its backend
+- full step-indexed back navigation through the installer wizard — every screen can be undone with `Esc` or `← Back`, answers preserved
+- real IANA timezone data (region-first, then fuzzy search) instead of a small hand-picked list — this was a real correctness gap: multi-zone regions like Indiana were only showing one of their eight actual zones
+- `abora update --check` — query update availability without installing
+- `abora welcome-gui` and `abora config-gui` — the first GTK4/libadwaita graphical tools, thin front-ends over the existing CLI so nothing they do is GUI-exclusive
 
-v2.5 was mainly a reliability and polish release.
+## Near-Term Direction
 
-- forced NetworkManager on in the live ISO so Wi-Fi setup works in stage one
-- added `nmtui`/`nmcli` network setup paths to the installer
-- remade the installer into a keyboard-first TUI flow
-- added install progress output and clearer failure logs
-- fixed flake-based `nixos-install` crashes by using the generated non-flake config for install
-- validated bootloader output after install before reporting success
-- fixed wallpaper packaging so empty or changed wallpaper directories do not break builds
-- fixed GNOME package/config duplication in generated `abora-local.nix`
-- fixed GNOME and LightDM option paths for the current nixpkgs
-- verified all supported desktop profiles with `scripts/check-desktops.sh`, including Openbox
-- added `make qemu-disk`, `make qemu-fresh`, and serial QEMU helpers
-- made `make iso` build only the ISO
-- made `make release` build the ISO, TinyPM package, and release metadata
-- removed restricted Nix build options that caused warning spam for untrusted users
-- added setup launcher assets to the live ISO and installed config tree so installed-system eval does not look for `/mnt/etc/scripts`
-
-## v3 Denali Direction
-
-v3 Denali is the current design and stabilization track.
-
-- keep the Omarchy-inspired installer style: large Abora wordmark, compact boxed fields, and minimal prompts
-- keep install validation strict enough to fail early before expensive `nixos-install` work
-- make the installed desktop setup app useful for post-install reconfiguration
-- keep the desktop matrix green across GNOME, Plasma, Hyprland, Sway, XFCE, Cinnamon, MATE, Budgie, LXQt, Pantheon, i3, AwesomeWM, Openbox, Niri, River, Qtile, BSPWM, Fluxbox, IceWM, and Herbstluftwm
-- make Abora stand apart from SnowflakeOS, Guix System, and GNOME-over-Nix by focusing on a distro-like NixOS onboarding path, strong branding, and friendly system management commands
-- add more automated VM install smoke tests after ISO build
-- keep QEMU install tests focused on clean disks with `make qemu-fresh`
+- keep expanding graphical coverage where it clearly helps first-time and non-terminal users, without ever making the CLI a second-class citizen — every GUI action should have an equivalent command
+- extend MINT's guided flow to cover more of what the bash installer can already do, rather than duplicating logic between the two
+- keep the desktop matrix green across all 23 profiles via `make check-desktops` as new GTK/libadwaita dependencies are added
+- continue auditing scripts and the new Python/GTK tooling for the same class of bug found and fixed during this pass: environment variables silently dropped across privilege escalation (`pkexec`/`sudo`), which can cause a tool to act on the wrong config path instead of failing loudly
 - improve hardware test coverage for Wi-Fi laptops, NVIDIA systems, BIOS boot, and UEFI boot
 - document known install blockers immediately instead of letting users discover them late
 
@@ -53,6 +30,5 @@ v3 Denali is the current design and stabilization track.
 
 - keep GitHub releases as the primary public ISO distribution path
 - attach ISO, checksums, manifest, release notes, and TinyPM package to release bundles
-- require `check-scripts`, `check-desktops`, one full VM install, and one installed-system boot before publishing
-- use `make iso` for fast ISO-only iteration
-- use `make release` only for full release bundles
+- require `make check`, `make check-desktops`, one full VM install, and one installed-system boot before publishing
+- use `make iso` for fast ISO-only iteration, `make iso-all` before a release, `make release` only for full release bundles

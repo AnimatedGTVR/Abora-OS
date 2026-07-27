@@ -1,1 +1,242 @@
-../tinypm
+#!/usr/bin/env bash
+# shellcheck disable=SC2034,SC2154
+set -euo pipefail
+
+script_path="${BASH_SOURCE[0]}"
+while [[ -L "$script_path" ]]; do
+    script_parent="$(cd -P "$(dirname "$script_path")" && pwd)"
+    script_target="$(readlink "$script_path")"
+    if [[ "$script_target" == /* ]]; then
+        script_path="$script_target"
+    else
+        script_path="$script_parent/$script_target"
+    fi
+done
+
+script_dir="$(cd -P "$(dirname "$script_path")" && pwd)"
+runtime_root="$(cd -P "$script_dir/.." && pwd)"
+lib_dir="$runtime_root/lib/tinypm"
+prog_name="${TINYPM_ENTRYPOINT:-$(basename "$0")}"
+
+for module in \
+    "$lib_dir/core/config.sh" \
+    "$lib_dir/core/common.sh" \
+    "$lib_dir/core/state.sh" \
+    "$lib_dir/core/history.sh" \
+    "$lib_dir/core/ui.sh" \
+    "$lib_dir/core/apps.sh" \
+    "$lib_dir/providers/flatpak.sh" \
+    "$lib_dir/providers/snap.sh" \
+    "$lib_dir/providers/native.sh" \
+    "$lib_dir/providers/repo.sh" \
+    "$lib_dir/providers/de.sh" \
+    "$lib_dir/providers/anix.sh" \
+    "$lib_dir/core/inspect.sh" \
+    "$lib_dir/core/actions.sh" \
+    "$lib_dir/core/version.sh" \
+    "$lib_dir/core/doctor.sh" \
+    "$lib_dir/core/args.sh"
+do
+    [[ -r "$module" ]] || {
+        echo "TinyPM: missing module $module" >&2
+        exit 1
+    }
+    . "$module"
+done
+
+init_cli_context "$@"
+
+case "$action" in
+    install)
+        [[ "${#packages[@]}" -gt 0 ]] || die "install requires at least one package name"
+
+        if [[ "${dry_run:-0}" -eq 1 ]]; then
+            install_plan "$provider" "${packages[@]}"
+        else
+            _resolved_provider="$(pick_install_provider "$provider")"
+            if [[ "$_resolved_provider" == "native" ]]; then
+                _resolved_provider="$(detect_native_pm)"
+            fi
+            _total="${#packages[@]}" _i=0 _failed=0 _installed=0 _present=0 _duplicates=0 _started=$SECONDS
+            declare -A _batch_seen=()
+            if [[ "$_total" -gt 1 ]]; then
+                ui_heading "Grabbing $_total packages"
+                printf '  %s' "${packages[0]}"
+                printf ', %s' "${packages[@]:1}"
+                printf '\n'
+            fi
+            for pkg in "${packages[@]}"; do
+                _i=$((_i + 1))
+                if is_native_provider "$_resolved_provider"; then
+                    _identity="$(native_package_identity "$pkg" "$_resolved_provider")"
+                else
+                    _identity="$_resolved_provider:$pkg"
+                fi
+
+                if [[ -n "${_batch_seen[$_identity]:-}" ]]; then
+                    _mapped="${_identity#*:}"
+                    ui_warn "$pkg is provided by $_mapped on $(native_pm_label "$_resolved_provider"); already handled in this batch"
+                    _duplicates=$((_duplicates + 1))
+                    continue
+                fi
+                _batch_seen["$_identity"]="$pkg"
+
+                if package_installed_with "$pkg" "$_resolved_provider"; then
+                    ui_success "$pkg is already installed as ${_identity#*:} with $(native_pm_label "$_resolved_provider")"
+                    _present=$((_present + 1))
+                    continue
+                fi
+
+                [[ "$_total" -gt 1 ]] && printf '\n%s[%d/%d]%s %s\n' "$c_bold$c_cyan" "$_i" "$_total" "$c_reset" "$pkg"
+                if install_pkg "$pkg" "$_resolved_provider"; then
+                    _installed=$((_installed + 1))
+                else
+                    ui_error "install failed: $pkg"
+                    printf '  Try: grab search %s\n' "$pkg" >&2
+                    _failed=$((_failed + 1))
+                fi
+            done
+            transaction_summary "$_installed" "$_present" "$_duplicates" "$_failed" "$((SECONDS - _started))"
+            [[ "$_failed" -eq 0 ]] || exit 1
+        fi
+        ;;
+    search)
+        [[ -n "$package" ]] || die "search requires a query"
+        search_pkg "$package" "$provider"
+        ;;
+    info)
+        [[ -n "$package" ]] || die "info requires a package name"
+        info_pkg "$package"
+        ;;
+    explain)
+        [[ -n "$package" ]] || die "explain requires a package name"
+        package_explain "$package" "$provider"
+        ;;
+    remove|uninstall)
+        [[ "${#packages[@]}" -gt 0 ]] || die "remove requires at least one package name"
+        _total="${#packages[@]}" _i=0 _failed=0 _removed=0 _skipped=0 _started=$SECONDS
+        declare -A _remove_seen=()
+        if [[ "$_total" -gt 1 ]]; then
+            ui_heading "Removing $_total packages"
+            printf '  %s' "${packages[0]}"
+            printf ', %s' "${packages[@]:1}"
+            printf '\n'
+        fi
+        for pkg in "${packages[@]}"; do
+            _i=$((_i + 1))
+            _remove_provider="$(remove_provider_for "$pkg" "$provider")"
+            if is_native_provider "$_remove_provider"; then
+                _identity="$(native_package_identity "$pkg" "$_remove_provider")"
+            else
+                _identity="$_remove_provider:$pkg"
+            fi
+            if [[ -n "${_remove_seen[$_identity]:-}" ]]; then
+                ui_warn "$pkg resolves to ${_identity#*:}; already handled in this batch"
+                _skipped=$((_skipped + 1))
+                continue
+            fi
+            _remove_seen["$_identity"]="$pkg"
+
+            [[ "$_total" -gt 1 ]] && printf '\n%s[%d/%d]%s %s\n' "$c_bold$c_cyan" "$_i" "$_total" "$c_reset" "$pkg"
+            if remove_pkg "$pkg" "$_remove_provider"; then
+                _removed=$((_removed + 1))
+            else
+                ui_error "remove failed: $pkg"
+                _failed=$((_failed + 1))
+            fi
+        done
+        removal_summary "$_removed" "$_skipped" "$_failed" "$((SECONDS - _started))"
+        [[ "$_failed" -eq 0 ]] || exit 1
+        ;;
+    list)
+        list_pkgs "$provider"
+        ;;
+    add-repo)
+        [[ -n "$package" ]] || die "add-repo requires a repository spec"
+        add_repo "$package" "${repo_name:-}" "$provider"
+        ;;
+    de)
+        [[ -n "$package" ]] || die "de requires a desktop environment name"
+        install_de "$package" "$provider"
+        ;;
+    managed)
+        managed_pkgs
+        ;;
+    apps)
+        installed_apps
+        ;;
+    discover)
+        discover_apps "${package:-}"
+        ;;
+    run|start)
+        [[ -n "$package" ]] || die "run requires an app id or snap/flatpak target"
+        run_pkg "$package" "$provider"
+        ;;
+    update|upgrade)
+        update_pkgs "$provider"
+        ;;
+    check-update)
+        check_tinypm_update
+        ;;
+    self-update|selfupdate)
+        self_update_tinypm
+        ;;
+    check)
+        [[ -n "$package" ]] || die "check requires a package name"
+        package_check "$package"
+        ;;
+    pin)
+        [[ -n "$package" ]] || die "pin requires a package name"
+        pin_pkg "$package" "$provider"
+        ;;
+    unpin)
+        [[ -n "$package" ]] || die "unpin requires a package name"
+        unpin_pkg "$package"
+        ;;
+    pinned)
+        pinned_pkgs
+        ;;
+    bundle)
+        [[ -n "$package" ]] || die "bundle requires a category name or 'list'"
+        if [[ "$package" == "list" ]]; then
+            bundle_list
+        else
+            bundle_install "$package" "$provider"
+        fi
+        ;;
+    sync)
+        if [[ "${sync_generate:-0}" -eq 1 ]]; then
+            sync_generate_manifest "${sync_output:-}"
+        else
+            sync_install_manifest "${package:-}"
+        fi
+        ;;
+    history)
+        show_history "${history_limit:-50}"
+        ;;
+    undo)
+        undo_last_transaction "${undo_yes:-0}"
+        ;;
+    doctor)
+        doctor
+        ;;
+    selftest)
+        selftest
+        ;;
+    export-state)
+        state_export "${package:-}"
+        ;;
+    import-state)
+        state_import "$package"
+        ;;
+    help|"")
+        usage
+        ;;
+    version|-v|--version)
+        print_version_report
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+esac

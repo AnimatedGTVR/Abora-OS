@@ -14,6 +14,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// ErrNotSubmitted is returned by Run when the user exits without submitting
+// a value (e.g. by pressing Esc).
+var ErrNotSubmitted = errors.New("not submitted")
+
 // Run provides a shell script interface for the text input bubble.
 // https://github.com/charmbracelet/bubbles/textinput
 func (o Options) Run() error {
@@ -72,7 +76,7 @@ func (o Options) Run() error {
 
 	m = tm.(model)
 	if !m.submitted {
-		return errors.New("not submitted")
+		return ErrNotSubmitted
 	}
 	fmt.Println(m.textinput.Value())
 	return nil

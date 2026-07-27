@@ -2,13 +2,14 @@ package abora
 
 import "github.com/AnimatedGTVR/MINT/choose"
 
-const defaultLogoPath = "/home/animatedpc/Work/abora-os/assets/Abora-Text.png"
+const defaultLogoPath = "/etc/abora/Abora-Text.png"
 
 // Options contains Abora OS installer-focused helpers.
 type Options struct {
 	Edition   EditionOptions   `cmd:"" help:"Choose an Abora OS edition"`
+	Install   PrototypeOptions `cmd:"" help:"Run the Abora OS installer"`
 	Logo      LogoOptions      `cmd:"" help:"Render an Abora OS logo image"`
-	Prototype PrototypeOptions `cmd:"" help:"Run a prototype Abora OS installer flow"`
+	Prototype PrototypeOptions `cmd:"" help:"Run the Abora OS installer" hidden:""`
 	Risk      RiskOptions      `cmd:"" help:"Require acknowledgement before unsafe installs"`
 	Summary   SummaryOptions   `cmd:"" help:"Render an installer summary card"`
 	Welcome   WelcomeOptions   `cmd:"" help:"Show the Abora OS installer welcome menu"`
@@ -27,7 +28,7 @@ type RiskOptions struct {
 	Quiet  bool   `help:"Only print the input prompt"`
 }
 
-// PrototypeOptions configures the prototype installer flow.
+// PrototypeOptions configures the installer flow.
 type PrototypeOptions struct {
 	PreAlpha  bool   `help:"Require the pre-alpha risk acknowledgement"`
 	TTY       bool   `help:"Force TTY-safe logo rendering"`

@@ -1,255 +1,209 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PREFIX="${TINYPM_PREFIX:-$HOME/.tinypm}"
-BIN_DIR="$PREFIX/bin"
-LOCAL_BIN="$HOME/.local/bin"
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/tinypm"
-CONFIG_FILE="$CONFIG_DIR/config"
-DEFAULT_FLAVOR="default"
+script_path="${BASH_SOURCE[0]}"
+while [[ -L "$script_path" ]]; do
+    script_parent="$(cd -P "$(dirname "$script_path")" && pwd)"
+    script_target="$(readlink "$script_path")"
+    [[ "$script_target" == /* ]] && script_path="$script_target" || script_path="$script_parent/$script_target"
+done
+package_root="$(cd "$(dirname "$script_path")/.." && pwd)"
+if [[ -x "$package_root/src/bin/tinypm" ]]; then
+    source_root="$package_root/src"
+elif [[ -x "$package_root/bin/tinypm" ]]; then
+    source_root="$package_root"
+else
+    printf 'TinyPM installer: runtime files were not found.\n' >&2
+    exit 1
+fi
 
+prefix="${TINYPM_PREFIX:-$HOME/.tinypm}"
+bin_dir="$prefix/bin"
+lib_dir="$prefix/lib/tinypm"
+share_dir="$prefix/share/tinypm"
+local_bin="$HOME/.local/bin"
+data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/tinypm"
+config_file="$config_dir/config"
+selected_flavor="${TINYPM_FLAVOR:-default}"
 forced_native_pm=""
 non_interactive=0
-selected_flavor="${TINYPM_FLAVOR:-$DEFAULT_FLAVOR}"
+
+if [[ -z "${NO_COLOR:-}" ]] && { [[ -n "${FORCE_COLOR:-}" ]] || [[ -t 1 && "${TERM:-dumb}" != "dumb" ]]; }; then
+    c_reset=$'\033[0m'; c_bold=$'\033[1m'; c_cyan=$'\033[1;36m'; c_green=$'\033[1;32m'
+else
+    c_reset=''; c_bold=''; c_cyan=''; c_green=''
+fi
 
 flavor_root() {
-    printf '%s\n' "$HERE/flavors/$selected_flavor"
+    printf '%s\n' "$source_root/share/tinypm/flavors/$selected_flavor"
 }
 
 flavor_file() {
-    local relative_path="$1"
     local candidate
-
-    candidate="$(flavor_root)/$relative_path"
-    [[ -r "$candidate" ]] && {
-        printf '%s\n' "$candidate"
-        return 0
-    }
-
-    return 1
+    candidate="$(flavor_root)/$1"
+    [[ -r "$candidate" ]] || return 1
+    printf '%s\n' "$candidate"
 }
 
-resolved_logo_file() {
-    flavor_file logo.txt || printf '%s\n' "$HERE/share/logo.txt"
-}
-
-resolved_catalog_file() {
-    flavor_file catalog.tsv || printf '%s\n' "$HERE/share/catalog.tsv"
-}
-
-load_flavor_metadata() {
-    local config_file
-
-    FLAVOR_NAME="TinyPM v4"
-    FLAVOR_ENGINE_NAME="Parcel"
+load_flavor() {
+    local file
+    FLAVOR_NAME="TinyPM V4"
     FLAVOR_TAGLINE=""
-
-    config_file="$(flavor_file flavor.conf || true)"
+    file="$(flavor_file flavor.conf 2>/dev/null || true)"
     # shellcheck disable=SC1090
-    [[ -n "$config_file" ]] && . "$config_file"
-    return 0
-}
-
-print_logo() {
-    [[ -r "$(resolved_logo_file)" ]] && { cat "$(resolved_logo_file)" >&2; printf '\n' >&2; }
+    [[ -z "$file" ]] || . "$file"
 }
 
 detect_native_pm() {
-    if [[ -r /etc/os-release ]]; then
-        # shellcheck disable=SC1091
-        . /etc/os-release
-        if [[ "${ID:-}" == "nixos" || "${ID:-}" == "abora" || " ${ID_LIKE:-} " == *" nixos "* ]] \
-            && command -v nix-env >/dev/null 2>&1; then
-            echo nix
-            return
-        fi
-    fi
-
-    command -v apt-get >/dev/null 2>&1 && { echo apt; return; }
-    command -v dnf >/dev/null 2>&1 && { echo dnf; return; }
-    command -v pacman >/dev/null 2>&1 && { echo pacman; return; }
-    command -v xbps-install >/dev/null 2>&1 && { echo xbps; return; }
-    command -v zypper >/dev/null 2>&1 && { echo zypper; return; }
-    command -v apk >/dev/null 2>&1 && { echo apk; return; }
-    command -v emerge >/dev/null 2>&1 && { echo emerge; return; }
-    command -v brew >/dev/null 2>&1 && { echo brew; return; }
-    command -v nix-env >/dev/null 2>&1 && { echo nix; return; }
+    local item command
+    for item in \
+        apt:apt-get dnf:dnf pacman:pacman xbps:xbps-install zypper:zypper \
+        apk:apk emerge:emerge eopkg:eopkg swupd:swupd slackpkg:slackpkg \
+        opkg:opkg urpmi:urpmi guix:guix brew:brew nix:nix-env
+    do
+        command="${item#*:}"
+        command -v "$command" >/dev/null 2>&1 && { printf '%s\n' "${item%%:*}"; return; }
+    done
     return 1
 }
 
-is_valid_native_pm() {
+valid_native_pm() {
     case "$1" in
-        auto|apt|dnf|pacman|xbps|zypper|apk|emerge|brew|nix) return 0 ;;
+        auto|apt|dnf|pacman|xbps|zypper|apk|emerge|eopkg|swupd|slackpkg|opkg|urpmi|guix|brew|nix) return 0 ;;
         *) return 1 ;;
     esac
 }
 
-parse_cli_options() {
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --flavor=*)
-                selected_flavor="${1#*=}"
-                shift
-                ;;
-            --flavor)
-                shift
-                [[ $# -gt 0 ]] || { echo "Missing value for --flavor" >&2; exit 1; }
-                selected_flavor="$1"
-                shift
-                ;;
-            -y|--yes|--non-interactive)
-                non_interactive=1
-                shift
-                ;;
-            --auto)
-                forced_native_pm="auto"
-                shift
-                ;;
-            --native=*)
-                forced_native_pm="${1#*=}"
-                shift
-                ;;
-            --native)
-                shift
-                [[ $# -gt 0 ]] || { echo "Missing value for --native" >&2; exit 1; }
-                forced_native_pm="$1"
-                shift
-                ;;
-            -h|--help)
-                cat <<'EOH'
-TinyPM v4 / Parcel installer
+usage() {
+    cat <<'EOF'
+TinyPM V4 installer
 
 Usage:
-  ./install.sh [--auto] [--native <pm>] [--flavor <name>] [--yes]
+  ./scripts/install.sh [--auto] [--native <manager>] [--flavor <name>] [-y]
+EOF
+}
 
-Native pm values:
-  auto, apt, dnf, pacman, xbps, zypper, apk, emerge, brew, nix
-EOH
-                exit 0
-                ;;
-            *)
-                echo "Unknown option: $1" >&2
-                exit 1
-                ;;
+parse_options() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --flavor=*) selected_flavor="${1#*=}"; shift ;;
+            --flavor) shift; [[ $# -gt 0 ]] || { printf 'Missing flavor name.\n' >&2; exit 2; }; selected_flavor="$1"; shift ;;
+            --native=*) forced_native_pm="${1#*=}"; shift ;;
+            --native) shift; [[ $# -gt 0 ]] || { printf 'Missing native manager.\n' >&2; exit 2; }; forced_native_pm="$1"; shift ;;
+            --auto) forced_native_pm="auto"; shift ;;
+            -y|--yes|--non-interactive) non_interactive=1; shift ;;
+            -h|--help) usage; exit 0 ;;
+            *) printf 'Unknown installer option: %s\n' "$1" >&2; exit 2 ;;
         esac
     done
 
-    if [[ -n "$forced_native_pm" ]] && ! is_valid_native_pm "$forced_native_pm"; then
-        echo "Invalid native pm: $forced_native_pm" >&2
-        exit 1
-    fi
-
-    if [[ "$selected_flavor" != "$DEFAULT_FLAVOR" && ! -d "$(flavor_root)" ]]; then
-        echo "Unknown flavor: $selected_flavor" >&2
-        exit 1
-    fi
+    [[ -z "$forced_native_pm" ]] || valid_native_pm "$forced_native_pm" || {
+        printf 'Unsupported native manager: %s\n' "$forced_native_pm" >&2
+        exit 2
+    }
+    [[ "$selected_flavor" == default || -d "$(flavor_root)" ]] || {
+        printf 'Unknown flavor: %s\n' "$selected_flavor" >&2
+        exit 2
+    }
 }
 
 choose_native_pm() {
     local detected
     detected="$(detect_native_pm 2>/dev/null || echo auto)"
-
-    if [[ -n "$forced_native_pm" ]]; then
-        if [[ "$forced_native_pm" == "auto" ]]; then
-            echo "$detected"
-        else
-            echo "$forced_native_pm"
-        fi
-        return
-    fi
-
-    if [[ "$non_interactive" -eq 1 ]]; then
-        echo "$detected"
-        return
-    fi
-
-    print_logo
-    printf '%s / %s Installer\n' "$FLAVOR_NAME" "$FLAVOR_ENGINE_NAME" >&2
-    [[ -n "$FLAVOR_TAGLINE" ]] && printf '%s\n' "$FLAVOR_TAGLINE" >&2
-    if [[ "$detected" == "auto" ]]; then
-        printf 'No native package manager was detected. %s will still use Flatpak or Snap when available.\n\n' "$FLAVOR_NAME" >&2
+    if [[ -n "$forced_native_pm" && "$forced_native_pm" != auto ]]; then
+        printf '%s\n' "$forced_native_pm"
     else
-        printf 'Detected native source: %s\n\n' "$detected" >&2
+        printf '%s\n' "$detected"
     fi
-    echo "$detected"
+}
+
+print_banner() {
+    local logo="$source_root/share/tinypm/logo.txt"
+    [[ "$selected_flavor" == default ]] || logo="$(flavor_file logo.txt 2>/dev/null || echo "$logo")"
+    if [[ "$non_interactive" -eq 0 && -r "$logo" ]]; then
+        printf '%s' "$c_cyan" >&2
+        cat "$logo" >&2
+        printf '%s\n' "$c_reset" >&2
+    fi
+    printf '%s%s installer%s\n' "$c_bold$c_cyan" "$FLAVOR_NAME" "$c_reset"
+    [[ -z "$FLAVOR_TAGLINE" ]] || printf '%s\n' "$FLAVOR_TAGLINE"
 }
 
 install_runtime() {
-    local cmd
+    mkdir -p "$bin_dir" "$local_bin" "$config_dir"
 
-    mkdir -p "$BIN_DIR" "$LOCAL_BIN" "$CONFIG_DIR"
+    # Remove layouts and commands left by pre-V4 development versions.
+    rm -rf "${bin_dir:?}/lib" "$bin_dir/share" "$bin_dir/assets" "$bin_dir/flavors"
+    rm -f "$bin_dir/Forge" "$bin_dir/Parcel" "$bin_dir/version" "$bin_dir/_spinner"
+    rm -f "$local_bin/Forge" "$local_bin/Parcel" "$local_bin/version" "$local_bin/_spinner"
 
-    cp -R "$HERE/lib" "$BIN_DIR/"
-    cp -R "$HERE/share" "$BIN_DIR/"
-    cp -R "$HERE/assets" "$BIN_DIR/"
-    [[ -d "$HERE/flavors" ]] && cp -R "$HERE/flavors" "$BIN_DIR/"
-    cp -f "$HERE/_spinner" "$BIN_DIR/_spinner"
-    cp -f "$HERE/tinypm" "$BIN_DIR/tinypm"
-    cp -f "$HERE/version" "$BIN_DIR/version"
-    cp -f "$HERE/Parcel" "$BIN_DIR/Parcel"
-    if [[ -f "$HERE/syspm.sh" ]]; then
-        cp -f "$HERE/syspm.sh" "$BIN_DIR/syspm"
-    fi
+    rm -rf "$lib_dir" "$share_dir"
+    mkdir -p "$lib_dir" "$share_dir"
+    cp -R "$source_root/lib/tinypm/." "$lib_dir/"
+    cp "$source_root/share/tinypm/catalog.tsv" "$source_root/share/tinypm/aliases.tsv" \
+        "$source_root/share/tinypm/logo.txt" "$share_dir/"
+    cp -R "$source_root/share/tinypm/flavors" "$share_dir/"
+    cp -R "$source_root/share/tinypm/completions" "$share_dir/"
+    cp "$source_root/bin/tinypm" "$source_root/bin/syspm" "$bin_dir/"
+    chmod +x "$bin_dir/tinypm" "$bin_dir/syspm"
 
-    cp -f "$(resolved_logo_file)" "$BIN_DIR/share/logo.txt"
-    cp -f "$(resolved_catalog_file)" "$BIN_DIR/share/catalog.tsv"
+    local command
+    for command in tiny grab grab-add-repo grab-de; do
+        ln -sfn tinypm "$bin_dir/$command"
+    done
+    for command in tinypm tiny grab grab-add-repo grab-de; do
+        ln -sfn "$bin_dir/$command" "$local_bin/$command"
+    done
+    ln -sfn "$bin_dir/syspm" "$local_bin/syspm"
 
-    chmod +x "$BIN_DIR/_spinner" "$BIN_DIR/tinypm" "$BIN_DIR/version" "$BIN_DIR/Parcel"
-    [[ -f "$BIN_DIR/syspm" ]] && chmod +x "$BIN_DIR/syspm"
+    # Install optional shell metadata in each shell's conventional user path.
+    mkdir -p "$data_home/bash-completion/completions" "$data_home/zsh/site-functions"
+    ln -sfn "$share_dir/completions/tinypm.bash" "$data_home/bash-completion/completions/tinypm"
+    for command in tiny grab grab-add-repo grab-de syspm; do
+        ln -sfn tinypm "$data_home/bash-completion/completions/$command"
+    done
+    ln -sfn "$share_dir/completions/_tinypm" "$data_home/zsh/site-functions/_tinypm"
 
-    ln -sfn "$BIN_DIR/tinypm" "$BIN_DIR/tiny"
-    ln -sfn "$BIN_DIR/tinypm" "$BIN_DIR/grab"
-
-    ln -sfn "$BIN_DIR/tinypm" "$LOCAL_BIN/tinypm"
-    ln -sfn "$BIN_DIR/tinypm" "$LOCAL_BIN/tiny"
-    ln -sfn "$BIN_DIR/tinypm" "$LOCAL_BIN/grab"
-    ln -sfn "$BIN_DIR/Parcel" "$LOCAL_BIN/Parcel"
-    [[ -f "$BIN_DIR/syspm" ]] && ln -sfn "$BIN_DIR/syspm" "$LOCAL_BIN/syspm"
-    ln -sfn "$BIN_DIR/version" "$LOCAL_BIN/version"
-    ln -sfn "$BIN_DIR/_spinner" "$LOCAL_BIN/_spinner"
+    mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/fish/completions"
+    for command in tinypm tiny grab grab-add-repo grab-de syspm; do
+        ln -sfn "$share_dir/completions/tinypm.fish" \
+            "${XDG_CONFIG_HOME:-$HOME/.config}/fish/completions/$command.fish"
+    done
 }
 
 write_config() {
-    printf 'native_pm=%s\n' "$1" > "$CONFIG_FILE"
-    printf 'tinypm_flavor=%s\n' "$selected_flavor" >> "$CONFIG_FILE"
+    printf 'native_pm=%s\n' "$1" >"$config_file"
+    printf 'tinypm_flavor=%s\n' "$selected_flavor" >>"$config_file"
 }
 
-ensure_local_bin_on_path() {
-    local shell_rc="$HOME/.bashrc"
-    [[ -n "${ZSH_VERSION:-}" ]] && shell_rc="$HOME/.zshrc"
+add_path_line() {
+    local shell_rc="$1"
+    # shellcheck disable=SC2016
+    grep -q 'HOME/.local/bin' "$shell_rc" 2>/dev/null || printf '\n# TinyPM\nexport PATH="$HOME/.local/bin:$PATH"\n' >>"$shell_rc"
+}
 
-    if ! grep -q 'HOME/.local/bin' "$shell_rc" 2>/dev/null; then
-        printf "\n# TinyPM\nexport PATH=\"\$HOME/.local/bin:\$PATH\"\n" >>"$shell_rc"
-    fi
+configure_path() {
+    add_path_line "$HOME/.bashrc"
+    if command -v zsh >/dev/null 2>&1 || [[ -e "$HOME/.zshrc" ]]; then add_path_line "$HOME/.zshrc"; fi
+    if [[ -e "$HOME/.profile" ]]; then add_path_line "$HOME/.profile"; fi
 }
 
 main() {
     local selected_pm
-
-    parse_cli_options "$@"
-    load_flavor_metadata
+    parse_options "$@"
+    load_flavor
     selected_pm="$(choose_native_pm)"
-
+    print_banner
     install_runtime
     write_config "$selected_pm"
-    ensure_local_bin_on_path
+    configure_path
 
-    printf '\n%s installed to %s\n' "$FLAVOR_NAME" "$BIN_DIR"
-    printf 'Primary native source: %s\n' "$selected_pm"
-    printf 'Flavor: %s\n' "$selected_flavor"
-    printf 'Commands linked into %s\n' "$LOCAL_BIN"
-    printf '\nOpen a new terminal or run:\n'
-    printf '  hash -r\n'
-    printf "  export PATH=\"\$HOME/.local/bin:\$PATH\"\n"
-    printf '\nThen test:\n'
-    printf "  \"\$HOME/.tinypm/bin/tinypm\" help\n"
-    printf "  \"\$HOME/.tinypm/bin/tinypm\" system\n"
-    printf "  \"\$HOME/.tinypm/bin/tinypm\" selftest\n"
-    printf "  \"\$HOME/.tinypm/bin/tinypm\" doctor --fix\n"
-    printf '  tinypm anix doctor\n'
-    printf '  grab firefox\n'
-    printf '  syspm update\n'
+    printf '%s[ok]%s Installed to %s\n' "$c_green" "$c_reset" "$prefix"
+    printf 'Native manager: %s\n' "$selected_pm"
+    printf 'Commands: %s\n' "$local_bin"
+    # shellcheck disable=SC2016
+    printf 'Try: export PATH="$HOME/.local/bin:$PATH" && grab --dry-run curl\n'
 }
 
 main "$@"

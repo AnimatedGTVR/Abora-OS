@@ -244,4 +244,15 @@ fi
 enable_serial_mirror
 
 printf '\033c'
-exec "$BASH_BIN" --login
+if command -v abora-install >/dev/null 2>&1; then
+    abora-install "${installer_args[@]}" || {
+        printf '\n'
+        printf '  %bInstaller exited. Dropping to live shell.%b\n' "$WH" "$NC"
+        printf '  Run %babora-install --force%b to start it again.\n\n' "$CY" "$NC"
+        exec "$BASH_BIN" --login
+    }
+else
+    printf '\n'
+    printf '  %babora-install was not found. Dropping to live shell.%b\n\n' "$WH" "$NC"
+    exec "$BASH_BIN" --login
+fi

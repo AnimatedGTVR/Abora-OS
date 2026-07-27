@@ -30,7 +30,11 @@ var (
 var mintAccent = lipgloss.NewStyle().Foreground(lipgloss.Color("43"))
 
 func main() {
-	lipgloss.SetColorProfile(termenv.NewOutput(os.Stderr).Profile)
+	if os.Getenv("MINT_FORCE_COLOR") != "" || os.Getenv("CLICOLOR_FORCE") != "" {
+		lipgloss.SetColorProfile(termenv.TrueColor)
+	} else {
+		lipgloss.SetColorProfile(termenv.NewOutput(os.Stderr).Profile)
+	}
 	applyMINTEnvironmentAliases()
 
 	if Version == "" {
@@ -75,7 +79,7 @@ func main() {
 			"defaultFaint":            "false",
 			"defaultItalic":           "false",
 			"defaultStrikethrough":    "false",
-			"defaultLogoPath":         "/home/animatedpc/Work/abora-os/assets/Abora-Text.png",
+			"defaultLogoPath":         "/etc/abora/Abora-Text.png",
 		},
 	)
 	if err := ctx.Run(); err != nil {

@@ -19,6 +19,16 @@ abora-update
 nixos update
 ```
 
+## Checking Without Updating
+
+To see whether an update is available without fetching anything or touching the system:
+
+```sh
+abora update --check
+```
+
+This resolves your channel and compares it against the installed version, same as a normal update would, but stops there — no rebuild, no root needed. `abora welcome-gui` uses this under the hood for its status card.
+
 ## What The Updater Does
 
 The update helper:

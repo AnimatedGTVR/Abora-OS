@@ -1,3 +1,58 @@
+# Abora OS EVEREST 4.1 (in progress)
+
+Guided installer overhaul and the first two graphical system tools, built on top of EVEREST 4.0.
+
+## Installer
+
+- The default guided installer is now **MINT**, a Go/Bubble Tea front-end that hands the confirmed install plan to the existing bash installer as its backend — `abora-installer` (the bash-only flow) is still there if you want it, now reachable via `abora-install --batch`
+- Every installer screen can be backed out of with `Esc` or a `← Back` list entry, previous answers preserved, instead of the old one-way linear flow
+- "Step X of Y" progress indicator on every screen
+- Timezone selection is now region-first (Americas, Europe, Africa, Asia, Australia & Oceania, UTC), then a fuzzy-searchable list of the real IANA zones in that region — states/regions with more than one zone (Indiana's eight, for example) all show up individually instead of just one
+- `abora update --check` — see whether an update is available without installing it
+
+## New: Graphical Tools
+
+- `abora welcome-gui` — status card (desktop, wallpaper, update channel, Flathub), update check/install, and the same quick actions as `abora welcome`. Opens once automatically on first desktop login, always reachable afterward
+- `abora config-gui` — graphical settings editor for hostname, timezone, keyboard, desktop, wallpaper, and GPU driver; thin front-end over `abora config`, so nothing it does is GUI-exclusive
+- Both are GTK4/libadwaita apps that force a light theme by default
+
+---
+
+# Abora OS EVEREST 4.0 Changelog
+
+EVEREST 4.0 is the multi-edition release: five ready-made ISOs, a second-generation ANIX with pluggable configuration languages, and real GPU driver support.
+
+## Multi-Edition ISOs
+
+- Five editions, each defaulting to a different desktop: Cosmic, Hyprland, GNOME, KDE, and Other (console-first, pick from all 23 profiles)
+- Every edition still installs the full desktop matrix — the edition only decides the live session's default
+- `make iso-all` builds every edition for release validation
+
+## GPU Driver Support
+
+- New `abora.gpu` option: `nouveau`, `nvidia`, `nvidia-open`, `amdgpu`, `intel`, or `none`
+- Installer detects your GPU vendor via `lspci`; NVIDIA hardware defaults to the license-free `nouveau` driver, with proprietary `nvidia`/`nvidia-open` as explicit opt-ins
+- Change anytime: `abora config set gpu nvidia && abora config apply`
+- `abora-hardware-test` points at the GPU step when it detects NVIDIA hardware
+
+## ANIX v2 — Pluggable Configuration Languages
+
+- Configs can now be written in ANIX Native (`.anix`), MKO (`.mko`, the MAKO project's language), or ModuCPP (`.moducpp`)
+- Every adapter resolves to the same Plan JSON, applied as one transaction
+- `anix language list` / `anix language use` / `anix run` / `anix diff-plan` / `anix validate-plan` / `anix apply-plan`
+- `anix diff-plan` labels each setting ADD, CHANGE, or SAME before you apply anything, regardless of source language
+
+## Carried Forward From DENALI 3.14
+
+- 23 desktop environments, evaluated in CI via `make check-desktops`
+- 7 starter app bundles at install time
+- TinyPM v4 app layer (`grab`, `tinypm sources`, `tinypm system`, `tinypm repair`)
+- Omarchy-inspired TUI installer, Limine bootloader, Plymouth splash, Abora wallpaper pack
+- NetworkManager, Bluetooth, ModemManager, redistributable firmware, Intel/AMD microcode
+- Flathub added automatically on first boot
+
+---
+
 # Abora OS DENALI 3.1.4 Changelog
 
 Abora DENALI 3.1.4 is the installer, identity, and tooling release.

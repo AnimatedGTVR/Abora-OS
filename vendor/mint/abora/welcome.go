@@ -18,7 +18,7 @@ func (o WelcomeOptions) Run() error {
 		Limit:             1,
 		Height:            2,
 		Header:            o.Header,
-		Cursor:            "▸ ",
+		Cursor:            "> ",
 		LabelDelimiter:    ":",
 		StripANSI:         true,
 		ShowHelp:          true,

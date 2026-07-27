@@ -48,6 +48,14 @@ EOF
         shift
         exec abora-welcome "$@"
         ;;
+    welcome-gui)
+        shift
+        exec abora-welcome-gui "$@"
+        ;;
+    config-gui)
+        shift
+        exec abora-config-gui "$@"
+        ;;
     hardware-test)
         shift
         exec abora-hardware-test "$@"
@@ -80,6 +88,7 @@ EOF
         cat <<'EOF'
 Abora commands:
   abora welcome          first-boot welcome and quick actions
+  abora welcome-gui      graphical first-steps and update-check app
   abora doctor           check Abora system health
   abora check-full       collect full ANIX, TinyPM, desktop, driver, and Nix logs
   abora recovery         rollback, repair, and diagnostics menu
@@ -87,6 +96,7 @@ Abora commands:
   abora desktop          view or switch desktop profiles
   abora apps             install curated apps
   abora config           view or edit installed-system settings
+  abora config-gui       graphical settings editor
   abora update           update Abora
   abora channel          view or change the update channel
   abora rollback         roll back to the previous system generation

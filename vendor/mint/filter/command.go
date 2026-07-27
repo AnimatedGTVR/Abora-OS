@@ -20,6 +20,10 @@ import (
 	"github.com/sahilm/fuzzy"
 )
 
+// ErrNothingSelected is returned by Run when the user exits without
+// submitting a choice (e.g. by pressing Esc).
+var ErrNothingSelected = errors.New("nothing selected")
+
 // Run provides a shell script interface for filtering through options, powered
 // by the textinput bubble.
 func (o Options) Run() error {
@@ -150,7 +154,7 @@ func (o Options) Run() error {
 
 	m = tm.(model)
 	if !m.submitted {
-		return errors.New("nothing selected")
+		return ErrNothingSelected
 	}
 
 	// allSelections contains values only if limit is greater
