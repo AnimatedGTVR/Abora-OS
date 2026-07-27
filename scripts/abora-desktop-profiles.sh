@@ -286,6 +286,28 @@ abora_desktop_config_block() {
     local username_value="$3"
     local default_wallpaper_uri="${4:-$(abora_default_wallpaper_uri)}"
 
+    # Every "${xkb_layout_value}"/"${username_value}" interpolation below
+    # (40+ of them, one set per desktop) writes straight into a Nix
+    # double-quoted string with no escaping. Not reachable from the real
+    # installer/update paths today -- abora-installer.sh's own
+    # generate_nixos_config already escapes these same values via
+    # nix_string() before they ever reach installed-base.nix, and this
+    # function is currently called only from the test suite with fixed safe
+    # values -- but this file is a standalone library meant to be sourced by
+    # any future caller, so escaping unconditionally here (rather than
+    # trusting every future caller to pre-escape) is what actually closes
+    # the gap. Same escaping abora-installer.sh's nix_string() uses:
+    # backslash first (so the backslashes these two steps add don't get
+    # doubled by themselves), then $, then ", then strip newlines.
+    xkb_layout_value="${xkb_layout_value//\\/\\\\}"
+    xkb_layout_value="${xkb_layout_value//\$/\\\$}"
+    xkb_layout_value="${xkb_layout_value//\"/\\\"}"
+    xkb_layout_value="${xkb_layout_value//$'\n'/}"
+    username_value="${username_value//\\/\\\\}"
+    username_value="${username_value//\$/\\\$}"
+    username_value="${username_value//\"/\\\"}"
+    username_value="${username_value//$'\n'/}"
+
     case "$desktop_profile" in
         none)
             cat <<EOF
@@ -311,12 +333,12 @@ EOF
 
     [org.gnome.desktop.interface]
     accent-color='teal'
-    color-scheme='prefer-dark'
+    color-scheme='prefer-light'
     font-name='Inter 11'
     document-font-name='Inter 11'
     monospace-font-name='JetBrains Mono 10'
-    icon-theme='Papirus-Dark'
-    gtk-theme='adw-gtk3-dark'
+    icon-theme='Papirus'
+    gtk-theme='Adwaita'
 
     [org.gnome.desktop.wm.preferences]
     button-layout='appmenu:minimize,maximize,close'
@@ -359,7 +381,7 @@ EOF
     brightness=0.7
 
     [org.gnome.Terminal.Legacy.Settings]
-    theme-variant='dark'
+    theme-variant='light'
   '';
   services.displayManager.autoLogin.enable = true;
   services.displayManager.autoLogin.user = "${username_value}";

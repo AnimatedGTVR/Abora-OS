@@ -85,6 +85,10 @@ system_profile_link="${ANIX_SYSTEM_PROFILE:-/nix/var/nix/profiles/system}"
 
 run_as_root() {
     if is_yes "${ANIX_NO_SUDO:-}"; then
+        if [[ -n "${ANIX_ROOT_PATH:-}" ]]; then
+            PATH="$ANIX_ROOT_PATH" "$@"
+            return
+        fi
         "$@"
         return
     fi
@@ -318,12 +322,22 @@ git_available_for_config() {
 }
 
 config_is_git_repo() {
-    git_available_for_config && git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1
+    git_available_for_config && {
+        git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+            || run_as_root git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1
+    }
 }
 
 config_is_dirty() {
     config_is_git_repo || return 1
-    [[ -n "$(git -C "$config_dir" status --porcelain 2>/dev/null)" ]]
+    [[ -n "$(git -C "$config_dir" status --porcelain 2>/dev/null || run_as_root git -C "$config_dir" status --porcelain 2>/dev/null || true)" ]]
+}
+
+stage_config_for_flake() {
+    command -v git >/dev/null 2>&1 || return 0
+    [[ -d "$config_dir" ]] || return 0
+    run_as_root git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+    run_as_root git -C "$config_dir" add -A >/dev/null 2>&1 || true
 }
 
 warn_possible_secrets() {
@@ -431,6 +445,7 @@ run_rebuild() {
     local rc=0
 
     log_file="$(mktemp "${TMPDIR:-/tmp}/anix-${action}.XXXXXX.log")"
+    stage_config_for_flake
 
     case "$action" in
         dry-build)
@@ -645,11 +660,20 @@ EOF
 
 ensure_anix_file() {
     if [[ -f "$anix_file" ]]; then
+        repair_anix_module_args
         return 0
     fi
 
     run_as_root mkdir -p "$config_dir"
     run_as_root bash -c "$(printf 'cat > %q <<'"'"'EOF'"'"'\n%s\nEOF' "$anix_file" "$(render_template)")"
+}
+
+repair_anix_module_args() {
+    [[ -f "$anix_file" ]] || return 0
+    if grep -Eq '^[[:space:]]*\{[[:space:]]*\.\.\.[[:space:]]*\}:[[:space:]]*$' "$anix_file" \
+        && grep -Eq 'with[[:space:]]+pkgs[[:space:]]*;' "$anix_file"; then
+        run_as_root sed -i -E '0,/^[[:space:]]*\{[[:space:]]*\.\.\.[[:space:]]*\}:[[:space:]]*$/s//{ pkgs, ... }:/' "$anix_file"
+    fi
 }
 
 show_config() {
@@ -736,6 +760,24 @@ do_set() {
         exit 1
     fi
 
+    # Belt-and-suspenders, matching abora-config.sh's do_set: no settable
+    # value may contain characters that could break out of the Nix
+    # double-quoted string it gets written into ('"' ends the string; '\'
+    # starts an escape; '${' begins Nix antiquotation), no matter which
+    # key-specific check below runs. hostname/desktop/wallpaper/shell are
+    # already restricted to safe enums or regexes below, but timezone,
+    # keyboard.console, keyboard.xkb, gc.days, and gc.dates accept arbitrary
+    # text with no further validation -- without this, "anix set timezone
+    # 'x\"; services.openssh.enable = true; anix.timezone = \"x'" writes
+    # that second statement as real, unquoted Nix source into anix.nix. This
+    # is also the path apply-plan/anix run use for every "set" operation, so
+    # it's reachable from an external .mko/.moducpp language adapter's Plan
+    # JSON output, not just direct interactive use.
+    if [[ "$value" == *'"'* || "$value" == *'\'* || "$value" == *'${'* ]]; then
+        abora_error "Invalid value '${value}' — it cannot contain '\"', '\\', or '\${'."
+        exit 1
+    fi
+
     ensure_anix_file
 
     case "$key" in
@@ -789,8 +831,13 @@ do_set() {
 
     escaped_key="${key//./\\.}"
     if grep -Eq "^[[:space:]]*anix\\.${escaped_key}[[:space:]]*=" "$anix_file"; then
+        # @ instead of | as the delimiter: timezone/keyboard.xkb/gc.days/
+        # gc.dates have no character restriction beyond the "|\${ ban
+        # above, so a value containing a literal | would otherwise collide
+        # with | used as the sed delimiter (same class of bug as do_package
+        # remove's sed, fixed earlier).
         run_as_root sed -i -E \
-            "s|^([[:space:]]*anix\\.${escaped_key}[[:space:]]*=[[:space:]]*)\"[^\"]*\";|\\1\"${value}\";|" \
+            "s@^([[:space:]]*anix\\.${escaped_key}[[:space:]]*=[[:space:]]*)\"[^\"]*\";@\\1\"${value}\";@" \
             "$anix_file"
     else
         run_as_root sed -i -E \
@@ -876,8 +923,24 @@ do_package() {
     file="$anix_file"
     case "$action" in
         add)
-            if grep -Eq "anix\\.packages = with pkgs; \\[[^]]*(^|[[:space:]])${pkg}($|[[:space:]])" "$file"; then
+            # (^|[[:space:]]) is not a real word-boundary check: ^ anchors to
+            # the start of the whole line, not to right after "[", so a
+            # package sitting immediately against "[" with no space would
+            # slip past this duplicate check and get appended again. Not
+            # reachable through this tool's own writes today (every write
+            # path already inserts a leading space), but this is the correct
+            # general form regardless: an optional run of non-"]" characters
+            # ending in whitespace before the name, so the name can sit right
+            # after "[" or after any other package.
+            if grep -Eq "anix\\.packages = with pkgs; \\[([^]]*[[:space:]])?${pkg}([[:space:]]|\\])" "$file"; then
+                # abora_success below used to run unconditionally after this
+                # if/elif/else, so this branch printed both "already in
+                # anix.packages" and a false "Added package" success message
+                # for a no-op. Return here instead so only the warning shows.
                 abora_warn "${pkg} is already in anix.packages"
+                abora_dim_line "Run 'anix apply' to rebuild."
+                printf '\n'
+                return 0
             elif grep -Eq "^[[:space:]]*anix\\.packages[[:space:]]*=[[:space:]]*with pkgs; \\[" "$file"; then
                 run_as_root sed -i -E "s|^([[:space:]]*anix\\.packages[[:space:]]*=[[:space:]]*with pkgs; \\[)(.*)(\\];)|\\1\\2 ${pkg} \\3|" "$file"
             else
@@ -886,7 +949,18 @@ do_package() {
             abora_success "Added package: ${pkg}"
             ;;
         remove|rm)
-            run_as_root sed -i -E "s|([[:space:][])${pkg}([[:space:]]|\\])|\\1\\2|g; s|[[:space:]]+\\]| \\]|g" "$file"
+            # Was using | as both the sed delimiter and the regex alternation
+            # operator inside the pattern ([[:space:]]|\]) -- sed has no way
+            # to tell those apart, so this always failed with "unknown
+            # option to 's'" and the exit status was never checked, meaning
+            # every "anix package remove" silently did nothing while still
+            # printing success. @ doesn't appear in package names (validated
+            # above against ^[A-Za-z0-9._+-]+$) or the rest of the pattern,
+            # so it's a safe delimiter here.
+            if ! run_as_root sed -i -E "s@([[:space:][])${pkg}([[:space:]]|\])@\1\2@g; s@[[:space:]]+\]@ \]@g" "$file"; then
+                abora_error "Failed to remove package: ${pkg}"
+                exit 1
+            fi
             abora_success "Removed package if present: ${pkg}"
             ;;
         *)
@@ -1004,6 +1078,7 @@ preflight_anix_config() {
 
 do_apply() {
     ensure_anix_file
+    repair_anix_module_args
 
     abora_banner "ANIX Apply" "Rebuilding with ${anix_file}"
     if ! preflight_anix_config yes; then
@@ -1014,6 +1089,7 @@ do_apply() {
     abora_step "Running nixos-rebuild switch"
     printf '\n'
 
+    stage_config_for_flake
     run_as_root nixos-rebuild switch --flake "${config_dir}#${flake_config_name}"
 
     printf '\n'
@@ -2233,6 +2309,23 @@ validate_plan_json() {
 # desktop-change confirmation, and file formatting stay identical to running
 # those commands by hand), then a single dry-build + confirm + switch closes
 # the transaction instead of one apply per setting.
+#
+# validate_plan_json only checks that each operation's key/op/shape is
+# recognized -- it does not (and cannot, without duplicating do_set's own
+# logic) check that a "set desktop" value is an actual supported profile, or
+# that a hostname passes the hostname regex. Those checks only run inside
+# do_set/do_toggle/do_package themselves, which can still fail (and call
+# `exit`, not `return`) after earlier operations in the same plan have
+# already been written directly to anix.nix. To make this genuinely one
+# transaction rather than "apply operations in sequence and hope none of
+# them fail": every write goes against a private staged copy (do_set/
+# do_toggle/do_package all go through the shared $anix_file variable, so
+# retargeting it for the duration of this loop is enough), and the staged
+# copy only replaces the real anix.nix with one atomic `mv` if every single
+# operation succeeded. Each operation call is wrapped in a subshell so that
+# an `exit` inside it (do_set's normal way of reporting an invalid value)
+# only ends that subshell, letting this loop see the failure and stop
+# instead of the whole anix process dying mid-loop.
 apply_plan_json() {
     local plan="$1"
     local skip_confirm="${2:-no}"
@@ -2248,30 +2341,48 @@ apply_plan_json() {
 
     abora_banner "ANIX Plan" "$(jq -r '"\(.operations | length) operation(s) from " + (.language // "unknown")' <<<"$plan")"
 
-    local i=0
+    ensure_anix_file
+    local real_anix_file="$anix_file"
+    local staged_anix_file
+    staged_anix_file="$(mktemp "${real_anix_file}.plan.XXXXXX")"
+    cp -f "$real_anix_file" "$staged_anix_file"
+    anix_file="$staged_anix_file"
+
+    local i=0 op_rc=0
     while [[ "$i" -lt "$count" ]]; do
         local entry op
         entry="$(jq -c ".operations[$i]" <<<"$plan")"
         op="$(jq -r '.op' <<<"$entry")"
         case "$op" in
             set)
-                do_set "$(jq -r '.key' <<<"$entry")" "$(jq -r '.value' <<<"$entry")"
+                ( do_set "$(jq -r '.key' <<<"$entry")" "$(jq -r '.value' <<<"$entry")" ) || op_rc=$?
                 ;;
             enable)
-                do_toggle true "$(jq -r '.feature' <<<"$entry")"
+                ( do_toggle true "$(jq -r '.feature' <<<"$entry")" ) || op_rc=$?
                 ;;
             disable)
-                do_toggle false "$(jq -r '.feature' <<<"$entry")"
+                ( do_toggle false "$(jq -r '.feature' <<<"$entry")" ) || op_rc=$?
                 ;;
             package.add)
-                do_package add "$(jq -r '.name' <<<"$entry")"
+                ( do_package add "$(jq -r '.name' <<<"$entry")" ) || op_rc=$?
                 ;;
             package.remove)
-                do_package remove "$(jq -r '.name' <<<"$entry")"
+                ( do_package remove "$(jq -r '.name' <<<"$entry")" ) || op_rc=$?
                 ;;
         esac
+        [[ "$op_rc" -ne 0 ]] && break
         i=$((i + 1))
     done
+
+    anix_file="$real_anix_file"
+
+    if [[ "$op_rc" -ne 0 ]]; then
+        rm -f "$staged_anix_file"
+        abora_error "Plan operation $((i + 1)) of ${count} failed; no changes were written to ${anix_file}."
+        exit "$op_rc"
+    fi
+
+    mv -f "$staged_anix_file" "$anix_file"
 
     if [[ "$skip_confirm" != "yes" ]] && ! confirm "Apply this plan with 'nixos-rebuild switch'?" "no"; then
         abora_warn "Plan written to ${anix_file} but not applied — run 'anix apply' when ready."
@@ -2381,7 +2492,7 @@ do_diff_plan() {
             package.add)
                 local name
                 name="$(jq -r '.name' <<<"$entry")"
-                if [[ -f "$anix_file" ]] && grep -Eq "anix\\.packages = with pkgs; \\[[^]]*(^|[[:space:]])${name}($|[[:space:]])" "$anix_file"; then
+                if [[ -f "$anix_file" ]] && grep -Eq "anix\\.packages = with pkgs; \\[[^]]*([[:space:][])${name}([[:space:]]|\\])" "$anix_file"; then
                     label="SAME"
                 else
                     label="ADD"
