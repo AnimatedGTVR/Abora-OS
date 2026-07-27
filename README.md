@@ -60,7 +60,31 @@
 ---
 
 ## What is Abora OS?
+---
 
+## Screenshots
+
+<table>
+<tr>
+<td>
+<img src="https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/Images/v4/screenshot-2026-07-27_03-54-02.png" width="420" alt="Abora Welcome on GNOME">
+</td>
+<td>
+<img src="https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/Images/v4/screenshot-2026-07-27_03-56-03.png" width="420" alt="Abora System Settings">
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/Images/v4/screenshot-2026-07-27_03-58-15.png" width="420" alt="Fastfetch on GNOME">
+</td>
+<td>
+<img src="https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/Images/v4/screenshot-2026-07-27_05-32-15.png" width="420" alt="Fastfetch on COSMIC">
+</td>
+</tr>
+</table>
+
+---
+ 
 Abora OS is a Linux distribution based on NixOS.
 
 The goal is not to replace what makes NixOS useful. Abora keeps features such as system rollbacks, reproducible configurations, and declarative system management while providing a more approachable starting point.
