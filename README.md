@@ -39,7 +39,7 @@
 ---
 
 > [!IMPORTANT]
-> Want to leave a feature recommendation? do it as a Pull request!
+> Want to leave a feature recommendation? Do it!
 
 
 ## Quick Links
