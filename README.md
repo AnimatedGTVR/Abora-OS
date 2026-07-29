@@ -39,7 +39,8 @@
 ---
 
 > [!IMPORTANT]
-> Abora OS has two release lines: **Stable** and **Edge**.
+> Want to leave a feature recommendation? do it as a Pull request!
+
 
 ## Quick Links
 
