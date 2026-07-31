@@ -1,8 +1,10 @@
-.PHONY: help iso iso-all iso-cosmic iso-hyprland iso-gnome iso-kde iso-other iso-local qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc check check-desktops check-all preflight metadata release tinypm-package anix-package tinypm-image test-installer test-installer-tty test-installer-kitty test-welcome test-config
+.PHONY: help iso iso-all iso-cosmic iso-hyprland iso-gnome iso-kde iso-other iso-local qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc doctor desktop-preview check check-desktops check-all preflight metadata release tinypm-package anix-package tinypm-image test-installer test-installer-tty test-installer-kitty test-welcome test-config
 
 help:
 	@echo "Usage: make <target>"
 	@echo "Targets:"
+	@echo "  doctor           - Check your dev machine is ready to build Abora (run this first)"
+	@echo "  desktop-preview  - Print Abora's NixOS config/packages for a desktop profile (PROFILE=gnome), no install needed"
 	@echo "  iso              - Build one ISO (defaults to Cosmic; override with ABORA_EDITION=gnome)"
 	@echo "  iso-all          - Build Cosmic, Hyprland, GNOME, KDE, and Other ISOs"
 	@echo "  iso-hyprland     - Build only the Hyprland ISO"
@@ -110,6 +112,13 @@ test-config:
 	ABORA_SYSTEM_CONFIG="$$tmp" ABORA_CONFIG_SCRIPT="$(CURDIR)/scripts/abora-config.sh" \
 		python3 scripts/abora-config-gui.py; \
 	rm -rf "$$tmp"
+
+doctor:
+	./scripts/dev-doctor.sh
+
+desktop-preview:
+	@[ -n "$(PROFILE)" ] || { echo "Usage: make desktop-preview PROFILE=gnome [XKB=us] [DESKTOP_USER=user]"; exit 1; }
+	./scripts/abora-desktop-preview.sh "$(PROFILE)" "$(or $(XKB),us)" "$(or $(DESKTOP_USER),user)"
 
 check:
 	./scripts/check-scripts.sh

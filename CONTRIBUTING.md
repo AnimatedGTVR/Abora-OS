@@ -6,7 +6,17 @@ This repo is still pretty small, so the best way to help is to keep changes focu
 
 ## Before you change anything
 
-Make sure you can build and boot the current ISO:
+New to the repo, or not sure your machine has everything set up? Run this
+first — it checks git/Nix/QEMU, whether Nix flakes are enabled, whether the
+Nix daemon is actually reachable, disk space, and your OS/architecture, and
+tells you exactly what to fix if something's missing, instead of leaving you
+to decode a build failure twenty minutes in:
+
+```sh
+make doctor
+```
+
+Once that's clean, make sure you can build and boot the current ISO:
 
 ```sh
 make iso

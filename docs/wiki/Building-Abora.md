@@ -7,6 +7,17 @@ This page covers local builds for Abora OS.
 - Nix with `nix-command` and `flakes`
 - QEMU for local VM tests
 
+Not sure your machine has all of that, or want it checked automatically
+instead of guessing? Run:
+
+```sh
+make doctor
+```
+
+It checks git, Nix (installed, flakes/nix-command enabled, daemon actually
+reachable), QEMU, free disk space, and OS/architecture, and tells you what
+to do about anything missing.
+
 ## Build The Default ISO
 
 ```sh

@@ -19,6 +19,7 @@ This roadmap tracks the current Abora direction after Abora OS 2026.7.27 and the
 
 ## Near-Term Direction
 
+- **importable Abora features for existing NixOS users** — `anix` and `branding` (fastfetch config/logo, title banner, logo image, default wallpaper) are standalone-importable `nixosModules`; `nix run github:AnimatedGTVR/abora-os#desktop-preview -- <profile>` prints Abora's exact desktop-profile config/package blocks to paste in by hand (shell-generated, can't be a declarative module); `nix run github:AnimatedGTVR/abora-os#hardware-test` runs Abora's hardware-readiness checks on any machine. None of this requires the installer or ISO (see `docs/wiki/ANIX-Standalone.md`). Most of the rest of the `abora` CLI (`abora-config`, `abora-desktop`, `abora-doctor`, etc.) is Abora-install-specific by nature — it reads/writes actual Abora system state — so it's not clear all of it *should* be extracted the same way; what's left here is auditing the remaining `installed-base` pieces case by case for which ones are genuinely portable, the way hardware-test and desktop-preview turned out to be
 - keep expanding graphical coverage where it clearly helps first-time and non-terminal users, without ever making the CLI a second-class citizen — every GUI action should have an equivalent command
 - extend MINT's guided flow to cover more of what the bash installer can already do, rather than duplicating logic between the two
 - keep the desktop matrix green across all 23 profiles via `make check-desktops` as new GTK/libadwaita dependencies are added

@@ -190,12 +190,27 @@ in
     (lib.mkIf (cfg.keyboard.xkb != null) {
       services.xserver.xkb.layout = lib.mkForce cfg.keyboard.xkb;
     })
-    # desktop and wallpaper only take effect when running under Abora OS
+    # desktop and wallpaper only take effect when abora-options.nix (part of
+    # nixosModules.installed-base) is also imported -- a standalone
+    # `nixosModules.anix`-only system has nowhere for these to apply to.
+    # That's an easy trap for exactly the standalone-import use case this
+    # module exists for (see docs/wiki/ANIX-Standalone.md), so make the
+    # no-op visible instead of silent rather than just documenting it here.
     (lib.mkIf (cfg.desktop != null && hasAboraOptions) {
       abora.desktop = lib.mkForce cfg.desktop;
     })
     (lib.mkIf (cfg.wallpaper != null && hasAboraOptions) {
       abora.wallpaper = lib.mkForce cfg.wallpaper;
+    })
+    (lib.mkIf (cfg.desktop != null && !hasAboraOptions) {
+      warnings = [
+        "anix.desktop is set to \"${cfg.desktop}\" but has no effect here: it requires abora-options.nix (part of nixosModules.installed-base) to also be imported. On a standalone anix-only system, configure your desktop environment through normal NixOS options instead."
+      ];
+    })
+    (lib.mkIf (cfg.wallpaper != null && !hasAboraOptions) {
+      warnings = [
+        "anix.wallpaper is set to \"${cfg.wallpaper}\" but has no effect here: it requires abora-options.nix (part of nixosModules.installed-base) to also be imported."
+      ];
     })
     (lib.mkIf (cfg.packages != [ ]) {
       environment.systemPackages = cfg.packages;

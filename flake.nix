@@ -16,6 +16,8 @@
         mango = final.callPackage ./nix/pkgs/mango.nix {};
         modularity = final.callPackage ./nix/pkgs/modularity.nix {};
         moducpp-anix = final.callPackage ./nix/pkgs/moducpp-anix.nix {};
+        abora-desktop-preview = final.callPackage ./nix/pkgs/desktop-preview.nix {};
+        abora-hardware-test = final.callPackage ./nix/pkgs/hardware-test.nix {};
       };
 
 	pkgs = import nixpkgs {
@@ -55,6 +57,7 @@ mkLive = liveEdition: nixpkgs.lib.nixosSystem {
       nixosModules = {
         installed-base = import ./nix/modules/installed-base.nix;
         anix = import ./nix/modules/anix.nix;
+        branding = import ./nix/modules/branding.nix;
       };
 
       nixosConfigurations = {
@@ -79,6 +82,8 @@ mkLive = liveEdition: nixpkgs.lib.nixosSystem {
         mango = pkgs.mango;
         modularity = pkgs.modularity;
         moducpp-anix = pkgs.moducpp-anix;
+        abora-desktop-preview = pkgs.abora-desktop-preview;
+        abora-hardware-test = pkgs.abora-hardware-test;
 
         default = self.nixosConfigurations.abora-live-cosmic.config.system.build.isoImage;
       };
@@ -89,6 +94,24 @@ mkLive = liveEdition: nixpkgs.lib.nixosSystem {
 
         meta = {
           description = "ANIX system management tool";
+        };
+      };
+
+      apps.${system}.desktop-preview = {
+        type = "app";
+        program = "${self.packages.${system}.abora-desktop-preview}/bin/abora-desktop-preview";
+
+        meta = {
+          description = "Preview Abora OS's NixOS config/packages for a desktop profile, standalone";
+        };
+      };
+
+      apps.${system}.hardware-test = {
+        type = "app";
+        program = "${self.packages.${system}.abora-hardware-test}/bin/abora-hardware-test";
+
+        meta = {
+          description = "Check whether a machine looks ready for Abora OS hardware testing, standalone";
         };
       };
     };
