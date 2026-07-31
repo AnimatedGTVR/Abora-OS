@@ -68,4 +68,4 @@ Abora DENALI 3.14 was the installer/identity/tooling release. Still the foundati
 
 - MINT (the Go/Bubble Tea installer front-end) is built but not wired up as the default yet, that's on hold for now
 - if you hit an install issue, `abora-support-report` or `abora-hardware-test --with-report` before asking, saves everyone time
-- as always, `stable` channel tracks tagged releases, `unstable` tracks main if you like living dangerously
+- as always, `stable` channel tracks tagged releases, `unstable` tracks edge if you like living dangerously

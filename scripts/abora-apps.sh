@@ -25,7 +25,7 @@ abora_dir="${config_dir}/abora"
 apps_list="${abora_dir}/apps.list"
 apps_module="${abora_dir}/apps.nix"
 flake_target="${ABORA_FLAKE_CONFIG_NAME:-abora}"
-default_repo_ref="${ABORA_REPO_REF:-main}"
+default_repo_ref="${ABORA_REPO_REF:-edge}"
 
 usage() {
     abora_banner "App Manager" "Install and remove apps on your Abora system."

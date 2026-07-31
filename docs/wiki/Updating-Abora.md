@@ -64,7 +64,7 @@ sudo abora channel set unstable
 
 - `stable` tracks the latest tagged Abora release
 - `demo` tracks tagged demo/dev builds for the installed release line
-- `unstable` tracks the `main` branch
+- `unstable` tracks the `edge` branch
 
 ## Pre-Alpha Builds
 

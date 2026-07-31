@@ -22,14 +22,14 @@ command_name="${ABORA_UPDATE_COMMAND:-$(basename "$0")}"
 # below tries each of these in order and uses whichever answers first.
 repo_git_url="${ABORA_REPO_GIT_URL:-https://github.com/AnimatedGTVR/abora-os.git}"
 repo_git_fallbacks="${ABORA_REPO_GIT_URLS:-$repo_git_url https://github.com/AnimatedGTVR/Abora-OS.git https://github.com/AboraProject/Abora-OS.git}"
-repo_ref="${ABORA_REPO_REF:-main}"
+repo_ref="${ABORA_REPO_REF:-edge}"
 upstream_dir="${ABORA_UPSTREAM_DIR:-$config_dir/.abora-upstream}"
 flake_config_name="${ABORA_FLAKE_CONFIG_NAME:-abora}"
 fallback_ref="${ABORA_FALLBACK_REF:-}"
 fallback_mode="${ABORA_FALLBACK_MODE:-0}"
 allow_downgrade="${ABORA_ALLOW_DOWNGRADE:-0}"
 pre_alpha_mode="${ABORA_PRE_ALPHA_MODE:-0}"
-pre_alpha_ref="${ABORA_PRE_ALPHA_REF:-main}"
+pre_alpha_ref="${ABORA_PRE_ALPHA_REF:-edge}"
 dry_run="${ABORA_DRY_RUN:-0}"
 effective_ref=""
 effective_ref_reason=""
@@ -178,11 +178,13 @@ latest_tag_from_list() {
 }
 
 # Resolves a channel name + the currently installed version into a single
-# concrete git ref to update to (a tag or "main"), setting effective_ref and
-# a human-readable effective_ref_reason for later display. "stable" is the
-# most involved: prefer the newest final tag that's not older than what's
-# installed, then fall back to a matching demo/dev tag for the same release
-# line, and only fall back to tracking main directly if neither exists yet.
+# concrete git ref to update to (a tag or "edge" -- the repo's nightly
+# branch; see CLAUDE.md's Branch Policy, there is no "main"), setting
+# effective_ref and a human-readable effective_ref_reason for later
+# display. "stable" is the most involved: prefer the newest final tag
+# that's not older than what's installed, then fall back to a matching
+# demo/dev tag for the same release line, and only fall back to tracking
+# edge directly if neither exists yet.
 resolve_update_ref() {
     local channel="$1" current_version="$2" tags final_tag demo_tag older_tag
 
@@ -203,8 +205,8 @@ resolve_update_ref() {
             return 0
             ;;
         unstable)
-            effective_ref="main"
-            effective_ref_reason="unstable channel tracks main"
+            effective_ref="edge"
+            effective_ref_reason="unstable channel tracks edge"
             return 0
             ;;
         demo|dev)
@@ -254,15 +256,15 @@ resolve_update_ref() {
 
             older_tag="$(printf '%s\n' "$tags" | grep -E '^v[0-9]+([.][0-9]+)*$' | latest_tag_from_list)"
             if [[ -n "$older_tag" ]]; then
-                effective_ref="main"
-                effective_ref_reason="stable channel has no final tag newer than installed version; using main"
+                effective_ref="edge"
+                effective_ref_reason="stable channel has no final tag newer than installed version; using edge"
                 return 0
             fi
             ;;
         *)
-            abora_warn "Unknown channel '${channel}' — using unstable/main." >&2
-            effective_ref="main"
-            effective_ref_reason="unknown channel fallback to main"
+            abora_warn "Unknown channel '${channel}' — using unstable/edge." >&2
+            effective_ref="edge"
+            effective_ref_reason="unknown channel fallback to edge"
             return 0
             ;;
     esac
@@ -274,11 +276,11 @@ resolve_update_ref() {
 # A normal `abora update` should never silently move a system backwards
 # (e.g. because a stable tag got deleted/retagged) — only an explicit
 # `abora fallback --release <tag>` (which sets allow_downgrade=1) or
-# tracking main directly is allowed to move to an older version.
+# tracking edge directly is allowed to move to an older version.
 guard_against_accidental_downgrade() {
     local current_version="$1" selected_ref="$2" selected_version
 
-    [[ "$selected_ref" == "main" || "$allow_downgrade" -eq 1 ]] && return 0
+    [[ "$selected_ref" == "edge" || "$allow_downgrade" -eq 1 ]] && return 0
     selected_version="$(tag_base_version "$selected_ref")"
     if version_lt "$selected_version" "$current_version"; then
         abora_error "Refusing accidental downgrade."
@@ -345,7 +347,7 @@ parse_fallback_args() {
         abora_error "Fallback release tag is required."
         exit 1
     fi
-    [[ "$fallback_ref" == v* || "$fallback_ref" == "main" ]] || fallback_ref="v${fallback_ref}"
+    [[ "$fallback_ref" == v* || "$fallback_ref" == "edge" ]] || fallback_ref="v${fallback_ref}"
     fallback_mode=1
     allow_downgrade=1
 }
@@ -455,7 +457,7 @@ handle_channel_command() {
                     abora_dim_line "  Tracks tagged Abora releases. Recommended for most users."
                     ;;
                 unstable)
-                    abora_dim_line "  Tracks the main development branch. May include breaking changes."
+                    abora_dim_line "  Tracks the edge development branch. May include breaking changes."
                     ;;
                 demo|dev)
                     abora_dim_line "  Tracks tagged demo/dev builds for the installed release line."
@@ -494,7 +496,7 @@ handle_channel_command() {
             # shellcheck disable=SC2059
             [[ -n "$marker_unstable" ]] && printf "  $marker_unstable" "$ABORA_GREEN" "$ABORA_NC"
             printf '\n'
-            printf '  %b│%b  %bDevelopment builds from the main branch. May include breaking changes.%b\n' \
+            printf '  %b│%b  %bDevelopment builds from the edge branch. May include breaking changes.%b\n' \
                 "$ABORA_BLUE" "$ABORA_NC" "$ABORA_DIM" "$ABORA_NC"
             printf '  %b│%b\n' "$ABORA_BLUE" "$ABORA_NC"
 
@@ -566,7 +568,7 @@ handle_check_command() {
     printf '  %bInstalled version%b   %s\n' "$ABORA_DIM" "$ABORA_NC" "$current_version"
     printf '  %bLatest on channel%b   %s\n' "$ABORA_DIM" "$ABORA_NC" "$effective_ref"
 
-    if [[ "$effective_ref" != "main" ]] && ! version_lt "$current_version" "$available_version"; then
+    if [[ "$effective_ref" != "edge" ]] && ! version_lt "$current_version" "$available_version"; then
         printf '\n'
         abora_success "You're up to date."
         printf '\n'
@@ -685,7 +687,7 @@ maybe_reexec_synced_updater() {
 
 release_uses_modern_layout() {
     local selected_ref="$1"
-    [[ "$selected_ref" == "main" ]] && return 0
+    [[ "$selected_ref" == "edge" ]] && return 0
     is_demo_release_tag "$selected_ref" && return 1
     is_final_release_tag "$selected_ref" || return 1
     ! version_lt "$(tag_base_version "$selected_ref")" "3.14"
@@ -693,7 +695,7 @@ release_uses_modern_layout() {
 
 release_has_anix_languages() {
     local selected_ref="$1"
-    [[ "$selected_ref" == "main" ]] && return 0
+    [[ "$selected_ref" == "edge" ]] && return 0
     is_final_release_tag "$selected_ref" || return 1
     ! version_lt "$(tag_base_version "$selected_ref")" "4.0"
 }
@@ -711,20 +713,20 @@ release_has_anix_languages() {
 # without also requiring a file older 4.0-line checkouts never had.
 release_has_alpine_wallpapers() {
     local selected_ref="$1"
-    [[ "$selected_ref" == "main" ]] && return 0
+    [[ "$selected_ref" == "edge" ]] && return 0
     is_final_release_tag "$selected_ref" || return 1
     ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
 }
 
 release_has_welcome_config_gui() {
     local selected_ref="$1"
-    [[ "$selected_ref" == "main" ]] && return 0
+    [[ "$selected_ref" == "edge" ]] && return 0
     is_final_release_tag "$selected_ref" || return 1
     ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
 }
 
 required_upstream_paths() {
-    local selected_ref="${1:-main}"
+    local selected_ref="${1:-edge}"
     cat <<'EOF'
 VERSION
 nix/modules/abora-options.nix

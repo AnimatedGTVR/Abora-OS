@@ -10,7 +10,7 @@ workspace="${ABORA_VM_WORKSPACE:-/var/tmp/abora-vm-build}"
 repo_dir="${ABORA_REPO_DIR:-$workspace/abora-os}"
 out_dir="${ABORA_OUT_DIR:-$workspace/out}"
 repo_url="${ABORA_REPO_URL:-https://github.com/AnimatedGTVR/abora-os.git}"
-repo_branch="${ABORA_REPO_BRANCH:-main}"
+repo_branch="${ABORA_REPO_BRANCH:-edge}"
 
 if ! command -v git >/dev/null 2>&1; then
     echo "git command not found." >&2

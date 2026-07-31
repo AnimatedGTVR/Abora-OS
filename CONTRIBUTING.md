@@ -78,13 +78,13 @@ Good rule of thumb:
 - do not leave broken release notes or mismatched version strings behind
 - run `make check` before pushing
 
-If `git push origin main` is rejected because the remote moved first, the safe flow is:
+If `git push origin edge` (or `stable`) is rejected because the remote moved first, the safe flow is:
 
 ```sh
 git add -A
 git commit -m "Describe your change"
-git pull --rebase origin main
-git push origin main
+git pull --rebase origin edge
+git push origin edge
 ```
 
 ## Release notes

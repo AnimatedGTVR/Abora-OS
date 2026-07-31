@@ -300,7 +300,7 @@ else
 fi
 
 _resolver_tags="v2.5.0"
-if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable | grep -q '^main[[:space:]]'; then
+if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable | grep -q '^edge[[:space:]]'; then
   pass "runtime: resolver avoids stable-channel downgrade"
 else
   fail "runtime: resolver avoids stable-channel downgrade"
