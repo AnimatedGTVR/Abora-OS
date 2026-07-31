@@ -44,14 +44,19 @@ bash_scripts=(
   "scripts/release-metadata.sh"
   "scripts/run-qemu.sh"
   "scripts/check-scripts.sh"
+  "scripts/dev-doctor.sh"
+  "scripts/abora-desktop-preview.sh"
 )
 
 nix_files=(
   "flake.nix"
   "nix/modules/abora-options.nix"
   "nix/modules/anix.nix"
+  "nix/modules/branding.nix"
   "nix/modules/installed-base.nix"
   "nix/profiles/live.nix"
+  "nix/pkgs/desktop-preview.nix"
+  "nix/pkgs/hardware-test.nix"
 )
 
 python_scripts=(
@@ -305,6 +310,23 @@ if ABORA_RELEASE_TAGS="v2.5.0" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash
   pass "runtime: resolver allows explicit fallback downgrade"
 else
   fail "runtime: resolver allows explicit fallback downgrade"
+fi
+
+# Regression test: installed_version() used to return the literal path
+# string "$config_dir/abora/VERSION" (unparsed, un-fed-to-version_lt-safe)
+# whenever that specific candidate file didn't exist, instead of falling
+# through to /etc/abora/VERSION and finally the repo's own VERSION file.
+# Point config_dir somewhere with no abora/VERSION and confirm the real
+# repo VERSION ("4.0") is still found via the final fallback candidate.
+_tmp_no_config_dir="$(mktemp -d)"
+_installed_version_check="$(ABORA_SYSTEM_CONFIG="$_tmp_no_config_dir" ABORA_RELEASE_TAGS="v99.0" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh --check 2>/dev/null | \
+  awk -F'\t' '/^ABORA_UPDATE_AVAILABLE/ {print $2}' || true)"
+rm -rf "$_tmp_no_config_dir"
+if [[ "$_installed_version_check" == "$(tr -d '[:space:]' < "$repo_dir/VERSION")" ]]; then
+  pass "runtime: installed_version() falls through to repo VERSION when installed paths are missing"
+else
+  fail "runtime: installed_version() returned '${_installed_version_check}' instead of the repo VERSION"
 fi
 
 if ABORA_PRE_ALPHA_ACCEPT="I ACCEPT THE RISK" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-pre-alpha-confirm >/dev/null; then
@@ -1092,6 +1114,36 @@ elif ! printf '%s\n' "$gnome_package_block" | grep -q "gnomeExtensions.dash-to-d
   fail "runtime: GNOME package block missing extension packages"
 else
   pass "runtime: desktop package/config split"
+fi
+
+# abora-desktop-preview.sh is the standalone-user path onto the exact same
+# abora_desktop_config_block/abora_desktop_package_block functions just
+# exercised above, so verify its own arg handling/output plumbing works
+# end to end rather than only unit-testing the library functions directly.
+preview_out="$("$repo_dir/scripts/abora-desktop-preview.sh" hyprland de previewuser)"
+if ! printf '%s\n' "$preview_out" | grep -q 'xkb.layout = "de"'; then
+  fail "runtime: abora-desktop-preview.sh did not interpolate xkb layout"
+elif ! printf '%s\n' "$preview_out" | grep -q 'previewuser'; then
+  fail "runtime: abora-desktop-preview.sh did not interpolate username"
+else
+  pass "runtime: abora-desktop-preview.sh renders a real desktop config"
+fi
+
+if "$repo_dir/scripts/abora-desktop-preview.sh" not-a-real-desktop-profile \
+    >/dev/null 2>&1; then
+  fail "runtime: abora-desktop-preview.sh accepted an unknown desktop profile"
+else
+  pass "runtime: abora-desktop-preview.sh rejects an unknown desktop profile"
+fi
+
+# abora-hardware-test.sh is now packaged standalone (nix/pkgs/hardware-test.nix)
+# specifically because it has no /etc/abora dependency beyond its ui.sh
+# fallback -- confirm it actually runs clean end to end on whatever machine
+# is running the checks, not just that it parses.
+if "$repo_dir/scripts/abora-hardware-test.sh" >/dev/null 2>&1; then
+  pass "runtime: abora-hardware-test.sh runs end to end"
+else
+  fail "runtime: abora-hardware-test.sh exited non-zero"
 fi
 
 if [[ "$failed" -ne 0 ]]; then

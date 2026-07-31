@@ -98,17 +98,30 @@ write_channel() {
 }
 
 installed_version() {
+    # ABORA_INSTALLED_VERSION is a raw version-string override (for tests),
+    # not a file path -- it must never be checked with -f/-e, and it's the
+    # only candidate this function should ever return literally rather than
+    # read from disk. The other three are real file paths; a missing one
+    # must fall through to the next candidate, not abort the whole lookup.
+    # (This used to share one loop with one elif branch that returned ANY
+    # missing candidate as a literal string -- so on a system where
+    # "$config_dir/abora/VERSION" didn't exist yet, this returned the
+    # literal path "/etc/nixos/abora/VERSION" as the "installed version",
+    # which then fed straight into version_lt's `sort -V` comparison as
+    # garbage input, making update-available/up-to-date results
+    # unreliable. Caught by actually running `abora update --check` in an
+    # environment without that file, not by reading the diff.)
+    if [[ -n "${ABORA_INSTALLED_VERSION:-}" ]]; then
+        printf '%s' "$ABORA_INSTALLED_VERSION"
+        return
+    fi
     local candidate
     for candidate in \
-        "${ABORA_INSTALLED_VERSION:-}" \
         "$config_dir/abora/VERSION" \
         /etc/abora/VERSION \
         "$script_dir/../VERSION"; do
-        if [[ -n "$candidate" && -f "$candidate" ]]; then
+        if [[ -f "$candidate" ]]; then
             tr -d '[:space:]' < "$candidate"
-            return
-        elif [[ -n "$candidate" && ! -e "$candidate" ]]; then
-            printf '%s' "$candidate"
             return
         fi
     done
