@@ -88,30 +88,32 @@ mkLive = liveEdition: nixpkgs.lib.nixosSystem {
         default = self.nixosConfigurations.abora-live-cosmic.config.system.build.isoImage;
       };
 
-      apps.${system}.anix = {
-        type = "app";
-        program = "${self.packages.${system}.anix}/bin/anix";
+      apps.${system} = {
+        anix = {
+          type = "app";
+          program = "${self.packages.${system}.anix}/bin/anix";
 
-        meta = {
-          description = "ANIX system management tool";
+          meta = {
+            description = "ANIX system management tool";
+          };
         };
-      };
 
-      apps.${system}.desktop-preview = {
-        type = "app";
-        program = "${self.packages.${system}.abora-desktop-preview}/bin/abora-desktop-preview";
+        desktop-preview = {
+          type = "app";
+          program = "${self.packages.${system}.abora-desktop-preview}/bin/abora-desktop-preview";
 
-        meta = {
-          description = "Preview Abora OS's NixOS config/packages for a desktop profile, standalone";
+          meta = {
+            description = "Preview Abora OS's NixOS config/packages for a desktop profile, standalone";
+          };
         };
-      };
 
-      apps.${system}.hardware-test = {
-        type = "app";
-        program = "${self.packages.${system}.abora-hardware-test}/bin/abora-hardware-test";
+        hardware-test = {
+          type = "app";
+          program = "${self.packages.${system}.abora-hardware-test}/bin/abora-hardware-test";
 
-        meta = {
-          description = "Check whether a machine looks ready for Abora OS hardware testing, standalone";
+          meta = {
+            description = "Check whether a machine looks ready for Abora OS hardware testing, standalone";
+          };
         };
       };
     };
