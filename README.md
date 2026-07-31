@@ -49,12 +49,16 @@
 ## Screenshots
 
 <div align="center">
-
-<img src="/assets/Images/v4/screenshot-2026-07-27_03-54-02.png" width="410" alt="Abora Welcome on GNOME">
-<img src="/assets/Images/v4/screenshot-2026-07-27_03-56-03.png" width="410" alt="Abora System Settings">
-<img src="/assets/Images/v4/screenshot-2026-07-27_03-58-15.png" width="410" alt="fastfetch on GNOME">
-<img src="/assets/Images/v4/screenshot-2026-07-27_05-32-15.png" width="410" alt="fastfetch on COSMIC">
-
+<table>
+<tr>
+<td><img src="/assets/Images/v4/screenshot-2026-07-27_03-54-02.png" width="340" alt="Abora Welcome on GNOME"></td>
+<td><img src="/assets/Images/v4/screenshot-2026-07-27_03-56-03.png" width="340" alt="Abora System Settings"></td>
+</tr>
+<tr>
+<td><img src="/assets/Images/v4/screenshot-2026-07-27_03-58-15.png" width="340" alt="fastfetch on GNOME"></td>
+<td><img src="/assets/Images/v4/screenshot-2026-07-27_05-32-15.png" width="340" alt="fastfetch on COSMIC"></td>
+</tr>
+</table>
 </div>
 
 ---

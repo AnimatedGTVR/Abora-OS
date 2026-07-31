@@ -54,6 +54,12 @@ sudo abora update
 Compatibility aliases may still exist on installed systems, but `sudo abora
 update` is the intended Abora command.
 
+## The desktop's Software Center says updates failed, or an update I applied through it needs a reboot to take effect — is that an Abora bug?
+
+No — this is a known upstream limitation, not something Abora ships or can patch. Abora has no first-party auto-update timer or app-store component; the "Software"/"Discover"-style app bundled with your desktop environment talks to NixOS through PackageKit, and PackageKit's NixOS backend is incomplete. It commonly fails silent background update checks (e.g. at login) and generally can't apply changes live, since NixOS updates work by building a new system generation and switching to it, not by patching packages in place.
+
+Use `sudo abora update` (see above) for real updates — it goes through Abora's own updater, not the desktop's software center.
+
 ## How do I test a pre-alpha build?
 
 Pre-alpha builds are unfinished and may make the system unbootable or require a reinstall. Do not use them on a primary computer.
