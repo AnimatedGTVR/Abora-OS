@@ -64,12 +64,11 @@ DESKTOPS = [
 
 DESKTOP_LABELS = {d[0]: d[1] for d in DESKTOPS}
 
-# Desktop IDs that are tiling WMs / compositors (no full DE)
+# Desktop IDs that are tiling WMs / compositors (no full DE) — this is the
+# desktop set the "Other Desktops" edition offers, and must stay in sync
+# with abora_tiling_wm_profiles() in abora-desktop-profiles.sh.
 _TILING_WMS = {'hyprland', 'mangowm', 'sway', 'i3', 'niri', 'river', 'bspwm',
                'qtile', 'awesome', 'herbstluftwm', 'openbox', 'fluxbox', 'icewm'}
-# Desktop IDs that are alternative DEs (Alt Desktops edition focus)
-_ALT_DES    = {'xfce', 'cinnamon', 'mate', 'budgie', 'lxqt',
-               'icewm', 'fluxbox', 'openbox'}
 
 
 # A distinct symbolic icon per desktop, not just "tiling vs. full DE" — real
@@ -157,16 +156,16 @@ STEP_ICONS = {
 
 def _edition_desktops() -> list[tuple[str, str, str]]:
     """Return DESKTOPS re-ordered for the current ISO edition."""
-    if EDITION == 'hyprland':
+    if EDITION in ('hyprland', 'other'):
+        # "other" is the tiling-WM edition — abora_tiling_wm_profiles() in
+        # abora-desktop-profiles.sh is the authoritative set and must stay
+        # in sync with _TILING_WMS here; both editions get the same
+        # tiling-first ordering the TUI installer's release_desktop/
+        # step_desktop use.
         tiling = [d for d in DESKTOPS if d[0] in _TILING_WMS]
         rest   = [d for d in DESKTOPS if d[0] not in _TILING_WMS and d[0] != 'none']
         tail   = [d for d in DESKTOPS if d[0] == 'none']
         return tiling + rest + tail
-    if EDITION == 'other':
-        alt    = [d for d in DESKTOPS if d[0] in _ALT_DES]
-        rest   = [d for d in DESKTOPS if d[0] not in _ALT_DES and d[0] != 'none']
-        tail   = [d for d in DESKTOPS if d[0] == 'none']
-        return alt + rest + tail
     return DESKTOPS
 
 
@@ -923,7 +922,7 @@ class DesktopPage(Gtk.Box):
         inner.set_margin_bottom(8)
         _subtitles = {
             'hyprland': 'Tiling window managers are shown first for this edition.',
-            'other':    'Alternative desktops are shown first for this edition.',
+            'other':    'Tiling window managers are shown first for this edition.',
         }
         inner.append(heading_box('Desktop Environment',
                                  _subtitles.get(EDITION, 'Choose how your desktop will look and feel.')))

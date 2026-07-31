@@ -1068,32 +1068,29 @@ step_identity() {
 step_desktop() {
     tab_header 4
 
-    # Single-desktop editions (cosmic/hyprland/gnome/kde) ship exactly one
-    # desktop — installing that edition's ISO already is the choice, so
-    # there's nothing to ask. "other" and any edition value this installer
-    # doesn't recognize fall through to the normal picker.
-    case "${abora_edition:-}" in
-        cosmic|hyprland|gnome|kde)
-            desktop_profile="${abora_default_desktop:-$abora_edition}"
-            abora_sync_desktop_label "$desktop_profile"
-            msg "This is the ${desktop_label} edition — installing ${desktop_label} automatically."
-            pause
-            return 0
-            ;;
-    esac
-
+    # Every edition installs the full desktop matrix — the edition only
+    # decides the ISO's own live-session default (see RELEASE_NOTES.md,
+    # "Every edition still installs the full desktop matrix — the edition
+    # just decides the ISO's live-session default"). All editions get a
+    # picker; "other" and "hyprland" show tiling WMs first since that's
+    # what those ISOs are built around, matching the GUI installer.
     local -a profiles=()
     local profile
     local profile_source=abora_supported_desktop_profiles
-    [[ "${abora_edition:-}" == "other" ]] && profile_source=abora_tiling_wm_profiles
+    [[ "${abora_edition:-}" == "other" || "${abora_edition:-}" == "hyprland" ]] && profile_source=abora_tiling_wm_profiles
+    local default_desktop="${abora_default_desktop:-$abora_edition}"
     while IFS= read -r profile; do
         [[ -n "$profile" ]] || continue
         abora_sync_desktop_label "$profile"
-        profiles+=("${desktop_label}|${profile}")
+        if [[ "$profile" == "$default_desktop" ]]; then
+            profiles=("${desktop_label}|${profile}" "${profiles[@]}")
+        else
+            profiles+=("${desktop_label}|${profile}")
+        fi
     done < <("$profile_source")
 
     local title="Choose Your Desktop Environment"
-    [[ "${abora_edition:-}" == "other" ]] && title="Choose Your Window Manager"
+    [[ "${abora_edition:-}" == "other" || "${abora_edition:-}" == "hyprland" ]] && title="Choose Your Window Manager"
     menu "$title" "${profiles[@]}"
     desktop_profile="${profiles[$MENU_RESULT]#*|}"
     abora_sync_desktop_label "$desktop_profile"
@@ -2799,11 +2796,28 @@ release_desktop() {
             ;;
     esac
 
+    # Hyprland and "other" are built around tiling window managers, so show
+    # those first here too, matching the GUI installer's ordering
+    # (_edition_desktops in abora-installer-gui.py) instead of the plain
+    # alphabetic-ish order every other edition gets.
+    local -a ordered=()
+    if [[ "${abora_edition:-}" == "hyprland" || "${abora_edition:-}" == "other" ]]; then
+        while IFS= read -r profile; do
+            [[ -n "$profile" ]] || continue
+            ordered+=("$profile")
+        done < <(abora_tiling_wm_profiles)
+    fi
     while IFS= read -r profile; do
         [[ -n "$profile" ]] || continue
+        if ! printf '%s\n' "${ordered[@]}" | grep -qx "$profile"; then
+            ordered+=("$profile")
+        fi
+    done < <(abora_supported_desktop_profiles)
+
+    for profile in "${ordered[@]}"; do
         abora_sync_desktop_label "$profile"
         profiles+=("${desktop_label}|${profile}")
-    done < <(abora_supported_desktop_profiles)
+    done
     menu "Desktop" "${profiles[@]}"
     desktop_profile="${profiles[$MENU_RESULT]#*|}"
     abora_sync_desktop_label "$desktop_profile"
