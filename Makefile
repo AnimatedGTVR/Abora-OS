@@ -1,4 +1,4 @@
-.PHONY: help iso iso-all iso-cosmic iso-hyprland iso-gnome iso-kde iso-other iso-local qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc doctor desktop-preview check check-desktops check-all preflight metadata release tinypm-package anix-package tinypm-image test-installer test-installer-tty test-installer-kitty test-welcome test-config
+.PHONY: help iso iso-all iso-cosmic iso-hyprland iso-gnome iso-kde iso-other iso-local build-vm qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc doctor desktop-preview check check-desktops check-all preflight metadata release tinypm-package anix-package tinypm-image test-installer test-installer-tty test-installer-kitty test-welcome test-config
 
 help:
 	@echo "Usage: make <target>"
@@ -16,6 +16,7 @@ help:
 	@echo "  anix-package     - Build the ANIX standalone tarball"
 	@echo "  tinypm-image     - Build the TinyPM GHCR container image locally"
 	@echo "  release          - Build the ISO, TinyPM package, ANIX package, and refresh the release bundle"
+	@echo "  build-vm         - Clean-checkout ISO build for a dedicated build VM (clones/pulls a fresh copy, ignores local changes)"
 	@echo "  qemu             - Boot the latest ISO in QEMU (graphical window)"
 	@echo "  qemu-fresh       - Delete old disk image, then boot the ISO (clean install test)"
 	@echo "  qemu-disk        - Boot the installed QEMU hard drive without the ISO"
@@ -68,6 +69,9 @@ tinypm-image:
 	./scripts/build-tinypm-image.sh
 
 release: iso-all tinypm-package anix-package metadata
+
+build-vm:
+	./scripts/rebuild-vm.sh
 
 qemu:
 	./scripts/run-qemu.sh
