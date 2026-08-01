@@ -31,11 +31,17 @@ allow_downgrade="${ABORA_ALLOW_DOWNGRADE:-0}"
 pre_alpha_mode="${ABORA_PRE_ALPHA_MODE:-0}"
 pre_alpha_ref="${ABORA_PRE_ALPHA_REF:-edge}"
 dry_run="${ABORA_DRY_RUN:-0}"
+git_fetch_timeout="${ABORA_GIT_FETCH_TIMEOUT:-300}"
 effective_ref=""
 effective_ref_reason=""
 update_tmp_files=()
 update_tmp_dirs=()
 suppress_update_failure_message=0
+
+if [[ "${ABORA_ALLOW_MAIN_REF:-0}" != 1 ]]; then
+    [[ "$repo_ref" == "main" ]] && repo_ref="edge"
+    [[ "$pre_alpha_ref" == "main" ]] && pre_alpha_ref="edge"
+fi
 
 cleanup_update_tmp_files() {
     local file
@@ -871,11 +877,17 @@ prepare_verified_upstream() {
     abora_info "Fetching Abora files (${selected_ref}) into a temporary checkout."
     for url in $repo_git_fallbacks; do
         rm -rf "$tmp_checkout"
-        if git clone --depth=1 --branch "$selected_ref" "$url" "$tmp_checkout"; then
+        local clone_cmd=(git clone --progress --depth=1 --branch "$selected_ref" "$url" "$tmp_checkout")
+        if command -v timeout >/dev/null 2>&1; then
+            if timeout "$git_fetch_timeout" "${clone_cmd[@]}"; then
+                cloned_url="$url"
+                break
+            fi
+        elif "${clone_cmd[@]}"; then
             cloned_url="$url"
             break
         fi
-        abora_warn "Could not clone ${url} at ${selected_ref}; trying the next Abora remote."
+        abora_warn "Could not clone ${url} at ${selected_ref} within ${git_fetch_timeout}s; trying the next Abora remote."
     done
     if [[ -z "$cloned_url" ]]; then
         abora_error "Failed to clone Abora OS at ${selected_ref} from every known remote."
