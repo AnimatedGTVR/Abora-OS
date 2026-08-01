@@ -41,7 +41,14 @@ batch_mode=0
 batch_params_file=""
 abora_edition="${ABORA_EDITION:-cosmic}"
 abora_default_desktop="${ABORA_DEFAULT_DESKTOP:-cosmic}"
+abora_release_channel="${ABORA_RELEASE_CHANNEL:-stable}"
 dotfiles_url=""
+
+case "${ABORA_REPO_REF:-} ${ABORA_PRE_ALPHA_REF:-} ${version:-}" in
+    *ALPHA*|*alpha*|*pre-alpha*|*prealpha*|*edge*)
+        abora_release_channel="${ABORA_RELEASE_CHANNEL:-unstable}"
+        ;;
+esac
 
 # Parse args: support both --reconfig and --batch <params-file>
 _args=("$@")
@@ -1733,6 +1740,8 @@ generate_nixos_config() {
         printf '%s\n' "$dotfiles_url" > "${root}/etc/nixos/abora/dotfiles-url"
         chmod 644 "${root}/etc/nixos/abora/dotfiles-url"
     fi
+    printf '%s\n' "$abora_release_channel" > "${root}/etc/nixos/abora/channel"
+    chmod 644 "${root}/etc/nixos/abora/channel"
 
     # Keep starter apps out of the default install closure. The selected IDs are
     # saved for abora-apps after first boot; only explicitly requested slow-path

@@ -141,7 +141,7 @@ is_final_release_tag() {
 }
 
 is_demo_release_tag() {
-    [[ "$1" =~ ^v[0-9]+([.][0-9]+)*.*(DEMO|[Dd]emo|[Dd]ev|[Pp]re|[Rr][Cc]).*$ ]]
+    [[ "$1" =~ ^v?[0-9]+([.][0-9]+)*.*(ALPHA|[Aa]lpha|DEMO|[Dd]emo|[Dd]ev|[Pp]re|[Rr][Cc]).*$ ]]
 }
 
 # `sort -V` (version sort) rather than string comparison, so v4.9 correctly
@@ -163,10 +163,30 @@ list_release_tags() {
     fi
     local url
     for url in $repo_git_fallbacks; do
-        if git ls-remote --tags "$url" 'refs/tags/v*' 2>/dev/null \
+        if git ls-remote --tags "$url" 'refs/tags/*' 2>/dev/null \
             | grep -v '\^{}' \
             | awk '{print $2}' \
             | sed 's|refs/tags/||'; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+remote_ref_exists() {
+    local ref="$1" url
+    [[ -n "$ref" ]] || return 1
+    if [[ -n "${ABORA_REMOTE_REFS:-}" ]]; then
+        case " ${ABORA_REMOTE_REFS} " in
+            *" ${ref} "*) return 0 ;;
+        esac
+        return 1
+    fi
+    for url in $repo_git_fallbacks; do
+        if git ls-remote --exit-code --heads "$url" "$ref" >/dev/null 2>&1; then
+            return 0
+        fi
+        if git ls-remote --exit-code --tags "$url" "$ref" >/dev/null 2>&1; then
             return 0
         fi
     done
@@ -210,8 +230,8 @@ resolve_update_ref() {
             return 0
             ;;
         demo|dev)
-            tags="$(list_release_tags | grep -E '^v[0-9]+([.][0-9]+)*.*(DEMO|[Dd]emo|[Dd]ev|[Pp]re|[Rr][Cc]).*$' || true)"
-            demo_tag="$(printf '%s\n' "$tags" | awk -v cur="$current_version" 'NF && $0 ~ ("^v" cur) { print }' | latest_tag_from_list)"
+            tags="$(list_release_tags | while IFS= read -r tag; do is_demo_release_tag "$tag" && printf '%s\n' "$tag"; done || true)"
+            demo_tag="$(printf '%s\n' "$tags" | awk -v cur="$current_version" 'NF && $0 ~ ("^v?" cur) { print }' | latest_tag_from_list)"
             if [[ -z "$demo_tag" ]]; then
                 demo_tag="$(printf '%s\n' "$tags" | latest_tag_from_list)"
             fi
@@ -223,6 +243,13 @@ resolve_update_ref() {
             ;;
         stable|"")
             tags="$(list_release_tags || true)"
+            if [[ -z "$tags" ]]; then
+                if remote_ref_exists edge; then
+                    effective_ref="edge"
+                    effective_ref_reason="stable channel could not read release tags; using edge"
+                    return 0
+                fi
+            fi
             final_tag="$(
                 printf '%s\n' "$tags" \
                     | grep -E '^v[0-9]+([.][0-9]+)*$' \
@@ -243,8 +270,8 @@ resolve_update_ref() {
             demo_tag="$(
                 {
                     printf '%s\n' "$tags" \
-                        | grep -E '^v[0-9]+([.][0-9]+)*.*(DEMO|[Dd]emo|[Dd]ev|[Pp]re|[Rr][Cc]).*$' \
-                        | awk -v cur="$current_version" 'NF && $0 ~ ("^v" cur) { print }' \
+                        | while IFS= read -r tag; do is_demo_release_tag "$tag" && printf '%s\n' "$tag"; done \
+                        | awk -v cur="$current_version" 'NF && $0 ~ ("^v?" cur) { print }' \
                         | latest_tag_from_list
                 } || true
             )"

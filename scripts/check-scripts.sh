@@ -306,6 +306,18 @@ else
   fail "runtime: resolver avoids stable-channel downgrade"
 fi
 
+if ABORA_RELEASE_TAGS="" ABORA_REMOTE_REFS="edge" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 4.0 stable | grep -q '^edge[[:space:]]'; then
+  pass "runtime: resolver falls back to edge when stable tags are unavailable"
+else
+  fail "runtime: resolver falls back to edge when stable tags are unavailable"
+fi
+
+if ABORA_RELEASE_TAGS="2026.7.27-ALPHA v3.14" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 4.0 demo | grep -q '^2026\.7\.27-ALPHA[[:space:]]'; then
+  pass "runtime: resolver recognizes dated alpha tags as development releases"
+else
+  fail "runtime: resolver recognizes dated alpha tags as development releases"
+fi
+
 if ABORA_RELEASE_TAGS="v2.5.0" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-fallback 3.14 v2.5.0 | grep -q '^v2\.5\.0[[:space:]]'; then
   pass "runtime: resolver allows explicit fallback downgrade"
 else
