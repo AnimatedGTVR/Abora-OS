@@ -2291,49 +2291,20 @@ do_language() {
 # Turns a .anix Native file into Plan JSON without touching state — the file
 # form of the same `set`/`enable`/`disable`/`package add`/`package remove`
 # commands, grouped into one transaction instead of running immediately.
+# Building the JSON itself is $plan_tool_bin's job (NativePlanBuilder.cs) --
+# same reasoning as parse_and_validate_plan above.
 native_plan_from_file() {
     local file="$1"
-    require_command jq
-    local ops="[]"
-    local line_no=0
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        line_no=$((line_no + 1))
-        # shellcheck disable=SC2295
-        line="${line#"${line%%[![:space:]]*}"}"
-        [[ -z "$line" || "$line" == \#* ]] && continue
-        local words=()
-        read -r -a words <<<"$line"
-        local op_json=""
-        case "${words[0]:-}" in
-            set)
-                [[ "${#words[@]}" -eq 3 ]] || { abora_error "${file}:${line_no}: usage: set <key> <value>"; exit 1; }
-                op_json="$(jq -nc --arg key "${words[1]}" --arg value "${words[2]}" '{op:"set",key:$key,value:$value}')"
-                ;;
-            enable)
-                [[ "${#words[@]}" -eq 2 ]] || { abora_error "${file}:${line_no}: usage: enable <feature>"; exit 1; }
-                op_json="$(jq -nc --arg feature "${words[1]}" '{op:"enable",feature:$feature}')"
-                ;;
-            disable)
-                [[ "${#words[@]}" -eq 2 ]] || { abora_error "${file}:${line_no}: usage: disable <feature>"; exit 1; }
-                op_json="$(jq -nc --arg feature "${words[1]}" '{op:"disable",feature:$feature}')"
-                ;;
-            package)
-                [[ "${#words[@]}" -eq 3 ]] || { abora_error "${file}:${line_no}: usage: package <add|remove> <name>"; exit 1; }
-                case "${words[1]}" in
-                    add)    op_json="$(jq -nc --arg name "${words[2]}" '{op:"package.add",name:$name}')" ;;
-                    remove) op_json="$(jq -nc --arg name "${words[2]}" '{op:"package.remove",name:$name}')" ;;
-                    *) abora_error "${file}:${line_no}: package action must be add or remove"; exit 1 ;;
-                esac
-                ;;
-            *)
-                abora_error "${file}:${line_no}: unknown ANIX Native command: ${words[0]:-}"
-                exit 1
-                ;;
-        esac
-        ops="$(jq -c --argjson op "$op_json" '. + [$op]' <<<"$ops")"
-    done < "$file"
-    jq -nc --argjson version "$anix_plan_version" --argjson ops "$ops" \
-        '{planVersion:$version,language:"anix",operations:$ops}'
+    require_command "$plan_tool_bin"
+
+    local output="" rc=0
+    output="$("$plan_tool_bin" build-native --expected-version "$anix_plan_version" < "$file" 2>&1)" || rc=$?
+    if [[ "$rc" -ne 0 ]]; then
+        abora_error "${file}:${output}"
+        exit 1
+    fi
+
+    printf '%s\n' "$output"
 }
 
 # Resolves a source file to a Plan JSON string, either via the ANIX Native
