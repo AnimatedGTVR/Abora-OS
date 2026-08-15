@@ -107,6 +107,7 @@ func (o PrototypeOptions) Run() error {
 		Username:         state.username,
 		FullName:         state.fullName,
 		PasswordSet:      state.passwordHash != "",
+		RootPasswordMode: state.rootPasswordMode,
 		Disk:             state.disk,
 		Layout:           state.layout,
 		Encryption:       state.encryption,
@@ -174,6 +175,8 @@ func (o PrototypeOptions) Run() error {
 			Username:         username,
 			FullName:         fullName,
 			PasswordHash:     passwordHash,
+			RootPasswordMode: state.rootPasswordMode,
+			RootPasswordHash: state.rootPasswordHash,
 			Disk:             disk,
 			Layout:           layout,
 			Encryption:       encryption,
@@ -239,6 +242,8 @@ type wizardState struct {
 	extras           string
 	appsTiming       string
 	anixEnabled      string
+	rootPasswordMode string
+	rootPasswordHash string
 	gamingEnabled    string
 	gamingBigPicture string
 	gamingAutostart  string
@@ -278,6 +283,7 @@ func runWizard(o PrototypeOptions, st *wizardState, reader *bufio.Reader, intera
 		{"System Details", stepUsername},
 		{"System Details", stepFullName},
 		{"System Details", stepPassword},
+		{"System Details", stepRootAccount},
 		{"Localization", stepTimezoneRegion},
 		{"Localization", stepTimezoneCity},
 		{"Localization", stepLocale},
@@ -621,6 +627,40 @@ func stepPassword(o PrototypeOptions, st *wizardState, reader *bufio.Reader, int
 		return navNext, err
 	}
 	st.passwordHash = hash
+	return navNext, nil
+}
+
+// Mirrors abora-installer.sh's step_identity "Root Account" choice: root
+// can inherit the user's password, be locked entirely (sudo-only, no
+// direct root login), or get its own separate password.
+func stepRootAccount(o PrototypeOptions, st *wizardState, reader *bufio.Reader, interactive bool, dir navResult) (navResult, error) {
+	if !o.Execute {
+		return dir, nil
+	}
+	value, nav, err := selectChoiceNav(reader, interactive, "Root Account", []choiceItem{
+		{Label: "Same password as user", Value: "same"},
+		{Label: "Lock root account - sudo only", Value: "locked"},
+		{Label: "Set separate root password", Value: "custom"},
+	}, true)
+	if err != nil {
+		return navNext, err
+	}
+	if nav == navBack {
+		return navBack, nil
+	}
+	st.rootPasswordMode = value
+	switch value {
+	case "locked":
+		st.rootPasswordHash = ""
+	case "custom":
+		hash, err := collectPasswordHash(reader, interactive)
+		if err != nil {
+			return navNext, err
+		}
+		st.rootPasswordHash = hash
+	default:
+		st.rootPasswordHash = st.passwordHash
+	}
 	return navNext, nil
 }
 
@@ -1239,6 +1279,8 @@ type prototypePlan struct {
 	FullName         string
 	PasswordSet      bool
 	PasswordHash     string
+	RootPasswordMode string
+	RootPasswordHash string
 	Disk             string
 	Layout           string
 	Encryption       string
@@ -1271,6 +1313,7 @@ func renderPrototypeSummary(plan prototypePlan) {
 		{"Edition", plan.Edition}, {"Desktop", plan.Desktop},
 		{"Hostname", plan.Hostname}, {"User", plan.Username},
 		{"Full name", plan.FullName}, {"Password", present(plan.PasswordSet)},
+		{"Root account", rootAccountLabel(plan.RootPasswordMode)},
 		{"Disk", plan.Disk}, {"Layout", plan.Layout},
 		{"Filesystem", plan.Filesystem}, {"Swap", plan.Swap},
 		{"Encryption", plan.Encryption}, {"Timezone", plan.Timezone},
@@ -1292,6 +1335,17 @@ func renderPrototypeSummary(plan prototypePlan) {
 	}
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "\x1b[36mReview this once. The next step starts the real Abora install.\x1b[0m")
+}
+
+func rootAccountLabel(mode string) string {
+	switch mode {
+	case "locked":
+		return "Locked (sudo only)"
+	case "custom":
+		return "Separate password"
+	default:
+		return "Same as user"
+	}
 }
 
 func summaryCell(label, value string) string {
@@ -1505,6 +1559,17 @@ func writeBatchParams(plan prototypePlan) (string, error) {
 		"none":       "None",
 	}, "Fan Favorites")
 	desktop := normalizeBackendDesktop(plan.Edition)
+	rootPasswordMode := plan.RootPasswordMode
+	if rootPasswordMode == "" {
+		rootPasswordMode = "same"
+	}
+	rootPasswordHash := plan.PasswordHash
+	switch rootPasswordMode {
+	case "locked":
+		rootPasswordHash = ""
+	case "custom":
+		rootPasswordHash = plan.RootPasswordHash
+	}
 	xkb := xkbForKeyboard(plan.Keyboard)
 	gpu := backendGPU(plan.Drivers)
 	dotfiles := ""
@@ -1535,8 +1600,8 @@ func writeBatchParams(plan prototypePlan) (string, error) {
 		"gaming_vulkan":             mapChoice(plan.GamingVulkan, map[string]string{"yes": "yes", "no": "no"}, "no"),
 		"github_identity":           "Skipped",
 		"user_password_hash":        plan.PasswordHash,
-		"root_password_hash":        plan.PasswordHash,
-		"root_password_mode":        "same",
+		"root_password_hash":        rootPasswordHash,
+		"root_password_mode":        rootPasswordMode,
 		"dotfiles_url":              dotfiles,
 	}
 	for _, key := range batchKeys() {
