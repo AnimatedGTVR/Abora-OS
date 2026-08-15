@@ -33,6 +33,48 @@ fail() { failures=$((failures + 1)); abora_error "$1"; }
 
 repo_root="$(CDPATH= cd -- "$script_dir/.." && pwd)"
 
+resolve_nixpkgs_source() {
+    local candidate
+
+    if [[ -n "${ABORA_NIXPKGS_PATH:-}" && -d "${ABORA_NIXPKGS_PATH:-}" ]]; then
+        printf '%s\n' "$ABORA_NIXPKGS_PATH"
+        return 0
+    fi
+
+    if command -v nix-instantiate >/dev/null 2>&1; then
+        if candidate="$(nix-instantiate --find-file nixpkgs 2>/dev/null)" && [[ -d "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    fi
+
+    if command -v nix >/dev/null 2>&1; then
+        local nix_eval=(
+            nix --extra-experimental-features "nix-command flakes"
+            eval --raw --impure
+            --expr "(builtins.getFlake \"path:${repo_root}\").inputs.nixpkgs.outPath"
+        )
+
+        if command -v timeout >/dev/null 2>&1; then
+            candidate="$(timeout "${ABORA_NIXPKGS_RESOLVE_TIMEOUT:-30}" "${nix_eval[@]}" 2>/dev/null || true)"
+        else
+            candidate="$("${nix_eval[@]}" 2>/dev/null || true)"
+        fi
+
+        if [[ -n "$candidate" && -d "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    fi
+
+    for candidate in /nix/store/*-source; do
+        if [[ -f "$candidate/nixos/lib/eval-config.nix" && -f "$candidate/lib/modules.nix" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+}
+
 printf '\n'
 printf 'Abora OS dev environment check\n'
 printf 'This looks at YOUR machine, not the repo — run it before your first build.\n\n'
@@ -73,6 +115,25 @@ if command -v nix >/dev/null 2>&1; then
         abora_info "  On other distros: (re)run the official installer — https://nixos.org/download"
         abora_info "  In a container/sandbox without a daemon, single-user Nix (nix-user-chroot or"
         abora_info "  a VM with real Nix) is the usual fix — a daemon-less Nix cannot build flakes."
+    fi
+
+    if command -v nix-instantiate >/dev/null 2>&1; then
+        if nixpkgs_source="$(resolve_nixpkgs_source)"; then
+            if nix-instantiate --eval --strict --expr "let pkgs = import ${nixpkgs_source} { system = \"x86_64-linux\"; }; in pkgs.lib.version" >/dev/null 2>&1; then
+                ok "nixpkgs import works for desktop profile checks"
+            else
+                fail "nixpkgs source was found but cannot be imported — check-desktops/preflight will fail."
+                abora_info "  Source: $nixpkgs_source"
+                abora_info "  This usually means the Nix daemon/store is unavailable or not writable by this user."
+                abora_info "  After fixing Nix, retry: ABORA_NIXPKGS_PATH=$nixpkgs_source ./scripts/check-desktops.sh"
+            fi
+        else
+            fail "no nixpkgs source found — check-desktops/preflight need one."
+            abora_info "  Set ABORA_NIXPKGS_PATH to a nixpkgs checkout/store path, or configure NIX_PATH."
+            abora_info "  Example: ABORA_NIXPKGS_PATH=/nix/store/...-source ./scripts/check-desktops.sh"
+        fi
+    else
+        fail "nix-instantiate not found — check-desktops/preflight need it to evaluate desktop profiles."
     fi
 else
     fail "nix not found — install it from https://nixos.org/download (Determinate Nix or the official installer both work)"

@@ -156,6 +156,77 @@ in
       default = "titlis-alps.jpg";
       description = "Default wallpaper file shipped with Abora.";
     };
+
+    gaming = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Enable Abora's optional gaming layer.";
+      };
+      steam = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Enable Steam with 32-bit graphics support.";
+      };
+      bigPictureShortcut = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Install a Steam Big Picture launcher.";
+      };
+      bigPictureAutostart = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Start Steam Big Picture automatically after desktop login.";
+      };
+      gamescopeSession = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Install a Steam Big Picture Gamescope session entry.";
+      };
+      controllerSupport = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Install Steam/controller udev support when available.";
+      };
+      mangohud = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Install MangoHud for FPS/performance overlays.";
+      };
+      gamemode = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Enable GameMode performance tuning.";
+      };
+      vulkanTools = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Install Vulkan diagnostic tools for gaming readiness checks.";
+      };
+      launchers = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Install common desktop game launchers when present in nixpkgs.";
+      };
+    };
+
+    extras = {
+      diagnostics = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Install extra hardware/network diagnostic tools such as dmidecode, ethtool, htop, and smartmontools.";
+      };
+      virtualizationGuests = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Enable QEMU, SPICE, VMware, VirtualBox, and Hyper-V guest integration.";
+      };
+      mobileBroadband = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Enable ModemManager for cellular/mobile broadband devices.";
+      };
+    };
   };
 
   # ── Config ─────────────────────────────────────────────────────────────────
@@ -218,6 +289,84 @@ in
       (lib.mkIf (cfg.gpu == "intel") {
         services.xserver.videoDrivers = lib.mkDefault [ "modesetting" ];
       })
+
+      # ── Gaming ─────────────────────────────────────────────────────────
+      (lib.mkIf cfg.gaming.enable (let
+        pkgIf = enabled: name:
+          lib.optionals (enabled && builtins.hasAttr name pkgs) [ pkgs.${name} ];
+        steamBigPictureCommand = pkgs.writeShellScriptBin "abora-steam-big-picture" ''
+          if command -v steam >/dev/null 2>&1; then
+            steam -gamepadui "$@" || exec steam -bigpicture "$@"
+          else
+            echo "Steam is not installed. Enable abora.gaming.steam, then rebuild." >&2
+            exit 1
+          fi
+        '';
+        steamBigPictureDesktop = pkgs.writeTextFile {
+          name = "abora-steam-big-picture-desktop";
+          destination = "/share/applications/abora-steam-big-picture.desktop";
+          text = ''
+            [Desktop Entry]
+            Type=Application
+            Name=Steam Big Picture
+            Comment=Open Steam in controller-friendly Big Picture mode
+            Exec=abora-steam-big-picture
+            Icon=steam
+            Categories=Game;
+            Terminal=false
+          '';
+        };
+        gamescopeSessionDesktop = pkgs.writeTextFile {
+          name = "abora-steam-gamescope-session";
+          destination = "/share/wayland-sessions/abora-steam-gamescope.desktop";
+          text = ''
+            [Desktop Entry]
+            Name=Abora Gaming
+            Comment=Steam Big Picture through Gamescope
+            Exec=gamescope -e -- abora-steam-big-picture
+            Type=Application
+          '';
+        };
+      in lib.mkMerge [
+        {
+          hardware.graphics.enable = lib.mkDefault true;
+          hardware.graphics.enable32Bit = lib.mkDefault true;
+
+          environment.systemPackages =
+            [ steamBigPictureCommand ]
+            ++ lib.optionals cfg.gaming.bigPictureShortcut [ steamBigPictureDesktop ]
+            ++ lib.optionals cfg.gaming.gamescopeSession [ gamescopeSessionDesktop ]
+            ++ pkgIf cfg.gaming.gamescopeSession "gamescope"
+            ++ pkgIf cfg.gaming.mangohud "mangohud"
+            ++ pkgIf cfg.gaming.vulkanTools "vulkan-tools"
+            ++ pkgIf cfg.gaming.launchers "heroic"
+            ++ pkgIf cfg.gaming.launchers "lutris"
+            ++ pkgIf cfg.gaming.launchers "bottles"
+            ++ pkgIf cfg.gaming.launchers "protonup-qt";
+        }
+        (lib.mkIf cfg.gaming.steam {
+          programs.steam.enable = lib.mkDefault true;
+        })
+        (lib.mkIf cfg.gaming.gamemode {
+          programs.gamemode.enable = lib.mkDefault true;
+        })
+        (lib.mkIf cfg.gaming.controllerSupport {
+          hardware.steam-hardware.enable = lib.mkDefault true;
+        })
+        (lib.mkIf cfg.gaming.bigPictureAutostart {
+          environment.etc."xdg/autostart/abora-steam-big-picture.desktop".text = ''
+            [Desktop Entry]
+            Type=Application
+            Name=Steam Big Picture
+            Comment=Open Steam in controller-friendly Big Picture mode
+            Exec=abora-steam-big-picture
+            Icon=steam
+            Categories=Game;
+            Terminal=false
+            X-GNOME-Autostart-enabled=true
+          '';
+        })
+      ]))
 
       # ── Bootloader ─────────────────────────────────────────────────────
       (lib.mkIf (cfg.disk != null) {

@@ -9,10 +9,13 @@ fresh ISO whenever possible so the screenshots match what users see.
 - MINT welcome screen with `Install Abora OS to System`
 - edition picker
 - network step with the `nmtui` option visible
+- Network tools screen showing status, Quick Wi-Fi, and rescan options
 - timezone region picker and timezone search result
 - disk selection
 - final install review
-- install progress or failure screen with log path visible
+- preflight failure screen with Network tools, Debug tools, terminal, and retry
+- install progress screen
+- install failure screen with log path and helpful commands visible
 
 ## Installed System
 
@@ -32,6 +35,9 @@ Use short lowercase names, for example:
 installer-welcome-tty.png
 installer-timezone-search.png
 installer-review.png
+installer-network-tools.png
+installer-preflight-failed.png
+installer-install-failed.png
 anix-language-list.png
 anix-mako-diff.png
 anix-moducpp-diff.png

@@ -124,7 +124,7 @@ check_flatpak() {
 
 check_channel() {
     local channel_file="$config_dir/abora/channel"
-    local channel="stable"
+    local channel="${ABORA_DEFAULT_CHANNEL:-unstable}"
     [[ -f "$channel_file" ]] && channel="$(tr -d '[:space:]' < "$channel_file")"
     case "$channel" in
         stable|demo|dev|unstable) ok "update channel: $channel" ;;

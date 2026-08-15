@@ -1,7 +1,11 @@
 { lib, pkgs, config, ... }:
 let
   common = import ./common.nix { inherit config; };
-  mangoConfigText = builtins.readFile ../../assets/mango/config.conf;
+  mangoConfigFile =
+    if builtins.pathExists ../mango/config.conf
+    then ../mango/config.conf
+    else ../../assets/mango/config.conf;
+  mangoConfigText = builtins.readFile mangoConfigFile;
 in
 {
   config = lib.mkIf (common.enabled "mangowm") {

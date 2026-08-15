@@ -461,7 +461,7 @@ sync_generate_manifest() {
     fi
 
     {
-        printf '# TinyPM V4 package manifest\n'
+        printf '# TinyPM v0.8 package manifest\n'
         printf '# Generated: %s\n' "$(date -Iseconds)"
         printf '# Format: provider:package\n'
         printf '\n'

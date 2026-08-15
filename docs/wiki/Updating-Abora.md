@@ -29,6 +29,13 @@ abora update --check
 
 This resolves your channel and compares it against the installed version, same as a normal update would, but stops there — no rebuild, no root needed. `abora welcome-gui` uses this under the hood for its status card.
 
+If update checks fail with network, DNS, or cache errors, run:
+
+```sh
+abora network
+abora support-report
+```
+
 ## What The Updater Does
 
 The update helper:
@@ -41,6 +48,10 @@ The update helper:
 - runs `nixos-rebuild switch`
 
 ## Channels
+
+Abora OS v4 Everest is currently an alpha release line, so new installs
+default to `unstable`, which tracks the `edge` branch. `stable` remains
+available for final tagged releases and older installed systems.
 
 Show the current channel:
 
@@ -64,7 +75,14 @@ sudo abora channel set unstable
 
 - `stable` tracks the latest tagged Abora release
 - `demo` tracks tagged demo/dev builds for the installed release line
-- `unstable` tracks the `edge` branch
+- `unstable` tracks the `edge` branch and is the v4 Everest alpha default
+
+Abora's development branch is `edge`. If an older config or test command asks
+for `main`, use `edge` instead:
+
+```sh
+sudo ABORA_REPO_REF=edge abora update
+```
 
 ## Pre-Alpha Builds
 

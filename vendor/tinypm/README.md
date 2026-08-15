@@ -2,12 +2,12 @@
 <p align="center">
   <img
     src="src/share/tinypm/assets/TinyLogo.png"
-    alt="TinyPM V4"
+    alt="TinyPM v0.8"
     width="500"
   />
 </p>
 
-<h1 align="center">TinyPM V4</h1>
+<h1 align="center">TinyPM v0.8</h1>
 
 <p align="center">
   One friendly package command across the major Linux package-manager families.
@@ -71,20 +71,20 @@ TinyPM does not require compilation. A build validates the source tree and creat
 Test the generated build directly:
 
 ```bash
-./build/tinypm-v4/bin/tinypm help
-./build/tinypm-v4/bin/grab --dry-run curl
+./build/tinypm-v0.8/bin/tinypm help
+./build/tinypm-v0.8/bin/grab --dry-run curl
 ```
 
 The build output looks like this:
 
 ```text
 build/
-├── tinypm-v4/
+├── tinypm-v0.8/
 │   ├── bin/             User-facing commands
 │   ├── lib/tinypm/      TinyPM runtime
 │   ├── share/tinypm/    Catalogs, flavors, aliases, and assets
 │   └── scripts/         Installation and removal tools
-├── tinypm-v4.tar.gz     Release archive
+├── tinypm-v0.8.tar.gz     Release archive
 └── SHA256SUMS           Archive checksum
 ```
 
@@ -307,7 +307,7 @@ grab --nix ripgrep
 
 ## Alpine Linux
 
-Alpine Linux is a first-class TinyPM V4 backend.
+Alpine Linux is a first-class TinyPM v0.8 backend.
 
 Install TinyPM with APK selected explicitly:
 
@@ -529,7 +529,7 @@ scripts/e2e-smoke.sh         Cross-backend smoke suite
 
 tests/resolver.sh            Alias and package-resolution tests
 
-build/tinypm-v4/bin/         Generated runnable commands
+build/tinypm-v0.8/bin/         Generated runnable commands
 
 build.sh                     Root build entrypoint
 install.sh                   Root installation entrypoint
@@ -537,7 +537,7 @@ install.sh                   Root installation entrypoint
 
 ## License
 
-TinyPM V4 is licensed under the GNU General Public License v3.0.
+TinyPM v0.8 is licensed under the GNU General Public License v3.0.
 
 See [LICENSE](LICENSE) for the complete license text.
 

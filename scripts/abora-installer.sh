@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Abora OS Installer - Abora OS 2026.7.27
+# Abora OS Installer - Abora OS v4 Everest
 # Compact Omarchy-inspired TUI: large wordmark, boxed choices, simple prompts.
 
 set -uo pipefail
@@ -30,18 +30,33 @@ gpu_value="auto"
 starter_apps_bundle="favorites"
 starter_apps_label="Fan Favorites"
 install_apps_during_setup="${ABORA_INSTALL_APPS_DURING_SETUP:-no}"
+gaming_enabled="${ABORA_GAMING_ENABLED:-no}"
+gaming_big_picture="${ABORA_GAMING_BIG_PICTURE:-yes}"
+gaming_autostart="${ABORA_GAMING_AUTOSTART:-no}"
+gaming_gamescope="${ABORA_GAMING_GAMESCOPE:-yes}"
+gaming_vulkan="${ABORA_GAMING_VULKAN:-yes}"
 anix_enabled="yes"
 github_identity="Skipped"
 user_password_hash=""
 root_password_hash=""
 root_password_mode="same"
 version="${ABORA_VERSION:-}"
+release_name="${ABORA_RELEASE_NAME:-Abora OS v4 Everest}"
+release_short="${ABORA_RELEASE_SHORT:-v4 Everest}"
 reconfig_mode="${ABORA_RECONFIG:-0}"
 batch_mode=0
 batch_params_file=""
 abora_edition="${ABORA_EDITION:-cosmic}"
 abora_default_desktop="${ABORA_DEFAULT_DESKTOP:-cosmic}"
-abora_release_channel="${ABORA_RELEASE_CHANNEL:-stable}"
+abora_release_stage="${ABORA_RELEASE_STAGE:-alpha}"
+case "$abora_release_stage" in
+    stable|final|release)
+        abora_release_channel="${ABORA_RELEASE_CHANNEL:-stable}"
+        ;;
+    *)
+        abora_release_channel="${ABORA_RELEASE_CHANNEL:-unstable}"
+        ;;
+esac
 dotfiles_url=""
 
 case "${ABORA_REPO_REF:-} ${ABORA_PRE_ALPHA_REF:-} ${version:-}" in
@@ -138,9 +153,30 @@ _init_gum
 
 _TABS=("Language" "Network" "Identity" "Desktop" "Apps" "Options" "GPU" "Dotfiles" "Disk" "Preflight" "Confirm")
 
+terminal_cols() {
+    tput cols 2>/dev/null || stty size 2>/dev/null | awk '{print $2}' || printf '80'
+}
+
+terminal_rows() {
+    tput lines 2>/dev/null || stty size 2>/dev/null | awk '{print $1}' || printf '24'
+}
+
+tui_size_warning() {
+    local cols rows
+    cols="$(terminal_cols)"
+    rows="$(terminal_rows)"
+    [[ -n "$cols" && "$cols" =~ ^[0-9]+$ ]] || cols=80
+    [[ -n "$rows" && "$rows" =~ ^[0-9]+$ ]] || rows=24
+    if (( cols < 80 || rows < 24 )); then
+        warn "Terminal is ${cols}x${rows}; Abora's installer is easier to use at 80x24 or larger."
+        msg "If menus look broken, resize the window or choose Debug installer -> Open terminal."
+        pause
+    fi
+}
+
 draw_logo() {
-    printf '  %bABORA OS%b  %b▸%b  %b2026.7.27%b\n' \
-        "${B}${CW}" "$R" "${D}${CG}" "$R" "${D}${CG}" "$R"
+    printf '  %bABORA OS%b  %b▸%b  %b%s%b\n' \
+        "${B}${CW}" "$R" "${D}${CG}" "$R" "${D}${CG}" "$release_short" "$R"
 }
 
 rule() {
@@ -155,8 +191,8 @@ tab_header() {
     printf '\033[2J\033[H'
     printf '\n'
     printf '  %b┌────────────────────────────────────────────────────────┐%b\n' "$CF" "$R"
-    printf '  %b│%b  %bABORA OS%b  %b▸%b  2026.7.27%b                              %b│%b\n' \
-        "$CF" "$R" "${B}${CW}" "$R" "${D}${CG}" "$R" "${D}${CG}" "$CF" "$R"
+    printf '  %b│%b  %bABORA OS%b  %b▸%b  %-40s%b│%b\n' \
+        "$CF" "$R" "${B}${CW}" "$R" "${D}${CG}" "$release_short" "$R" "$CF" "$R"
     printf '  %b└────────────────────────────────────────────────────────┘%b\n' "$CF" "$R"
     printf '\n'
     printf '  %bStep %d of %d%b  %b·%b  %b%s%b\n' \
@@ -220,13 +256,25 @@ menu() {
             --item.foreground 253 \
             --selected.foreground 45 \
             --selected.bold \
-            "${gum_items[@]}" 2>/dev/tty)" || { MENU_RESULT=0; return 0; }
+            "${gum_items[@]}" 2>/dev/tty)" || {
+                local old_gum="$GUM_BIN"
+                GUM_BIN=""
+                warn "Interactive picker failed; using numbered fallback menu."
+                menu "$title" "${items[@]}"
+                GUM_BIN="$old_gum"
+                return 0
+            }
         for (( i=0; i<count; i++ )); do
             if [[ "${gum_items[$i]}" == "$selected" ]]; then
                 MENU_RESULT=$i; return 0
             fi
         done
-        MENU_RESULT=0; return 0
+        local old_gum="$GUM_BIN"
+        GUM_BIN=""
+        warn "Interactive picker returned an unknown choice; using numbered fallback menu."
+        menu "$title" "${items[@]}"
+        GUM_BIN="$old_gum"
+        return 0
     fi
 
     # Fallback: numbered list
@@ -326,18 +374,68 @@ die() {
         exit 1
     fi
     printf '\n  %bLog: %s%b\n\n' "${D}${CG}" "$install_log" "$R"
-    if declare -F draw_log_tail >/dev/null 2>&1 && [[ -f "$install_log" ]]; then
-        draw_log_tail "$install_log" 7
-        printf '\n'
-    fi
     # Unmount before handing off to a shell so nothing is left mounted.
     cleanup_target 2>/dev/null || true
-    printf '  %bInstall failed — dropping to a live shell.%b\n' "$CY" "$R"
-    printf '  %bRun %babora-install%b to retry the installer.\n\n' "$CC" "${B}${CW}" "$R"
-    # exec replaces this process so systemd sees a 0 exit when the user
-    # leaves the shell — preventing the Restart=on-failure service from
-    # relaunching the installer automatically.
-    exec bash --login </dev/tty >/dev/tty 2>/dev/tty || exit 0
+    failed_install_menu "$*"
+}
+
+failed_install_menu() {
+    local reason="${1:-Install failed.}"
+    while true; do
+        if declare -F release_header >/dev/null 2>&1; then
+            release_header "Install Failed"
+        else
+            printf '\033[2J\033[H\n'
+            printf '  %bInstall Failed%b\n\n' "${B}${CE}" "$R"
+        fi
+        err "$reason"
+        printf '  %bLog: %s%b\n\n' "${D}${CG}" "$install_log" "$R"
+        if declare -F draw_log_tail >/dev/null 2>&1 && [[ -f "$install_log" ]]; then
+            draw_log_tail "$install_log" 12
+            printf '\n'
+        fi
+        printf '  %bHelpful commands%b  %babora logs%b  %b·%b  %babora network%b  %b·%b  %babora support-report%b\n\n' \
+            "${B}${CS}" "$R" "${B}${CW}" "$R" "$CI" "$R" "${B}${CW}" "$R" "$CI" "$R" "${B}${CW}" "$R"
+
+        menu "What now?" \
+            "Try installer again|Return to the first screen" \
+            "Network tools|Fix Wi-Fi, DNS, or cache reachability" \
+            "Debug tools|View logs, hardware test, support report" \
+            "Open terminal|Drop to the live shell" \
+            "Power off|Shut down this machine"
+
+        case "$MENU_RESULT" in
+            0)
+                if command -v abora-install >/dev/null 2>&1; then
+                    exec abora-install
+                fi
+                exec "$0"
+                ;;
+            1)
+                if declare -F network_tools_menu >/dev/null 2>&1; then
+                    network_tools_menu yes
+                else
+                    warn "Network tools are not loaded yet."
+                    pause
+                fi
+                ;;
+            2)
+                if declare -F debug_tools_menu >/dev/null 2>&1; then
+                    debug_tools_menu
+                else
+                    warn "Debug tools are not loaded yet."
+                    pause
+                fi
+                ;;
+            3)
+                printf '\n  %bRun %babora-install%b to retry the installer.%b\n\n' "$CC" "${B}${CW}" "$R" "$R"
+                exec bash --login </dev/tty >/dev/tty 2>/dev/tty || exit 0
+                ;;
+            4)
+                poweroff || exit 0
+                ;;
+        esac
+    done
 }
 
 # ── Utility ───────────────────────────────────────────────────────────────────
@@ -423,6 +521,30 @@ nix_string() {
     value="${value//\"/\\\"}"
     value="${value//$'\n'/}"
     printf '%s' "$value"
+}
+
+nix_bool() {
+    case "$1" in
+        yes|true|1) printf 'true' ;;
+        *) printf 'false' ;;
+    esac
+}
+
+set_nix_bool_assignment() {
+    local file="$1" key="$2" value="$3" nix_value tmp
+    nix_value="$(nix_bool "$value")"
+    if grep -Eq "^[[:space:]]*${key//./\\.}[[:space:]]*=" "$file"; then
+        sed -i -E "s|^[[:space:]]*${key//./\\.}[[:space:]]*=.*|  ${key} = ${nix_value};|" "$file"
+        return 0
+    fi
+    tmp="$(mktemp)"
+    awk -v line="  ${key} = ${nix_value};" '
+        /^[[:space:]]*}[[:space:]]*$/ && !done { print line; done=1 }
+        { print }
+        END { if (!done) print line }
+    ' "$file" > "$tmp"
+    cat "$tmp" > "$file"
+    rm -f "$tmp"
 }
 
 sync_xkb_layout() {
@@ -587,6 +709,171 @@ start_nm() {
         || return 1
 }
 
+network_status() {
+    printf '  %bNetwork status%b\n' "${B}${CS}" "$R"
+    if command -v nmcli >/dev/null 2>&1; then
+        printf '\n  %bConnectivity%b\n' "$CI" "$R"
+        nmcli networking connectivity check 2>/dev/null | sed 's/^/    /' || true
+        printf '\n  %bDevices%b\n' "$CI" "$R"
+        nmcli device status 2>/dev/null | sed 's/^/    /' || true
+        printf '\n  %bWi-Fi radios%b\n' "$CI" "$R"
+        nmcli radio 2>/dev/null | sed 's/^/    /' || true
+        return 0
+    fi
+    warn "nmcli is not available on this live image."
+}
+
+log_network_snapshot() {
+    {
+        printf '[installer] network snapshot start\n'
+        if command -v nmcli >/dev/null 2>&1; then
+            printf '[installer] nmcli connectivity: '
+            nmcli networking connectivity check 2>/dev/null || true
+            printf '[installer] nmcli device status:\n'
+            nmcli device status 2>/dev/null || true
+            printf '[installer] nmcli radio:\n'
+            nmcli radio 2>/dev/null || true
+            printf '[installer] visible Wi-Fi networks:\n'
+            nmcli -f SSID,SIGNAL,SECURITY device wifi list 2>/dev/null || true
+        else
+            printf '[installer] nmcli unavailable\n'
+        fi
+        if command -v resolvectl >/dev/null 2>&1; then
+            printf '[installer] resolvectl dns:\n'
+            resolvectl dns 2>/dev/null || true
+        fi
+        if curl -fsI --connect-timeout 5 --max-time 8 https://cache.nixos.org >/dev/null 2>&1; then
+            printf '[installer] cache.nixos.org reachable: yes\n'
+        else
+            printf '[installer] cache.nixos.org reachable: no\n'
+        fi
+        printf '[installer] network snapshot end\n'
+    } >>"$install_log" 2>&1 || true
+}
+
+open_nmtui_or_explain() {
+    start_nm >/dev/null 2>&1 || true
+    if command -v nmtui >/dev/null 2>&1; then
+        nmtui || true
+        start_nm >/dev/null 2>&1 || true
+        return 0
+    fi
+
+    warn "nmtui is not available."
+    if command -v nmcli >/dev/null 2>&1; then
+        msg "Use Quick Wi-Fi connect instead; it uses nmcli directly."
+    else
+        msg "Open a terminal and check whether NetworkManager is installed/running."
+    fi
+    pause
+}
+
+quick_wifi_connect() {
+    local _ssid="" _sec="" _pw=""
+    start_nm >/dev/null 2>&1 || true
+    if ! command -v nmcli >/dev/null 2>&1; then
+        warn "nmcli is not available; cannot scan Wi-Fi from the installer."
+        pause
+        return 1
+    fi
+
+    nmcli networking on >/dev/null 2>&1 || true
+    nmcli radio wifi on >/dev/null 2>&1 || true
+    nmcli device wifi rescan >/dev/null 2>&1 || true
+    printf '\n'
+    nmcli -f SSID,SIGNAL,SECURITY device wifi list 2>/dev/null || warn "No Wi-Fi networks reported by NetworkManager."
+    printf '\n'
+    printf '  %bSSID:%b ' "$CI" "$R"
+    read -r _ssid </dev/tty || _ssid=""
+    if [[ -z "${_ssid:-}" ]]; then
+        warn "No SSID entered."
+        pause
+        return 1
+    fi
+
+    _sec="$(nmcli -t -f SSID,SECURITY device wifi list 2>/dev/null \
+        | awk -F: -v s="$_ssid" '$1==s{print $2;exit}')"
+    if [[ -n "${_sec:-}" && "$_sec" != "--" ]]; then
+        printf '  %bPassword:%b ' "$CI" "$R"
+        read -rs _pw </dev/tty || _pw=""
+        printf '\n'
+        nmcli device wifi connect "$_ssid" password "$_pw" || true
+    else
+        nmcli device wifi connect "$_ssid" || true
+    fi
+
+    if net_connected; then
+        ok "Connected."
+    else
+        warn "Still not connected. Check the SSID/password or try nmtui."
+    fi
+    pause
+}
+
+network_tools_menu() {
+    local allow_offline="${1:-yes}"
+    while true; do
+        release_header "Network Tools"
+        start_nm >/dev/null 2>&1 || true
+        if net_connected; then
+            ok "Network is connected."
+        else
+            warn "No internet connection detected."
+        fi
+        printf '\n'
+        network_status
+        printf '\n'
+
+        if [[ "$allow_offline" == "yes" ]]; then
+            menu "Network setup" \
+                "Open nmtui|Full NetworkManager TUI if available" \
+                "Quick Wi-Fi connect|Scan and connect with nmcli" \
+                "Turn Wi-Fi on and rescan|Wake up NetworkManager Wi-Fi" \
+                "Re-check connection|Test connectivity again" \
+                "Continue offline|Use only packages already on the ISO" \
+                "Back|Return to installer"
+        else
+            menu "Network setup" \
+                "Open nmtui|Full NetworkManager TUI if available" \
+                "Quick Wi-Fi connect|Scan and connect with nmcli" \
+                "Turn Wi-Fi on and rescan|Wake up NetworkManager Wi-Fi" \
+                "Re-check connection|Test connectivity again" \
+                "Back|Return to installer"
+        fi
+
+        case "$MENU_RESULT" in
+            0) open_nmtui_or_explain ;;
+            1) quick_wifi_connect ;;
+            2)
+                if command -v nmcli >/dev/null 2>&1; then
+                    nmcli networking on >/dev/null 2>&1 || true
+                    nmcli radio wifi on >/dev/null 2>&1 || true
+                    nmcli device wifi rescan >/dev/null 2>&1 || true
+                    ok "Requested Wi-Fi radio on and rescan."
+                else
+                    warn "nmcli is not available."
+                fi
+                pause
+                ;;
+            3)
+                if net_connected; then ok "Connected."; else warn "Still no connection."; fi
+                pause
+                ;;
+            4)
+                if [[ "$allow_offline" == "yes" ]]; then
+                    ABORA_ALLOW_OFFLINE_INSTALL=1
+                    export ABORA_ALLOW_OFFLINE_INSTALL
+                    warn "Offline install allowed. It will only work if needed Nix paths are already on the ISO."
+                    pause
+                    return 0
+                fi
+                return 0
+                ;;
+            5) return 0 ;;
+        esac
+    done
+}
+
 # Whole-disk device names (no /dev/ prefix, one per line) currently backing
 # any live mount or loop device -- i.e. candidates for "the disk Abora
 # actually booted from". The live squashfs is loop-mounted from a file on
@@ -647,6 +934,7 @@ check_install_environment() {
     local mode="${1:-summary}"
     local failed=0 cmd path nixpkgs
     local commands_ok=0 assets_ok=0
+    local check_selected_values=1
     local -a commands=(
         wipefs parted partprobe udevadm mkfs.vfat mkfs.ext4 mount blkid
         nixos-generate-config nixos-install openssl curl
@@ -657,12 +945,18 @@ check_install_environment() {
         /etc/abora/abora.sh
         /etc/abora/ui.sh
         /etc/abora/config.sh
+        /etc/abora/build.sh
+        /etc/abora/adopt-nixos.sh
         /etc/abora/desktop.sh
+        /etc/abora/gaming.sh
+        /etc/abora/check-full.sh
         /etc/abora/doctor.sh
+        /etc/abora/dotfiles-import.sh
         /etc/abora/recovery.sh
         /etc/abora/welcome.sh
         /etc/abora/app-catalog.sh
         /etc/abora/apps.sh
+        /etc/abora/custom-packages.sh
         /etc/abora/support-report.sh
         /etc/abora/hardware-test.sh
         /etc/abora/repair-flake-purity.sh
@@ -670,6 +964,9 @@ check_install_environment() {
         /etc/abora/fastfetch-logo.txt
         /etc/abora/fastfetch-config.jsonc
         /etc/abora/desktop-profiles.sh
+        /etc/abora/desktops
+        /etc/abora/wallpapers
+        /etc/abora/themes
         /etc/abora/mango/config.conf
         /etc/abora/pkgs/mango.nix
         /etc/abora/pkgs/scenefx-0_5.nix
@@ -677,6 +974,7 @@ check_install_environment() {
         /etc/abora/pkgs/moducpp-anix.nix
         /etc/abora/tools/moducpp-anix
         /etc/abora/installed-base.nix
+        /etc/abora/abora-options.nix
         /etc/abora/anix.sh
         /etc/abora/anix-module.nix
         /etc/abora/tinypm/tinypm
@@ -686,6 +984,7 @@ check_install_environment() {
         /etc/abora/tinypm/bin/tinypm
         /etc/abora/tinypm/lib/tinypm/core/version.sh
         /etc/abora/tinypm/lib/tinypm/providers/anix.sh
+        /etc/abora/vendor/modularity
         /etc/abora/installer.sh
         /etc/abora/setup-launcher.sh
         /etc/abora/setup.desktop
@@ -699,10 +998,19 @@ check_install_environment() {
     )
     local -a optional_paths=(
         /etc/abora/docs/wiki/ANIX-V1.md
+        /etc/abora/docs/wiki/ANIX-V2-Languages.md
         /etc/abora/docs/wiki/TinyPM-V4.md
         /etc/abora/docs/wiki/Abora-Tools.md
+        /etc/abora/docs/wiki/Abora-Gaming.md
         /etc/abora/docs/wiki/Recovery.md
+        /etc/abora/docs/wiki/Updating-Abora.md
     )
+
+    case "$mode" in
+        live|tools|assets)
+            check_selected_values=0
+            ;;
+    esac
 
     [[ -r /dev/tty ]] || { err "No readable /dev/tty; run from a real terminal."; failed=1; }
 
@@ -759,21 +1067,25 @@ check_install_environment() {
         fi
     done
 
-    timezone_value="$(normalize_timezone "$timezone_value")"
-    safe_locale "$locale_value" || { err "Invalid locale: ${locale_value}"; failed=1; }
-    timezone_exists "$timezone_value" || { err "Invalid or unavailable timezone: ${timezone_value}"; failed=1; }
-    safe_keymap "$keyboard_value" || { err "Invalid console keymap: ${keyboard_value}"; failed=1; }
-    safe_keymap "$xkb_layout_value" || { err "Invalid XKB layout: ${xkb_layout_value}"; failed=1; }
-    [[ -n "$user_password_hash" ]] || { err "User password hash is empty."; failed=1; }
+    if (( check_selected_values == 1 )); then
+        timezone_value="$(normalize_timezone "$timezone_value")"
+        safe_locale "$locale_value" || { err "Invalid locale: ${locale_value}"; failed=1; }
+        timezone_exists "$timezone_value" || { err "Invalid or unavailable timezone: ${timezone_value}"; failed=1; }
+        safe_keymap "$keyboard_value" || { err "Invalid console keymap: ${keyboard_value}"; failed=1; }
+        safe_keymap "$xkb_layout_value" || { err "Invalid XKB layout: ${xkb_layout_value}"; failed=1; }
+        [[ -n "$user_password_hash" ]] || { err "User password hash is empty."; failed=1; }
 
-    # These three are re-validated here (not just in the interactive step_*
-    # prompts) so --batch installs get the exact same guarantees: a batch
-    # params file can set hostname/username/disk to anything, and nothing
-    # else on the batch path re-checks them before they're baked into
-    # generated Nix config or handed to wipefs/parted.
-    safe_hostname "$hostname_value" || { err "Invalid hostname: ${hostname_value}"; failed=1; }
-    safe_identifier "$username_value" || { err "Invalid username: ${username_value}"; failed=1; }
-    [[ -n "$disk" && -b "$disk" ]] || { err "Invalid or missing installation disk: '${disk}'"; failed=1; }
+        # These three are re-validated here (not just in the interactive step_*
+        # prompts) so --batch installs get the exact same guarantees: a batch
+        # params file can set hostname/username/disk to anything, and nothing
+        # else on the batch path re-checks them before they're baked into
+        # generated Nix config or handed to wipefs/parted.
+        safe_hostname "$hostname_value" || { err "Invalid hostname: ${hostname_value}"; failed=1; }
+        safe_identifier "$username_value" || { err "Invalid username: ${username_value}"; failed=1; }
+        [[ -n "$disk" && -b "$disk" ]] || { err "Invalid or missing installation disk: '${disk}'"; failed=1; }
+    elif [[ "$mode" != "detail" ]]; then
+        ok "Selected install values will be checked after disk and user setup"
+    fi
 
     if [[ "$mode" != "detail" ]]; then
         ok "Tools ready: ${commands_ok}/${#commands[@]}"
@@ -928,37 +1240,17 @@ step_network() {
         printf '\n'
 
         menu "" \
-            "Open nmtui|Wi-Fi setup, hidden SSIDs, VPNs" \
-            "Quick Wi-Fi connect|Scan and connect from terminal" \
+            "Network tools|Status, nmtui, quick Wi-Fi, and rescan" \
+            "Quick Wi-Fi connect|Scan and connect with nmcli" \
             "Re-check connection|Test connectivity again" \
             "Continue|Proceed with current state"
 
         case "$MENU_RESULT" in
             0)
-                nmtui 2>/dev/null || true
-                start_nm 2>/dev/null || true
+                network_tools_menu yes
                 ;;
             1)
-                nmcli radio wifi on >/dev/null 2>&1 || true
-                nmcli device wifi rescan >/dev/null 2>&1 || true
-                printf '\n'
-                nmcli -f SSID,SIGNAL,SECURITY device wifi list 2>/dev/null || true
-                printf '\n'
-                printf '  %bSSID:%b ' "$CI" "$R"
-                local _ssid; read -r _ssid </dev/tty || _ssid=""
-                if [[ -n "${_ssid:-}" ]]; then
-                    local _sec
-                    _sec="$(nmcli -t -f SSID,SECURITY device wifi list 2>/dev/null \
-                        | awk -F: -v s="$_ssid" '$1==s{print $2;exit}')"
-                    if [[ -n "${_sec:-}" && "$_sec" != "--" ]]; then
-                        printf '  %bPassword:%b ' "$CI" "$R"
-                        local _pw; read -rs _pw </dev/tty || _pw=""
-                        printf '\n'
-                        nmcli device wifi connect "$_ssid" password "$_pw" 2>/dev/null || true
-                    else
-                        nmcli device wifi connect "$_ssid" 2>/dev/null || true
-                    fi
-                fi
+                quick_wifi_connect
                 ;;
             2)
                 if net_connected; then ok=1; ok "Connected!"
@@ -1134,7 +1426,7 @@ step_apps() {
     if [[ "$starter_apps_bundle" != "none" ]]; then
         printf '\n'
         menu "When should apps install?" \
-            "After first boot|Fast install — apply later with abora-apps rebuild" \
+            "After first boot|Fast install — apply later with abora apps rebuild" \
             "During setup|Slow — can take a long time or fail on cache misses"
         [[ "$MENU_RESULT" -eq 1 ]] && install_apps_during_setup="yes"
     fi
@@ -1160,6 +1452,43 @@ step_options() {
         gh auth login 2>/dev/null || true
         refresh_github_identity
     fi
+
+    printf '\n'
+    menu "Gaming Layer" \
+        "Skip gaming setup|Smallest install — add gaming later" \
+        "Desktop gaming|Steam, 32-bit graphics, GameMode, MangoHud, Vulkan tools" \
+        "Desktop gaming + Big Picture|Also add a controller-friendly Steam launcher" \
+        "Big Picture console mode|Add a Gamescope login session for TV/controller use"
+    case "$MENU_RESULT" in
+        0)
+            gaming_enabled="no"
+            gaming_big_picture="no"
+            gaming_autostart="no"
+            gaming_gamescope="no"
+            gaming_vulkan="no"
+            ;;
+        1)
+            gaming_enabled="yes"
+            gaming_big_picture="no"
+            gaming_autostart="no"
+            gaming_gamescope="no"
+            gaming_vulkan="yes"
+            ;;
+        2)
+            gaming_enabled="yes"
+            gaming_big_picture="yes"
+            gaming_autostart="no"
+            gaming_gamescope="no"
+            gaming_vulkan="yes"
+            ;;
+        3)
+            gaming_enabled="yes"
+            gaming_big_picture="yes"
+            gaming_autostart="no"
+            gaming_gamescope="yes"
+            gaming_vulkan="yes"
+            ;;
+    esac
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1254,24 +1583,33 @@ step_preflight() {
     while true; do
         tab_header 10
         printf '  %bInstall Preflight%b\n\n' "${B}${CS}" "$R"
-        msg "Checking tools, installer assets, Nix paths, and selected values."
+        msg "Checking tools, installer assets, and Nix paths."
         printf '\n'
 
-        if check_install_environment; then
+        if check_install_environment live; then
             printf '\n'
-            ok "Everything needed for install is present."
+            ok "The live installer environment is ready."
             pause
             return 0
         fi
 
         printf '\n'
-        warn "Fix the items above before erasing a disk."
+        warn "Fix the items above before continuing."
+        msg "For network problems, choose Network tools or run abora network from a terminal."
         printf '\n'
         menu "Preflight failed" \
             "Run checks again|Re-test after fixing the live environment" \
+            "Network tools|Fix Wi-Fi, DNS, or cache reachability" \
+            "Debug tools|View logs, hardware test, support report" \
+            "Open terminal|Drop to the live shell" \
             "Cancel|Abort and return to the live shell"
-        [[ "$MENU_RESULT" -eq 0 ]] && continue
-        exit 1
+        case "$MENU_RESULT" in
+            0) continue ;;
+            1) network_tools_menu yes ;;
+            2) debug_tools_menu ;;
+            3) open_live_terminal ;;
+            *) exit 1 ;;
+        esac
     done
 }
 
@@ -1288,7 +1626,21 @@ step_disk() {
     while IFS= read -r row; do
         [[ -n "$row" ]] && disks+=("$row")
     done < <(collect_disks)
-    [[ ${#disks[@]} -eq 0 ]] && die "No installable disks found."
+    if [[ ${#disks[@]} -eq 0 ]]; then
+        warn "No installable disks found."
+        printf '\n'
+        menu "Disk tools" \
+            "Scan again|Refresh the disk list" \
+            "Open terminal|Use lsblk, dmesg, or nvme/sata tools" \
+            "Debug installer|Run hardware tests or collect a support report" \
+            "Cancel|Return to the live shell"
+        case "$MENU_RESULT" in
+            0) step_disk; return ;;
+            1) open_live_terminal; step_disk; return ;;
+            2) debug_tools_menu; step_disk; return ;;
+            *) exit 1 ;;
+        esac
+    fi
 
     menu "Choose Installation Disk" "${disks[@]}"
     disk="${disks[$MENU_RESULT]%%|*}"
@@ -1332,6 +1684,16 @@ _print_summary() {
     else
         printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Apps:" "$R" "${starter_apps_label} (after first boot)"
     fi
+    if [[ "$gaming_enabled" == "yes" ]]; then
+        local gaming_desc="enabled"
+        [[ "$gaming_big_picture" == "yes" ]] && gaming_desc+=", Big Picture"
+        [[ "$gaming_gamescope" == "yes" ]] && gaming_desc+=", Gamescope session"
+        [[ "$gaming_vulkan" == "yes" ]] && gaming_desc+=", Vulkan tools"
+        [[ "$gaming_autostart" == "yes" ]] && gaming_desc+=", autostart"
+        printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Gaming:" "$R" "$gaming_desc"
+    else
+        printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Gaming:" "$R" "off"
+    fi
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "ANIX:"     "$R" "$anix_enabled"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Root:"     "$R" "$root_password_mode"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "GitHub:"   "$R" "$github_identity"
@@ -1345,7 +1707,7 @@ step_confirm() {
         _print_summary
 
         menu "Ready to install?" \
-            "Install now|Erase ${disk} and install Abora OS 2026.7.27" \
+            "Install now|Erase ${disk} and install ${release_name}" \
             "Change password|Reset user password before installing" \
             "Cancel|Abort and return to the live shell"
 
@@ -1529,7 +1891,7 @@ EOF
 write_docs_fallback() {
     local docs_dir="$1"
     mkdir -p "$docs_dir/wiki"
-    for doc in ANIX-V1 TinyPM-V4 Abora-Tools Recovery; do
+    for doc in ANIX-V1 ANIX-V2-Languages TinyPM-V4 Abora-Tools Abora-Gaming Recovery Updating-Abora; do
         [[ -f "$docs_dir/wiki/${doc}.md" ]] && continue
         cat > "$docs_dir/wiki/${doc}.md" <<EOF
 # ${doc}
@@ -1622,15 +1984,16 @@ write_branding_assets() {
              "${root}/etc/nixos/abora/themes" \
              "${root}/etc/nixos/abora/effects" \
              "${root}/etc/nixos/abora/anix-languages" \
-             "${root}/etc/nixos/abora/tools"
+             "${root}/etc/nixos/abora/tools" \
+             "${root}/etc/nixos/abora/vendor"
 
     local f
-    for f in VERSION title.txt abora.sh ui.sh config.sh desktop.sh doctor.sh \
-              check-full.sh recovery.sh welcome.sh app-catalog.sh apps.sh support-report.sh \
-              hardware-test.sh default-wallpaper.png fastfetch-logo.txt \
+    for f in VERSION title.txt abora.sh ui.sh config.sh build.sh adopt-nixos.sh desktop.sh doctor.sh \
+              gaming.sh check-full.sh recovery.sh welcome.sh app-catalog.sh apps.sh support-report.sh \
+              custom-packages.sh hardware-test.sh default-wallpaper.png fastfetch-logo.txt \
               fastfetch-config.jsonc desktop-profiles.sh installed-base.nix \
               installer.sh setup-launcher.sh setup.desktop repair-flake-purity.sh \
-              session-setup.sh theme-sync.sh update.sh welcome-gui.py config-gui.py; do
+              session-setup.sh dotfiles-import.sh theme-sync.sh update.sh welcome-gui.py config-gui.py; do
         cp_required "/etc/abora/${f}" "${root}/etc/nixos/abora/${f}"
     done
     [[ -f /etc/abora/Abora-LOGO.png ]] && \
@@ -1645,12 +2008,15 @@ write_branding_assets() {
     cp_required /etc/abora/tools/moducpp-anix      "${root}/etc/nixos/abora/tools/moducpp-anix"
     cp_required /etc/abora/anix-module.nix         "${root}/etc/nixos/abora/anix-module.nix"
     cp_required /etc/abora/abora-options.nix       "${root}/etc/nixos/abora/abora-options.nix"
+    cp -a /etc/abora/vendor/modularity "${root}/etc/nixos/abora/vendor/modularity"
 
     [[ -f /etc/abora/anix.sh           ]] && cp /etc/abora/anix.sh            "${root}/etc/nixos/abora/anix.sh"
     [[ -f /etc/abora/effects/v3StartingAbora.mp3 ]] && \
         cp /etc/abora/effects/v3StartingAbora.mp3 "${root}/etc/nixos/abora/effects/v3StartingAbora.mp3"
 
     cp -a /etc/abora/desktops/. "${root}/etc/nixos/abora/desktops/"
+    cp -a /etc/abora/wallpapers/. "${root}/etc/nixos/abora/wallpapers/"
+    cp -a /etc/abora/themes/. "${root}/etc/nixos/abora/themes/"
     if [[ -d /etc/abora/anix-languages ]]; then
         cp -a /etc/abora/anix-languages/. "${root}/etc/nixos/abora/anix-languages/"
     fi
@@ -1718,6 +2084,7 @@ generate_nixos_config() {
     write_branding_assets "$root"
 
     local desktop_pkgs root_pw_line host_nix user_nix locale_nix timezone_nix keyboard_nix xkb_nix desktop_nix wallpaper_nix anix_import_line disk_nix gpu_nix
+    local gaming_enabled_nix gaming_big_picture_nix gaming_autostart_nix gaming_gamescope_nix gaming_vulkan_nix
     timezone_value="$(normalize_timezone "$timezone_value")"
     desktop_pkgs="$(abora_desktop_package_block "$desktop_profile")"
     host_nix="$(nix_string "$hostname_value")"
@@ -1730,6 +2097,11 @@ generate_nixos_config() {
     wallpaper_nix="$(nix_string "$wallpaper_name")"
     disk_nix="$(nix_string "$disk")"
     gpu_nix="$(nix_string "$gpu_value")"
+    gaming_enabled_nix="$(nix_bool "$gaming_enabled")"
+    gaming_big_picture_nix="$(nix_bool "$gaming_big_picture")"
+    gaming_autostart_nix="$(nix_bool "$gaming_autostart")"
+    gaming_gamescope_nix="$(nix_bool "$gaming_gamescope")"
+    gaming_vulkan_nix="$(nix_bool "$gaming_vulkan")"
 
     # Persist the dotfiles Git URL (if any) so the first graphical session
     # can clone and import it automatically — see
@@ -1810,6 +2182,14 @@ EOF
   abora.gpu = "${gpu_nix}";
   abora.disk = "${disk_nix}";
   abora.stateVersion = "26.05";
+  abora.gaming.enable = ${gaming_enabled_nix};
+  abora.gaming.bigPictureShortcut = ${gaming_big_picture_nix};
+  abora.gaming.bigPictureAutostart = ${gaming_autostart_nix};
+  abora.gaming.gamescopeSession = ${gaming_gamescope_nix};
+  abora.gaming.vulkanTools = ${gaming_vulkan_nix};
+  abora.extras.diagnostics = false;
+  abora.extras.virtualizationGuests = false;
+  abora.extras.mobileBroadband = false;
   abora.user.name = "${user_nix}";
   abora.user.hashedPassword = "${user_password_hash}";
 
@@ -2194,8 +2574,8 @@ progress_line() {
 
 draw_install_title() {
     printf '  %b┌────────────────────────────────────────────────────────┐%b\n' "$CF" "$R"
-    printf '  %b│%b  %bABORA OS%b  %b▸%b  Installing 2026.7.27%b                  %b│%b\n' \
-        "$CF" "$R" "${B}${CW}" "$R" "${D}${CG}" "$R" "${D}${CG}" "$CF" "$R"
+    printf '  %b│%b  %bABORA OS%b  %b▸%b  %-40s%b│%b\n' \
+        "$CF" "$R" "${B}${CW}" "$R" "${D}${CG}" "Installing ${release_short}" "$R" "$CF" "$R"
     printf '  %b└────────────────────────────────────────────────────────┘%b\n' "$CF" "$R"
 }
 
@@ -2385,15 +2765,16 @@ run_install() {
     printf '\033[2J\033[H'
     printf '\n'
     draw_install_title
-    printf '  %bInstalling Abora OS 2026.7.27%b\n' "$CC" "$R"
+    printf '  %bInstalling %s%b\n' "$CC" "$release_name" "$R"
     printf '  %bLog: %s%b\n' "${D}${CG}" "$install_log" "$R"
     printf '\n'
 
     : > "$install_log"
+    log_network_snapshot
 
     progress_line 5 "Starting"
     msg "Running final safety checks…"
-    if ! check_install_environment detail >>"$install_log" 2>&1; then
+    if ! check_install_environment final >>"$install_log" 2>&1; then
         die "Preflight failed before partitioning. See ${install_log}."
     fi
 
@@ -2437,6 +2818,7 @@ run_install() {
         "http-connections = 32")"
 
     msg "Running nixos-install…"
+    log_network_snapshot
     if ! run_with_log_panel 70 "Installing system" \
         env "NIX_PATH=nixpkgs=${nixpkgs}:nixos-config=/mnt/etc/nixos/configuration.nix" \
         "NIX_CONFIG=${nix_config}" \
@@ -2469,12 +2851,12 @@ page_done() {
     printf '  %b┌────────────────────────────────────────────────────────┐%b\n' "$CF" "$R"
     printf '  %b│%b  %b✓  Installation Complete%b                               %b│%b\n' \
         "$CF" "$R" "${B}${CP}" "$R" "$CF" "$R"
-    printf '  %b│%b  %bAbora OS 2026.7.27 is installed%b                     %b│%b\n' \
-        "$CF" "$R" "$CS" "$R" "$CF" "$R"
+    printf '  %b│%b  %b%-52s%b  %b│%b\n' \
+        "$CF" "$R" "$CS" "${release_name} is installed" "$R" "$CF" "$R"
     printf '  %b└────────────────────────────────────────────────────────┘%b\n' "$CF" "$R"
     printf '\n'
     if [[ "$starter_apps_bundle" != "none" && "$install_apps_during_setup" != "yes" ]]; then
-        printf '  %b·%b  Apps: %b%s%b saved — run %babora-apps rebuild%b after first boot.\n' \
+        printf '  %b·%b  Apps: %b%s%b saved — run %babora apps rebuild%b after first boot.\n' \
             "$CI" "$R" "$CC" "$starter_apps_label" "$R" "${B}${CW}" "$R"
         printf '\n'
     fi
@@ -2542,6 +2924,21 @@ read_current_config() {
     [[ -n "$v" ]] && timezone_value="$v"
     v="$(sed -nE 's/^[[:space:]]*console\.keyMap *= *"([^"]+)".*/\1/p' "$f" | head -1)"
     [[ -n "$v" ]] && keyboard_value="$v"
+    v="$(sed -nE 's/^[[:space:]]*abora\.gaming\.enable *= *(true|false).*/\1/p' "$f" | head -1)"
+    [[ "$v" == "true" ]] && gaming_enabled="yes"
+    [[ "$v" == "false" ]] && gaming_enabled="no"
+    v="$(sed -nE 's/^[[:space:]]*abora\.gaming\.bigPictureShortcut *= *(true|false).*/\1/p' "$f" | head -1)"
+    [[ "$v" == "true" ]] && gaming_big_picture="yes"
+    [[ "$v" == "false" ]] && gaming_big_picture="no"
+    v="$(sed -nE 's/^[[:space:]]*abora\.gaming\.bigPictureAutostart *= *(true|false).*/\1/p' "$f" | head -1)"
+    [[ "$v" == "true" ]] && gaming_autostart="yes"
+    [[ "$v" == "false" ]] && gaming_autostart="no"
+    v="$(sed -nE 's/^[[:space:]]*abora\.gaming\.gamescopeSession *= *(true|false).*/\1/p' "$f" | head -1)"
+    [[ "$v" == "true" ]] && gaming_gamescope="yes"
+    [[ "$v" == "false" ]] && gaming_gamescope="no"
+    v="$(sed -nE 's/^[[:space:]]*abora\.gaming\.vulkanTools *= *(true|false).*/\1/p' "$f" | head -1)"
+    [[ "$v" == "true" ]] && gaming_vulkan="yes"
+    [[ "$v" == "false" ]] && gaming_vulkan="no"
 }
 
 read_anix_config() {
@@ -2586,6 +2983,11 @@ run_reconfig() {
             -e "s|time\.timeZone *= *\"[^\"]*\"|time.timeZone = \"${timezone_value}\"|" \
             -e "s|console\.keyMap *= *\"[^\"]*\"|console.keyMap = \"${keyboard_value}\"|" \
             "$abora_local" 2>/dev/null || true
+        set_nix_bool_assignment "$abora_local" "abora.gaming.enable" "$gaming_enabled"
+        set_nix_bool_assignment "$abora_local" "abora.gaming.bigPictureShortcut" "$gaming_big_picture"
+        set_nix_bool_assignment "$abora_local" "abora.gaming.bigPictureAutostart" "$gaming_autostart"
+        set_nix_bool_assignment "$abora_local" "abora.gaming.gamescopeSession" "$gaming_gamescope"
+        set_nix_bool_assignment "$abora_local" "abora.gaming.vulkanTools" "$gaming_vulkan"
         ok "abora-local.nix updated"
     fi
 
@@ -2620,8 +3022,8 @@ release_header() {
     printf '\033[2J\033[H'
     printf '\n'
     printf '  %b┌────────────────────────────────────────────────────────┐%b\n' "$CF" "$R"
-    printf '  %b│%b  %bABORA OS%b  %b▸%b  %b2026.7.27%b                             %b│%b\n' \
-        "$CF" "$R" "${B}${CW}" "$R" "$CI" "$R" "$CS" "$R" "$CF" "$R"
+    printf '  %b│%b  %bABORA OS%b  %b▸%b  %b%-40s%b│%b\n' \
+        "$CF" "$R" "${B}${CW}" "$R" "$CI" "$release_short" "$R" "$CF" "$R"
     printf '  %b└────────────────────────────────────────────────────────┘%b\n' "$CF" "$R"
     printf '\n'
     printf '  %b%s%b\n' "${B}${CS}" "$title" "$R"
@@ -2629,19 +3031,140 @@ release_header() {
     printf '\n'
 }
 
-release_welcome() {
-    release_header "Welcome"
-    msg "Fast release installer. Pick the basics; Abora handles the rest."
-    msg "This installer erases one selected disk and installs the ${desktop_label} edition."
+open_live_terminal() {
     printf '\n'
-    menu "Start" \
-        "Install Abora OS|Guided install to a disk" \
-        "Live shell|Exit to the live environment"
-    if [[ "$MENU_RESULT" -eq 1 ]]; then
+    ok "Opening a live terminal. Run abora-install to return."
+    printf '\n'
+    exec bash --login </dev/tty >/dev/tty 2>/dev/tty || exit 0
+}
+
+debug_tools_menu() {
+    while true; do
+        release_header "Debug Tools"
+        msg "Use these when the installer acts weird or you need logs before installing."
+        msg "Nothing here partitions or installs Abora."
         printf '\n'
-        ok "Live shell selected. Run abora-install to return."
-        exit 0
-    fi
+
+        menu "Debug issues" \
+            "View installer log|Tail /tmp/abora-install.log" \
+            "View config log|Tail /tmp/abora-config.log" \
+            "Run hardware test|Check disks, GPU, Wi-Fi, firmware, and boot mode" \
+            "Create support report|Collect a redacted archive for bug reports" \
+            "Network tools|Open nmtui for Wi-Fi or Ethernet setup" \
+            "Open terminal|Drop to a live shell" \
+            "Back|Return to welcome"
+
+        case "$MENU_RESULT" in
+            0)
+                release_header "Installer Log"
+                if [[ -f "$install_log" ]]; then
+                    draw_log_tail "$install_log" 22
+                else
+                    warn "No installer log yet at ${install_log}."
+                fi
+                pause
+                ;;
+            1)
+                release_header "Config Log"
+                if [[ -f "$config_log" ]]; then
+                    draw_log_tail "$config_log" 22
+                else
+                    warn "No config log yet at ${config_log}."
+                fi
+                pause
+                ;;
+            2)
+                release_header "Hardware Test"
+                if command -v abora >/dev/null 2>&1; then
+                    abora hardware-test --with-report || true
+                elif command -v abora-hardware-test >/dev/null 2>&1; then
+                    abora-hardware-test --with-report || true
+                else
+                    warn "Hardware test command is not available on this live image."
+                fi
+                pause
+                ;;
+            3)
+                release_header "Support Report"
+                if command -v abora >/dev/null 2>&1; then
+                    abora support-report || true
+                elif command -v abora-support-report >/dev/null 2>&1; then
+                    abora-support-report || true
+                else
+                    warn "Support report command is not available on this live image."
+                fi
+                pause
+                ;;
+            4)
+                release_header "Network Tools"
+                network_tools_menu no
+                ;;
+            5)
+                open_live_terminal
+                ;;
+            6)
+                return 0
+                ;;
+        esac
+    done
+}
+
+source_build_menu() {
+    release_header "Build From Source"
+    msg "Advanced path for people who want to compile Abora themselves."
+    msg "Recommended: build on an installed Linux/NixOS workstation, not inside this live ISO."
+    printf '\n'
+    printf '  %bRequired%b\n' "${B}${CS}" "$R"
+    printf '  %b·%b Nix with flakes and nix-command enabled\n' "$CI" "$R"
+    printf '  %b·%b Git and enough disk space for Nix builds\n' "$CI" "$R"
+    printf '  %b·%b QEMU if you want to boot-test locally\n' "$CI" "$R"
+    printf '\n'
+    printf '  %bCommands%b\n' "${B}${CS}" "$R"
+    printf '  %bgit clone https://github.com/AnimatedGTVR/Abora-OS.git%b\n' "$CW" "$R"
+    printf '  %bcd Abora-OS%b\n' "$CW" "$R"
+    printf '  %bnix build .#nixosConfigurations.abora.config.system.build.toplevel%b\n' "$CW" "$R"
+    printf '\n'
+    printf '  %bFriendly wrapper%b\n' "${B}${CS}" "$R"
+    printf '  %babora build --from-source%b\n' "$CW" "$R"
+    printf '\n'
+    printf '  %bISO build commands%b\n' "${B}${CS}" "$R"
+    printf '  %bmake doctor%b\n' "$CW" "$R"
+    printf '  %bmake iso%b        %b# default Cosmic edition%b\n' "$CW" "$D$CG" "$R"
+    printf '  %bmake iso-all%b    %b# all five editions%b\n' "$CW" "$D$CG" "$R"
+    printf '\n'
+    printf '  %bTip%b  Use the terminal option if you want to clone/build manually now.\n' "${B}${CY}" "$R"
+    printf '\n'
+
+    menu "Source build" \
+        "Open terminal|Run these commands yourself" \
+        "Back|Return to welcome"
+    [[ "$MENU_RESULT" -eq 0 ]] && open_live_terminal
+}
+
+release_welcome() {
+    while true; do
+        release_header "Welcome"
+        msg "Fast release installer. Pick the basics; Abora handles the rest."
+        msg "This installer erases one selected disk and installs the ${desktop_label} edition."
+        printf '\n'
+        menu "Start" \
+            "Install Abora OS|Guided install to a disk" \
+            "Open terminal|Drop to the live environment shell" \
+            "Debug installer|View logs, run hardware tests, or collect a report" \
+            "Build from source|Advanced commands for compiling Abora yourself" \
+            "Exit|Stay in the live shell"
+        case "$MENU_RESULT" in
+            0) return 0 ;;
+            1) open_live_terminal ;;
+            2) debug_tools_menu ;;
+            3) source_build_menu ;;
+            4)
+                printf '\n'
+                ok "Live shell selected. Run abora-install to return."
+                exit 0
+                ;;
+        esac
+    done
 }
 
 release_network() {
@@ -2653,23 +3176,29 @@ release_network() {
         return 0
     fi
 
-    warn "Network is not connected. The install needs access to cache.nixos.org."
+    warn "Network is not connected. Online installs use cache.nixos.org; offline installs need all Nix paths already on the ISO."
     printf '\n'
     menu "Network setup" \
-        "Open nmtui|Connect Wi-Fi or edit networking" \
+        "Network tools|Status, nmtui, quick Wi-Fi, and rescan" \
+        "Quick Wi-Fi connect|Scan and connect with nmcli" \
         "Retry|Check network again" \
         "Continue anyway|Only works if every needed Nix path is already local"
     case "$MENU_RESULT" in
         0)
-            nmtui || true
+            network_tools_menu yes
             release_network
             return
             ;;
         1)
+            quick_wifi_connect
             release_network
             return
             ;;
         2)
+            release_network
+            return
+            ;;
+        3)
             ABORA_ALLOW_OFFLINE_INSTALL=1
             export ABORA_ALLOW_OFFLINE_INSTALL
             ;;
@@ -2685,7 +3214,22 @@ release_disk() {
     while IFS= read -r row; do
         [[ -n "$row" ]] && disks+=("$row")
     done < <(collect_disks)
-    [[ ${#disks[@]} -gt 0 ]] || die "No installable disks found."
+    if [[ ${#disks[@]} -eq 0 ]]; then
+        warn "No installable disks found."
+        msg "USB boot media, loop devices, and currently mounted system disks are hidden on purpose."
+        printf '\n'
+        menu "Disk tools" \
+            "Scan again|Refresh the disk list" \
+            "Open terminal|Use lsblk, dmesg, or nvme/sata tools" \
+            "Debug installer|Run hardware tests or collect a support report" \
+            "Cancel|Return to the live shell"
+        case "$MENU_RESULT" in
+            0) release_disk; return ;;
+            1) open_live_terminal; release_disk; return ;;
+            2) debug_tools_menu; release_disk; return ;;
+            *) exit 1 ;;
+        esac
+    fi
 
     if [[ ${#disks[@]} -eq 1 ]]; then
         disk="${disks[0]%%|*}"
@@ -2840,11 +3384,53 @@ release_apps() {
     install_apps_during_setup="no"
 }
 
+release_gaming() {
+    release_header "Gaming"
+    msg "Optional gaming support can be added now, no matter which desktop you chose."
+    msg "Skipping keeps the install smaller and faster."
+    printf '\n'
+    menu "Gaming setup" \
+        "Skip gaming setup|Smallest install — add gaming later" \
+        "Desktop gaming|Steam, 32-bit graphics, GameMode, MangoHud, Vulkan tools" \
+        "Desktop gaming + Big Picture|Also add a controller-friendly Steam launcher" \
+        "Big Picture console mode|Add a Gamescope login session for TV/controller use"
+    case "$MENU_RESULT" in
+        0)
+            gaming_enabled="no"
+            gaming_big_picture="no"
+            gaming_autostart="no"
+            gaming_gamescope="no"
+            gaming_vulkan="no"
+            ;;
+        1)
+            gaming_enabled="yes"
+            gaming_big_picture="no"
+            gaming_autostart="no"
+            gaming_gamescope="no"
+            gaming_vulkan="yes"
+            ;;
+        2)
+            gaming_enabled="yes"
+            gaming_big_picture="yes"
+            gaming_autostart="no"
+            gaming_gamescope="no"
+            gaming_vulkan="yes"
+            ;;
+        3)
+            gaming_enabled="yes"
+            gaming_big_picture="yes"
+            gaming_autostart="no"
+            gaming_gamescope="yes"
+            gaming_vulkan="yes"
+            ;;
+    esac
+}
+
 release_preflight() {
     release_header "Preflight"
     msg "Checking disk, password, timezone, assets, tools, and Nix cache."
     printf '\n'
-    if check_install_environment; then
+    if check_install_environment final; then
         printf '\n'
         ok "Preflight passed."
         pause
@@ -2853,11 +3439,20 @@ release_preflight() {
 
     printf '\n'
     warn "Preflight failed. See messages above."
+    msg "For network problems, choose Network tools or run abora network from a terminal."
     menu "Next" \
         "Run checks again|Retry after fixing the issue" \
+        "Network tools|Fix Wi-Fi, DNS, or cache reachability" \
+        "Debug tools|View logs, hardware test, support report" \
+        "Open terminal|Drop to the live shell" \
         "Cancel|Drop to live shell"
-    [[ "$MENU_RESULT" -eq 0 ]] && release_preflight
-    exit 1
+    case "$MENU_RESULT" in
+        0) release_preflight ;;
+        1) network_tools_menu yes; release_preflight ;;
+        2) debug_tools_menu; release_preflight ;;
+        3) open_live_terminal ;;
+        *) exit 1 ;;
+    esac
 }
 
 release_review() {
@@ -2880,6 +3475,7 @@ release_install_flow() {
     release_locale
     release_desktop
     step_gpu
+    release_gaming
     release_apps
     release_preflight
     release_review
@@ -2916,6 +3512,7 @@ main() {
     trap 'if [[ "${reconfig_mode:-0}" != "1" ]]; then cleanup_target; fi' EXIT
     detect_defaults
     refresh_github_identity
+    tui_size_warning
 
     if [[ "${reconfig_mode:-0}" == "1" ]]; then
         page_welcome

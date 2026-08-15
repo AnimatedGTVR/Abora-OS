@@ -6,6 +6,7 @@ It is meant to make common NixOS tasks approachable without hiding the real syst
 
 ## Core Commands
 
+- `anix learn`
 - `anix status`
 - `anix profiles`
 - `anix generations`
@@ -22,6 +23,25 @@ It is meant to make common NixOS tasks approachable without hiding the real syst
 - `anix gc old`
 - `anix doctor`
 
+## Quick Learning Path
+
+Run this any time you forget the shape of ANIX commands:
+
+```sh
+anix learn
+```
+
+The short version is:
+
+```sh
+anix status
+anix show
+anix set desktop cosmic
+anix package add fastfetch
+anix apply
+anix rollback nix --now
+```
+
 ## What ANIX Manages
 
 - hostname
@@ -29,6 +49,7 @@ It is meant to make common NixOS tasks approachable without hiding the real syst
 - console and desktop keyboard layout
 - Abora desktop profile
 - Abora wallpaper
+- Abora Gaming toggles
 - optional system packages
 - optional Nix trusted users
 - optional scheduled Nix garbage collection
@@ -41,3 +62,16 @@ ANIX snapshots dirty config before risky operations, runs dry-builds before inte
 Use `anix switch nix <profile>` for a normal profile switch.
 Use `anix boot nix <profile>` when you want the profile prepared for next boot without switching immediately.
 Use `anix test nix <profile>` when you want a temporary activation.
+
+## Abora Gaming
+
+ANIX can enable Abora Gaming on installed Abora systems:
+
+```sh
+anix enable gaming
+anix enable gaming.big-picture
+anix enable gaming.gamescope
+anix apply
+```
+
+These write `anix.gaming.*` options, which forward into `abora.gaming.*` when the Abora options module is imported.

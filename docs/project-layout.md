@@ -1,6 +1,6 @@
 # Project Layout
 
-This is the quick map of the Abora OS repo for the Abora OS 2026.7.27 release.
+This is the quick map of the Abora OS repo for the Abora OS v4 Everest release.
 
 ## Top Level
 
@@ -38,6 +38,7 @@ Project docs for development, installation, release work, and wiki publishing.
 - `docs/install-checklist.md`
 - `docs/hardware-testing.md`
 - `docs/release-checklist.md`
+- `docs/bug-report-template.md`
 - `docs/roadmap.md`
 - `docs/wiki/`
 
@@ -78,6 +79,7 @@ Important files:
 - `scripts/abora-session-setup.sh`: first-session defaults
 - `scripts/abora-support-report.sh`: support archive generation
 - `scripts/check-scripts.sh`: repo script and runtime sanity checks
+- `scripts/check-all-files.sh`: broad syntax, links, YAML, JSON, and docs sweep
 - `scripts/check-desktops.sh`: evaluates every supported desktop profile
 - `scripts/build-iso.sh`: ISO-only build path
 - `scripts/package-tinypm.sh`: TinyPM release package path
@@ -88,7 +90,7 @@ Important files:
 
 Vendored external code that Abora uses directly.
 
-- `vendor/tinypm/`: TinyPM v4 source used for Abora `grab`, `search`, `term`, `start`, `supdate`, and Abora/ANIX/Nix system bridges
+- `vendor/tinypm/`: TinyPM v0.8 source used for Abora `grab`, `search`, `term`, `start`, `supdate`, and Abora/ANIX/Nix system bridges
 
 ## Generated Output
 
@@ -111,6 +113,7 @@ Run these before opening a PR:
 
 ```sh
 make check
+make check-all
 make check-desktops
 nix flake check --no-build --no-write-lock-file
 nix build --no-link .#nixosConfigurations.abora-live.config.system.build.toplevel

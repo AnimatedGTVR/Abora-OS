@@ -30,32 +30,35 @@ default_repo_ref="${ABORA_REPO_REF:-edge}"
 usage() {
     abora_banner "App Manager" "Install and remove apps on your Abora system."
     printf '  %bUsage%b\n\n' "$ABORA_WHITE" "$ABORA_NC"
-    printf '  %babora-apps catalog%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora apps catalog%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Browse all available apps by category."
     printf '\n'
-    printf '  %babora-apps search <term>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora apps search <term>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Search apps by name, ID, or description."
     printf '\n'
-    printf '  %babora-apps info <app-id>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora apps info <app-id>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Show details about a specific app."
     printf '\n'
-    printf '  %babora-apps installed%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora apps installed%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  List apps currently installed on this system."
     printf '\n'
-    printf '  %babora-apps add <app-id...> [--no-rebuild] [--dry-run]%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora apps add <app-id...> [--no-rebuild] [--dry-run]%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Add one or more apps (rebuilds unless --no-rebuild is given)."
     printf '\n'
-    printf '  %babora-apps remove <app-id...> [--no-rebuild] [--dry-run]%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora apps remove <app-id...> [--no-rebuild] [--dry-run]%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Remove one or more apps (rebuilds unless --no-rebuild is given)."
     printf '\n'
-    printf '  %babora-apps set [app-id...] [--no-rebuild] [--dry-run]%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora apps set [app-id...] [--no-rebuild] [--dry-run]%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Replace the full app list."
     printf '\n'
-    printf '  %babora-apps bundle <name> [--no-rebuild] [--dry-run]%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora apps bundle <name> [--no-rebuild] [--dry-run]%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Add a curated bundle: favorites essentials social creator developer gaming system"
     printf '\n'
-    printf '  %babora-apps rebuild%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora apps rebuild%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Apply the current app list (nixos-rebuild switch)."
+    printf '\n'
+    printf '  %babora apps custom <list|info|update>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Update standalone packages such as Modularity Stable."
     printf '\n'
 }
 
@@ -184,7 +187,7 @@ show_catalog() {
         total=$((total + 1))
     done < <(abora_app_catalog)
 
-    abora_banner "App Catalog" "${total} apps available — run 'abora-apps add <id>' to install."
+    abora_banner "App Catalog" "${total} apps available — run 'abora apps add <id>' to install."
 
     while IFS='|' read -r app_id app_name app_expr app_group app_description app_favorite; do
         if [[ "$app_group" != "$current_group" ]]; then
@@ -308,7 +311,7 @@ show_installed() {
 
     if [[ "$count" -eq 0 ]]; then
         abora_banner "Installed Apps" "No apps installed yet."
-        abora_dim_line "Run 'abora-apps catalog' to browse what's available."
+        abora_dim_line "Run 'abora apps catalog' to browse what's available."
         printf '\n'
         return 0
     fi
@@ -401,6 +404,13 @@ main() {
     local command="${1:-}"
     shift || true
 
+    if [[ "$command" == "custom" ]]; then
+        if command -v abora-custom-packages >/dev/null 2>&1; then
+            exec abora-custom-packages "$@"
+        fi
+        exec "$script_dir/abora-custom-packages.sh" "$@"
+    fi
+
     local no_rebuild=false dry_run=false
     local -a args=()
     for arg in "$@"; do
@@ -421,7 +431,7 @@ main() {
             ;;
         search)
             if [[ -z "${1:-}" ]]; then
-                abora_error "Usage: abora-apps search <term>"
+                abora_error "Usage: abora apps search <term>"
                 exit 1
             fi
             abora_banner "App Search" "Results for '${1}'."
@@ -429,7 +439,7 @@ main() {
             ;;
         info)
             if [[ -z "${1:-}" ]]; then
-                abora_error "Usage: abora-apps info <app-id>"
+                abora_error "Usage: abora apps info <app-id>"
                 exit 1
             fi
             show_info "$1"
@@ -472,7 +482,7 @@ main() {
             ;;
         add)
             if [[ $# -eq 0 ]]; then
-                abora_error "Usage: abora-apps add <app-id...>"
+                abora_error "Usage: abora apps add <app-id...>"
                 exit 1
             fi
             validate_ids "$@"
@@ -499,7 +509,7 @@ main() {
             ;;
         remove)
             if [[ $# -eq 0 ]]; then
-                abora_error "Usage: abora-apps remove <app-id...>"
+                abora_error "Usage: abora apps remove <app-id...>"
                 exit 1
             fi
             validate_ids "$@"

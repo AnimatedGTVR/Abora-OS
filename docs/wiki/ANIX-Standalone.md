@@ -13,7 +13,7 @@ Add this repository as an input and use both the module and package:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
-    abora.url = "github:AnimatedGTVR/abora-os";
+    abora.url = "github:AnimatedGTVR/Abora-OS";
   };
 
   outputs = { nixpkgs, abora, ... }: {
@@ -63,7 +63,7 @@ anix doctor
 If you just want the CLI in your current profile:
 
 ```sh
-nix profile install github:AnimatedGTVR/abora-os#anix
+nix profile install github:AnimatedGTVR/Abora-OS#anix
 ```
 
 That installs the standalone `anix` command with bundled docs, bundled TinyPM source, and the ANIX module at:
@@ -104,7 +104,7 @@ same way:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
-    abora.url = "github:AnimatedGTVR/abora-os";
+    abora.url = "github:AnimatedGTVR/Abora-OS";
   };
 
   outputs = { nixpkgs, abora, ... }: {
@@ -138,8 +138,8 @@ package blocks Abora would use for a profile, so you can copy them into
 your own `configuration.nix`. No checkout needed:
 
 ```sh
-nix run github:AnimatedGTVR/abora-os#desktop-preview -- gnome
-nix run github:AnimatedGTVR/abora-os#desktop-preview -- hyprland de myuser   # xkb layout + username
+nix run github:AnimatedGTVR/Abora-OS#desktop-preview -- gnome
+nix run github:AnimatedGTVR/Abora-OS#desktop-preview -- hyprland de myuser   # xkb layout + username
 ```
 
 Or from a checkout of this repo:
@@ -159,8 +159,8 @@ test target (firmware/UEFI, CPU/memory, storage, GPU, Wi-Fi) — none of it
 requires an actual Abora install, so it's packaged the same way:
 
 ```sh
-nix run github:AnimatedGTVR/abora-os#hardware-test
-nix run github:AnimatedGTVR/abora-os#hardware-test -- --with-report
+nix run github:AnimatedGTVR/Abora-OS#hardware-test
+nix run github:AnimatedGTVR/Abora-OS#hardware-test -- --with-report
 ```
 
 Or from a checkout: `./scripts/abora-hardware-test.sh`. `--with-report`

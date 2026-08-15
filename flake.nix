@@ -20,36 +20,44 @@
         abora-hardware-test = final.callPackage ./nix/pkgs/hardware-test.nix {};
       };
 
-	pkgs = import nixpkgs {
-  inherit system;
-  overlays = [ overlay ];
-
-  config.allowUnfreePredicate = pkg:
-    builtins.elem (nixpkgs.lib.getName pkg) [
-      "modularity"
-    ];
-};
-
-mkLive = liveEdition: nixpkgs.lib.nixosSystem {
-  inherit system;
-  specialArgs = { inherit version liveEdition; };
-
-  modules = [
-    (nixpkgs.outPath + "/nixos/modules/installer/cd-dvd/iso-image.nix")
-    ./nix/profiles/live.nix
-
-    {
-      nixpkgs = {
+      pkgs = import nixpkgs {
+        inherit system;
         overlays = [ overlay ];
 
         config.allowUnfreePredicate = pkg:
           builtins.elem (nixpkgs.lib.getName pkg) [
             "modularity"
+            "steam"
+            "steam-original"
+            "steam-run"
+            "steam-unwrapped"
           ];
       };
-    }
-  ];
-};
+
+      mkLive = liveEdition: nixpkgs.lib.nixosSystem {
+        inherit system;
+        specialArgs = { inherit version liveEdition; };
+
+        modules = [
+          (nixpkgs.outPath + "/nixos/modules/installer/cd-dvd/iso-image.nix")
+          ./nix/profiles/live.nix
+
+          {
+            nixpkgs = {
+              overlays = [ overlay ];
+
+              config.allowUnfreePredicate = pkg:
+                builtins.elem (nixpkgs.lib.getName pkg) [
+                  "modularity"
+                  "steam"
+                  "steam-original"
+                  "steam-run"
+                  "steam-unwrapped"
+                ];
+            };
+          }
+        ];
+      };
 
     in {
       overlays.default = overlay;
@@ -61,6 +69,7 @@ mkLive = liveEdition: nixpkgs.lib.nixosSystem {
       };
 
       nixosConfigurations = {
+        abora = mkLive "cosmic";
         abora-live = mkLive "cosmic";
         abora-live-cosmic = mkLive "cosmic";
         abora-live-hyprland = mkLive "hyprland";

@@ -6,6 +6,8 @@ This page is the fast path when an Abora install boots but something is wrong.
 
 ```sh
 abora doctor
+abora logs --lines 200
+abora network
 anix status
 anix doctor
 anix --gui
@@ -79,6 +81,20 @@ If Flatpak is the issue:
 abora recovery
 ```
 
+## Network Diagnostics
+
+If Wi-Fi, DNS, or updates are failing:
+
+```sh
+abora network
+```
+
+This prints NetworkManager status, Wi-Fi radio/device state, visible SSIDs,
+DNS status, ping reachability, and `cache.nixos.org` reachability.
+Failed checks do not stop the report; they stay visible so support can see the
+whole network picture.
+The longer `abora recovery network` command still works too.
+
 ## Save A Snapshot
 
 Before making larger changes:
@@ -89,11 +105,20 @@ anix save "before recovery changes"
 
 ## Support Report
 
+If the failure happened in the live installer, start with:
+
+```sh
+abora bug-report
+abora logs --lines 200
+```
+
 ```sh
 abora support-report
 ```
 
 Attach the generated archive when asking for help.
+Obvious password, token, secret, and API key lines are redacted automatically,
+but still review the archive before posting it publicly.
 
 ## Live ISO Recovery
 

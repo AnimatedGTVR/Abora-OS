@@ -4,6 +4,8 @@ int main() {
     ANIX::Plan plan;
     plan.Set("hostname", "everest-workstation");
     plan.Enable("bluetooth");
+    plan.Enable("gaming");
+    plan.Enable("gaming.big-picture");
     plan.Package("firefox");
     plan.Package("git");
     plan.Finish();

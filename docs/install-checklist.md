@@ -15,6 +15,7 @@ Use this after building a release candidate ISO and after running one real insta
 - `/etc/abora/default-wallpaper.png` exists
 - `/etc/abora/wallpapers/` contains the curated wallpaper set
 - Fastfetch shows the Abora logo
+- `abora gaming status` opens without a missing-command error
 
 ## VM Coverage
 
@@ -28,15 +29,50 @@ Use this after building a release candidate ISO and after running one real insta
 
 - MINT renders with color on `tty1`
 - Abora text/logo appears without a `logo not found` fallback
+- first screen offers Open terminal, Debug installer, and Build from source
+- preflight failure offers Network tools, Debug tools, Open terminal, and retry
+- Debug installer can show recent install/config logs before partitioning
+- Build from source shows `make doctor`, `make iso`, and `make iso-all`
 - network step can open `nmtui`
+- network step can run Quick Wi-Fi connect without `nmtui`
+- network step can turn Wi-Fi on and rescan
 - disk selection and user creation remain interactive
 - password mismatch recovery works
 - GitHub login can be skipped cleanly
 - generated config validation runs before `nixos-install`
+- optional Gaming setup can be skipped cleanly
+- optional Desktop Gaming + Big Picture writes the expected gaming settings
 - install progress reaches the install phase
 - install completes without fatal errors
 - failed installs show useful recent log output
+- failed installs offer Try installer again, Network tools, Debug tools, terminal, and power off
 - `/tmp/abora-install.log` and `/tmp/abora-config.log` are present on failure
+- `/tmp/abora-install.log` contains `network snapshot start`
+
+## Failure Capture
+
+When a tester reports a failed install, ask for:
+
+```sh
+abora bug-report
+abora bug-report --github --web
+abora logs --lines 200
+cat /tmp/abora-install.log
+cat /tmp/abora-config.log
+abora network
+abora support-report
+```
+
+If the system installed but updates or Wi-Fi fail after boot:
+
+```sh
+abora bug-report
+abora bug-report --github --web
+abora logs --lines 200
+abora network
+abora check-full
+abora support-report
+```
 
 ## ANIX Languages
 
@@ -53,6 +89,7 @@ Use this after building a release candidate ISO and after running one real insta
 - networking is enabled and functional
 - `abora setup` launches the installed reconfiguration tool
 - `grab`, `search`, `term`, `start`, and `supdate` are available
+- `abora gaming status` and `abora gaming doctor` run after install
 - on GNOME installs, Abora wallpapers appear in `Settings -> Appearance`
 - on every supported desktop, first login starts on the Abora default wallpaper
 - on GNOME installs, picking an Abora wallpaper updates accent/style automatically
@@ -62,9 +99,15 @@ Use this after building a release candidate ISO and after running one real insta
 Collect:
 
 ```sh
+abora bug-report
+abora bug-report --github --web
+abora logs --lines 200
+abora network
+abora support-report
 journalctl -b --no-pager
 ```
 
-and attach installer logs if available.
+Attach the generated support archive and installer logs if available.
+Use [Bug Report Template](bug-report-template.md) for full reports.
 
 For release screenshots, use [Screenshot Checklist](screenshots.md).

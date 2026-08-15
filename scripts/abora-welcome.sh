@@ -31,7 +31,7 @@ set_startup() {
             abora_success "Abora Welcome will not show on startup."
             ;;
         *)
-            abora_error "Usage: abora-welcome startup <on|off>"
+            abora_error "Usage: abora welcome startup <on|off>"
             exit 1
             ;;
     esac
@@ -45,11 +45,21 @@ read_setting() {
     sed -nE "s|^[[:space:]]*abora\\.${escaped_key}[[:space:]]*=[[:space:]]*\"([^\"]+)\";.*|\\1|p" "$file" | head -n1
 }
 
+read_bool_setting() {
+    local key="$1"
+    local escaped_key="${key//./\\.}"
+    local file="${ABORA_SYSTEM_CONFIG:-/etc/nixos}/abora-local.nix"
+    [[ -f "$file" ]] || return 0
+    sed -nE "s@^[[:space:]]*abora\\.${escaped_key}[[:space:]]*=[[:space:]]*(true|false);?.*@\\1@p" "$file" | head -n1
+}
+
 show_status() {
-    local desktop wallpaper channel flathub anix_state
+    local desktop wallpaper channel flathub anix_state gaming_state
     desktop="$(read_setting desktop)"
     wallpaper="$(read_setting wallpaper)"
-    channel="stable"
+    gaming_state="$(read_bool_setting gaming.enable)"
+    [[ "$gaming_state" == "true" ]] && gaming_state="enabled" || gaming_state="off"
+    channel="${ABORA_DEFAULT_CHANNEL:-unstable}"
     [[ -f /etc/nixos/abora/channel ]] && channel="$(tr -d '[:space:]' < /etc/nixos/abora/channel)"
     flathub="not configured"
     if command -v flatpak >/dev/null 2>&1 && flatpak remotes --system 2>/dev/null | awk '{print $1}' | grep -Fxq flathub; then
@@ -61,6 +71,7 @@ show_status() {
     abora_card_start "System"
     abora_kv "desktop" "${desktop:-unknown}"
     abora_kv "wallpaper" "${wallpaper:-unknown}"
+    abora_kv "Gaming" "$gaming_state"
     abora_kv "updates" "$channel"
     abora_kv "Flathub" "$flathub"
     abora_kv "ANIX" "$anix_state"
@@ -73,10 +84,27 @@ menu() {
     printf '\n'
     printf '  %b1%b  Run system doctor\n' "$ABORA_CYAN" "$ABORA_NC"
     printf '  %b2%b  Open app manager\n' "$ABORA_CYAN" "$ABORA_NC"
-    printf '  %b3%b  Create first ANIX snapshot\n' "$ABORA_CYAN" "$ABORA_NC"
-    printf '  %b4%b  Switch desktop\n' "$ABORA_CYAN" "$ABORA_NC"
-    printf '  %b5%b  Open recovery tools\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %b3%b  Open gaming setup\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %b4%b  Create first ANIX snapshot\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %b5%b  Switch desktop\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %b6%b  Open recovery tools\n' "$ABORA_CYAN" "$ABORA_NC"
     printf '  %bq%b  Quit\n\n' "$ABORA_DIM" "$ABORA_NC"
+}
+
+usage() {
+    abora_banner "Welcome" "First-run status and quick actions."
+    printf '  %babora welcome%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Open the interactive welcome menu."
+    printf '\n'
+    printf '  %babora welcome status%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Show desktop, wallpaper, gaming, update, Flathub, and ANIX status."
+    printf '\n'
+    printf '  %babora welcome startup on%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Show Abora Welcome automatically after login."
+    printf '\n'
+    printf '  %babora welcome startup off%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Stop showing Abora Welcome automatically."
+    printf '\n'
 }
 
 case "${1:-menu}" in
@@ -90,11 +118,12 @@ case "${1:-menu}" in
             menu
             read -r -p "  Choose: " choice
             case "$choice" in
-                1) abora-doctor ;;
-                2) abora-apps ;;
-                3) anix save "anix: first Abora snapshot" ;;
-                4) abora-desktop list ;;
-                5) abora-recovery ;;
+                1) abora doctor ;;
+                2) abora apps ;;
+                3) abora gaming status ;;
+                4) anix save "anix: first Abora snapshot" ;;
+                5) abora desktop list ;;
+                6) abora recovery ;;
                 q|Q) exit 0 ;;
                 *) abora_warn "Unknown choice: $choice" ;;
             esac
@@ -103,13 +132,14 @@ case "${1:-menu}" in
         done
         ;;
     help|--help|-h)
-        abora_banner "Welcome" "Usage: abora-welcome [status|startup <on|off>]"
+        usage
         ;;
     startup)
         set_startup "${2:-}"
         ;;
     *)
         abora_error "Unknown welcome command: $1"
+        usage >&2
         exit 1
         ;;
 esac

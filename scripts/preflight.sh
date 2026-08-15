@@ -7,6 +7,9 @@ cd "$repo_dir"
 printf '[preflight] script and runtime checks\n'
 ./scripts/check-scripts.sh
 
+printf '\n[preflight] full repository file sweep\n'
+./scripts/check-all-files.sh
+
 printf '\n[preflight] desktop profile evaluation\n'
 ./scripts/check-desktops.sh
 

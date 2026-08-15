@@ -87,14 +87,16 @@ The tagged, tested releases. Version numbers like:
 2.5
 3.0
 3.14
-4.0
+4.0 / v4 Everest
 ```
 
-This is what `abora update` tracks by default, and what most people should be running.
+This is what final releases track by default, and what most people should run once v4 graduates from alpha.
 
 ### Edge
 
-Tracks `main` directly, no waiting for a tag. Same deal as `nixos-unstable`: newest installer work, desktop changes, ANIX changes, and fixes land here first, before anything's been fully vetted. Things can and do break.
+Tracks `edge` directly, no waiting for a tag. Same deal as `nixos-unstable`: newest installer work, desktop changes, ANIX changes, and fixes land here first, before anything's been fully vetted. Things can and do break.
+
+Abora OS v4 Everest alpha installs default to this line so they can receive alpha fixes from `edge`.
 
 Switch to it with:
 
@@ -116,6 +118,7 @@ Go back to stable the same way (`sudo abora channel set stable`) whenever you've
 * Custom installer development
 * Abora-specific defaults and tools
 * ANIX system management tools
+* Optional Abora Gaming layer with Steam Big Picture support
 
 ---
 
@@ -132,6 +135,33 @@ anix status
 
 > [!NOTE]
 > ANIX is not meant to hide NixOS. It exists to make the tasks people perform most often easier to understand and remember.
+
+---
+
+## Gaming
+
+Abora Gaming is optional and works on top of the desktop you choose.
+
+```bash
+abora gaming status
+abora gaming enable
+abora gaming big-picture
+```
+
+It can add Steam, GameMode, MangoHud, Vulkan tools, controller support, launchers, and an optional Gamescope Big Picture session.
+
+---
+
+## Dotfiles
+
+Hyprland and Other Environment installs can import your existing setup.
+
+```bash
+abora dotfiles --dry-run ~/dotfiles
+abora dotfiles ~/dotfiles
+```
+
+Existing files are kept unless you pass `--replace`.
 
 ---
 
@@ -163,6 +193,18 @@ cd Abora-OS
 
 The exact build process may differ between branches, releases, and ISO profiles.
 
+For the current source line, use:
+
+```bash
+./abora build --from-source
+```
+
+Or build the normal flake target directly:
+
+```bash
+nix build .#nixosConfigurations.abora.config.system.build.toplevel
+```
+
 Check the project website, release notes, or DeepWiki for the latest build information.
 
 <div align="center">
@@ -188,6 +230,19 @@ Some useful ways to help include:
 * Working on ANIX
 * Cleaning up existing code
 * Submitting fixes and improvements
+
+For installer or network bug reports, include:
+
+```bash
+abora bug-report
+abora bug-report --github --web
+abora logs --lines 200
+abora network
+abora support-report
+```
+
+Use [docs/bug-report-template.md](docs/bug-report-template.md) when filing a
+full report.
 
 Open an issue before starting a large change so it can be discussed first. Smaller fixes can be submitted through a pull request.
 

@@ -9,18 +9,19 @@ Use this when moving from VM testing to real machines.
 - write the ISO to known-good USB media
 - keep a second machine or phone nearby for notes, GitHub login, and recovery searches
 - run `./scripts/check-scripts.sh`
+- run `./scripts/check-all-files.sh`
 - run `./scripts/check-desktops.sh`
-- run `abora-hardware-test --with-report` on the machine first when possible
+- run `abora hardware-test --with-report` on the machine first when possible
 
 ## Quick Preflight
 
-Before you spend time writing a USB, run:
+On an installed Abora system or live image, run:
 
 ```sh
-abora-hardware-test --with-report
+abora hardware-test --with-report
 ```
 
-or from the repo:
+From a development checkout, run:
 
 ```sh
 ./scripts/abora-hardware-test.sh --with-report
@@ -64,8 +65,8 @@ This does not replace a real Abora boot, but it catches obvious problems:
 - keyboard and touchpad work
 - display brightness works on laptops
 - audio devices appear
-- `abora-hardware-test --with-report` completes from the live session
-- `abora-support-report` includes hardware, boot, network, and Abora version details
+- `abora hardware-test --with-report` completes from the live session
+- `abora support-report` includes hardware, boot, network, and Abora version details
 
 ## Installer Checks
 
@@ -130,7 +131,11 @@ This does not replace a real Abora boot, but it catches obvious problems:
 If something goes wrong, collect:
 
 ```sh
-abora-support-report
+abora bug-report
+abora bug-report --github --web
+abora logs --lines 200
+abora network
+abora support-report
 journalctl -b --no-pager
 ```
 
@@ -140,11 +145,13 @@ If the installer failed, also keep:
 - `/tmp/abora-install.log`
 
 Attach the generated `abora-support-*.tar.gz` archive to your report when possible.
+The report masks obvious password, token, secret, and API key lines, but review
+it before posting publicly.
 
 If Wi-Fi shows `unavailable` in `nmcli device status` (not `disconnected`)
 even though `dmesg | grep -i iwlwifi` shows the driver/firmware loading fine,
 check `journalctl -u NetworkManager -b` for a `Failed to D-Bus activate
 wpa_supplicant service` error before assuming it's a driver or rfkill issue —
 see the FAQ entry ["Wi-Fi shows as
-'unavailable'"](wiki/FAQ.md#wi-fi-shows-as-unavailable-in-nmtuinmcli-during-install--what-do-i-do)
+'unavailable'"](wiki/FAQ.md#wi-fi-shows-as-unavailable-in-nmtuinmcli-during-install-what-do-i-do)
 for the live workaround.

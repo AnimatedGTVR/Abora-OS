@@ -18,6 +18,7 @@ bad_mango_store='/nix/store/assets/mango/config.conf'
 usage() {
     cat <<'EOF'
 Usage: abora-repair-flake-purity [--mango]
+       abora repair --mango
 
 Repairs installed Abora flake paths that can break pure evaluation.
 EOF
@@ -90,4 +91,6 @@ fi
 printf 'Abora MangoWM flake purity repair complete.\n'
 printf 'Mango config asset: %s\n' "$mango_config"
 printf '\nRun:\n'
+printf '  sudo abora config apply\n'
+printf 'or:\n'
 printf '  sudo nixos-rebuild switch --flake %s#abora\n' "$config_dir"

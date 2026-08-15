@@ -115,7 +115,17 @@ find_shebang_scripts() {
 
 check_shell() {
     local file="$1"
+    local source_only=0
     sh_count=$((sh_count + 1))
+
+    case "$file" in
+        TinyPM/src/lib/*.sh|TinyPM/src/lib/*/*.sh)
+            source_only=1
+            ;;
+    esac
+    if grep -qF 'Source this file; do not execute it directly' "$file"; then
+        source_only=1
+    fi
 
     if bash -n "$file" 2>/dev/null; then
         pass "syntax (bash): $file"
@@ -124,12 +134,14 @@ check_shell() {
         return
     fi
 
-    if [[ ! -x "$file" ]]; then
+    if [[ "$source_only" -eq 0 && ! -x "$file" ]]; then
         fail "not executable: $file"
     fi
 
-    if ! head -n1 "$file" | grep -q '^#!'; then
-        fail "missing shebang: $file"
+    if [[ "$source_only" -eq 0 ]]; then
+        if ! head -n1 "$file" | grep -q '^#!'; then
+            fail "missing shebang: $file"
+        fi
     fi
 
     # set -euo pipefail (in one line or split across several) is this repo's
@@ -141,7 +153,7 @@ check_shell() {
     # that does would impose -e on whatever sourced it). A file that marks
     # itself "Source this file; do not execute it directly." is trusted to
     # have made that choice on purpose.
-    if grep -qF 'Source this file; do not execute it directly' "$file"; then
+    if [[ "$source_only" -eq 1 ]]; then
         :
     elif ! grep -qE 'set -[a-zA-Z]*e' "$file" \
         || ! grep -qE 'set -[a-zA-Z]*u|set -o nounset' "$file" \

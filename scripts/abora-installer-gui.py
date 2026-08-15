@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Abora OS GUI Installer - legacy launcher for Abora OS 2026.7.27."""
+"""Abora OS GUI Installer - legacy launcher for Abora OS v4 Everest."""
 
 import gi
 gi.require_version('Gtk', '4.0')
@@ -22,7 +22,7 @@ from pathlib import Path
 # ── Runtime paths ──────────────────────────────────────────────────────────────
 INSTALLER_BIN  = os.environ.get('ABORA_INSTALLER', '/etc/abora/installer.sh')
 LOG_FILE       = '/tmp/abora-gui-installer.log'
-VERSION        = os.environ.get('ABORA_VERSION', '2026.7.27')
+VERSION        = os.environ.get('ABORA_VERSION', 'v4 Everest')
 LOGO_FILE      = os.environ.get('ABORA_LOGO', '/etc/abora/Abora-LOGO.png')
 EDITION        = os.environ.get('ABORA_EDITION', 'cosmic')
 

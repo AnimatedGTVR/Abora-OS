@@ -13,14 +13,18 @@ esac
 bash_scripts=(
   "scripts/abora-app-catalog.sh"
   "scripts/abora-apps.sh"
+  "scripts/abora-custom-packages.sh"
   "scripts/abora.sh"
+  "scripts/abora-adopt-nixos.sh"
   "scripts/abora-boot.sh"
+  "scripts/abora-build.sh"
   "scripts/abora-check-full.sh"
   "scripts/abora-config.sh"
   "scripts/abora-desktop.sh"
   "scripts/abora-desktop-profiles.sh"
   "scripts/abora-dotfiles-import.sh"
   "scripts/abora-doctor.sh"
+  "scripts/abora-gaming.sh"
   "scripts/abora-hardware-test.sh"
   "scripts/abora-installer.sh"
   "scripts/abora-repair-flake-purity.sh"
@@ -68,9 +72,13 @@ required_files=(
   "scripts/abora-check-full.sh"
   "scripts/abora-setup.desktop"
   "docs/wiki/ANIX-V1.md"
+  "docs/wiki/ANIX-V2-Languages.md"
   "docs/wiki/TinyPM-V4.md"
   "docs/wiki/Abora-Tools.md"
+  "docs/wiki/Abora-Gaming.md"
   "docs/wiki/Recovery.md"
+  "docs/wiki/Updating-Abora.md"
+  "docs/bug-report-template.md"
   "vendor/tinypm/bin/tinypm"
   "vendor/tinypm/lib/tinypm/core/version.sh"
   "vendor/tinypm/lib/tinypm/providers/anix.sh"
@@ -152,6 +160,50 @@ for file in "${required_files[@]}"; do
   fi
 done
 
+if grep -q 'ABORA_NIXPKGS_PATH' scripts/dev-doctor.sh \
+  && grep -q 'Nix daemon/store' scripts/dev-doctor.sh \
+  && grep -q 'ABORA_NIXPKGS_PATH' docs/wiki/Building-Abora.md \
+  && grep -q 'make doctor' docs/release-checklist.md; then
+  pass "developer doctor documents nixpkgs and daemon/store failures"
+else
+  fail "developer doctor must document nixpkgs and daemon/store failures"
+fi
+
+_old_branding_matches="$(
+  grep -RIEn \
+    --exclude='check-scripts.sh' \
+    '2026[.]7[.]27|current stable release|Tracks `main` directly' \
+    README.md RELEASE_NOTES.md docs scripts nix \
+    2>/dev/null || true
+)"
+if [[ -z "$_old_branding_matches" ]] \
+  && grep -q 'Abora OS v4 Everest' RELEASE_NOTES.md \
+  && grep -q 'git tag v4.0' docs/wiki/Release-Guide.md \
+  && grep -q 'x86_64-v4.0.iso' RELEASE_NOTES.md \
+  && grep -q 'SHA256SUMS-v4.0.txt' RELEASE_NOTES.md \
+  && grep -q 'abora_release_stage="${ABORA_RELEASE_STAGE:-alpha}"' scripts/abora-installer.sh \
+  && grep -q 'abora_release_channel="${ABORA_RELEASE_CHANNEL:-unstable}"' scripts/abora-installer.sh \
+  && grep -q 'Abora OS v4 Everest' scripts/abora-installer.sh \
+  && grep -q 'ABORA OS  —  v4 Everest' scripts/abora-boot.sh \
+  && grep -q 'ABORA_DEFAULT_CHANNEL:-unstable' scripts/abora-welcome.sh \
+  && grep -q "ABORA_DEFAULT_CHANNEL', 'unstable'" scripts/abora-welcome-gui.py \
+  && grep -q 'ABORA_DEFAULT_CHANNEL:-unstable' scripts/abora-doctor.sh \
+  && grep -q 'v4 Everest alpha default' docs/wiki/Updating-Abora.md \
+  && grep -q 'release_name="${ABORA_RELEASE_NAME:-Abora OS v4 Everest}"' scripts/abora-support-report.sh \
+  && grep -q "printf 'v4 Everest'" scripts/abora-ui.sh \
+  && grep -q 'release_short="v4 Everest"' scripts/check-desktops.sh \
+  && grep -q 'PRETTY_NAME = "Abora OS v4 Everest"' nix/profiles/live.nix \
+  && grep -q 'PRETTY_NAME = "Abora OS v4 Everest"' nix/modules/installed-base.nix \
+  && grep -q 'VERSION = "v4 Everest"' nix/profiles/live.nix \
+  && grep -q 'VERSION_ID = "4"' nix/modules/installed-base.nix; then
+  pass "runtime: v4 Everest branding is consistent"
+else
+  fail "runtime: v4 Everest branding is consistent"
+  if [[ -n "$_old_branding_matches" ]]; then
+    printf '%s\n' "$_old_branding_matches" | sed 's/^/              /'
+  fi
+fi
+
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   for file in "${required_files[@]}"; do
     [[ -f "$file" ]] || continue
@@ -175,6 +227,8 @@ if command -v nix >/dev/null 2>&1; then
   elif grep -q '/nix/var/nix/db/big-lock.*Permission denied' <<<"$_nix_eval_output"; then
     pass "nix store unavailable (flake eval skipped)"
   elif grep -q "/nix/var/nix/daemon-socket/socket.*Connection refused" <<<"$_nix_eval_output"; then
+    pass "nix daemon unavailable (flake eval skipped)"
+  elif grep -q "remote store 'daemon' previously failed" <<<"$_nix_eval_output"; then
     pass "nix daemon unavailable (flake eval skipped)"
   else
     fail "nix flake evaluation"
@@ -245,8 +299,8 @@ if ABORA_SYSTEM_CONFIG="$tmp_mango_repair" bash scripts/abora-repair-flake-purit
     done
   elif [[ ! -s "$tmp_mango_repair/abora/mango/config.conf" ]]; then
     fail "pure-eval: Mango repair did not create abora/mango/config.conf"
-  elif ! grep -q 'builtins.readFile ../mango/config.conf' "$tmp_mango_repair/abora/desktops/mangowm.nix"; then
-    fail "pure-eval: Mango desktop module was not rewritten to installed relative path"
+  elif ! grep -q 'mangoConfigFile' "$tmp_mango_repair/abora/desktops/mangowm.nix"; then
+    fail "pure-eval: Mango desktop module does not use a local config selector"
   else
     pass "pure-eval: Mango repair produces flake-local installed paths"
   fi
@@ -285,6 +339,12 @@ else
   fail "runtime: release file manifest"
 fi
 
+if grep -q '^scripts/abora-dotfiles-import.sh$' scripts/check-release-files.sh; then
+  pass "runtime: release manifest includes dotfiles importer"
+else
+  fail "runtime: release manifest includes dotfiles importer"
+fi
+
 _resolver_tags="v2.5.0 v3.14"
 if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable | grep -q '^v3\.14[[:space:]]'; then
   pass "runtime: resolver keeps 3.14 on v3.14"
@@ -312,10 +372,10 @@ else
   fail "runtime: resolver falls back to edge when stable tags are unavailable"
 fi
 
-if ABORA_RELEASE_TAGS="2026.7.27-ALPHA v3.14" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 4.0 demo | grep -q '^2026\.7\.27-ALPHA[[:space:]]'; then
-  pass "runtime: resolver recognizes dated alpha tags as development releases"
+if ABORA_RELEASE_TAGS="v4.0-EVEREST-ALPHA v3.14" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 4.0 demo | grep -q '^v4\.0-EVEREST-ALPHA[[:space:]]'; then
+  pass "runtime: resolver recognizes Everest alpha tags as development releases"
 else
-  fail "runtime: resolver recognizes dated alpha tags as development releases"
+  fail "runtime: resolver recognizes Everest alpha tags as development releases"
 fi
 
 if ABORA_RELEASE_TAGS="v2.5.0" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-fallback 3.14 v2.5.0 | grep -q '^v2\.5\.0[[:space:]]'; then
@@ -370,10 +430,102 @@ fi
 if grep -q '^[[:space:]]*rollback)' scripts/abora.sh \
   && grep -q 'exec abora-update rollback' scripts/abora.sh \
   && grep -q '^[[:space:]]*channel)' scripts/abora.sh \
-  && grep -q 'handle_channel_command "$@"' scripts/abora-update.sh; then
-  pass "runtime: abora command routes update, channel, rollback, and pre-alpha"
+  && grep -q 'handle_channel_command "$@"' scripts/abora-update.sh \
+  && grep -q '^[[:space:]]*dotfiles)' scripts/abora.sh \
+  && grep -q 'exec abora-dotfiles-import' scripts/abora.sh \
+  && grep -q '^[[:space:]]*network)' scripts/abora.sh \
+  && grep -q 'exec abora-recovery network "$@"' scripts/abora.sh \
+  && grep -q 'exec "$script_dir/abora-recovery.sh" network "$@"' scripts/abora.sh \
+  && grep -q 'exec "$script_dir/abora-recovery.sh" "$@"' scripts/abora.sh \
+  && grep -q '^[[:space:]]*logs|log)' scripts/abora.sh \
+  && grep -q 'show_logs "$@"' scripts/abora.sh \
+  && grep -q 'ABORA_LOG_LINES' scripts/abora.sh \
+  && grep -q '^[[:space:]]*bug-report|bug)' scripts/abora.sh \
+  && grep -q 'show_bug_report_template' scripts/abora.sh \
+  && grep -q 'create_github_issue "$@"' scripts/abora.sh \
+  && grep -q 'gh issue create --repo "$repo"' scripts/abora.sh \
+  && grep -q '^[[:space:]]*build)' scripts/abora.sh \
+  && grep -q 'command -v abora-build' scripts/abora.sh \
+  && grep -q 'exec "$script_dir/abora-build.sh"' scripts/abora.sh \
+  && grep -q '^[[:space:]]*adopt-nixos|adopt)' scripts/abora.sh \
+  && grep -q 'exec "$script_dir/abora-adopt-nixos.sh"' scripts/abora.sh \
+  && grep -q '^[[:space:]]*gaming)' scripts/abora.sh \
+  && grep -q 'exec abora-gaming' scripts/abora.sh \
+  && grep -q 'exec abora-update channel "$@"' scripts/abora.sh \
+  && ! grep -q 'ABORA_UPDATE_COMMAND=nixos abora-update channel' scripts/abora.sh \
+  && grep -q 'abora channel set <stable|demo|unstable>' scripts/abora-update.sh; then
+  pass "runtime: abora command routes update, channel, rollback, network, logs, bug-report, dotfiles, gaming, and pre-alpha"
 else
-  fail "runtime: abora command routes update, channel, rollback, and pre-alpha"
+  fail "runtime: abora command routes update, channel, rollback, network, logs, bug-report, dotfiles, gaming, and pre-alpha"
+fi
+
+build_help_out="$(scripts/abora-build.sh --help 2>&1)"
+if printf '%s' "$build_help_out" | grep -q 'abora build --from-source' \
+  && ./abora --help | grep -q 'abora build --from-source' \
+  && grep -q 'abora = mkLive "cosmic";' flake.nix \
+  && grep -q 'nixosConfigurations.abora.config.system.build.toplevel' scripts/abora-build.sh \
+  && grep -q 'nixosConfigurations.abora-live-cosmic.config.system.build.toplevel' scripts/abora-build.sh \
+  && grep -q 'does not expose the short "abora" flake alias yet' scripts/abora-build.sh \
+  && grep -q 'before the short "abora" flake alias existed' scripts/abora-build.sh \
+  && grep -q 'abora build --from-source --ref main' scripts/abora-build.sh \
+  && grep -q 'ABORA_REPO_URLS' scripts/abora-build.sh \
+  && grep -q 'ref_fallback_candidates()' scripts/abora-build.sh \
+  && grep -q 'selected ref "%s" was unavailable; using branch fallback "%s"' scripts/abora-build.sh \
+  && grep -q 'Abora compatibility build finished successfully' scripts/abora-build.sh \
+  && grep -q 'Trying compatibility target' scripts/abora-build.sh \
+  && grep -q 'https://github.com/AnimatedGTVR/Abora-OS.git' scripts/abora-build.sh \
+  && grep -q 'aboraBuild = pkgs.writeShellScriptBin "abora-build"' nix/profiles/live.nix \
+  && grep -q 'aboraBuild = pkgs.writeShellScriptBin "abora-build"' nix/modules/installed-base.nix \
+  && grep -q '"abora/build.sh"' nix/profiles/live.nix \
+  && grep -q '"abora/build.sh"' nix/modules/installed-base.nix; then
+  pass "runtime: abora build --from-source is wired to the source build target"
+else
+  fail "runtime: abora build --from-source is wired to the source build target"
+fi
+
+tmp_abora_build_path="$(mktemp -d)"
+cat >"$tmp_abora_build_path/abora-build" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@"
+EOF
+chmod +x "$tmp_abora_build_path/abora-build"
+abora_build_wrapper_out="$(PATH="$tmp_abora_build_path:$PATH" ./abora build --from-source --ref edge 2>&1)"
+rm -rf "$tmp_abora_build_path"
+if printf '%s\n' "$abora_build_wrapper_out" | grep -qx -- '--from-source' \
+  && printf '%s\n' "$abora_build_wrapper_out" | grep -qx -- '--ref' \
+  && printf '%s\n' "$abora_build_wrapper_out" | grep -qx -- 'edge'; then
+  pass "runtime: abora build wrapper preserves source-build arguments"
+else
+  fail "runtime: abora build wrapper preserves source-build arguments"
+fi
+
+abora_logs_help_out="$(./abora logs --help 2>&1)"
+if printf '%s' "$abora_logs_help_out" | grep -Fq 'abora logs [--lines N]' \
+  && grep -q 'abora logs --lines 200' docs/install-checklist.md \
+  && grep -q 'abora logs --lines 200' docs/release-checklist.md \
+  && grep -q 'abora logs --lines 200' docs/wiki/Recovery.md \
+  && grep -q 'abora logs' docs/wiki/Abora-Tools.md \
+  && grep -q 'abora logs%b' scripts/abora-installer.sh; then
+  pass "runtime: abora logs is documented for live installer triage"
+else
+  fail "runtime: abora logs is documented for live installer triage"
+fi
+
+adopt_help_out="$(scripts/abora-adopt-nixos.sh --help 2>&1)"
+if printf '%s' "$adopt_help_out" | grep -q 'abora adopt-nixos' \
+  && printf '%s' "$adopt_help_out" | grep -q 'without erasing /home' \
+  && ./abora --help | grep -q 'abora adopt-nixos' \
+  && grep -q 'abora.user.name = null;' scripts/abora-adopt-nixos.sh \
+  && grep -q 'desktop="none"' scripts/abora-adopt-nixos.sh \
+  && grep -q 'abora-backups' scripts/abora-adopt-nixos.sh \
+  && grep -q 'sudo nixos-rebuild test' scripts/abora-adopt-nixos.sh \
+  && grep -q 'aboraAdoptNixos = pkgs.writeShellScriptBin "abora-adopt-nixos"' nix/profiles/live.nix \
+  && grep -q 'aboraAdoptNixos = pkgs.writeShellScriptBin "abora-adopt-nixos"' nix/modules/installed-base.nix \
+  && grep -q '"abora/adopt-nixos.sh"' nix/profiles/live.nix \
+  && grep -q '"abora/adopt-nixos.sh"' nix/modules/installed-base.nix; then
+  pass "runtime: existing NixOS adoption path is non-destructive by default"
+else
+  fail "runtime: existing NixOS adoption path is non-destructive by default"
 fi
 
 tmp_bad_upstream="$(mktemp -d)"
@@ -384,6 +536,16 @@ else
   pass "runtime: updater rejects incomplete upstream checkout"
 fi
 rm -rf "$tmp_bad_upstream"
+
+if grep -q 'ref_fallback_candidates()' scripts/abora-update.sh \
+  && grep -q 'edge)' scripts/abora-update.sh \
+  && grep -q 'main)' scripts/abora-update.sh \
+  && grep -q "Selected ref '\${selected_ref}' was unavailable; using branch fallback '\${cloned_ref}'" scripts/abora-update.sh \
+  && grep -q 'sudo ABORA_REPO_REF=<branch> abora update' scripts/abora-update.sh; then
+  pass "runtime: updater can fall back between edge and main branches"
+else
+  fail "runtime: updater can fall back between edge and main branches"
+fi
 
 if git rev-parse -q --verify refs/tags/v3.14 >/dev/null; then
   tmp_release_upstream="$(mktemp -d)"
@@ -402,13 +564,130 @@ if scripts/check-release-files.sh >/dev/null \
   && grep -q '^assets/anix-languages$' scripts/check-release-files.sh \
   && grep -q '^nix/pkgs/moducpp-anix.nix$' scripts/check-release-files.sh \
   && grep -q '^tools/moducpp-anix$' scripts/check-release-files.sh \
+  && grep -q '^scripts/abora-build.sh$' scripts/check-release-files.sh \
+  && grep -q '^scripts/abora-adopt-nixos.sh$' scripts/check-release-files.sh \
+  && grep -q '^scripts/abora-gaming.sh$' scripts/check-release-files.sh \
+  && grep -q '^scripts/abora-custom-packages.sh$' scripts/check-release-files.sh \
+  && grep -q '^docs/wiki/Abora-Gaming.md$' scripts/check-release-files.sh \
+  && grep -q '^docs/wiki/ANIX-V2-Languages.md$' scripts/check-release-files.sh \
+  && grep -q '^docs/wiki/Updating-Abora.md$' scripts/check-release-files.sh \
+  && grep -q '^vendor/modularity$' scripts/check-release-files.sh \
   && [[ -f assets/anix-languages/mako.json ]] \
   && [[ -f assets/anix-languages/moducpp.json ]] \
   && [[ -f nix/pkgs/moducpp-anix.nix ]] \
-  && [[ -f tools/moducpp-anix ]]; then
-  pass "runtime: release manifest includes ANIX language adapters"
+  && [[ -f tools/moducpp-anix ]] \
+  && [[ -f vendor/modularity/README.md ]] \
+  && [[ -f scripts/abora-gaming.sh ]] \
+  && [[ -f docs/wiki/Abora-Gaming.md ]]; then
+  pass "runtime: release manifest includes ANIX adapters, Modularity skeleton, and gaming layer"
 else
-  fail "runtime: release manifest includes ANIX language adapters"
+  fail "runtime: release manifest includes ANIX adapters, Modularity skeleton, and gaming layer"
+fi
+
+if grep -q 'release_has_gaming_layer' scripts/abora-update.sh \
+  && grep -q '! version_lt "$(tag_base_version "$selected_ref")" "4.0"' scripts/abora-update.sh \
+  && grep -A5 'release_has_welcome_config_gui' scripts/abora-update.sh | grep -q '! version_lt "$(tag_base_version "$selected_ref")" "4.0"' \
+  && grep -q 'repo_git_url="${ABORA_REPO_GIT_URL:-https://github.com/AnimatedGTVR/Abora-OS.git}"' scripts/abora-update.sh \
+  && grep -q 'https://github.com/AboraProject/Abora-OS.git' scripts/abora-update.sh \
+  && ! grep -RIE --exclude='check-scripts.sh' -q 'github(:|\.com/)AnimatedGTVR/abora-os|AnimatedGTVR/abora-os|abora-os[.]git' README.md RELEASE_NOTES.md DISCORD_CHANGELOG.md docs scripts nix packaging flake.nix Makefile \
+  && grep -q 'scripts/abora-build.sh' scripts/abora-update.sh \
+  && grep -q 'copy_upstream_file "$upstream_dir/scripts/abora-build.sh" "$abora_dir/build.sh"' scripts/abora-update.sh \
+  && grep -q 'scripts/abora-adopt-nixos.sh' scripts/abora-update.sh \
+  && grep -q 'copy_upstream_file "$upstream_dir/scripts/abora-adopt-nixos.sh" "$abora_dir/adopt-nixos.sh"' scripts/abora-update.sh \
+  && grep -q 'scripts/abora-gaming.sh' scripts/abora-update.sh \
+  && grep -q 'scripts/abora-custom-packages.sh' scripts/abora-update.sh \
+  && grep -q 'scripts/abora-dotfiles-import.sh' scripts/abora-update.sh \
+  && grep -q 'vendor/modularity' scripts/abora-update.sh \
+  && grep -q 'cp -R "$upstream_dir/vendor/modularity" "$abora_dir/vendor/modularity"' scripts/abora-update.sh \
+  && grep -q 'docs/wiki/ANIX-V2-Languages.md' scripts/abora-update.sh \
+  && grep -q 'docs/wiki/Updating-Abora.md' scripts/abora-update.sh \
+  && grep -q 'Check your internet connection, then run: sudo abora update' scripts/abora-update.sh \
+  && grep -q 'sudo ABORA_REPO_REF=edge abora update' docs/wiki/Updating-Abora.md \
+  && grep -q 'copy_upstream_file "$upstream_dir/scripts/abora-gaming.sh" "$abora_dir/gaming.sh"' scripts/abora-update.sh \
+  && grep -q 'copy_upstream_file "$upstream_dir/scripts/abora-custom-packages.sh" "$abora_dir/custom-packages.sh"' scripts/abora-update.sh \
+  && grep -q 'copy_upstream_file "$upstream_dir/scripts/abora-dotfiles-import.sh" "$abora_dir/dotfiles-import.sh"' scripts/abora-update.sh \
+  && grep -q 'cp -R "$upstream_dir/docs" "$abora_dir/docs"' scripts/abora-update.sh; then
+  pass "runtime: updater syncs Abora Gaming command"
+else
+  fail "runtime: updater syncs Abora Gaming command"
+fi
+
+update_help_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-update.sh --help 2>&1)"
+channel_help_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-update.sh channel --help 2>&1)"
+channel_bad_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-update.sh channel nope 2>&1 || true)"
+if printf '%s' "$update_help_out" | grep -q 'abora channel set <stable|demo|unstable>' \
+  && printf '%s' "$update_help_out" | grep -q 'abora update --check' \
+  && printf '%s' "$channel_help_out" | grep -q 'sudo abora channel set <stable|demo|unstable>' \
+  && ! printf '%s' "$channel_help_out" | grep -q 'Unknown channel subcommand' \
+  && printf '%s' "$channel_bad_out" | grep -q 'Unknown channel subcommand: nope' \
+  && ! printf '%s' "$channel_bad_out" | grep -q 'Update failed before completion' \
+  && ! printf '%s' "$update_help_out" | grep -q 'This command does not take extra arguments' \
+  && ! printf '%s' "$update_help_out" | grep -q 'Update failed before completion'; then
+  pass "runtime: updater help is clean and Abora-first"
+else
+  fail "runtime: updater help is clean and Abora-first"
+fi
+
+abora_help_out="$(./abora --help 2>&1)"
+abora_learn_out="$(./abora learn 2>&1)"
+anix_help_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/anix.sh --help 2>&1)"
+anix_learn_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/anix.sh learn 2>&1)"
+if printf '%s' "$abora_help_out" | grep -q 'abora learn' \
+  && printf '%s' "$abora_learn_out" | grep -q 'Abora quick start' \
+  && printf '%s' "$abora_learn_out" | grep -q 'anix learn' \
+  && printf '%s' "$anix_help_out" | grep -q 'anix learn' \
+  && printf '%s' "$anix_learn_out" | grep -q 'ANIX quick start' \
+  && printf '%s' "$anix_learn_out" | grep -q 'anix package add fastfetch' \
+  && grep -q 'abora learn' docs/wiki/Abora-Tools.md \
+  && grep -q 'anix learn' docs/wiki/ANIX-V1.md; then
+  pass "runtime: Abora and ANIX expose beginner command cheat sheets"
+else
+  fail "runtime: Abora and ANIX expose beginner command cheat sheets"
+fi
+
+welcome_help_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-welcome.sh --help 2>&1)"
+recovery_help_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-recovery.sh --help 2>&1)"
+welcome_bad_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-welcome.sh nope 2>&1 || true)"
+recovery_bad_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-recovery.sh nope 2>&1 || true)"
+if printf '%s' "$welcome_help_out" | grep -q 'abora welcome startup off' \
+  && printf '%s' "$welcome_help_out" | grep -q 'Show desktop, wallpaper, gaming, update, Flathub, and ANIX status' \
+  && printf '%s' "$recovery_help_out" | grep -q 'abora recovery report' \
+  && printf '%s' "$recovery_help_out" | grep -q 'abora recovery network' \
+  && printf '%s' "$recovery_help_out" | grep -q 'Create a redacted support archive' \
+  && printf '%s' "$welcome_bad_out" | grep -q 'Unknown welcome command: nope' \
+  && printf '%s' "$welcome_bad_out" | grep -q 'abora welcome status' \
+  && printf '%s' "$recovery_bad_out" | grep -q 'Unknown recovery command: nope' \
+  && printf '%s' "$recovery_bad_out" | grep -q 'abora recovery rollback' \
+  && grep -q '1) abora doctor' scripts/abora-welcome.sh \
+  && grep -q '2) abora apps' scripts/abora-welcome.sh \
+  && grep -q '6) abora recovery' scripts/abora-welcome.sh \
+  && grep -q 'run_cmd abora support-report' scripts/abora-recovery.sh \
+  && grep -q 'run_cmd abora doctor' scripts/abora-recovery.sh \
+  && grep -q 'run_diag()' scripts/abora-recovery.sh \
+  && grep -q 'Command exited with status' scripts/abora-recovery.sh \
+  && grep -q 'network_diagnostics()' scripts/abora-recovery.sh \
+  && grep -q 'nmcli networking connectivity check' scripts/abora-recovery.sh \
+  && grep -q 'curl -fsI --connect-timeout 5 --max-time 8 https://cache.nixos.org' scripts/abora-recovery.sh \
+  && grep -q 'abora repair --mango' scripts/abora-repair-flake-purity.sh \
+  && grep -q 'sudo abora config apply' scripts/abora-repair-flake-purity.sh; then
+  pass "runtime: welcome and recovery help are actionable"
+else
+  fail "runtime: welcome and recovery help are actionable"
+fi
+
+config_help_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-config.sh --help 2>&1)"
+apps_help_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-apps.sh --help 2>&1)"
+if printf '%s' "$config_help_out" | grep -q 'abora config set timezone' \
+  && printf '%s' "$config_help_out" | grep -q 'gaming.big-picture' \
+  && printf '%s' "$apps_help_out" | grep -q 'abora apps catalog' \
+  && printf '%s' "$apps_help_out" | grep -q 'abora apps bundle <name>' \
+  && ! printf '%s' "$apps_help_out" | grep -q 'abora-apps catalog' \
+  && grep -q "run 'abora apps add <id>'" scripts/abora-apps.sh \
+  && grep -q "Run 'abora apps catalog'" scripts/abora-apps.sh \
+  && ! grep -q "abora-apps add" scripts/abora-apps.sh; then
+  pass "runtime: config and apps help use public commands"
+else
+  fail "runtime: config and apps help use public commands"
 fi
 
 if grep -q '"id": "mako"' assets/anix-languages/mako.json \
@@ -429,15 +708,67 @@ fi
 
 if grep -q 'sudo abora update' docs/wiki/FAQ.md \
   && grep -q 'make iso-all' docs/wiki/Building-Abora.md \
+  && grep -q 'abora build --from-source' docs/wiki/Building-Abora.md \
+  && grep -q 'nix build .#nixosConfigurations.abora.config.system.build.toplevel' docs/wiki/Building-Abora.md \
   && grep -q 'ANIX standalone tarball' docs/wiki/Building-Abora.md \
   && grep -q 'abora-cosmic-' RELEASE_NOTES.md \
   && grep -q 'ANIX standalone package' RELEASE_NOTES.md \
+  && grep -q 'Abora Gaming' RELEASE_NOTES.md \
+  && grep -q 'abora hardware-test' RELEASE_NOTES.md \
+  && grep -q 'abora gaming status' README.md \
+  && grep -q 'current alpha release line' docs/wiki/FAQ.md \
+  && grep -q 'current alpha release line' docs/wiki/Home.md \
+  && grep -q 'ANIX v2 Languages](ANIX-V2-Languages.md)' docs/wiki/_Sidebar.md \
   && grep -q 'sudo abora rollback' docs/wiki/Updating-Abora.md \
+  && grep -q 'Abora OS v4 Everest' DISCORD_CHANGELOG.md \
+  && grep -q 'abora support-report' DISCORD_CHANGELOG.md \
+  && grep -q 'abora hardware-test --with-report' DISCORD_CHANGELOG.md \
+  && ! grep -q 'abora-support-report' DISCORD_CHANGELOG.md \
+  && grep -q 'abora support-report' docs/install-checklist.md \
   && grep -q 'sudo abora update' docs/wiki/Abora-Tools.md \
   && grep -q 'sudo abora update' nix/modules/installed-base.nix; then
-  pass "runtime: release docs describe multi-edition and ANIX package flow"
+  pass "runtime: release docs describe multi-edition, ANIX, and gaming flow"
 else
-  fail "runtime: release docs describe multi-edition and ANIX package flow"
+  fail "runtime: release docs describe multi-edition, ANIX, and gaming flow"
+fi
+
+if grep -q 'open_live_terminal()' scripts/abora-installer.sh \
+  && grep -q 'debug_tools_menu()' scripts/abora-installer.sh \
+  && grep -q 'source_build_menu()' scripts/abora-installer.sh \
+  && grep -q 'Open terminal|Drop to the live environment shell' scripts/abora-installer.sh \
+  && grep -q 'Debug installer|View logs, run hardware tests, or collect a report' scripts/abora-installer.sh \
+  && grep -q 'Build from source|Advanced commands for compiling Abora yourself' scripts/abora-installer.sh \
+  && grep -q 'abora hardware-test --with-report' scripts/abora-installer.sh \
+  && grep -q 'abora build --from-source' scripts/abora-installer.sh \
+  && grep -q 'nixosConfigurations.abora.config.system.build.toplevel' scripts/abora-installer.sh \
+  && grep -q 'make iso-all' scripts/abora-installer.sh \
+  && grep -q 'check_install_environment live' scripts/abora-installer.sh \
+  && grep -q 'check_install_environment final' scripts/abora-installer.sh \
+  && grep -q 'Selected install values will be checked after disk and user setup' scripts/abora-installer.sh \
+  && grep -q 'Disk tools' scripts/abora-installer.sh \
+  && grep -q 'Use lsblk, dmesg, or nvme/sata tools' scripts/abora-installer.sh \
+  && grep -q 'network_tools_menu()' scripts/abora-installer.sh \
+  && grep -q 'quick_wifi_connect()' scripts/abora-installer.sh \
+  && grep -q 'open_nmtui_or_explain()' scripts/abora-installer.sh \
+  && grep -q 'log_network_snapshot()' scripts/abora-installer.sh \
+  && grep -q 'network snapshot start' scripts/abora-installer.sh \
+  && grep -q 'visible Wi-Fi networks' scripts/abora-installer.sh \
+  && grep -q 'cache.nixos.org reachable' scripts/abora-installer.sh \
+  && grep -q 'Network tools|Status, nmtui, quick Wi-Fi, and rescan' scripts/abora-installer.sh \
+  && grep -q 'failed_install_menu()' scripts/abora-installer.sh \
+  && grep -q 'Try installer again|Return to the first screen' scripts/abora-installer.sh \
+  && grep -q 'Network tools|Fix Wi-Fi, DNS, or cache reachability' scripts/abora-installer.sh \
+  && grep -q 'Debug tools|View logs, hardware test, support report' scripts/abora-installer.sh \
+  && grep -q 'Open terminal|Drop to the live shell' scripts/abora-installer.sh \
+  && grep -q 'Interactive picker failed; using numbered fallback menu' scripts/abora-installer.sh \
+  && grep -q 'Interactive picker returned an unknown choice; using numbered fallback menu' scripts/abora-installer.sh \
+  && grep -q 'tui_size_warning()' scripts/abora-installer.sh \
+  && grep -q 'Open terminal' docs/install-checklist.md \
+  && grep -q 'Debug installer' docs/wiki/Installation.md \
+  && grep -q 'Build from source' docs/install-checklist.md; then
+  pass "runtime: installer first screen exposes terminal, debug, and source-build tools"
+else
+  fail "runtime: installer first screen exposes terminal, debug, and source-build tools"
 fi
 
 if grep -q '/etc/abora/anix-languages' scripts/abora-installer.sh \
@@ -445,19 +776,140 @@ if grep -q '/etc/abora/anix-languages' scripts/abora-installer.sh \
   && grep -q '/etc/abora/pkgs/moducpp-anix.nix' scripts/abora-installer.sh \
   && grep -q 'etc/nixos/abora/pkgs/moducpp-anix.nix' scripts/abora-installer.sh \
   && grep -q '"abora/pkgs/moducpp-anix.nix"' nix/profiles/live.nix \
+  && grep -q '"abora/anix-languages".source = anixLanguagesDir' nix/modules/installed-base.nix \
   && grep -q 'moducpp-anix = final.callPackage ./pkgs/moducpp-anix.nix' nix/modules/installed-base.nix; then
   pass "runtime: installer copies ANIX language adapters"
 else
   fail "runtime: installer copies ANIX language adapters"
 fi
 
+if grep -q 'dotfilesImportScript[[:space:]]*= ./dotfiles-import.sh;' nix/modules/installed-base.nix \
+  && grep -q 'aboraDotfilesImport = pkgs.writeShellScriptBin "abora-dotfiles-import"' nix/modules/installed-base.nix \
+  && grep -q 'aboraDotfilesImport' nix/modules/installed-base.nix \
+  && grep -q 'buildScript[[:space:]]*= ./build.sh;' nix/modules/installed-base.nix \
+  && grep -q 'adoptNixosScript[[:space:]]*= ./adopt-nixos.sh;' nix/modules/installed-base.nix \
+  && grep -q '"abora/dotfiles-import.sh"' nix/modules/installed-base.nix \
+  && grep -q '"abora/build.sh"' nix/modules/installed-base.nix \
+  && grep -q '"abora/adopt-nixos.sh"' nix/modules/installed-base.nix \
+  && grep -q '/etc/abora/build.sh' scripts/abora-installer.sh \
+  && grep -q '/etc/abora/adopt-nixos.sh' scripts/abora-installer.sh \
+  && grep -q '/etc/abora/check-full.sh' scripts/abora-installer.sh \
+  && grep -q '/etc/abora/dotfiles-import.sh' scripts/abora-installer.sh \
+  && grep -q '/etc/abora/abora-options.nix' scripts/abora-installer.sh \
+  && grep -q '/etc/abora/desktops' scripts/abora-installer.sh \
+  && grep -q '/etc/abora/wallpapers' scripts/abora-installer.sh \
+  && grep -q '/etc/abora/themes' scripts/abora-installer.sh \
+  && grep -q '/etc/abora/vendor/modularity' scripts/abora-installer.sh \
+  && grep -q 'etc/nixos/abora/vendor/modularity' scripts/abora-installer.sh \
+  && grep -q 'cp -a /etc/abora/wallpapers/.' scripts/abora-installer.sh \
+  && grep -q 'cp -a /etc/abora/themes/.' scripts/abora-installer.sh \
+  && grep -q 'build.sh adopt-nixos.sh' scripts/abora-installer.sh \
+  && grep -q 'dotfiles-import.sh' scripts/abora-installer.sh; then
+  pass "runtime: installed systems expose dotfiles import and source build helper"
+else
+  fail "runtime: installed systems expose dotfiles import and source build helper"
+fi
+
+if grep -q '/etc/abora/docs/wiki/ANIX-V2-Languages.md' scripts/abora-installer.sh \
+  && grep -q '/etc/abora/docs/wiki/Abora-Gaming.md' scripts/abora-installer.sh \
+  && grep -q '/etc/abora/docs/wiki/Updating-Abora.md' scripts/abora-installer.sh \
+  && grep -q 'for doc in ANIX-V1 ANIX-V2-Languages TinyPM-V4 Abora-Tools Abora-Gaming Recovery Updating-Abora' scripts/abora-installer.sh; then
+  pass "runtime: installer ships current local docs"
+else
+  fail "runtime: installer ships current local docs"
+fi
+
+if grep -q 'dotfiles-import.log' scripts/abora-support-report.sh \
+  && grep -q 'Dotfiles import log' scripts/abora-check-full.sh \
+  && grep -q '~/.local/state/abora/dotfiles-import.log' docs/wiki/Abora-Tools.md; then
+  pass "runtime: diagnostics include dotfiles import log"
+else
+  fail "runtime: diagnostics include dotfiles import log"
+fi
+
+tmp_support_home="$(mktemp -d)"
+tmp_support_out="$(mktemp -d)"
+mkdir -p "$tmp_support_home/state/abora"
+{
+  printf 'token = "ghp_super-secret"\n'
+  printf 'hashedPassword = "$y$j9T$secret-hash"\n'
+  printf 'ordinary line\n'
+} > "$tmp_support_home/state/abora/dotfiles-import.log"
+support_archive="$(
+  HOME="$tmp_support_home/home" \
+  XDG_STATE_HOME="$tmp_support_home/state" \
+  ABORA_RELEASE_NAME='token = "report-secret"' \
+  ABORA_SUPPORT_OUTPUT_DIR="$tmp_support_out" \
+  bash scripts/abora-support-report.sh 2>/dev/null
+)"
+support_dotfiles_log="$tmp_support_out/extracted-dotfiles-import.log"
+support_report_txt="$tmp_support_out/extracted-report.txt"
+if [[ -f "$support_archive" ]] \
+  && tar -xOf "$support_archive" "$(basename "${support_archive%.tar.gz}")/dotfiles-import.log" > "$support_dotfiles_log" \
+  && tar -xOf "$support_archive" "$(basename "${support_archive%.tar.gz}")/report.txt" > "$support_report_txt" \
+  && grep -q '\[redacted\]' "$support_dotfiles_log" \
+  && grep -q '\[redacted\]' "$support_report_txt" \
+  && grep -q 'ordinary line' "$support_dotfiles_log" \
+  && ! grep -q 'super-secret\|secret-hash' "$support_dotfiles_log" \
+  && ! grep -q 'report-secret' "$support_report_txt"; then
+  pass "runtime: support report redacts copied logs"
+else
+  fail "runtime: support report redacts copied logs"
+fi
+rm -rf "$tmp_support_home" "$tmp_support_out"
+
+if grep -q 'redact_file "$tmp" >>"$report"' scripts/abora-check-full.sh \
+  && grep -q 'redact_file "$tmp" >>"$report_dir/report.txt"' scripts/abora-support-report.sh \
+  && grep -q 'Abora network diagnostics' scripts/abora-support-report.sh \
+  && grep -q 'abora-recovery network' scripts/abora-support-report.sh \
+  && grep -q 'abora support-report \[--output-dir DIR\]' scripts/abora-support-report.sh \
+  && grep -q 'Abora support archive created' scripts/abora-support-report.sh \
+  && grep -q 'nmcli networking connectivity check' scripts/abora-check-full.sh \
+  && grep -q 'nmcli radio' scripts/abora-check-full.sh \
+  && grep -q 'cache.nixos.org' scripts/abora-check-full.sh \
+  && grep -q 'redact_file "$file" | sed -n' scripts/abora-check-full.sh \
+  && grep -q 'trap '\''rm -f "$tmp"'\'' RETURN' scripts/abora-check-full.sh \
+  && grep -q 'trap '\''rm -f "$tmp"'\'' RETURN' scripts/abora-support-report.sh \
+  && grep -q 'Support archives redact obvious password' docs/wiki/Abora-Tools.md \
+  && grep -q 'bug report template' docs/wiki/Abora-Tools.md \
+  && grep -q 'Abora Bug Report Template' docs/bug-report-template.md \
+  && grep -q 'abora logs --lines 200' docs/bug-report-template.md \
+  && grep -q 'abora bug-report --github --web' docs/bug-report-template.md \
+  && grep -q 'abora bug-report --github --web --with-support-report' docs/wiki/Abora-Tools.md \
+  && grep -q 'abora support-report --output-dir ~/Desktop' docs/bug-report-template.md \
+  && grep -q 'abora support-report --output-dir ~/Desktop' docs/wiki/Abora-Tools.md \
+  && grep -q 'review the archive before posting' docs/wiki/Recovery.md \
+  && grep -q 'abora recovery network' docs/wiki/Recovery.md \
+  && grep -q 'abora network' docs/wiki/Recovery.md \
+  && grep -q 'Failed checks do not stop the report' docs/wiki/Recovery.md \
+  && grep -q 'review' docs/hardware-testing.md \
+  && grep -q 'abora hardware-test --with-report' docs/hardware-testing.md \
+  && grep -q 'abora hardware-test' docs/wiki/FAQ.md \
+  && grep -q 'Quick Wi-Fi connect' docs/wiki/FAQ.md \
+  && grep -q 'abora network' docs/wiki/FAQ.md \
+  && grep -q 'abora recovery network' docs/wiki/FAQ.md; then
+  pass "runtime: check-full and docs describe redacted diagnostics"
+else
+  fail "runtime: check-full and docs describe redacted diagnostics"
+fi
+
+if grep -q 'gaming_vulkan=' scripts/abora-installer.sh \
+  && grep -q 'Vulkan tools' scripts/abora-installer.sh \
+  && grep -q 'abora.gaming.vulkanTools = ${gaming_vulkan_nix};' scripts/abora-installer.sh \
+  && grep -q 'set_nix_bool_assignment "$abora_local" "abora.gaming.vulkanTools"' scripts/abora-installer.sh; then
+  pass "runtime: installer persists Abora Gaming Vulkan tools"
+else
+  fail "runtime: installer persists Abora Gaming Vulkan tools"
+fi
+
 if grep -q 'jq' nix/pkgs/anix.nix \
   && grep -q 'moducpp-anix' nix/pkgs/anix.nix \
   && grep -q 'ANIX_SYSTEM_LANGUAGE_DIR' nix/pkgs/anix.nix \
-  && grep -q 'assets/anix-languages' nix/pkgs/anix.nix; then
-  pass "runtime: Nix ANIX package bundles v2 language support"
+  && grep -q 'assets/anix-languages' nix/pkgs/anix.nix \
+  && grep -q 'Abora-Gaming.md' nix/pkgs/anix.nix; then
+  pass "runtime: Nix ANIX package bundles v2 language support and gaming docs"
 else
-  fail "runtime: Nix ANIX package bundles v2 language support"
+  fail "runtime: Nix ANIX package bundles v2 language support and gaming docs"
 fi
 
 # ── Standalone package + release-metadata smoke tests ─────────────────────────
@@ -474,13 +926,14 @@ if ABORA_OUT_DIR="$tmp_anix_pkg_out" scripts/package-anix.sh >/dev/null; then
     && grep -q 'anix/share/anix/languages/mako.json' "$tmp_anix_pkg_list" \
     && grep -q 'anix/share/anix/languages/moducpp.json' "$tmp_anix_pkg_list" \
     && grep -q 'anix/share/anix/tools/moducpp-anix' "$tmp_anix_pkg_list" \
-    && grep -q 'anix/share/anix/docs/wiki/ANIX-V2-Languages.md' "$tmp_anix_pkg_list"; then
-    pass "runtime: standalone ANIX package bundles v2 language support"
+    && grep -q 'anix/share/anix/docs/wiki/ANIX-V2-Languages.md' "$tmp_anix_pkg_list" \
+    && grep -q 'anix/share/anix/docs/wiki/Abora-Gaming.md' "$tmp_anix_pkg_list"; then
+    pass "runtime: standalone ANIX package bundles v2 language support and gaming docs"
   else
-    fail "runtime: standalone ANIX package bundles v2 language support"
+    fail "runtime: standalone ANIX package bundles v2 language support and gaming docs"
   fi
 else
-  fail "runtime: standalone ANIX package bundles v2 language support"
+  fail "runtime: standalone ANIX package bundles v2 language support and gaming docs"
 fi
 
 mkdir -p "$tmp_ok/iso" "$tmp_ok/packages" "$tmp_ok/release"
@@ -506,6 +959,33 @@ if ABORA_OUT_DIR="$tmp_ok" ABORA_RELEASE_STAMP=test scripts/release-metadata.sh 
   fi
 else
   fail "runtime: release-metadata checksum generation includes every edition"
+fi
+
+if grep -q 'out/iso/.*iso' .github/workflows/build-iso.yml \
+  && grep -A2 'branches:' .github/workflows/build-iso.yml | grep -q 'edge' \
+  && grep -A2 'branches:' .github/workflows/publish-tinypm-package.yml | grep -q 'edge' \
+  && grep -q 'edge only' .github/workflows/flake-check.yml \
+  && grep -q 'vendor/tinypm/lib/tinypm/core/common.sh vendor/tinypm/lib/core/common.sh' .github/workflows/publish-tinypm-package.yml \
+  && grep -q 'out/packages/tinypm' .github/workflows/build-iso.yml \
+  && grep -q 'out/packages/anix' .github/workflows/build-iso.yml \
+  && grep -q 'out/release/SHA256SUMS' .github/workflows/build-iso.yml \
+  && grep -q 'out/packages/tinypm' .github/workflows/release-iso.yml \
+  && grep -q 'out/packages/anix' .github/workflows/release-iso.yml \
+  && grep -q 'out/release/RELEASE_NOTES' .github/workflows/release-iso.yml \
+  && grep -q 'Abora OS v4 Everest (${tag})' .github/workflows/release-iso.yml; then
+  pass "runtime: GitHub workflows publish generated release bundle paths"
+else
+  fail "runtime: GitHub workflows publish generated release bundle paths"
+fi
+
+if grep -q 'ln -s /opt/tinypm/project/syspm /usr/local/bin/syspm' packaging/tinypm/Dockerfile \
+  && ! grep -q 'syspm.sh' packaging/tinypm/Dockerfile \
+  && [[ -x vendor/tinypm/syspm ]] \
+  && [[ -x vendor/tinypm/tinypm ]] \
+  && [[ -x vendor/tinypm/Parcel ]]; then
+  pass "runtime: TinyPM container entrypoints match vendored executables"
+else
+  fail "runtime: TinyPM container entrypoints match vendored executables"
 fi
 
 empty_output="$(ABORA_OUT_DIR="$tmp_empty" scripts/release-metadata.sh 2>&1 || true)"
@@ -779,7 +1259,7 @@ fi
 tmp_anix_plan_dir="$tmp_ok/anix-plan"
 mkdir -p "$tmp_anix_plan_dir"
 
-anix_plan_json='{"planVersion":1,"language":"test","operations":[{"op":"set","key":"hostname","value":"planhost"},{"op":"enable","feature":"bluetooth"},{"op":"package.add","name":"firefox"}]}'
+anix_plan_json='{"planVersion":1,"language":"test","operations":[{"op":"set","key":"hostname","value":"planhost"},{"op":"enable","feature":"bluetooth"},{"op":"enable","feature":"gaming"},{"op":"enable","feature":"gaming.big-picture"},{"op":"enable","feature":"gaming.vulkan"},{"op":"package.add","name":"firefox"}]}'
 printf '%s' "$anix_plan_json" > "$tmp_anix_plan_dir/plan.json"
 if ANIX_SYSTEM_CONFIG="$tmp_anix_plan_dir" \
   ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
@@ -809,7 +1289,10 @@ if ANIX_NO_SUDO=1 \
   :
 fi
 if grep -Eq 'anix\.hostname[[:space:]]*=[[:space:]]*"planhost"' "$tmp_anix_apply_plan_dir/anix.nix" 2>/dev/null \
-  && grep -Eq 'anix\.services\.bluetooth[[:space:]]*=[[:space:]]*true' "$tmp_anix_apply_plan_dir/anix.nix" 2>/dev/null; then
+  && grep -Eq 'anix\.services\.bluetooth[[:space:]]*=[[:space:]]*true' "$tmp_anix_apply_plan_dir/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.gaming\.enable[[:space:]]*=[[:space:]]*true' "$tmp_anix_apply_plan_dir/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.gaming\.bigPictureShortcut[[:space:]]*=[[:space:]]*true' "$tmp_anix_apply_plan_dir/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.gaming\.vulkanTools[[:space:]]*=[[:space:]]*true' "$tmp_anix_apply_plan_dir/anix.nix" 2>/dev/null; then
   pass "runtime: anix apply-plan writes every operation as one transaction"
 else
   fail "runtime: anix apply-plan writes every operation as one transaction"
@@ -843,7 +1326,8 @@ anix_diff_plan_output="$(
     scripts/anix.sh diff-plan "$tmp_anix_plan_dir/plan.json" 2>&1
 )"
 if printf '%s' "$anix_diff_plan_output" | grep -q "ADD.*set hostname" \
-  && printf '%s' "$anix_diff_plan_output" | grep -q "ADD.*enable bluetooth"; then
+  && printf '%s' "$anix_diff_plan_output" | grep -q "ADD.*enable bluetooth" \
+  && printf '%s' "$anix_diff_plan_output" | grep -q "ADD.*enable gaming.big-picture"; then
   pass "runtime: anix diff-plan labels new settings as ADD"
 else
   fail "runtime: anix diff-plan labels new settings as ADD"
@@ -867,7 +1351,8 @@ anix_diff_plan_same_output="$(
     scripts/anix.sh diff-plan "$tmp_anix_plan_dir/plan.json" 2>&1
 )"
 if printf '%s' "$anix_diff_plan_same_output" | grep -q "SAME.*set hostname" \
-  && printf '%s' "$anix_diff_plan_same_output" | grep -q "SAME.*enable bluetooth"; then
+  && printf '%s' "$anix_diff_plan_same_output" | grep -q "SAME.*enable bluetooth" \
+  && printf '%s' "$anix_diff_plan_same_output" | grep -q "SAME.*enable gaming.big-picture"; then
   pass "runtime: anix diff-plan labels already-applied settings as SAME"
 else
   fail "runtime: anix diff-plan labels already-applied settings as SAME"
@@ -978,6 +1463,8 @@ mkdir -p "$tmp_anix_e2e_anix_ws"
 anix_e2e_run "examples/anix-v2/workstation.anix" "$tmp_anix_e2e_anix_ws" || true
 if grep -Eq 'anix\.hostname[[:space:]]*=[[:space:]]*"everest-workstation"' "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null \
   && grep -Eq 'anix\.services\.bluetooth[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.gaming\.enable[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.gaming\.bigPictureShortcut[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null \
   && grep -q "firefox" "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null \
   && grep -q "git" "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null; then
   pass "runtime: e2e .anix workstation example applies through anix run"
@@ -1000,6 +1487,8 @@ if command -v mko >/dev/null 2>&1; then
   anix_e2e_run "examples/anix-v2/workstation.mko" "$tmp_anix_e2e_mko_ws" || true
   if grep -Eq 'anix\.hostname[[:space:]]*=[[:space:]]*"everest-workstation"' "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null \
     && grep -Eq 'anix\.services\.bluetooth[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null \
+    && grep -Eq 'anix\.gaming\.enable[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null \
+    && grep -Eq 'anix\.gaming\.bigPictureShortcut[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null \
     && grep -q "firefox" "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null \
     && grep -q "git" "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null; then
     pass "runtime: e2e .mko workstation example applies through anix run"
@@ -1025,6 +1514,8 @@ if command -v moducpp-anix >/dev/null 2>&1; then
   anix_e2e_run "examples/anix-v2/workstation.moducpp" "$tmp_anix_e2e_moducpp_ws" || true
   if grep -Eq 'anix\.hostname[[:space:]]*=[[:space:]]*"everest-workstation"' "$tmp_anix_e2e_moducpp_ws/anix.nix" 2>/dev/null \
     && grep -Eq 'anix\.services\.bluetooth[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_moducpp_ws/anix.nix" 2>/dev/null \
+    && grep -Eq 'anix\.gaming\.enable[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_moducpp_ws/anix.nix" 2>/dev/null \
+    && grep -Eq 'anix\.gaming\.bigPictureShortcut[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_moducpp_ws/anix.nix" 2>/dev/null \
     && grep -q "firefox" "$tmp_anix_e2e_moducpp_ws/anix.nix" 2>/dev/null \
     && grep -q "git" "$tmp_anix_e2e_moducpp_ws/anix.nix" 2>/dev/null; then
     pass "runtime: e2e .moducpp workstation example applies through anix run"
@@ -1156,6 +1647,318 @@ if "$repo_dir/scripts/abora-hardware-test.sh" >/dev/null 2>&1; then
   pass "runtime: abora-hardware-test.sh runs end to end"
 else
   fail "runtime: abora-hardware-test.sh exited non-zero"
+fi
+
+# abora-config.sh backs the `abora config` command CLAUDE.md documents as
+# read/writing abora-local.nix without requiring Nix knowledge, including
+# that `user` and `disk` are intentionally read-only through this CLI — none
+# of that was previously exercised at runtime, only checked for existence.
+tmp_config="$(mktemp -d)"
+tmp_config_module="$tmp_config/abora-local.nix"
+cat > "$tmp_config_module" <<'EOF'
+{ config, ... }:
+{
+  abora.hostname = "abora";
+  abora.locale = "en_US.UTF-8";
+  abora.timezone = "UTC";
+  abora.keyboard.console = "us";
+  abora.keyboard.xkb = "us";
+  abora.desktop = "cosmic";
+  abora.wallpaper = "titlis-alps.jpg";
+  abora.gpu = "none";
+  abora.stateVersion = "26.05";
+  abora.user.name = "abora";
+  abora.user.hashedPassword = "";
+  abora.disk = null;
+
+  networking.networkmanager.enable = true;
+  users.users.root.hashedPassword = "!";
+}
+EOF
+
+config_show_out="$(
+  ABORA_SYSTEM_CONFIG="$tmp_config" \
+  scripts/abora-config.sh show 2>&1
+)"
+if printf '%s' "$config_show_out" | grep -q "abora" \
+  && printf '%s' "$config_show_out" | grep -q "titlis-alps.jpg"; then
+  pass "runtime: abora config show reads abora-local.nix"
+else
+  fail "runtime: abora config show reads abora-local.nix"
+fi
+
+if ABORA_NO_SUDO=1 \
+  ABORA_SYSTEM_CONFIG="$tmp_config" \
+  scripts/abora-config.sh set hostname new-hostname >/dev/null 2>&1 \
+  && grep -q 'abora.hostname = "new-hostname";' "$tmp_config_module"; then
+  pass "runtime: abora config set writes a new value"
+else
+  fail "runtime: abora config set writes a new value"
+fi
+
+if ABORA_NO_SUDO=1 \
+  ABORA_SYSTEM_CONFIG="$tmp_config" \
+  scripts/abora-config.sh set gaming yes >/dev/null 2>&1 \
+  && ABORA_NO_SUDO=1 \
+    ABORA_SYSTEM_CONFIG="$tmp_config" \
+    scripts/abora-config.sh set gaming.big-picture off >/dev/null 2>&1 \
+  && ABORA_NO_SUDO=1 \
+    ABORA_SYSTEM_CONFIG="$tmp_config" \
+    scripts/abora-config.sh set gaming.vulkan false >/dev/null 2>&1 \
+  && grep -q 'abora.gaming.enable = true;' "$tmp_config_module" \
+  && grep -q 'abora.gaming.bigPictureShortcut = false;' "$tmp_config_module" \
+  && grep -q 'abora.gaming.vulkanTools = false;' "$tmp_config_module"; then
+  pass "runtime: abora config set writes gaming booleans"
+else
+  fail "runtime: abora config set writes gaming booleans"
+fi
+
+if ABORA_NO_SUDO=1 \
+  ABORA_SYSTEM_CONFIG="$tmp_config" \
+  scripts/abora-config.sh set diagnostics true >/dev/null 2>&1 \
+  && ABORA_NO_SUDO=1 \
+    ABORA_SYSTEM_CONFIG="$tmp_config" \
+    scripts/abora-config.sh set vm-guests true >/dev/null 2>&1 \
+  && ABORA_NO_SUDO=1 \
+    ABORA_SYSTEM_CONFIG="$tmp_config" \
+    scripts/abora-config.sh set mobile-broadband true >/dev/null 2>&1 \
+  && grep -q 'abora.extras.diagnostics = true;' "$tmp_config_module" \
+  && grep -q 'abora.extras.virtualizationGuests = true;' "$tmp_config_module" \
+  && grep -q 'abora.extras.mobileBroadband = true;' "$tmp_config_module" \
+  && grep -q 'lib.optionals config.abora.extras.diagnostics' nix/modules/installed-base.nix \
+  && grep -q 'lib.optionals config.abora.extras.mobileBroadband' nix/modules/installed-base.nix \
+  && grep -q 'config.abora.extras.virtualizationGuests' nix/modules/installed-base.nix \
+  && grep -q 'abora.extras.diagnostics = false;' scripts/abora-installer.sh; then
+  pass "runtime: lean extras are opt-in instead of always installed"
+else
+  fail "runtime: lean extras are opt-in instead of always installed"
+fi
+
+if ABORA_NO_SUDO=1 \
+  ABORA_SYSTEM_CONFIG="$tmp_config" \
+  scripts/abora-config.sh set gaming maybe >/dev/null 2>&1; then
+  fail "runtime: abora config set rejects invalid gaming boolean"
+else
+  pass "runtime: abora config set rejects invalid gaming boolean"
+fi
+
+if grep -q "Adw.SwitchRow(title='Abora Gaming')" scripts/abora-config-gui.py \
+  && grep -q "read_bool_setting('gaming.enable'" scripts/abora-config-gui.py \
+  && grep -q "'gaming.big-picture'" scripts/abora-config-gui.py \
+  && grep -q "'gaming.gamescope'" scripts/abora-config-gui.py \
+  && grep -q "'gaming.vulkan'" scripts/abora-config-gui.py \
+  && grep -q "'gaming.autostart'" scripts/abora-config-gui.py; then
+  pass "runtime: abora config GUI exposes gaming toggles"
+else
+  fail "runtime: abora config GUI exposes gaming toggles"
+fi
+
+if grep -q 'read_bool_setting gaming.enable' scripts/abora-welcome.sh \
+  && grep -q 'abora_kv "Gaming"' scripts/abora-welcome.sh \
+  && grep -q 'abora gaming status' scripts/abora-welcome.sh \
+  && grep -q "read_local_bool('gaming.enable'" scripts/abora-welcome-gui.py \
+  && grep -q "title='Gaming'" scripts/abora-welcome-gui.py \
+  && grep -q "\\['abora', 'gaming', 'status'\\]" scripts/abora-welcome-gui.py \
+  && grep -q "\\['abora', 'doctor'\\]" scripts/abora-welcome-gui.py \
+  && grep -q "\\['abora', 'apps'\\]" scripts/abora-welcome-gui.py \
+  && grep -q "\\['abora', 'desktop', 'list'\\]" scripts/abora-welcome-gui.py \
+  && grep -q "\\['abora', 'recovery'\\]" scripts/abora-welcome-gui.py; then
+  pass "runtime: abora welcome exposes gaming status and action"
+else
+  fail "runtime: abora welcome exposes gaming status and action"
+fi
+
+tmp_gaming_config="$(mktemp -d)"
+tmp_gaming_module="$tmp_gaming_config/abora-local.nix"
+cat > "$tmp_gaming_module" <<'EOF'
+{ config, ... }:
+{
+  abora.hostname = "abora";
+  abora.locale = "en_US.UTF-8";
+  abora.timezone = "UTC";
+  abora.keyboard.console = "us";
+  abora.keyboard.xkb = "us";
+  abora.desktop = "cosmic";
+  abora.wallpaper = "titlis-alps.jpg";
+  abora.gpu = "none";
+  abora.stateVersion = "26.05";
+  abora.gaming.enable = false;
+  abora.gaming.bigPictureShortcut = true;
+  abora.gaming.bigPictureAutostart = false;
+  abora.gaming.gamescopeSession = false;
+  abora.gaming.vulkanTools = true;
+  abora.user.name = "abora";
+  abora.user.hashedPassword = "";
+  abora.disk = null;
+}
+EOF
+if PATH="/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  bash scripts/abora-gaming.sh enable >/dev/null 2>&1 \
+  && PATH="/usr/bin:/bin" \
+    ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+    bash scripts/abora-gaming.sh gamescope on >/dev/null 2>&1 \
+  && PATH="/usr/bin:/bin" \
+    ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+    bash scripts/abora-gaming.sh autostart off >/dev/null 2>&1 \
+  && PATH="/usr/bin:/bin" \
+    ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+    bash scripts/abora-gaming.sh vulkan off >/dev/null 2>&1 \
+  && grep -q 'abora.gaming.enable = true;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.bigPictureShortcut = true;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.gamescopeSession = true;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.bigPictureAutostart = false;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.vulkanTools = false;' "$tmp_gaming_module"; then
+  pass "runtime: abora gaming toggles write config"
+else
+  fail "runtime: abora gaming toggles write config"
+fi
+
+if PATH="/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  bash scripts/abora-gaming.sh bigpicture off >/dev/null 2>&1 \
+  && grep -q 'abora.gaming.bigPictureShortcut = false;' "$tmp_gaming_module" \
+  && bash scripts/abora-gaming.sh help 2>&1 | grep -q 'abora gaming big-picture'; then
+  pass "runtime: abora gaming exposes friendly Big Picture commands"
+else
+  fail "runtime: abora gaming exposes friendly Big Picture commands"
+fi
+
+if grep -q 'writeShellScriptBin "abora-steam-big-picture"' nix/modules/abora-options.nix \
+  && grep -q 'steam -gamepadui' nix/modules/abora-options.nix \
+  && grep -q 'exec steam -bigpicture' nix/modules/abora-options.nix \
+  && grep -q 'Exec=abora-steam-big-picture' nix/modules/abora-options.nix \
+  && grep -q 'gamescope -e -- abora-steam-big-picture' nix/modules/abora-options.nix \
+  && grep -q 'pkgIf cfg.gaming.vulkanTools "vulkan-tools"' nix/modules/abora-options.nix \
+  && grep -q 'steam -gamepadui' scripts/abora-gaming.sh; then
+  pass "runtime: Abora Gaming Big Picture launcher has Steam flag fallback"
+else
+  fail "runtime: Abora Gaming Big Picture launcher has Steam flag fallback"
+fi
+
+tmp_dotfiles_src="$(mktemp -d)"
+tmp_dotfiles_home="$(mktemp -d)"
+tmp_dotfiles_cache="$(mktemp -d)"
+mkdir -p "$tmp_dotfiles_src/.config/hypr" "$tmp_dotfiles_src/.config/waybar" "$tmp_dotfiles_home"
+printf 'source-dotfile\n' > "$tmp_dotfiles_src/.zshrc"
+printf 'hyprland config\n' > "$tmp_dotfiles_src/.config/hypr/hyprland.conf"
+printf 'existing\n' > "$tmp_dotfiles_home/.zshrc"
+git -C "$tmp_dotfiles_src" init >/dev/null 2>&1
+git -C "$tmp_dotfiles_src" config user.email test@example.invalid
+git -C "$tmp_dotfiles_src" config user.name "Abora Test"
+git -C "$tmp_dotfiles_src" add . >/dev/null
+git -C "$tmp_dotfiles_src" commit -m dotfiles >/dev/null 2>&1
+dotfiles_dry_run_out="$(HOME="$tmp_dotfiles_home" bash scripts/abora-dotfiles-import.sh --dry-run "$tmp_dotfiles_src" 2>&1)"
+if grep -q 'would copy' <<<"$dotfiles_dry_run_out" \
+  && HOME="$tmp_dotfiles_home" bash scripts/abora-dotfiles-import.sh "$tmp_dotfiles_src" >/dev/null \
+  && grep -q 'existing' "$tmp_dotfiles_home/.zshrc" \
+  && grep -q 'hyprland config' "$tmp_dotfiles_home/.config/hypr/hyprland.conf" \
+  && HOME="$tmp_dotfiles_home" bash scripts/abora-dotfiles-import.sh --replace "$tmp_dotfiles_src" >/dev/null \
+  && grep -q 'source-dotfile' "$tmp_dotfiles_home/.zshrc" \
+  && HOME="$tmp_dotfiles_home" bash scripts/abora-dotfiles-import.sh \
+      --git-url "file://$tmp_dotfiles_src" "$tmp_dotfiles_cache/checkout" >/dev/null 2>&1 \
+  && [[ -d "$tmp_dotfiles_cache/checkout/.git" ]] \
+  && grep -q 'source-dotfile' "$tmp_dotfiles_cache/checkout/.zshrc" \
+  && mkdir -p "$tmp_dotfiles_cache/abora-dotfiles" \
+  && printf 'stale\n' > "$tmp_dotfiles_cache/abora-dotfiles/partial" \
+  && HOME="$tmp_dotfiles_home" XDG_CACHE_HOME="$tmp_dotfiles_cache" \
+    bash scripts/abora-dotfiles-import.sh \
+      --git-url "file://$tmp_dotfiles_src" "$tmp_dotfiles_cache/abora-dotfiles" >/dev/null 2>&1 \
+  && [[ ! -e "$tmp_dotfiles_cache/abora-dotfiles/partial" ]] \
+  && [[ -d "$tmp_dotfiles_cache/abora-dotfiles/.git" ]] \
+  && mkdir -p "$tmp_dotfiles_cache/manual-nonempty" \
+  && printf 'keep\n' > "$tmp_dotfiles_cache/manual-nonempty/file" \
+  && ! HOME="$tmp_dotfiles_home" XDG_CACHE_HOME="$tmp_dotfiles_cache" \
+    bash scripts/abora-dotfiles-import.sh \
+      --git-url "file://$tmp_dotfiles_src" "$tmp_dotfiles_cache/manual-nonempty" >/dev/null 2>&1 \
+  && grep -q 'keep' "$tmp_dotfiles_cache/manual-nonempty/file"; then
+  pass "runtime: dotfiles importer preserves by default and replaces on request"
+else
+  fail "runtime: dotfiles importer preserves by default and replaces on request"
+fi
+rm -rf "$tmp_dotfiles_src" "$tmp_dotfiles_home" "$tmp_dotfiles_cache"
+
+if ABORA_NO_SUDO=1 \
+  ABORA_SYSTEM_CONFIG="$tmp_config" \
+  scripts/abora-config.sh set hostname 'not a valid host!' >/dev/null 2>&1; then
+  fail "runtime: abora config set rejects an invalid hostname"
+elif grep -q 'abora.hostname = "not a valid host!"' "$tmp_config_module"; then
+  fail "runtime: abora config set rejects an invalid hostname"
+else
+  pass "runtime: abora config set rejects an invalid hostname"
+fi
+
+# user/disk are deliberately absent from do_set's key case, falling through
+# to "Unknown key" -- that's the actual read-only enforcement mechanism.
+set +e
+config_user_out="$(
+  ABORA_NO_SUDO=1 \
+  ABORA_SYSTEM_CONFIG="$tmp_config" \
+  scripts/abora-config.sh set user someone 2>&1
+)"
+config_user_status=$?
+set -e
+if [[ "$config_user_status" -eq 0 ]] || ! grep -q "Unknown key" <<<"$config_user_out"; then
+  fail "runtime: abora config set rejects the read-only 'user' key"
+elif grep -q 'abora.user.name = "someone"' "$tmp_config_module"; then
+  fail "runtime: abora config set rejects the read-only 'user' key"
+else
+  pass "runtime: abora config set rejects the read-only 'user' key"
+fi
+
+if ABORA_NO_SUDO=1 \
+  ABORA_SYSTEM_CONFIG="$tmp_config" \
+  scripts/abora-config.sh set disk /dev/sda >/dev/null 2>&1; then
+  fail "runtime: abora config set rejects the read-only 'disk' key"
+else
+  pass "runtime: abora config set rejects the read-only 'disk' key"
+fi
+
+# Belt-and-suspenders injection guard: a value carrying '"', '\', or '${'
+# could otherwise break out of the Nix double-quoted string it's written
+# into.
+if ABORA_NO_SUDO=1 \
+  ABORA_SYSTEM_CONFIG="$tmp_config" \
+  scripts/abora-config.sh set wallpaper '"; evil = true; "' >/dev/null 2>&1; then
+  fail "runtime: abora config set rejects a Nix-breaking value"
+elif grep -q "evil" "$tmp_config_module"; then
+  fail "runtime: abora config set rejects a Nix-breaking value"
+else
+  pass "runtime: abora config set rejects a Nix-breaking value"
+fi
+
+# Legacy (pre-v2.5) abora-local.nix used raw NixOS options instead of the
+# abora.* module — do_set migrates it in place on first write.
+tmp_legacy_config="$(mktemp -d)"
+tmp_legacy_module="$tmp_legacy_config/abora-local.nix"
+cat > "$tmp_legacy_module" <<'EOF'
+{ ... }:
+{
+  networking.hostName = "legacybox";
+  time.timeZone = "UTC";
+  i18n.defaultLocale = "en_US.UTF-8";
+  console.keyMap = "us";
+  services.desktopManager.gnome.enable = true;
+  users.users.abora = {
+    hashedPassword = "!";
+  };
+  system.stateVersion = "26.05";
+}
+EOF
+if ABORA_NO_SUDO=1 \
+  ABORA_SYSTEM_CONFIG="$tmp_legacy_config" \
+  scripts/abora-config.sh set hostname migrated-host >/dev/null 2>&1 \
+  && grep -q 'abora.hostname = "migrated-host";' "$tmp_legacy_module" \
+  && grep -q 'abora.desktop = "gnome";' "$tmp_legacy_module" \
+  && compgen -G "${tmp_legacy_module}.legacy.*" >/dev/null; then
+  pass "runtime: abora config migrates a legacy abora-local.nix on write"
+else
+  fail "runtime: abora config migrates a legacy abora-local.nix on write"
 fi
 
 if [[ "$failed" -ne 0 ]]; then

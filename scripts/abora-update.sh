@@ -20,8 +20,8 @@ command_name="${ABORA_UPDATE_COMMAND:-$(basename "$0")}"
 # The AboraProject org fallback is intentional (a registered organization
 # the repo may move to), not a stray/untrusted URL — list_release_tags()
 # below tries each of these in order and uses whichever answers first.
-repo_git_url="${ABORA_REPO_GIT_URL:-https://github.com/AnimatedGTVR/abora-os.git}"
-repo_git_fallbacks="${ABORA_REPO_GIT_URLS:-$repo_git_url https://github.com/AnimatedGTVR/Abora-OS.git https://github.com/AboraProject/Abora-OS.git}"
+repo_git_url="${ABORA_REPO_GIT_URL:-https://github.com/AnimatedGTVR/Abora-OS.git}"
+repo_git_fallbacks="${ABORA_REPO_GIT_URLS:-$repo_git_url https://github.com/AboraProject/Abora-OS.git}"
 repo_ref="${ABORA_REPO_REF:-edge}"
 upstream_dir="${ABORA_UPSTREAM_DIR:-$config_dir/.abora-upstream}"
 flake_config_name="${ABORA_FLAKE_CONFIG_NAME:-abora}"
@@ -199,6 +199,19 @@ remote_ref_exists() {
     return 1
 }
 
+ref_fallback_candidates() {
+    local selected_ref="$1"
+    printf '%s\n' "$selected_ref"
+    case "$selected_ref" in
+        edge)
+            printf '%s\n' main
+            ;;
+        main)
+            printf '%s\n' edge
+            ;;
+    esac
+}
+
 latest_tag_from_list() {
     sort -V | tail -n1
 }
@@ -344,10 +357,11 @@ usage() {
     printf '  %babora channel%b  /  %bnixos channel%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Show the current update channel."
     printf '\n'
-    printf '  %bnixos channel list%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora channel list%b  /  %bnixos channel list%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  List all available channels."
     printf '\n'
-    printf '  %bnixos channel set <stable|demo|unstable>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora channel set <stable|demo|unstable>%b  /  %bnixos channel set <stable|demo|unstable>%b\n' \
+        "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Switch to a different update channel."
     printf '\n'
     printf '  %babora fallback --release <tag>%b\n' "$ABORA_CYAN" "$ABORA_NC"
@@ -481,6 +495,19 @@ handle_channel_command() {
     local sub="${1:-}" channel
 
     case "$sub" in
+        help|-h|--help)
+            abora_banner "Update Channel" "Choose how Abora receives updates."
+            printf '  %bUsage%b\n\n' "$ABORA_WHITE" "$ABORA_NC"
+            printf '  %babora channel%b\n' "$ABORA_CYAN" "$ABORA_NC"
+            abora_dim_line "  Show the current update channel."
+            printf '\n'
+            printf '  %babora channel list%b\n' "$ABORA_CYAN" "$ABORA_NC"
+            abora_dim_line "  List stable, demo, and unstable channels."
+            printf '\n'
+            printf '  %bsudo abora channel set <stable|demo|unstable>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+            abora_dim_line "  Save the selected update channel."
+            printf '\n'
+            ;;
         "" | show)
             channel="$(read_channel)"
             abora_banner "Update Channel" "Your system receives updates from this channel."
@@ -562,10 +589,11 @@ handle_channel_command() {
                     ;;
             esac
             ;;
-        *)
-            abora_error "Unknown channel subcommand: ${sub}"
-            exit 1
-            ;;
+            *)
+                suppress_update_failure_message=1
+                abora_error "Unknown channel subcommand: ${sub}"
+                exit 1
+                ;;
     esac
 }
 
@@ -755,7 +783,28 @@ release_has_welcome_config_gui() {
     local selected_ref="$1"
     [[ "$selected_ref" == "edge" ]] && return 0
     is_final_release_tag "$selected_ref" || return 1
-    ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.0"
+}
+
+release_has_gaming_layer() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "edge" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.0"
+}
+
+release_has_dotfiles_import() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "edge" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.0"
+}
+
+release_has_source_build_helper() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "edge" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.0"
 }
 
 required_upstream_paths() {
@@ -792,6 +841,7 @@ assets/plymouth/abora.script
 assets/Effects/LaunchingAbora.mp3
 assets/wallpapers/collection
 assets/wallpaper-themes
+vendor/modularity
 EOF
 
     if release_uses_modern_layout "$selected_ref"; then
@@ -822,6 +872,29 @@ EOF
         cat <<'EOF'
 scripts/abora-welcome-gui.py
 scripts/abora-config-gui.py
+EOF
+    fi
+
+    if release_has_gaming_layer "$selected_ref"; then
+        cat <<'EOF'
+scripts/abora-gaming.sh
+docs/wiki/ANIX-V2-Languages.md
+docs/wiki/Abora-Gaming.md
+docs/wiki/Updating-Abora.md
+EOF
+    fi
+
+    if release_has_dotfiles_import "$selected_ref"; then
+        cat <<'EOF'
+scripts/abora-dotfiles-import.sh
+EOF
+    fi
+
+    if release_has_source_build_helper "$selected_ref"; then
+        cat <<'EOF'
+scripts/abora-build.sh
+scripts/abora-adopt-nixos.sh
+scripts/abora-custom-packages.sh
 EOF
     fi
 }
@@ -864,7 +937,7 @@ validate_upstream_checkout() {
 # passes.
 prepare_verified_upstream() {
     local selected_ref="$1"
-    local parent tmp_checkout timestamp url cloned_url=""
+    local parent tmp_checkout timestamp url ref cloned_url="" cloned_ref=""
 
     parent="$(dirname "$upstream_dir")"
     timestamp="$(date +%Y%m%d-%H%M%S)"
@@ -875,25 +948,37 @@ prepare_verified_upstream() {
     rm -rf "$tmp_checkout"
 
     abora_info "Fetching Abora files (${selected_ref}) into a temporary checkout."
-    for url in $repo_git_fallbacks; do
-        rm -rf "$tmp_checkout"
-        local clone_cmd=(git clone --progress --depth=1 --branch "$selected_ref" "$url" "$tmp_checkout")
-        if command -v timeout >/dev/null 2>&1; then
-            if timeout "$git_fetch_timeout" "${clone_cmd[@]}"; then
+    while IFS= read -r ref; do
+        [[ -n "$ref" ]] || continue
+        for url in $repo_git_fallbacks; do
+            rm -rf "$tmp_checkout"
+            local clone_cmd=(git clone --progress --depth=1 --branch "$ref" "$url" "$tmp_checkout")
+            if command -v timeout >/dev/null 2>&1; then
+                if timeout "$git_fetch_timeout" "${clone_cmd[@]}"; then
+                    cloned_url="$url"
+                    cloned_ref="$ref"
+                    break 2
+                fi
+            elif "${clone_cmd[@]}"; then
                 cloned_url="$url"
-                break
+                cloned_ref="$ref"
+                break 2
             fi
-        elif "${clone_cmd[@]}"; then
-            cloned_url="$url"
-            break
-        fi
-        abora_warn "Could not clone ${url} at ${selected_ref} within ${git_fetch_timeout}s; trying the next Abora remote."
-    done
+            abora_warn "Could not clone ${url} at ${ref}; trying the next Abora source."
+        done
+    done < <(ref_fallback_candidates "$selected_ref")
     if [[ -z "$cloned_url" ]]; then
         abora_error "Failed to clone Abora OS at ${selected_ref} from every known remote."
         abora_error "Tried: ${repo_git_fallbacks}"
-        abora_error "Check your internet connection, then run: sudo ${command_name:-nixos} update"
+        if [[ "$selected_ref" == "main" || "$selected_ref" == "edge" ]]; then
+            abora_error "Tried branch fallbacks: $(ref_fallback_candidates "$selected_ref" | paste -sd ' ' -)"
+            abora_error "If your mirror uses a different branch, run: sudo ABORA_REPO_REF=<branch> abora update"
+        fi
+        abora_error "Check your internet connection, then run: sudo abora update"
         return 1
+    fi
+    if [[ "$cloned_ref" != "$selected_ref" ]]; then
+        abora_warn "Selected ref '${selected_ref}' was unavailable; using branch fallback '${cloned_ref}'."
     fi
     repo_git_url="$cloned_url"
 
@@ -987,7 +1072,7 @@ sync_abora_files() {
 
     prepare_verified_upstream "$effective_ref" || return 1
 
-    mkdir -p "$abora_dir/plymouth" "$abora_dir/bootloader" "$abora_dir/effects" "$abora_dir/mango"
+    mkdir -p "$abora_dir/plymouth" "$abora_dir/bootloader" "$abora_dir/effects" "$abora_dir/mango" "$abora_dir/vendor"
     copy_upstream_file "$upstream_dir/VERSION" "$abora_dir/VERSION"
     copy_upstream_file "$upstream_dir/nix/modules/abora-options.nix" "$abora_dir/abora-options.nix"
     if [[ -d "$upstream_dir/nix/modules/desktops" ]]; then
@@ -998,7 +1083,20 @@ sync_abora_files() {
     copy_upstream_file "$upstream_dir/scripts/abora-ui.sh" "$abora_dir/ui.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-config.sh" "$abora_dir/config.sh"
     copy_upstream_file "$upstream_dir/scripts/abora.sh" "$abora_dir/abora.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-build.sh" "$abora_dir/build.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-adopt-nixos.sh" "$abora_dir/adopt-nixos.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-desktop.sh" "$abora_dir/desktop.sh"
+    if [[ -f "$upstream_dir/scripts/abora-gaming.sh" ]]; then
+        copy_upstream_file "$upstream_dir/scripts/abora-gaming.sh" "$abora_dir/gaming.sh"
+    fi
+    if [[ -d "$upstream_dir/docs" ]]; then
+        rm -rf "$abora_dir/docs"
+        cp -R "$upstream_dir/docs" "$abora_dir/docs"
+    fi
+    if [[ -d "$upstream_dir/vendor/modularity" ]]; then
+        rm -rf "$abora_dir/vendor/modularity"
+        cp -R "$upstream_dir/vendor/modularity" "$abora_dir/vendor/modularity"
+    fi
     copy_upstream_file "$upstream_dir/scripts/abora-doctor.sh" "$abora_dir/doctor.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-recovery.sh" "$abora_dir/recovery.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-welcome.sh" "$abora_dir/welcome.sh"
@@ -1011,6 +1109,7 @@ sync_abora_files() {
     copy_upstream_file "$upstream_dir/scripts/anix.sh" "$abora_dir/anix.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-app-catalog.sh" "$abora_dir/app-catalog.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-apps.sh" "$abora_dir/apps.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-custom-packages.sh" "$abora_dir/custom-packages.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-support-report.sh" "$abora_dir/support-report.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-hardware-test.sh" "$abora_dir/hardware-test.sh"
     if [[ -f "$upstream_dir/scripts/abora-repair-flake-purity.sh" ]]; then
@@ -1028,6 +1127,7 @@ sync_abora_files() {
         cp -R "$upstream_dir/assets/anix-languages" "$abora_dir/anix-languages"
     fi
     copy_upstream_file "$upstream_dir/scripts/abora-session-setup.sh" "$abora_dir/session-setup.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-dotfiles-import.sh" "$abora_dir/dotfiles-import.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-theme-sync.sh" "$abora_dir/theme-sync.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-update.sh" "$abora_dir/update.sh"
     copy_upstream_file "$upstream_dir/assets/abora-title.txt" "$abora_dir/title.txt"
@@ -1296,6 +1396,7 @@ case "$command_name" in
                 ;;
             channel)
                 shift
+                suppress_update_failure_message=1
                 handle_channel_command "$@"
                 exit 0
                 ;;
@@ -1313,12 +1414,18 @@ case "$command_name" in
 esac
 
 case "${1:-}" in
+    ""|help|-h|--help)
+        suppress_update_failure_message=1
+        usage
+        exit 0
+        ;;
     --check|check)
         handle_check_command
         exit "$?"
         ;;
     channel)
         shift
+        suppress_update_failure_message=1
         handle_channel_command "$@"
         exit 0
         ;;

@@ -52,11 +52,11 @@ The normal release bundle includes:
 
 ## Tagging A Release
 
-For the current Abora OS 2026.7.27 line:
+For the current Abora OS v4 Everest line:
 
 ```sh
-git tag 4.0
-git push origin 4.0
+git tag v4.0
+git push origin v4.0
 ```
 
 That triggers the GitHub release workflow for the tagged version.
@@ -65,7 +65,9 @@ That triggers the GitHub release workflow for the tagged version.
 
 Make sure these checks are done:
 
+- `make doctor`
 - `./scripts/check-scripts.sh`
+- `./scripts/check-all-files.sh`
 - `./scripts/check-desktops.sh`
 - every edition ISO builds successfully
 - at least the default Cosmic live image boots

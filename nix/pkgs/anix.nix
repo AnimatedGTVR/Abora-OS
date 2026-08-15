@@ -19,7 +19,7 @@
 # share/anix/ layout and same ANIX_* env vars anix.sh reads for its
 # docs/languages/tinypm/wallpaper paths, but wired via makeWrapper (--set/
 # --prefix PATH) instead of a generated shell wrapper script, so a plain
-# `nix profile install github:.../abora-os#anix` (or importing
+# `nix profile install github:.../Abora-OS#anix` (or importing
 # abora.nixosModules.anix) gets a working `anix` command with no separate
 # install.sh step.
 stdenvNoCC.mkDerivation (finalAttrs: {
@@ -44,6 +44,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     install -Dm0644 "$src/docs/wiki/Abora-Tools.md" "$out/share/anix/docs/wiki/Abora-Tools.md"
     install -Dm0644 "$src/docs/wiki/Recovery.md" "$out/share/anix/docs/wiki/Recovery.md"
     install -Dm0644 "$src/docs/wiki/ANIX-V2-Languages.md" "$out/share/anix/docs/wiki/ANIX-V2-Languages.md"
+    install -Dm0644 "$src/docs/wiki/Abora-Gaming.md" "$out/share/anix/docs/wiki/Abora-Gaming.md"
 
     if [ -d "$src/assets/anix-languages" ]; then
       cp -a "$src/assets/anix-languages/." "$out/share/anix/languages/"
@@ -99,7 +100,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       $out/share/anix/anix-module.nix
 
     Flake users can also consume this repository directly:
-      inputs.abora.url = "github:AnimatedGTVR/abora-os";
+      inputs.abora.url = "github:AnimatedGTVR/Abora-OS";
       imports = [ abora.nixosModules.anix ];
       environment.systemPackages = [ abora.packages.''${pkgs.system}.anix ];
     EOF
@@ -109,7 +110,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
   meta = with lib; {
     description = "Friendly NixOS profile and rebuild helper";
-    homepage = "https://github.com/AnimatedGTVR/abora-os";
+    homepage = "https://github.com/AnimatedGTVR/Abora-OS";
     license = licenses.mit;
     platforms = platforms.linux;
     mainProgram = "anix";

@@ -56,6 +56,7 @@ install -Dm0644 "$repo_dir/docs/wiki/TinyPM-V4.md" "$stage_dir/share/anix/docs/w
 install -Dm0644 "$repo_dir/docs/wiki/Abora-Tools.md" "$stage_dir/share/anix/docs/wiki/Abora-Tools.md"
 install -Dm0644 "$repo_dir/docs/wiki/Recovery.md" "$stage_dir/share/anix/docs/wiki/Recovery.md"
 install -Dm0644 "$repo_dir/docs/wiki/ANIX-V2-Languages.md" "$stage_dir/share/anix/docs/wiki/ANIX-V2-Languages.md"
+install -Dm0644 "$repo_dir/docs/wiki/Abora-Gaming.md" "$stage_dir/share/anix/docs/wiki/Abora-Gaming.md"
 
 if [[ -d "$repo_dir/assets/anix-languages" ]]; then
   cp -a "$repo_dir/assets/anix-languages/." "$stage_dir/share/anix/languages/"
@@ -146,7 +147,7 @@ With this repository directly:
 
 ```nix
 {
-  inputs.abora.url = "github:AnimatedGTVR/abora-os";
+  inputs.abora.url = "github:AnimatedGTVR/Abora-OS";
 
   outputs = { nixpkgs, abora, ... }: {
     nixosConfigurations.my-host = nixpkgs.lib.nixosSystem {

@@ -1,4 +1,4 @@
-# Abora OS EVEREST 4.0
+# Abora OS v4 Everest
 
 ## Screenshots
 
@@ -43,7 +43,7 @@ Also quietly fixed a Wi-Fi bug that's been breaking installs on some laptops, a 
 - `abora update --check` if you just want to know if there's an update without installing it
 
 **Carried over from 3.14**
-- 23 desktops, 7 starter app bundles, TinyPM v4, the TUI installer, Limine + Plymouth, NetworkManager/Bluetooth/firmware stuff, Flathub auto-added on first boot
+- 23 desktops, 7 starter app bundles, TinyPM v0.8, the TUI installer, Limine + Plymouth, NetworkManager/Bluetooth/firmware stuff, Flathub auto-added on first boot
 
 **Fixes since release**
 - live ISO Wi-Fi: a setting was quietly blocking wpa_supplicant from ever registering over D-Bus, some cards would just sit at "unavailable" forever. installed systems were never affected, just the live/installer environment
@@ -60,12 +60,12 @@ Abora DENALI 3.14 was the installer/identity/tooling release. Still the foundati
 - config gets validated before nixos-install runs
 - Abora branding everywhere (bootloader, Plymouth, wallpapers, fastfetch)
 - ANIX v1 (snapshots, diff/test/boot/switch/rollback)
-- TinyPM v4
+- TinyPM v0.8
 - 23 desktops selectable at install, COSMIC and MangoWM both added this release
 - desktop matrix gets checked in CI so we don't ship a broken profile
 
 ## Other
 
 - MINT (the Go/Bubble Tea installer front-end) is built but not wired up as the default yet, that's on hold for now
-- if you hit an install issue, `abora-support-report` or `abora-hardware-test --with-report` before asking, saves everyone time
+- if you hit an install issue, `abora support-report` or `abora hardware-test --with-report` before asking, saves everyone time
 - as always, `stable` channel tracks tagged releases, `unstable` tracks edge if you like living dangerously

@@ -1,6 +1,6 @@
-# TinyPM v4
+# TinyPM v0.8
 
-TinyPM v4 remix is the Abora app layer.
+TinyPM v0.8 remix is the Abora app layer.
 
 It keeps the easy app commands from v3 while adding better native package routing, desktop helpers, bundles, manifests, history, rollback previews, and Abora/ANIX-aware Nix support.
 
@@ -34,6 +34,7 @@ That split keeps TinyPM simple while still letting it cooperate with the rest of
 | `tinypm self-update` | Update the user TinyPM runtime |
 | `tinypm add-repo <repo> [name]` | Add a package source through the native backend |
 | `tinypm de <desktop>` | Show/install desktop environment support |
+| `abora apps custom update <id>` | Update standalone custom packages such as Modularity Stable |
 | `Parcel --version` | Show engine, runtime, and system report |
 | `syspm <command>` | Route TinyPM through the native system package manager only |
 
@@ -78,6 +79,7 @@ tinypm doctor
 tinypm check firefox
 tinypm check-update
 tinypm self-update
+sudo abora apps custom update modularity-stable --zip ~/Downloads/Modularity-7.0.0-Linux.zip
 anix status
 anix switch nix gaming
 abora doctor
@@ -87,6 +89,21 @@ grab-add-repo https://nixos.org/channels/nixos-unstable unstable
 ```
 
 This makes TinyPM useful from one command surface without blurring responsibility.
+
+## Standalone Custom Packages
+
+Some apps ship as standalone vendor zips instead of normal Nixpkgs, Flatpak, or
+Snap packages. Abora handles those through custom package helpers:
+
+```sh
+abora apps custom list
+abora apps custom info modularity-stable
+sudo abora apps custom update modularity-stable --zip ~/Downloads/Modularity-7.0.0-Linux.zip
+```
+
+Use `--url <url>` instead of `--zip <file>` if you want Abora to download the
+archive first. Add `--no-rebuild` to update the files now and rebuild later with
+`abora apps rebuild`.
 
 ## Install
 

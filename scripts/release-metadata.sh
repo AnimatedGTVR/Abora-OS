@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 version="$(tr -d '\n' < "$repo_dir/VERSION")"
-release_name="${ABORA_RELEASE_NAME:-Abora OS 2026.7.27}"
+release_name="${ABORA_RELEASE_NAME:-Abora OS v4 Everest}"
 out_dir="${ABORA_OUT_DIR:-$repo_dir/out}"
 iso_dir="${ABORA_ISO_DIR:-$out_dir/iso}"
 package_dir="${ABORA_PACKAGE_DIR:-$out_dir/packages}"

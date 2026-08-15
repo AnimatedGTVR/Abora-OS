@@ -82,10 +82,20 @@ def read_local_setting(key: str) -> str:
     return match.group(1) if match else ''
 
 
+def read_local_bool(key: str, default: bool = False) -> bool:
+    if not CONFIG_PATH.exists():
+        return default
+    pattern = re.compile(r'^\s*abora\.' + re.escape(key) + r'\s*=\s*(true|false)', re.MULTILINE)
+    match = pattern.search(CONFIG_PATH.read_text(errors='replace'))
+    if not match:
+        return default
+    return match.group(1) == 'true'
+
+
 def read_channel() -> str:
     if CHANNEL_FILE.exists():
-        return CHANNEL_FILE.read_text().strip() or 'stable'
-    return 'stable'
+        return CHANNEL_FILE.read_text().strip() or os.environ.get('ABORA_DEFAULT_CHANNEL', 'unstable')
+    return os.environ.get('ABORA_DEFAULT_CHANNEL', 'unstable')
 
 
 def flathub_configured() -> bool:
@@ -190,9 +200,10 @@ class WelcomeWindow(Adw.ApplicationWindow):
         box.append(status_group)
         self._row_desktop  = Adw.ActionRow(title='Desktop', subtitle=read_local_setting('desktop') or 'unknown')
         self._row_wallpaper = Adw.ActionRow(title='Wallpaper', subtitle=read_local_setting('wallpaper') or 'unknown')
+        self._row_gaming   = Adw.ActionRow(title='Gaming', subtitle='enabled' if read_local_bool('gaming.enable') else 'off')
         self._row_channel  = Adw.ActionRow(title='Update channel', subtitle=read_channel())
         self._row_flathub  = Adw.ActionRow(title='Flathub', subtitle='configured' if flathub_configured() else 'not configured')
-        for row in (self._row_desktop, self._row_wallpaper, self._row_channel, self._row_flathub):
+        for row in (self._row_desktop, self._row_wallpaper, self._row_gaming, self._row_channel, self._row_flathub):
             status_group.add(row)
 
         # Updates card
@@ -218,11 +229,12 @@ class WelcomeWindow(Adw.ApplicationWindow):
         actions_group = Adw.PreferencesGroup(title='Quick Actions')
         box.append(actions_group)
         actions = [
-            ('System Doctor', 'Check system health', ['abora-doctor']),
-            ('App Manager', 'Install or remove applications', ['abora-apps']),
+            ('System Doctor', 'Check system health', ['abora', 'doctor']),
+            ('App Manager', 'Install or remove applications', ['abora', 'apps']),
+            ('Gaming Setup', 'Check or enable Steam and gaming helpers', ['abora', 'gaming', 'status']),
             ('First ANIX Snapshot', 'Save a restore point now', ['anix', 'save', 'anix: first Abora snapshot']),
-            ('Switch Desktop', 'Change your desktop environment', ['abora-desktop', 'list']),
-            ('Recovery Tools', 'Rollback and repair options', ['abora-recovery']),
+            ('Switch Desktop', 'Change your desktop environment', ['abora', 'desktop', 'list']),
+            ('Recovery Tools', 'Rollback and repair options', ['abora', 'recovery']),
         ]
         for label, subtitle, command in actions:
             row = Adw.ActionRow(title=label, subtitle=subtitle, activatable=True)

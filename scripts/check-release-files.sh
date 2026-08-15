@@ -28,18 +28,26 @@ scripts/abora-repair-flake-purity.sh
 scripts/abora-ui.sh
 scripts/abora-config.sh
 scripts/abora.sh
+scripts/abora-build.sh
+scripts/abora-adopt-nixos.sh
 scripts/abora-desktop.sh
+scripts/abora-gaming.sh
 scripts/abora-doctor.sh
 scripts/abora-recovery.sh
 scripts/abora-welcome.sh
 scripts/anix.sh
 scripts/abora-app-catalog.sh
 scripts/abora-apps.sh
+scripts/abora-custom-packages.sh
 scripts/abora-support-report.sh
 scripts/abora-hardware-test.sh
 scripts/abora-desktop-profiles.sh
 scripts/abora-session-setup.sh
+scripts/abora-dotfiles-import.sh
 scripts/abora-theme-sync.sh
+docs/wiki/Abora-Gaming.md
+docs/wiki/ANIX-V2-Languages.md
+docs/wiki/Updating-Abora.md
 tools/moducpp-anix
 assets/mango/config.conf
 assets/anix-languages
@@ -54,6 +62,7 @@ assets/Effects/LaunchingAbora.mp3
 assets/wallpapers/collection
 assets/wallpapers/collection/aurora-lofoten.jpg
 assets/wallpaper-themes
+vendor/modularity
 EOF
 }
 

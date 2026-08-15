@@ -2,8 +2,8 @@
 # shellcheck disable=SC2034,SC2154
 
 use_host_backend=0
-tinypm_system_name="TinyPM V4"
-tinypm_version="4.0.0"
+tinypm_system_name="TinyPM"
+tinypm_version="0.8"
 tinypm_tagline=""
 
 # Color is enabled for interactive terminals, or explicitly with FORCE_COLOR.
@@ -46,7 +46,7 @@ tinypm_active_flavor() {
 tinypm_load_flavor_metadata() {
     local config_file
 
-    tinypm_system_name="TinyPM V4"
+    tinypm_system_name="TinyPM"
     tinypm_tagline=""
 
     config_file="$(tinypm_flavor_file flavor.conf 2>/dev/null || true)"

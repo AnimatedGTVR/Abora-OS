@@ -46,14 +46,26 @@ let
   aboraApps = pkgs.writeShellScriptBin "abora-apps" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/apps.sh "$@"
   '';
+  aboraCustomPackages = pkgs.writeShellScriptBin "abora-custom-packages" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/custom-packages.sh "$@"
+  '';
   aboraConfig = pkgs.writeShellScriptBin "abora-config" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/config.sh "$@"
   '';
   aboraCommand = pkgs.writeShellScriptBin "abora" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/abora.sh "$@"
   '';
+  aboraBuild = pkgs.writeShellScriptBin "abora-build" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/build.sh "$@"
+  '';
+  aboraAdoptNixos = pkgs.writeShellScriptBin "abora-adopt-nixos" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/adopt-nixos.sh "$@"
+  '';
   aboraDesktop = pkgs.writeShellScriptBin "abora-desktop" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/desktop.sh "$@"
+  '';
+  aboraGaming = pkgs.writeShellScriptBin "abora-gaming" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/gaming.sh "$@"
   '';
   aboraDotfilesImport = pkgs.writeShellScriptBin "abora-dotfiles-import" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/dotfiles-import.sh "$@"
@@ -354,13 +366,13 @@ in
     label = version;
     extraOSReleaseArgs = {
       LOGO = "abora";
-      VERSION = "2026.7.27";
-      VERSION_ID = "4.0";
+      VERSION = "v4 Everest";
+      VERSION_ID = "4";
       VERSION_CODENAME = "everest";
-      PRETTY_NAME = "Abora OS 2026.7.27";
+      PRETTY_NAME = "Abora OS v4 Everest";
       HOME_URL = "https://www.aboraos.org/";
-      SUPPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
-      BUG_REPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
+      SUPPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
+      BUG_REPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
       ANSI_COLOR = "0;38;2;80;220;255";
     };
   };
@@ -435,12 +447,16 @@ in
     (mkGrabCmd "grab-de")
     (mkGrabCmd "syspm")
     aboraApps
+    aboraCustomPackages
+    aboraAdoptNixos
+    aboraBuild
     aboraCommand
     aboraCheckFull
     aboraInstall
     anixCommand
     aboraConfig
     aboraDesktop
+    aboraGaming
     aboraDotfilesImport
     aboraDoctor
     aboraHardwareTest
@@ -535,12 +551,28 @@ in
         source = ../../scripts/abora-apps.sh;
         mode = "0755";
       };
+      "abora/custom-packages.sh" = {
+        source = ../../scripts/abora-custom-packages.sh;
+        mode = "0755";
+      };
       "abora/abora.sh" = {
         source = ../../scripts/abora.sh;
         mode = "0755";
       };
+      "abora/build.sh" = {
+        source = ../../scripts/abora-build.sh;
+        mode = "0755";
+      };
+      "abora/adopt-nixos.sh" = {
+        source = ../../scripts/abora-adopt-nixos.sh;
+        mode = "0755";
+      };
       "abora/desktop.sh" = {
         source = ../../scripts/abora-desktop.sh;
+        mode = "0755";
+      };
+      "abora/gaming.sh" = {
+        source = ../../scripts/abora-gaming.sh;
         mode = "0755";
       };
       "abora/dotfiles-import.sh" = {
@@ -609,10 +641,10 @@ in
       "xdg/fastfetch/config.jsonc".source = ../../assets/fastfetch-config.jsonc;
       "xdg/fastfetch/abora-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "issue".text = ''
-        Abora OS 2026.7.27
+        Abora OS v4 Everest
       '';
       "issue.net".text = ''
-        Abora OS 2026.7.27
+        Abora OS v4 Everest
       '';
       "profile.d/abora-live.sh".text = ''
         # Only greet on real TTY sessions (not COSMIC/graphical login shells)
@@ -654,6 +686,7 @@ in
         mode = "0755";
       };
       "abora/tinypm".source = tinypmDir;
+      "abora/vendor/modularity".source = ../../vendor/modularity;
       "abora/docs".source = ../../docs;
       "abora/anix-languages".source = ../../assets/anix-languages;
       "anix/languages".source = ../../assets/anix-languages;

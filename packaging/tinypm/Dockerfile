@@ -2,7 +2,7 @@ FROM ubuntu:24.04
 
 ARG TINYPM_VERSION=unknown
 ARG ABORA_VERSION=unknown
-ARG IMAGE_SOURCE=https://github.com/AnimatedGTVR/abora-os
+ARG IMAGE_SOURCE=https://github.com/AnimatedGTVR/Abora-OS
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TINYPM_PROJECT_DIR=/opt/tinypm/project
@@ -40,7 +40,7 @@ RUN mkdir -p /root/.config/tinypm /root/.local/state/tinypm \
     && ln -s /opt/tinypm/project/tinypm /usr/local/bin/tiny \
     && ln -s /opt/tinypm/project/grab /usr/local/bin/grab \
     && ln -s /opt/tinypm/project/Parcel /usr/local/bin/Parcel \
-    && ln -s /opt/tinypm/project/syspm.sh /usr/local/bin/syspm \
+    && ln -s /opt/tinypm/project/syspm /usr/local/bin/syspm \
     && ln -s /opt/tinypm/project/version /usr/local/bin/version
 
 WORKDIR /opt/tinypm/project

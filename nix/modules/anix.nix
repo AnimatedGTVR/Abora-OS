@@ -7,6 +7,7 @@ let
   # ever touching config.abora.* below, so anix.desktop/anix.wallpaper are
   # simply no-ops rather than eval errors on a non-Abora system.
   hasAboraOptions = options ? abora && options.abora ? desktop && options.abora ? wallpaper;
+  hasAboraGamingOptions = options ? abora && options.abora ? gaming;
 in
 {
   options.anix = {
@@ -115,6 +116,38 @@ in
       };
     };
 
+    gaming = {
+      enable = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Enable Abora's optional gaming layer when available.";
+      };
+
+      bigPictureShortcut = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Enable the Steam Big Picture launcher when Abora gaming is available.";
+      };
+
+      bigPictureAutostart = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Start Steam Big Picture at desktop login when Abora gaming is available.";
+      };
+
+      gamescopeSession = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Enable the Abora Gaming Gamescope session when available.";
+      };
+
+      vulkanTools = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Install Vulkan diagnostic tools when Abora gaming is available.";
+      };
+    };
+
     power = {
       thermald = lib.mkOption {
         type = lib.types.bool;
@@ -202,6 +235,21 @@ in
     (lib.mkIf (cfg.wallpaper != null && hasAboraOptions) {
       abora.wallpaper = lib.mkForce cfg.wallpaper;
     })
+    (lib.mkIf (cfg.gaming.enable != null && hasAboraGamingOptions) {
+      abora.gaming.enable = lib.mkForce cfg.gaming.enable;
+    })
+    (lib.mkIf (cfg.gaming.bigPictureShortcut != null && hasAboraGamingOptions) {
+      abora.gaming.bigPictureShortcut = lib.mkForce cfg.gaming.bigPictureShortcut;
+    })
+    (lib.mkIf (cfg.gaming.bigPictureAutostart != null && hasAboraGamingOptions) {
+      abora.gaming.bigPictureAutostart = lib.mkForce cfg.gaming.bigPictureAutostart;
+    })
+    (lib.mkIf (cfg.gaming.gamescopeSession != null && hasAboraGamingOptions) {
+      abora.gaming.gamescopeSession = lib.mkForce cfg.gaming.gamescopeSession;
+    })
+    (lib.mkIf (cfg.gaming.vulkanTools != null && hasAboraGamingOptions) {
+      abora.gaming.vulkanTools = lib.mkForce cfg.gaming.vulkanTools;
+    })
     (lib.mkIf (cfg.desktop != null && !hasAboraOptions) {
       warnings = [
         "anix.desktop is set to \"${cfg.desktop}\" but has no effect here: it requires abora-options.nix (part of nixosModules.installed-base) to also be imported. On a standalone anix-only system, configure your desktop environment through normal NixOS options instead."
@@ -210,6 +258,11 @@ in
     (lib.mkIf (cfg.wallpaper != null && !hasAboraOptions) {
       warnings = [
         "anix.wallpaper is set to \"${cfg.wallpaper}\" but has no effect here: it requires abora-options.nix (part of nixosModules.installed-base) to also be imported."
+      ];
+    })
+    (lib.mkIf ((cfg.gaming.enable != null || cfg.gaming.bigPictureShortcut != null || cfg.gaming.bigPictureAutostart != null || cfg.gaming.gamescopeSession != null || cfg.gaming.vulkanTools != null) && !hasAboraGamingOptions) {
+      warnings = [
+        "anix.gaming.* is set but has no effect here: it requires abora-options.nix (part of nixosModules.installed-base) to also be imported."
       ];
     })
     (lib.mkIf (cfg.packages != [ ]) {

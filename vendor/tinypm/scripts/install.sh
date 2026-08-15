@@ -48,7 +48,7 @@ flavor_file() {
 
 load_flavor() {
     local file
-    FLAVOR_NAME="TinyPM V4"
+    FLAVOR_NAME="TinyPM"
     FLAVOR_TAGLINE=""
     file="$(flavor_file flavor.conf 2>/dev/null || true)"
     # shellcheck disable=SC1090
@@ -77,7 +77,7 @@ valid_native_pm() {
 
 usage() {
     cat <<'EOF'
-TinyPM V4 installer
+TinyPM v0.8 installer
 
 Usage:
   ./scripts/install.sh [--auto] [--native <manager>] [--flavor <name>] [-y]

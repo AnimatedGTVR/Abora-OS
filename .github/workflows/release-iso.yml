@@ -65,7 +65,7 @@ jobs:
 
       - name: Show output files
         if: steps.build_iso.outcome == 'success'
-        run: ls -lah out
+        run: find out -maxdepth 2 -type f -print | sort
 
       - name: Upload Build Log Artifact
         if: always()
@@ -80,14 +80,15 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: abora-${{ steps.version.outputs.tag }}-release-${{ github.run_number }}
-          # The ISO itself is not attached here — it's published separately
-          # via Packages. This keeps the ISO out of both the workflow
-          # artifact and the GitHub Release assets below.
+          # The ISO itself is not attached here — the ISO workflow/hosting
+          # step publishes it separately. This keeps the ISO out of both the
+          # workflow artifact and the GitHub Release assets below.
           path: |
-            out/tinypm-*-abora-${{ steps.version.outputs.tag }}.tar.gz
-            out/SHA256SUMS-${{ steps.version.outputs.tag }}.txt
-            out/RELEASE_MANIFEST-${{ steps.version.outputs.tag }}.txt
-            out/RELEASE_NOTES-${{ steps.version.outputs.tag }}.md
+            out/packages/tinypm-*-abora-${{ steps.version.outputs.tag }}.tar.gz
+            out/packages/anix-*-abora-${{ steps.version.outputs.tag }}.tar.gz
+            out/release/SHA256SUMS-${{ steps.version.outputs.tag }}.txt
+            out/release/RELEASE_MANIFEST-${{ steps.version.outputs.tag }}.txt
+            out/release/RELEASE_NOTES-${{ steps.version.outputs.tag }}.md
           if-no-files-found: error
 
       - name: Create Draft GitHub Release
@@ -97,16 +98,18 @@ jobs:
         run: |
           set -euxo pipefail
           tag="${{ steps.version.outputs.tag }}"
-          title="Abora OS ${tag}"
-          notes_file="out/RELEASE_NOTES-${tag}.md"
+          title="Abora OS v4 Everest (${tag})"
+          notes_file="out/release/RELEASE_NOTES-${tag}.md"
           shopt -s nullglob
-          # ISO is intentionally not attached to the GitHub Release — it's
-          # published via Packages instead. Only the smaller release
-          # artifacts (TinyPM package, checksums, manifest) go here.
+          # ISO is intentionally not attached to the GitHub Release — it is
+          # published separately by the ISO workflow/hosting step. Only the
+          # smaller release artifacts (TinyPM package, checksums, manifest)
+          # go here.
           assets=(
-            out/tinypm-*-abora-"$tag".tar.gz
-            out/SHA256SUMS-"$tag".txt
-            out/RELEASE_MANIFEST-"$tag".txt
+            out/packages/tinypm-*-abora-"$tag".tar.gz
+            out/packages/anix-*-abora-"$tag".tar.gz
+            out/release/SHA256SUMS-"$tag".txt
+            out/release/RELEASE_MANIFEST-"$tag".txt
           )
 
           if gh release view "$tag" >/dev/null 2>&1; then

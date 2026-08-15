@@ -26,7 +26,7 @@ docker build \
   --file packaging/tinypm/Dockerfile \
   --build-arg TINYPM_VERSION="$tinypm_version" \
   --build-arg ABORA_VERSION="$abora_version" \
-  --build-arg IMAGE_SOURCE="https://github.com/AnimatedGTVR/abora-os" \
+  --build-arg IMAGE_SOURCE="https://github.com/AnimatedGTVR/Abora-OS" \
   --tag "$image_name" \
   vendor/tinypm
 

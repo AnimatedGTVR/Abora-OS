@@ -4,6 +4,8 @@ using ANIX;
 main() {
     ANIX.set("hostname", "everest-workstation");
     ANIX.enable("bluetooth");
+    ANIX.enable("gaming");
+    ANIX.enable("gaming.big-picture");
     ANIX.package("firefox");
     ANIX.package("git");
     ANIX.finish();

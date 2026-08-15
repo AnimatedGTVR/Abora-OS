@@ -1,4 +1,4 @@
-{ lib, pkgs, ... }:
+{ lib, pkgs, config, ... }:
 let
   # All paths below are relative to this file as it lives on the installed system
   # (beside installed-base.nix in /etc/nixos/abora/ or equivalent).  The
@@ -14,6 +14,8 @@ let
   configScript         = ./config.sh;
   aboraScript          = ./abora.sh;
   desktopScript        = ./desktop.sh;
+  gamingScript         = ./gaming.sh;
+  dotfilesImportScript = ./dotfiles-import.sh;
   doctorScript         = ./doctor.sh;
   checkFullScript      = ./check-full.sh;
   recoveryScript       = ./recovery.sh;
@@ -39,6 +41,9 @@ let
     if builtins.pathExists ./anix-languages then ./anix-languages else null;
   appCatalogScript     = ./app-catalog.sh;
   appManagerScript     = ./apps.sh;
+  customPackagesScript = ./custom-packages.sh;
+  buildScript          = ./build.sh;
+  adoptNixosScript     = ./adopt-nixos.sh;
   supportReportScript  = ./support-report.sh;
   hardwareTestScript   = ./hardware-test.sh;
   repairFlakePurityScript = ./repair-flake-purity.sh;
@@ -54,6 +59,7 @@ let
   mangoConfigFile      = ./mango/config.conf;
   mangoConfigText      = builtins.readFile mangoConfigFile;
   moducppAnixTool      = ./tools/moducpp-anix;
+  modularitySrc        = ./vendor/modularity;
   installerScript      = ./installer.sh;
   setupLauncherScript  = ./setup-launcher.sh;
   setupDesktopFile     = ./setup.desktop;
@@ -89,14 +95,29 @@ let
   aboraApps = pkgs.writeShellScriptBin "abora-apps" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/apps.sh "$@"
   '';
+  aboraCustomPackages = pkgs.writeShellScriptBin "abora-custom-packages" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/custom-packages.sh "$@"
+  '';
   aboraConfig = pkgs.writeShellScriptBin "abora-config" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/config.sh "$@"
   '';
   aboraCommand = pkgs.writeShellScriptBin "abora" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/abora.sh "$@"
   '';
+  aboraBuild = pkgs.writeShellScriptBin "abora-build" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/build.sh "$@"
+  '';
+  aboraAdoptNixos = pkgs.writeShellScriptBin "abora-adopt-nixos" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/adopt-nixos.sh "$@"
+  '';
   aboraDesktop = pkgs.writeShellScriptBin "abora-desktop" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/desktop.sh "$@"
+  '';
+  aboraGaming = pkgs.writeShellScriptBin "abora-gaming" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/gaming.sh "$@"
+  '';
+  aboraDotfilesImport = pkgs.writeShellScriptBin "abora-dotfiles-import" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/dotfiles-import.sh "$@"
   '';
   aboraDoctor = pkgs.writeShellScriptBin "abora-doctor" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/doctor.sh "$@"
@@ -280,16 +301,16 @@ in
     vendorName = "Abora OS";
     label = version;
     variant_id = lib.mkDefault "system";
-    variantName = lib.mkDefault "Abora OS 2026.7.27";
+    variantName = lib.mkDefault "Abora OS v4 Everest";
     extraOSReleaseArgs = lib.mapAttrs (_: lib.mkDefault) {
       LOGO = "abora";
-      VERSION = "2026.7.27";
-      VERSION_ID = "4.0";
+      VERSION = "v4 Everest";
+      VERSION_ID = "4";
       VERSION_CODENAME = "everest";
-      PRETTY_NAME = "Abora OS 2026.7.27";
+      PRETTY_NAME = "Abora OS v4 Everest";
       HOME_URL = "https://www.aboraos.org/";
-      SUPPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
-      BUG_REPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
+      SUPPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
+      BUG_REPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
       ANSI_COLOR = "0;38;2;80;220;255";
     };
   };
@@ -300,7 +321,7 @@ in
     (final: prev: {
       scenefx-0_5 = final.callPackage ./pkgs/scenefx-0_5.nix {};
       mango = final.callPackage ./pkgs/mango.nix {};
-      modularity = final.callPackage ./pkgs/modularity.nix {};
+      modularity = final.callPackage ./pkgs/modularity.nix { inherit modularitySrc; };
       moducpp-anix = final.callPackage ./pkgs/moducpp-anix.nix {
         moducppAnixSrc = moducppAnixTool;
       };
@@ -370,7 +391,7 @@ in
     ethernet.macAddress = lib.mkDefault "preserve";
     wifi.macAddress = lib.mkDefault "preserve";
   };
-  networking.modemmanager.enable = lib.mkDefault true;
+  networking.modemmanager.enable = lib.mkDefault config.abora.extras.mobileBroadband;
   security.polkit.enable = lib.mkDefault true;
   services.udisks2.enable = lib.mkDefault true;
   services.blueman.enable = lib.mkDefault true;
@@ -404,12 +425,14 @@ in
     '';
   };
 
-  services.qemuGuest.enable = lib.mkDefault true;
-  services.spice-vdagentd.enable = lib.mkDefault true;
-  virtualisation.vmware.guest.enable = lib.mkDefault pkgs.stdenv.hostPlatform.isx86;
-  virtualisation.virtualbox.guest.enable = lib.mkDefault pkgs.stdenv.hostPlatform.isx86;
+  services.qemuGuest.enable = lib.mkDefault config.abora.extras.virtualizationGuests;
+  services.spice-vdagentd.enable = lib.mkDefault config.abora.extras.virtualizationGuests;
+  virtualisation.vmware.guest.enable =
+    lib.mkDefault (config.abora.extras.virtualizationGuests && pkgs.stdenv.hostPlatform.isx86);
+  virtualisation.virtualbox.guest.enable =
+    lib.mkDefault (config.abora.extras.virtualizationGuests && pkgs.stdenv.hostPlatform.isx86);
   virtualisation.hypervGuest.enable =
-    lib.mkDefault (pkgs.stdenv.hostPlatform.isx86 || pkgs.stdenv.hostPlatform.isAarch64);
+    lib.mkDefault (config.abora.extras.virtualizationGuests && (pkgs.stdenv.hostPlatform.isx86 || pkgs.stdenv.hostPlatform.isAarch64));
 
   fonts.packages = with pkgs; [
     noto-fonts
@@ -448,11 +471,16 @@ in
     (mkGrabCmd "grab-de")
     (mkGrabCmd "syspm")
     aboraApps
+    aboraCustomPackages
+    aboraAdoptNixos
+    aboraBuild
     aboraCommand
     aboraCheckFull
     anixCommand
     aboraConfig
     aboraDesktop
+    aboraGaming
+    aboraDotfilesImport
     aboraDoctor
     aboraHardwareTest
     aboraRecovery
@@ -472,24 +500,18 @@ in
     aboraThemeSync
     bashInteractive
     curl
-    dmidecode
-    ethtool
     feh
     fastfetch
-    gh
     git
-    htop
     iw
     jq
     libnotify
     moducpp-anix
     kdePackages.konsole
     linux-firmware
-    modemmanager
     nixosCommand
     pciutils
     mpg123
-    smartmontools
     updateCommand
     upgradeCommand
     rollbackCommand
@@ -505,7 +527,14 @@ in
     zenity
     swaybg
     zsh
-  ];
+  ] ++ lib.optionals config.abora.extras.diagnostics (with pkgs; [
+    dmidecode
+    ethtool
+    htop
+    smartmontools
+  ]) ++ lib.optionals config.abora.extras.mobileBroadband (with pkgs; [
+    modemmanager
+  ]);
 
   # Purely a desktop notification nudge (--notify --quiet); does not install
   # anything itself. Silently no-ops via `command -v` if TinyPM was never
@@ -598,8 +627,24 @@ in
         source = aboraScript;
         mode = "0755";
       };
+      "abora/build.sh" = {
+        source = buildScript;
+        mode = "0755";
+      };
+      "abora/adopt-nixos.sh" = {
+        source = adoptNixosScript;
+        mode = "0755";
+      };
       "abora/desktop.sh" = {
         source = desktopScript;
+        mode = "0755";
+      };
+      "abora/gaming.sh" = {
+        source = gamingScript;
+        mode = "0755";
+      };
+      "abora/dotfiles-import.sh" = {
+        source = dotfilesImportScript;
         mode = "0755";
       };
       "abora/doctor.sh" = {
@@ -630,6 +675,10 @@ in
         source = appManagerScript;
         mode = "0755";
       };
+      "abora/custom-packages.sh" = {
+        source = customPackagesScript;
+        mode = "0755";
+      };
       "abora/support-report.sh" = {
         source = supportReportScript;
         mode = "0755";
@@ -653,6 +702,7 @@ in
       "abora/mango/config.conf".source = mangoConfigFile;
       "mango/config.conf".text = lib.mkDefault mangoConfigText;
       "abora/tinypm".source = tinypmDir;
+      "abora/vendor/modularity".source = modularitySrc;
       # The generated /etc/nixos/flake.nix pins its nixpkgs input to
       # "path:/etc/abora/nixpkgs". Expose the build-time nixpkgs source here so
       # that path resolves on the installed system (the live ISO does the same).
@@ -680,7 +730,7 @@ in
         mode = "0755";
       };
       "motd".text = ''
-        Abora OS 2026.7.27
+        Abora OS v4 Everest
 
           grab <app>          install an app  (flatpak, nix, or snap)
           search <app>        find apps across all sources
@@ -688,6 +738,7 @@ in
           supdate             upgrade all installed apps
 
           abora welcome       first steps and quick actions
+          abora gaming        gaming layer status and Steam Big Picture helper
           abora doctor        check system health
           abora recovery      rollback and repair tools
           sudo abora update   rebuild and switch the system
@@ -828,10 +879,10 @@ in
         Opacity=0.84
       '';
       "issue".text = ''
-        Abora OS 2026.7.27
+        Abora OS v4 Everest
       '';
       "issue.net".text = ''
-        Abora OS 2026.7.27
+        Abora OS v4 Everest
       '';
     }
     // builtins.listToAttrs (
@@ -865,6 +916,7 @@ in
       "abora/docs".source = docsDir;
     }
     // lib.optionalAttrs (anixLanguagesDir != null) {
+      "abora/anix-languages".source = anixLanguagesDir;
       "anix/languages".source = anixLanguagesDir;
     }
     // lib.optionalAttrs (aboraLogoFile != null) {

@@ -1,4 +1,4 @@
-.PHONY: help iso iso-all iso-cosmic iso-hyprland iso-gnome iso-kde iso-other iso-local build-vm qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc doctor desktop-preview check check-desktops check-all preflight metadata release tinypm-package anix-package tinypm-image test-installer test-installer-tty test-installer-kitty test-welcome test-config
+.PHONY: help iso iso-all iso-cosmic iso-hyprland iso-gnome iso-kde iso-other iso-local build-vm run qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc doctor desktop-preview check check-desktops check-all preflight metadata release tinypm-package anix-package tinypm-image test-installer test-installer-tty test-installer-kitty test-welcome test-config
 
 help:
 	@echo "Usage: make <target>"
@@ -18,6 +18,7 @@ help:
 	@echo "  release          - Build the ISO, TinyPM package, ANIX package, and refresh the release bundle"
 	@echo "  build-vm         - Clean-checkout ISO build for a dedicated build VM (clones/pulls a fresh copy, ignores local changes)"
 	@echo "  qemu             - Boot the latest ISO in QEMU (graphical window)"
+	@echo "  run              - Alias for qemu"
 	@echo "  qemu-fresh       - Delete old disk image, then boot the ISO (clean install test)"
 	@echo "  qemu-disk        - Boot the installed QEMU hard drive without the ISO"
 	@echo "  qemu-serial      - Boot in headless mode — all output in this terminal"
@@ -75,6 +76,8 @@ build-vm:
 
 qemu:
 	./scripts/run-qemu.sh
+
+run: qemu
 
 qemu-fresh:
 	ABORA_QEMU_FRESH=1 ./scripts/run-qemu.sh
@@ -136,15 +139,30 @@ check-all:
 preflight:
 	./scripts/preflight.sh
 
+MODULARITY_VERSION ?= 7.0.0
+MODULARITY_ZIP_ROOT ?= Modularity-$(MODULARITY_VERSION)-Linux
+
 setup-modularity:
-	@[ -n "$(ZIP)" ] || { echo "Usage: make setup-modularity ZIP=/path/to/Modularity-1.0.0-Linux.zip"; exit 1; }
-	@echo "Extracting Modularity from $(ZIP)..."
-	@mkdir -p vendor/modularity/bin vendor/modularity/lib
-	@unzip -jo "$(ZIP)" "Modularity-1.0.0-Linux/bin/Modularity" -d vendor/modularity/bin/
-	@chmod +x vendor/modularity/bin/Modularity
-	@unzip -jo "$(ZIP)" "Modularity-1.0.0-Linux/bin/linux.x86_64/release/libPhysX.so" \
-	    "Modularity-1.0.0-Linux/bin/linux.x86_64/release/libPhysXCommon.so" \
-	    "Modularity-1.0.0-Linux/bin/linux.x86_64/release/libPhysXFoundation.so" \
-	    "Modularity-1.0.0-Linux/bin/linux.x86_64/release/libPhysXCooking.so" \
-	    -d vendor/modularity/lib/
-	@echo "Modularity ready at vendor/modularity/"
+	@[ -n "$(ZIP)" ] || { echo "Usage: make setup-modularity ZIP=/path/to/Modularity-$(MODULARITY_VERSION)-Linux.zip"; exit 1; }
+	@echo "Extracting Modularity V$(MODULARITY_VERSION) from $(ZIP)..."
+	@tmp="$$(mktemp -d)"; \
+	trap 'rm -rf "$$tmp"' EXIT; \
+	unzip -q "$(ZIP)" -d "$$tmp"; \
+	root="$$tmp/$(MODULARITY_ZIP_ROOT)"; \
+	if [ ! -d "$$root" ]; then \
+		root="$$(find "$$tmp" -mindepth 1 -maxdepth 1 -type d -iname 'Modularity*Linux*' | head -n 1)"; \
+	fi; \
+	[ -n "$$root" ] && [ -d "$$root" ] || { echo "Could not find Modularity Linux folder inside $(ZIP)"; exit 1; }; \
+	[ -x "$$root/bin/Modularity" ] || { echo "Missing executable: $$root/bin/Modularity"; exit 1; }; \
+	rm -rf vendor/modularity/bin vendor/modularity/lib; \
+	mkdir -p vendor/modularity/bin vendor/modularity/lib vendor/modularity/share/modularity; \
+	install -m 0755 "$$root/bin/Modularity" vendor/modularity/bin/Modularity; \
+	lib_dir="$$root/bin/linux.x86_64/release"; \
+	if [ -d "$$lib_dir" ]; then \
+		find "$$lib_dir" -maxdepth 1 -type f -name '*.so*' -exec cp {} vendor/modularity/lib/ \;; \
+	fi; \
+	if [ -d "$$root/share/modularity/Resources" ]; then \
+		rm -rf vendor/modularity/share/modularity/Resources; \
+		cp -R "$$root/share/modularity/Resources" vendor/modularity/share/modularity/Resources; \
+	fi
+	@echo "Modularity V$(MODULARITY_VERSION) ready at vendor/modularity/"

@@ -717,6 +717,14 @@ render_template() {
   ## Command: anix enable allowUnfree
   anix.allowUnfree = true;
 
+  ## Optional Abora Gaming layer.
+  ## Commands: anix enable gaming ; anix enable gaming.big-picture ; anix enable gaming.vulkan
+  anix.gaming.enable = false;
+  anix.gaming.bigPictureShortcut = true;
+  anix.gaming.bigPictureAutostart = false;
+  anix.gaming.gamescopeSession = true;
+  anix.gaming.vulkanTools = true;
+
   ## Modern Nix CLI and flakes.
   ## Command: anix enable experimentalNix
   anix.experimentalNix = true;
@@ -794,6 +802,7 @@ show_config() {
 
     local hostname timezone kb_console kb_xkb desktop wallpaper
     local allow_unfree tinypm bluetooth flatpak audio openssh gc shell
+    local gaming gaming_big_picture gaming_autostart gaming_gamescope gaming_vulkan
     hostname="$(read_anix_option "hostname")"
     timezone="$(read_anix_option "timezone")"
     kb_console="$(read_anix_option "keyboard.console")"
@@ -808,6 +817,11 @@ show_config() {
     audio="$(sed -nE 's|^[[:space:]]*anix\.services\.audio[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
     openssh="$(sed -nE 's|^[[:space:]]*anix\.services\.openssh[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
     gc="$(sed -nE 's|^[[:space:]]*anix\.garbageCollect\.enable[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
+    gaming="$(read_anix_bool_option "gaming.enable")"
+    gaming_big_picture="$(read_anix_bool_option "gaming.bigPictureShortcut")"
+    gaming_autostart="$(read_anix_bool_option "gaming.bigPictureAutostart")"
+    gaming_gamescope="$(read_anix_bool_option "gaming.gamescopeSession")"
+    gaming_vulkan="$(read_anix_bool_option "gaming.vulkanTools")"
 
     abora_banner "ANIX" "${anix_file}"
 
@@ -824,6 +838,11 @@ show_config() {
     abora_kv "wallpaper"   "${wallpaper:-—}"
     abora_kv "shell"       "${shell:-—}"
     abora_kv "allowUnfree" "${allow_unfree:-—}"
+    abora_kv "gaming"      "${gaming:-—}"
+    abora_kv "big picture" "${gaming_big_picture:-—}"
+    abora_kv "gamescope"   "${gaming_gamescope:-—}"
+    abora_kv "vulkan tools" "${gaming_vulkan:-—}"
+    abora_kv "gaming autostart" "${gaming_autostart:-—}"
 
     abora_card_end
 
@@ -976,6 +995,11 @@ feature_to_anix_key() {
         thermald) printf 'power.thermald' ;;
         tlp) printf 'power.tlp' ;;
         tinypm) printf 'tinypm.enable' ;;
+        gaming) printf 'gaming.enable' ;;
+        gaming.big-picture|gaming.bigPictureShortcut|bigPicture|big-picture) printf 'gaming.bigPictureShortcut' ;;
+        gaming.autostart|gaming.bigPictureAutostart) printf 'gaming.bigPictureAutostart' ;;
+        gaming.gamescope|gaming.gamescopeSession|gamescope) printf 'gaming.gamescopeSession' ;;
+        gaming.vulkan|gaming.vulkanTools|vulkan|vulkanTools) printf 'gaming.vulkanTools' ;;
         garbageCollect|gc) printf 'garbageCollect.enable' ;;
         *) return 1 ;;
     esac
@@ -1003,7 +1027,7 @@ do_toggle() {
 
     if ! key="$(feature_to_anix_key "$name")"; then
         abora_error "Unknown feature: ${name}"
-        abora_dim_line "Known: allowUnfree experimentalNix bluetooth printing flatpak audio openssh thermald tlp tinypm garbageCollect"
+        abora_dim_line "Known: allowUnfree experimentalNix bluetooth printing flatpak audio openssh thermald tlp tinypm gaming gaming.big-picture gaming.autostart gaming.gamescope gaming.vulkan garbageCollect"
         exit 1
     fi
 
@@ -3054,6 +3078,9 @@ do_doctor() {
 usage() {
     abora_banner "ANIX v${anix_version}" "Nix without the homework."
     printf '  %bUsage%b\n\n' "$ABORA_WHITE" "$ABORA_NC"
+    printf '  %banix learn%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Show the short beginner command cheat sheet."
+    printf '\n'
     printf '  %banix status%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Show profile, generation, flake, Git, and snapshot state."
     printf '\n'
@@ -3154,6 +3181,50 @@ usage() {
     printf '\n'
 }
 
+do_learn() {
+    abora_banner "ANIX quick start" "Small commands for changing Abora without wrestling Nix."
+    abora_card_start "Read First"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix learn" "$ABORA_NC" "show this cheat sheet"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix status" "$ABORA_NC" "show profile, generation, Git, and snapshot state"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix show" "$ABORA_NC" "show the current ANIX settings"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix doctor" "$ABORA_NC" "check the ANIX/Nix config layer"
+    abora_card_end
+    printf '\n'
+
+    abora_card_start "Change Settings"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix set hostname my-pc" "$ABORA_NC" "rename the computer"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix set desktop cosmic" "$ABORA_NC" "choose cosmic, gnome, plasma, hyprland, or other"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix set timezone America/New_York" "$ABORA_NC" "set timezone"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix set wallpaper titlis-alps.jpg" "$ABORA_NC" "set wallpaper"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix enable flatpak" "$ABORA_NC" "enable a feature"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix disable openssh" "$ABORA_NC" "disable a feature"
+    abora_card_end
+    printf '\n'
+
+    abora_card_start "Packages"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix package add fastfetch" "$ABORA_NC" "add a Nix package"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix pkg remove fastfetch" "$ABORA_NC" "remove a Nix package"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix apply" "$ABORA_NC" "rebuild after ANIX changes"
+    abora_card_end
+    printf '\n'
+
+    abora_card_start "Try, Apply, Undo"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix diff nix" "$ABORA_NC" "preview package closure changes"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix test nix" "$ABORA_NC" "try a rebuild without making it boot default"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix switch nix abora" "$ABORA_NC" "switch to a named profile"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix rollback nix --now" "$ABORA_NC" "roll back immediately"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix save \"message\"" "$ABORA_NC" "save a local /etc/nixos snapshot"
+    abora_card_end
+    printf '\n'
+
+    abora_card_start "ANIX v2 Languages"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix language list" "$ABORA_NC" "show .anix, MAKO, ModuCPP, and custom adapters"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix run workstation.mko" "$ABORA_NC" "run a frontend file as one ANIX transaction"
+    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix diff-plan plan.json" "$ABORA_NC" "preview a plan before applying it"
+    abora_card_end
+    printf '\n'
+}
+
 show_wallpapers() {
     abora_banner "ANIX Wallpapers" "These names work with 'anix set wallpaper <name>'."
 
@@ -3174,6 +3245,7 @@ main() {
     case "$command" in
         version|--version|-v) shift || true; do_version "$@" ;;
         --gui|gui) shift || true; do_gui "$@" ;;
+        learn|cheatsheet|commands) shift || true; do_learn "$@" ;;
         status) shift || true; do_status "$@" ;;
         quickstart|start) shift || true; do_quickstart "$@" ;;
         docs|doc) shift || true; do_docs "$@" ;;

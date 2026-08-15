@@ -16,7 +16,7 @@ _abora_ui_resolve_version() {
         tr -d '[:space:]' < /etc/abora/VERSION
         return
     fi
-    printf '4.0'
+    printf 'v4 Everest'
 }
 
 ABORA_UI_VERSION="$(_abora_ui_resolve_version)"

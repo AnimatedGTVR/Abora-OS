@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - main
+      - edge
     tags:
       - "v*"
     paths:
@@ -42,9 +42,12 @@ jobs:
             *) abora_tag="v$abora_value" ;;
           esac
 
-          tinypm_version="$(
-            awk -F'"' '/^tinypm_version=/{print $2; exit}' vendor/tinypm/lib/core/common.sh
-          )"
+          tinypm_version=""
+          for common_sh in vendor/tinypm/lib/tinypm/core/common.sh vendor/tinypm/lib/core/common.sh; do
+            [ -f "$common_sh" ] || continue
+            tinypm_version="$(awk -F'"' '/^tinypm_version=/{print $2; exit}' "$common_sh")"
+            [ -n "$tinypm_version" ] && break
+          done
           tinypm_version="$(printf '%s' "${tinypm_version:-unknown}" | tr -cd '[:alnum:]._-')"
 
           echo "image=$image" >> "$GITHUB_OUTPUT"
