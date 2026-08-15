@@ -101,29 +101,35 @@ func (o PrototypeOptions) Run() error {
 		renderMiniHeader("Review")
 	}
 	renderPrototypeSummary(prototypePlan{
-		Edition:     state.edition,
-		Desktop:     state.edition,
-		Hostname:    state.hostname,
-		Username:    state.username,
-		FullName:    state.fullName,
-		PasswordSet: state.passwordHash != "",
-		Disk:        state.disk,
-		Layout:      state.layout,
-		Encryption:  state.encryption,
-		Filesystem:  state.filesystem,
-		Swap:        state.swap,
-		Timezone:    state.timezone,
-		Locale:      state.locale,
-		Keyboard:    state.keyboard,
-		Network:     state.network,
-		BootMode:    state.bootMode,
-		Kernel:      state.kernel,
-		Drivers:     state.drivers,
-		Updates:     state.updates,
-		Extras:      state.extras,
-		AppsTiming:  state.appsTiming,
-		FirstBoot:   state.firstBoot,
-		Dotfiles:    state.dotfiles,
+		Edition:          state.edition,
+		Desktop:          state.edition,
+		Hostname:         state.hostname,
+		Username:         state.username,
+		FullName:         state.fullName,
+		PasswordSet:      state.passwordHash != "",
+		Disk:             state.disk,
+		Layout:           state.layout,
+		Encryption:       state.encryption,
+		Filesystem:       state.filesystem,
+		Swap:             state.swap,
+		Timezone:         state.timezone,
+		Locale:           state.locale,
+		Keyboard:         state.keyboard,
+		Network:          state.network,
+		BootMode:         state.bootMode,
+		Kernel:           state.kernel,
+		Drivers:          state.drivers,
+		Updates:          state.updates,
+		Extras:           state.extras,
+		AppsTiming:       state.appsTiming,
+		AnixEnabled:      state.anixEnabled,
+		GamingEnabled:    state.gamingEnabled,
+		GamingBigPicture: state.gamingBigPicture,
+		GamingAutostart:  state.gamingAutostart,
+		GamingGamescope:  state.gamingGamescope,
+		GamingVulkan:     state.gamingVulkan,
+		FirstBoot:        state.firstBoot,
+		Dotfiles:         state.dotfiles,
 	})
 
 	if err := confirmInstall(reader, interactive); err != nil {
@@ -162,29 +168,35 @@ func (o PrototypeOptions) Run() error {
 
 	if o.Execute {
 		return runBackend(o.Backend, prototypePlan{
-			Edition:      edition,
-			Desktop:      edition,
-			Hostname:     hostname,
-			Username:     username,
-			FullName:     fullName,
-			PasswordHash: passwordHash,
-			Disk:         disk,
-			Layout:       layout,
-			Encryption:   encryption,
-			Filesystem:   filesystem,
-			Swap:         swap,
-			Timezone:     timezone,
-			Locale:       locale,
-			Keyboard:     keyboard,
-			Network:      network,
-			BootMode:     bootMode,
-			Kernel:       kernel,
-			Drivers:      drivers,
-			Updates:      updates,
-			Extras:       extras,
-			AppsTiming:   state.appsTiming,
-			FirstBoot:    firstBoot,
-			Dotfiles:     dotfiles,
+			Edition:          edition,
+			Desktop:          edition,
+			Hostname:         hostname,
+			Username:         username,
+			FullName:         fullName,
+			PasswordHash:     passwordHash,
+			Disk:             disk,
+			Layout:           layout,
+			Encryption:       encryption,
+			Filesystem:       filesystem,
+			Swap:             swap,
+			Timezone:         timezone,
+			Locale:           locale,
+			Keyboard:         keyboard,
+			Network:          network,
+			BootMode:         bootMode,
+			Kernel:           kernel,
+			Drivers:          drivers,
+			Updates:          updates,
+			Extras:           extras,
+			AppsTiming:       state.appsTiming,
+			AnixEnabled:      state.anixEnabled,
+			GamingEnabled:    state.gamingEnabled,
+			GamingBigPicture: state.gamingBigPicture,
+			GamingAutostart:  state.gamingAutostart,
+			GamingGamescope:  state.gamingGamescope,
+			GamingVulkan:     state.gamingVulkan,
+			FirstBoot:        firstBoot,
+			Dotfiles:         dotfiles,
 		})
 	}
 
@@ -205,29 +217,35 @@ func (o PrototypeOptions) Run() error {
 // shared by every step function so that later steps (and going back to
 // re-visit an earlier one) can see previously entered values.
 type wizardState struct {
-	edition        string
-	hostname       string
-	disk           string
-	username       string
-	fullName       string
-	passwordHash   string
-	timezoneRegion string
-	timezone       string
-	locale         string
-	keyboard       string
-	network        string
-	layout         string
-	encryption     string
-	filesystem     string
-	swap           string
-	bootMode       string
-	kernel         string
-	drivers        string
-	updates        string
-	extras         string
-	appsTiming     string
-	firstBoot      string
-	dotfiles       string
+	edition          string
+	hostname         string
+	disk             string
+	username         string
+	fullName         string
+	passwordHash     string
+	timezoneRegion   string
+	timezone         string
+	locale           string
+	keyboard         string
+	network          string
+	layout           string
+	encryption       string
+	filesystem       string
+	swap             string
+	bootMode         string
+	kernel           string
+	drivers          string
+	updates          string
+	extras           string
+	appsTiming       string
+	anixEnabled      string
+	gamingEnabled    string
+	gamingBigPicture string
+	gamingAutostart  string
+	gamingGamescope  string
+	gamingVulkan     string
+	firstBoot        string
+	dotfiles         string
 }
 
 // navResult tells runWizard which direction to move after a step completes.
@@ -275,6 +293,8 @@ func runWizard(o PrototypeOptions, st *wizardState, reader *bufio.Reader, intera
 		{"Software", stepUpdates},
 		{"Software", stepExtras},
 		{"Software", stepAppsTiming},
+		{"Software", stepAnix},
+		{"Software", stepGaming},
 		{"Software", stepFirstBoot},
 		{"Dotfiles", stepDotfiles},
 	}
@@ -1017,6 +1037,57 @@ func stepAppsTiming(o PrototypeOptions, st *wizardState, reader *bufio.Reader, i
 	return navNext, nil
 }
 
+// Mirrors abora-installer.sh's step_options ANIX Helper Layer choice.
+func stepAnix(o PrototypeOptions, st *wizardState, reader *bufio.Reader, interactive bool, dir navResult) (navResult, error) {
+	value, nav, err := selectChoiceNav(reader, interactive, "ANIX Helper Layer", []choiceItem{
+		{Label: "Enable ANIX (recommended)", Value: "yes"},
+		{Label: "Disable ANIX - bare Abora/NixOS", Value: "no"},
+	}, true)
+	if err != nil {
+		return navNext, err
+	}
+	if nav == navBack {
+		return navBack, nil
+	}
+	st.anixEnabled = value
+	return navNext, nil
+}
+
+// Mirrors abora-installer.sh's step_options Gaming Layer choice. Each
+// preset maps to the same field combination as the bash installer's
+// case statement, since these five fields feed abora.gaming.* options
+// independently (enable, Big Picture shortcut, autostart, Gamescope
+// session, Vulkan tools).
+func stepGaming(o PrototypeOptions, st *wizardState, reader *bufio.Reader, interactive bool, dir navResult) (navResult, error) {
+	value, nav, err := selectChoiceNav(reader, interactive, "Gaming Layer", []choiceItem{
+		{Label: "Skip gaming setup - smallest install", Value: "skip"},
+		{Label: "Desktop gaming - Steam, GameMode, MangoHud, Vulkan", Value: "desktop"},
+		{Label: "Desktop gaming + Big Picture shortcut", Value: "desktop-bp"},
+		{Label: "Big Picture console mode - Gamescope login session", Value: "console"},
+	}, true)
+	if err != nil {
+		return navNext, err
+	}
+	if nav == navBack {
+		return navBack, nil
+	}
+	switch value {
+	case "desktop":
+		st.gamingEnabled, st.gamingBigPicture, st.gamingAutostart, st.gamingGamescope, st.gamingVulkan =
+			"yes", "no", "no", "no", "yes"
+	case "desktop-bp":
+		st.gamingEnabled, st.gamingBigPicture, st.gamingAutostart, st.gamingGamescope, st.gamingVulkan =
+			"yes", "yes", "no", "no", "yes"
+	case "console":
+		st.gamingEnabled, st.gamingBigPicture, st.gamingAutostart, st.gamingGamescope, st.gamingVulkan =
+			"yes", "yes", "no", "yes", "yes"
+	default:
+		st.gamingEnabled, st.gamingBigPicture, st.gamingAutostart, st.gamingGamescope, st.gamingVulkan =
+			"no", "no", "no", "no", "no"
+	}
+	return navNext, nil
+}
+
 func stepFirstBoot(o PrototypeOptions, st *wizardState, reader *bufio.Reader, interactive bool, dir navResult) (navResult, error) {
 	value, nav, err := selectChoiceNav(reader, interactive, "First boot", []choiceItem{
 		{Label: "Show Abora welcome app", Value: "welcome"},
@@ -1161,30 +1232,36 @@ type choiceItem struct {
 }
 
 type prototypePlan struct {
-	Edition      string
-	Desktop      string
-	Hostname     string
-	Username     string
-	FullName     string
-	PasswordSet  bool
-	PasswordHash string
-	Disk         string
-	Layout       string
-	Encryption   string
-	Filesystem   string
-	Swap         string
-	Timezone     string
-	Locale       string
-	Keyboard     string
-	Network      string
-	BootMode     string
-	Kernel       string
-	Drivers      string
-	Updates      string
-	Extras       string
-	AppsTiming   string
-	FirstBoot    string
-	Dotfiles     string
+	Edition          string
+	Desktop          string
+	Hostname         string
+	Username         string
+	FullName         string
+	PasswordSet      bool
+	PasswordHash     string
+	Disk             string
+	Layout           string
+	Encryption       string
+	Filesystem       string
+	Swap             string
+	Timezone         string
+	Locale           string
+	Keyboard         string
+	Network          string
+	BootMode         string
+	Kernel           string
+	Drivers          string
+	Updates          string
+	Extras           string
+	AppsTiming       string
+	AnixEnabled      string
+	GamingEnabled    string
+	GamingBigPicture string
+	GamingAutostart  string
+	GamingGamescope  string
+	GamingVulkan     string
+	FirstBoot        string
+	Dotfiles         string
 }
 
 func renderPrototypeSummary(plan prototypePlan) {
@@ -1201,7 +1278,8 @@ func renderPrototypeSummary(plan prototypePlan) {
 		{"Network", plan.Network}, {"Boot", plan.BootMode},
 		{"Kernel", plan.Kernel}, {"Drivers", plan.Drivers},
 		{"Updates", plan.Updates}, {"Extras", plan.Extras},
-		{"Apps timing", plan.AppsTiming},
+		{"Apps timing", plan.AppsTiming}, {"ANIX", plan.AnixEnabled},
+		{"Gaming", present(plan.GamingEnabled == "yes")},
 		{"First boot", plan.FirstBoot}, {"Dotfiles", plan.Dotfiles},
 	}
 	for i := 0; i < len(rows); i += 2 {
@@ -1449,7 +1527,12 @@ func writeBatchParams(plan prototypePlan) (string, error) {
 		"starter_apps_bundle":       plan.Extras,
 		"starter_apps_label":        appsLabel,
 		"install_apps_during_setup": mapChoice(plan.AppsTiming, map[string]string{"during": "yes", "after": "no"}, "no"),
-		"anix_enabled":              "yes",
+		"anix_enabled":              mapChoice(plan.AnixEnabled, map[string]string{"yes": "yes", "no": "no"}, "yes"),
+		"gaming_enabled":            mapChoice(plan.GamingEnabled, map[string]string{"yes": "yes", "no": "no"}, "no"),
+		"gaming_big_picture":        mapChoice(plan.GamingBigPicture, map[string]string{"yes": "yes", "no": "no"}, "no"),
+		"gaming_autostart":          mapChoice(plan.GamingAutostart, map[string]string{"yes": "yes", "no": "no"}, "no"),
+		"gaming_gamescope":          mapChoice(plan.GamingGamescope, map[string]string{"yes": "yes", "no": "no"}, "no"),
+		"gaming_vulkan":             mapChoice(plan.GamingVulkan, map[string]string{"yes": "yes", "no": "no"}, "no"),
 		"github_identity":           "Skipped",
 		"user_password_hash":        plan.PasswordHash,
 		"root_password_hash":        plan.PasswordHash,
@@ -1470,6 +1553,8 @@ func batchKeys() []string {
 		"xkb_layout_value", "locale_value", "language_label", "desktop_profile",
 		"desktop_label", "desktop_variant_id", "gpu_value", "starter_apps_bundle",
 		"starter_apps_label", "install_apps_during_setup", "anix_enabled",
+		"gaming_enabled", "gaming_big_picture", "gaming_autostart",
+		"gaming_gamescope", "gaming_vulkan",
 		"github_identity", "user_password_hash", "root_password_hash",
 		"root_password_mode", "dotfiles_url",
 	}
