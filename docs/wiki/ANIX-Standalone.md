@@ -5,6 +5,15 @@ Standalone](#branding-standalone) and [Desktop Config
 Preview](#desktop-config-preview) below for pulling in other Abora features
 the same way.
 
+This page is for pulling in *just* ANIX (or branding, or a single desktop
+config) as an ordinary flake input. If you want the full `abora`/`anix`
+command set and branding on your existing NixOS install in one step
+instead, see [Existing NixOS Systems](Installation.md#existing-nixos-systems)
+in the Installation guide — `curl -sSL
+https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/scripts/abora-adopt-bootstrap.sh
+| bash` walks through a couple of questions and shows the plan before
+changing anything.
+
 ## Flake Install
 
 Add this repository as an input and use both the module and package:

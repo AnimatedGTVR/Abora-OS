@@ -107,19 +107,31 @@ adoption path instead of the ISO installer. It keeps `/home`, users, existing
 packages, and your current desktop config, then imports Abora modules with
 `desktop = "none"` by default.
 
+The easiest way to start it is a single command — it clones the repo (or
+updates an existing checkout) and hands off to the real wizard, which asks
+a couple of questions and shows the exact plan before touching anything:
+
+```sh
+curl -sSL https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/scripts/abora-adopt-bootstrap.sh | bash
+```
+
+That's equivalent to cloning yourself and running the wizard directly:
+
 ```sh
 git clone https://github.com/AnimatedGTVR/Abora-OS.git
 cd Abora-OS
 ./abora adopt-nixos
-sudo ./abora adopt-nixos --apply
-sudo nixos-rebuild test
-sudo nixos-rebuild switch
 ```
 
-To opt into an Abora desktop profile during adoption:
+Either way, the wizard asks for a desktop profile (blank keeps your current
+one) and whether to enable Abora Gaming, shows the plan, and only writes
+anything after you confirm — re-running with `sudo` itself, if needed, once
+you say yes. Prefer scripting it instead? Every wizard question has a flag:
 
 ```sh
-sudo ./abora adopt-nixos --apply --desktop gnome
+sudo ./abora adopt-nixos --apply --desktop gnome --gaming
+sudo nixos-rebuild test
+sudo nixos-rebuild switch
 ```
 
 The command writes a backup under `/etc/nixos/abora-backups/` before changing

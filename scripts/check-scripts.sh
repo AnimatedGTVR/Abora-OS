@@ -16,6 +16,7 @@ bash_scripts=(
   "scripts/abora-custom-packages.sh"
   "scripts/abora.sh"
   "scripts/abora-adopt-nixos.sh"
+  "scripts/abora-adopt-bootstrap.sh"
   "scripts/abora-boot.sh"
   "scripts/abora-build.sh"
   "scripts/abora-check-full.sh"
@@ -588,6 +589,30 @@ if printf '%s' "$adopt_help_out" | grep -q 'abora adopt-nixos' \
   pass "runtime: existing NixOS adoption path is non-destructive by default"
 else
   fail "runtime: existing NixOS adoption path is non-destructive by default"
+fi
+
+# The interactive wizard (run with zero args) is a real, separate code path
+# from the flag-based one above -- exercise it for real rather than just
+# grepping source, same as the rest of this file's "runtime:" checks.
+tmp_adopt_wizard="$(mktemp -d)"
+printf '{ ... }:\n{\n}\n' > "$tmp_adopt_wizard/configuration.nix"
+adopt_wizard_out="$(
+  printf 'gnome\ny\nn\n' \
+    | ABORA_ASSUME_NIXOS=1 ABORA_SYSTEM_CONFIG="$tmp_adopt_wizard" \
+      scripts/abora-adopt-nixos.sh 2>&1
+)"
+rm -rf "$tmp_adopt_wizard"
+if printf '%s' "$adopt_wizard_out" | grep -q 'Abora NixOS Adoption Wizard' \
+  && printf '%s' "$adopt_wizard_out" | grep -q 'Desktop profile : gnome' \
+  && printf '%s' "$adopt_wizard_out" | grep -q 'Gaming layer    : enabled' \
+  && printf '%s' "$adopt_wizard_out" | grep -q 'No changes made' \
+  && grep -q 'run_interactive_wizard' scripts/abora-adopt-nixos.sh \
+  && grep -q 'abora.gaming.enable = \$(' scripts/abora-adopt-nixos.sh \
+  && grep -q 'exec sudo "\$0" --apply' scripts/abora-adopt-nixos.sh \
+  && grep -q 'exec "\$clone_dir/abora" adopt-nixos' scripts/abora-adopt-bootstrap.sh; then
+  pass "runtime: adopt-nixos interactive wizard asks desktop/gaming and confirms before applying"
+else
+  fail "runtime: adopt-nixos interactive wizard asks desktop/gaming and confirms before applying"
 fi
 
 tmp_bad_upstream="$(mktemp -d)"

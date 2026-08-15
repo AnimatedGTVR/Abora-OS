@@ -9,25 +9,30 @@ repo_dir="$(CDPATH= cd -- "$script_dir/.." && pwd)"
 usage() {
   cat <<'EOF'
 Usage:
-  abora adopt-nixos [--apply] [--desktop PROFILE] [--config-dir DIR]
+  abora adopt-nixos [--apply] [--desktop PROFILE] [--gaming] [--config-dir DIR]
 
 Add Abora OS to an existing NixOS install without erasing /home or replacing
 the user's current desktop/app configuration.
 
-By default this is a dry run. Pass --apply to copy Abora modules into the
-existing NixOS config and add a tiny import file.
+Run with no arguments at all for an interactive wizard that asks a couple of
+questions (desktop profile, gaming layer) and confirms before applying
+anything. Pass any flag to skip straight to the scripted, non-interactive
+path instead -- by default that's a dry run; pass --apply to copy Abora
+modules into the existing NixOS config and add a tiny import file.
 
 Examples:
   git clone https://github.com/AnimatedGTVR/Abora-OS.git
   cd Abora-OS
   ./abora adopt-nixos
   sudo ./abora adopt-nixos --apply
-  sudo ./abora adopt-nixos --apply --desktop gnome
+  sudo ./abora adopt-nixos --apply --desktop gnome --gaming
 EOF
 }
 
 apply=0
 desktop="none"
+gaming_enable=0
+had_args=$#
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -39,6 +44,10 @@ while [[ $# -gt 0 ]]; do
       [[ -n "${2:-}" ]] || { printf 'abora adopt-nixos: --desktop needs a profile\n' >&2; exit 2; }
       desktop="$2"
       shift 2
+      ;;
+    --gaming)
+      gaming_enable=1
+      shift
       ;;
     --config-dir)
       [[ -n "${2:-}" ]] || { printf 'abora adopt-nixos: --config-dir needs a directory\n' >&2; exit 2; }
@@ -68,23 +77,23 @@ valid_desktop() {
   esac
 }
 
-valid_desktop "$desktop" || {
-  printf 'abora adopt-nixos: unknown desktop profile: %s\n' "$desktop" >&2
-  exit 2
-}
+# Non-interactive path (any flag given at all) validates desktop up front,
+# same as before. Interactive mode (no flags) asks for it later, inside
+# run_interactive_wizard, once print_plan exists to show the result.
+if [[ "$had_args" -gt 0 ]]; then
+  valid_desktop "$desktop" || {
+    printf 'abora adopt-nixos: unknown desktop profile: %s\n' "$desktop" >&2
+    exit 2
+  }
+fi
 
-if [[ ! -f /etc/os-release ]] || ! grep -qi '^ID=.*nixos' /etc/os-release; then
+if [[ "${ABORA_ASSUME_NIXOS:-0}" != 1 ]] && { [[ ! -f /etc/os-release ]] || ! grep -qi '^ID=.*nixos' /etc/os-release; }; then
   printf 'abora adopt-nixos: this command is for existing NixOS systems.\n' >&2
   exit 1
 fi
 
 if [[ ! -d "$config_dir" ]]; then
   printf 'abora adopt-nixos: config directory not found: %s\n' "$config_dir" >&2
-  exit 1
-fi
-
-if [[ "$apply" == 1 && "${EUID:-$(id -u)}" != 0 ]]; then
-  printf 'abora adopt-nixos: run with sudo when using --apply.\n' >&2
   exit 1
 fi
 
@@ -103,10 +112,59 @@ print_plan() {
   printf '  Source checkout : %s\n' "$repo_dir"
   printf '  NixOS config    : %s\n' "$config_dir"
   printf '  Desktop profile : %s\n' "$desktop"
+  printf '  Gaming layer    : %s\n' "$([[ "$gaming_enable" == 1 ]] && printf 'enabled' || printf 'off')"
   printf '\n'
   printf 'This will keep your existing /home, users, packages, and desktop config.\n'
   printf 'It copies Abora modules to %s/abora and writes %s.\n' "$config_dir" "$target_import"
   printf 'Default desktop "none" means Abora will not replace your current desktop.\n'
+}
+
+# Interactive wizard: only when the command is run bare (no flags at all),
+# so every scripted/automated use of this command keeps working exactly as
+# before. Asks the two questions that actually change the generated config
+# (desktop, gaming), shows the same plan the scripted path would via
+# print_plan, and requires an explicit "yes" before touching anything.
+run_interactive_wizard() {
+  printf 'Abora NixOS Adoption Wizard\n'
+  printf '%s\n\n' "----------------------------------------"
+  printf 'This adds ANIX and Abora tools to your existing NixOS system.\n'
+  printf 'Your users, home directories, and current desktop config are kept as-is\n'
+  printf 'unless you choose a desktop profile below.\n\n'
+
+  printf 'Desktop profile to let Abora manage (leave blank to keep your current one):\n'
+  printf '  none gnome plasma hyprland sway xfce cinnamon mate budgie lxqt pantheon\n'
+  printf '  i3 awesome openbox niri river qtile bspwm fluxbox icewm herbstluftwm\n'
+  printf '  cosmic mangowm\n'
+  printf 'Desktop [none]: '
+  read -r answer_desktop || answer_desktop=""
+  desktop="${answer_desktop:-none}"
+  valid_desktop "$desktop" || {
+    printf 'abora adopt-nixos: unknown desktop profile: %s\n' "$desktop" >&2
+    exit 2
+  }
+
+  printf '\nEnable the Abora Gaming layer (Steam, GameMode, MangoHud, Vulkan tools)? [y/N]: '
+  read -r answer_gaming || answer_gaming=""
+  case "$answer_gaming" in
+    y|Y|yes|Yes|YES) gaming_enable=1 ;;
+    *) gaming_enable=0 ;;
+  esac
+
+  printf '\n'
+  print_plan
+  printf '\n'
+
+  printf 'Apply these changes now? [y/N]: '
+  read -r answer_apply || answer_apply=""
+  case "$answer_apply" in
+    y|Y|yes|Yes|YES) apply=1 ;;
+    *)
+      printf '\nNo changes made. Re-run this wizard anytime, or use flags directly:\n'
+      printf '  sudo ./abora adopt-nixos --apply --desktop %s%s\n' \
+        "$desktop" "$([[ "$gaming_enable" == 1 ]] && printf ' --gaming')"
+      exit 0
+      ;;
+  esac
 }
 
 copy_if_exists() {
@@ -133,11 +191,23 @@ ensure_import_in_configuration() {
   fi
 }
 
-print_plan
+if [[ "$had_args" -eq 0 ]]; then
+  run_interactive_wizard
+else
+  print_plan
+  if [[ "$apply" != 1 ]]; then
+    printf '\nDry run only. Re-run with --apply to make these changes.\n'
+    exit 0
+  fi
+fi
 
-if [[ "$apply" != 1 ]]; then
-  printf '\nDry run only. Re-run with --apply to make these changes.\n'
-  exit 0
+if [[ "$apply" == 1 && "${EUID:-$(id -u)}" != 0 ]]; then
+  if [[ "$had_args" -eq 0 ]]; then
+    printf '\nRe-running with sudo to apply changes...\n'
+    exec sudo "$0" --apply --desktop "$desktop" $([[ "$gaming_enable" == 1 ]] && printf -- '--gaming') --config-dir "$config_dir"
+  fi
+  printf 'abora adopt-nixos: run with sudo when using --apply.\n' >&2
+  exit 1
 fi
 
 timestamp="$(date +%Y%m%d-%H%M%S)"
@@ -203,6 +273,7 @@ cat > "$target_import" <<EOF
   # - set abora.user.name later only if you want Abora to manage that user
   abora.user.name = null;
   abora.desktop = "$desktop";
+  abora.gaming.enable = $([[ "$gaming_enable" == 1 ]] && printf 'true' || printf 'false');
 }
 EOF
 
