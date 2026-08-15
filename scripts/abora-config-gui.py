@@ -73,7 +73,7 @@ def sudo_prefix() -> list[str]:
 def read_setting(key: str) -> str:
     if not LOCAL_MODULE.exists():
         return ''
-    pattern = re.compile(r'^\s*abora\.' + re.escape(key.replace('.', r'\.')) + r'\s*=\s*"([^"]*)"', re.MULTILINE)
+    pattern = re.compile(r'^\s*abora\.' + re.escape(key) + r'\s*=\s*"([^"]*)"', re.MULTILINE)
     match = pattern.search(LOCAL_MODULE.read_text(errors='replace'))
     return match.group(1) if match else ''
 
@@ -81,7 +81,7 @@ def read_setting(key: str) -> str:
 def read_bool_setting(key: str, default: bool = False) -> bool:
     if not LOCAL_MODULE.exists():
         return default
-    pattern = re.compile(r'^\s*abora\.' + re.escape(key.replace('.', r'\.')) + r'\s*=\s*(true|false)', re.MULTILINE)
+    pattern = re.compile(r'^\s*abora\.' + re.escape(key) + r'\s*=\s*(true|false)', re.MULTILINE)
     match = pattern.search(LOCAL_MODULE.read_text(errors='replace'))
     if not match:
         return default

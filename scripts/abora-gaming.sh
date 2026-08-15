@@ -102,6 +102,10 @@ enable_gaming() {
 
 disable_gaming() {
   set_config_bool gaming.enable false
+  set_config_bool gaming.bigPictureShortcut false
+  set_config_bool gaming.bigPictureAutostart false
+  set_config_bool gaming.gamescopeSession false
+  set_config_bool gaming.vulkanTools false
 }
 
 print_status_row() {

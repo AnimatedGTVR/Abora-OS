@@ -788,16 +788,20 @@ ensure_anix_file() {
     run_as_root bash -c "$(printf 'cat > %q <<'"'"'EOF'"'"'\n%s\nEOF' "$anix_file" "$(render_template)")"
 }
 
-# Older anix.nix files were rendered with a bare `{ ... }:` module header,
+# Older anix.nix files were rendered with a bare `{ ... }:` module header
+# (or a user may have hand-edited it to something like `{ lib, ... }:`),
 # which breaks the moment the body references `pkgs` (as `anix.packages`/
-# `anix.fonts` do). This upgrades just that one header line in place, on an
-# already-existing user file, without touching anything else they've edited.
+# `anix.fonts` do). This adds `pkgs, ` to whatever single-line arg header is
+# there, on an already-existing user file, without touching anything else
+# they've edited (existing bound names like `lib` are preserved).
 repair_anix_module_args() {
     [[ -f "$anix_file" ]] || return 0
-    if grep -Eq '^[[:space:]]*\{[[:space:]]*\.\.\.[[:space:]]*\}:[[:space:]]*$' "$anix_file" \
-        && grep -Eq 'with[[:space:]]+pkgs[[:space:]]*;' "$anix_file"; then
-        run_as_root sed -i -E '0,/^[[:space:]]*\{[[:space:]]*\.\.\.[[:space:]]*\}:[[:space:]]*$/s//{ pkgs, ... }:/' "$anix_file"
-    fi
+    grep -Eq 'with[[:space:]]+pkgs[[:space:]]*;' "$anix_file" || return 0
+    local header
+    header="$(grep -m1 -E '^[[:space:]]*\{[^{}]*\}:[[:space:]]*$' "$anix_file")"
+    [[ -n "$header" ]] || return 0
+    printf '%s' "$header" | grep -Eq '(^|[^A-Za-z0-9_])pkgs([^A-Za-z0-9_]|$)' && return 0
+    run_as_root sed -i -E '0,/^([[:space:]]*)\{([[:space:]]*)/s//\1{ pkgs, /' "$anix_file"
 }
 
 # All values here are read back out with sed rather than a real Nix parser
@@ -2440,8 +2444,8 @@ apply_plan_json() {
     ensure_anix_file
     local real_anix_file="$anix_file"
     local staged_anix_file
-    staged_anix_file="$(mktemp "${real_anix_file}.plan.XXXXXX")"
-    cp -f "$real_anix_file" "$staged_anix_file"
+    staged_anix_file="$(run_as_root mktemp "${real_anix_file}.plan.XXXXXX")"
+    run_as_root cp -f "$real_anix_file" "$staged_anix_file"
     anix_file="$staged_anix_file"
 
     local i=0 op_rc=0 entry op field1 field2
@@ -2471,12 +2475,12 @@ apply_plan_json() {
     anix_file="$real_anix_file"
 
     if [[ "$op_rc" -ne 0 ]]; then
-        rm -f "$staged_anix_file"
+        run_as_root rm -f "$staged_anix_file"
         abora_error "Plan operation $((i + 1)) of ${count} failed; no changes were written to ${anix_file}."
         exit "$op_rc"
     fi
 
-    mv -f "$staged_anix_file" "$anix_file"
+    run_as_root mv -f "$staged_anix_file" "$anix_file"
 
     if [[ "$skip_confirm" != "yes" ]] && ! confirm "Apply this plan with 'nixos-rebuild switch'?" "no"; then
         abora_warn "Plan written to ${anix_file} but not applied — run 'anix apply' when ready."
@@ -2585,7 +2589,12 @@ do_diff_plan() {
                 printf '  %-7s package %s\n' "$label" "$field1"
                 ;;
             package.remove)
-                printf '  %-7s package %s\n' "REMOVE" "$field1"
+                if [[ -f "$anix_file" ]] && grep -Eq "anix\\.packages = with pkgs; \\[[^]]*([[:space:][])${field1}([[:space:]]|\\])" "$anix_file"; then
+                    label="REMOVE"
+                else
+                    label="SAME"
+                fi
+                printf '  %-7s package %s\n' "$label" "$field1"
                 ;;
         esac
     done

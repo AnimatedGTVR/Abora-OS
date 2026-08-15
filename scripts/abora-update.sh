@@ -12,8 +12,44 @@ if [[ ! -f "$ui_lib" && -f /etc/abora/ui.sh ]]; then
     ui_lib="/etc/abora/ui.sh"
 fi
 
-# shellcheck source=/dev/null
-source "$ui_lib"
+if [[ -f "$ui_lib" ]]; then
+    # shellcheck source=/dev/null
+    source "$ui_lib"
+else
+    # Minimal fallback UI -- used when abora-ui.sh isn't available (e.g. a
+    # bare checkout before install, or a corrupted /etc/abora).
+    ABORA_DIM=$'\033[38;5;242m'
+    ABORA_NC=$'\033[0m'
+    ABORA_CYAN=$'\033[38;5;44m'
+    ABORA_WHITE=$'\033[1;97m'
+    ABORA_BLUE=$'\033[38;5;33m'
+    ABORA_GREEN=$'\033[38;5;77m'
+    ABORA_YELLOW=$'\033[38;5;222m'
+    abora_banner()     { printf '\n  %b%s%b  %b%s%b\n\n' "$ABORA_WHITE" "${1:-}" "$ABORA_NC" "$ABORA_DIM" "${2:-}" "$ABORA_NC"; }
+    abora_info()       { printf '  %b·%b  %s\n' "$ABORA_CYAN" "$ABORA_NC" "$1"; }
+    abora_success()    { printf '  \033[38;5;77m✓\033[0m  \033[38;5;77m%s\033[0m\n' "$1"; }
+    abora_warn()       { printf '  \033[38;5;222m!\033[0m  \033[38;5;222m%s\033[0m\n' "$1"; }
+    abora_error()      { printf '  \033[38;5;203m✗\033[0m  \033[38;5;203m%s\033[0m\n' "$1" >&2; }
+    abora_step()       { printf '  \033[38;5;44m▸\033[0m  %s\n' "$1"; }
+    abora_dim_line()   { printf '  \033[38;5;242m%s\033[0m\n' "$1"; }
+    abora_card_start() { printf '  %b┌─ %s ─%b\n' "$ABORA_BLUE" "${1:-}" "$ABORA_NC"; }
+    abora_card_end()   { printf '  %b└────────%b\n' "$ABORA_BLUE" "$ABORA_NC"; }
+    abora_wu_banner()  { printf '\n  %b%s%b\n  %b%s%b\n\n' "$ABORA_WHITE" "${1:-}" "$ABORA_NC" "$ABORA_DIM" "${2:-}" "$ABORA_NC"; }
+    abora_wu_run() {
+        local wu_msg="$1" wu_log="$2" wu_status=0
+        shift 2
+        [[ "${1:-}" == "--" ]] && shift
+        abora_step "$wu_msg"
+        "$@" >"$wu_log" 2>&1 || wu_status=$?
+        if [[ "$wu_status" -eq 0 ]]; then
+            abora_success "$wu_msg"
+        else
+            abora_error "$wu_msg failed (exit $wu_status)"
+            tail -n 20 "$wu_log" 2>/dev/null >&2 || true
+        fi
+        return "$wu_status"
+    }
+fi
 
 config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
 command_name="${ABORA_UPDATE_COMMAND:-$(basename "$0")}"
@@ -1168,6 +1204,7 @@ sync_abora_files() {
     install -Dm0644 "$upstream_background" "$abora_dir/bootloader/background.png"
     install -Dm0644 "$limine_source" "$abora_dir/bootloader/limine-background.png"
     install -Dm0644 "$upstream_theme" "$abora_dir/bootloader/theme.txt"
+    rm -rf "$abora_dir/wallpapers" "$abora_dir/themes"
     mkdir -p "$abora_dir/wallpapers" "$abora_dir/themes" "$abora_dir/pkgs" "$abora_dir/tools"
     cp "$upstream_dir/assets/wallpapers/collection/"* "$abora_dir/wallpapers/"
     cp "$upstream_dir/assets/wallpaper-themes/"* "$abora_dir/themes/"

@@ -317,6 +317,14 @@ class WelcomeWindow(Adw.ApplicationWindow):
                 if line.startswith('ABORA_UPDATE_AVAILABLE\t'):
                     parts = line.split('\t')
                     available_ref = parts[2] if len(parts) > 2 else None
+            # Exit code 10 means "update available" (not a failure); 0 means
+            # up to date. Anything else is a real check failure -- e.g. an
+            # unresolvable channel -- and must not be reported as "up to
+            # date" just because no ABORA_UPDATE_AVAILABLE line was printed.
+            if result.returncode not in (0, 10):
+                error = result.stderr.strip()[-800:] or f'abora-update exited with status {result.returncode}'
+                GLib.idle_add(self._on_check_done, None, error)
+                return
             GLib.idle_add(self._on_check_done, available_ref, None)
         except Exception as exc:
             GLib.idle_add(self._on_check_done, None, str(exc))

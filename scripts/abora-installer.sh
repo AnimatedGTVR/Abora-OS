@@ -2951,7 +2951,16 @@ run_reconfig() {
             -e "s|i18n\.defaultLocale *= *\"[^\"]*\"|i18n.defaultLocale = \"${locale_value}\"|" \
             -e "s|time\.timeZone *= *\"[^\"]*\"|time.timeZone = \"${timezone_value}\"|" \
             -e "s|console\.keyMap *= *\"[^\"]*\"|console.keyMap = \"${keyboard_value}\"|" \
+            -e "s|abora\.desktop *= *\"[^\"]*\"|abora.desktop = \"${desktop_profile}\"|" \
+            -e "s|abora\.gpu *= *\"[^\"]*\"|abora.gpu = \"${gpu_value}\"|" \
             "$abora_local" 2>/dev/null || true
+        if [[ -n "$user_password_hash" ]]; then
+            local root_pw_patch="${root_password_hash:-!}"
+            sed -i \
+                -e "s|abora\.user\.hashedPassword *= *\"[^\"]*\"|abora.user.hashedPassword = \"${user_password_hash}\"|" \
+                -e "s|users\.users\.root\.hashedPassword *= *\"[^\"]*\"|users.users.root.hashedPassword = \"${root_pw_patch}\"|" \
+                "$abora_local" 2>/dev/null || true
+        fi
         set_nix_bool_assignment "$abora_local" "abora.gaming.enable" "$gaming_enabled"
         set_nix_bool_assignment "$abora_local" "abora.gaming.bigPictureShortcut" "$gaming_big_picture"
         set_nix_bool_assignment "$abora_local" "abora.gaming.bigPictureAutostart" "$gaming_autostart"

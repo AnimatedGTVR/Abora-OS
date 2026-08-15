@@ -12,8 +12,20 @@ if [[ ! -f "$ui_lib" && -f "$abora_dir/ui.sh" ]]; then
     ui_lib="$abora_dir/ui.sh"
 fi
 
-# shellcheck source=/dev/null
-source "$ui_lib"
+if [[ -f "$ui_lib" ]]; then
+    # shellcheck source=/dev/null
+    source "$ui_lib"
+else
+    # Minimal fallback UI -- used when abora-ui.sh isn't available (e.g. a
+    # bare checkout before install, or a corrupted /etc/abora).
+    ABORA_DIM=$'\033[38;5;242m'
+    ABORA_NC=$'\033[0m'
+    ABORA_WHITE=$'\033[1;97m'
+    abora_banner()  { printf '\n  %b%s%b  %b%s%b\n\n' "$ABORA_WHITE" "${1:-}" "$ABORA_NC" "$ABORA_DIM" "${2:-}" "$ABORA_NC"; }
+    abora_success() { printf '  \033[38;5;77m✓\033[0m  \033[38;5;77m%s\033[0m\n' "$1"; }
+    abora_warn()    { printf '  \033[38;5;222m!\033[0m  \033[38;5;222m%s\033[0m\n' "$1"; }
+    abora_error()   { printf '  \033[38;5;203m✗\033[0m  \033[38;5;203m%s\033[0m\n' "$1" >&2; }
+fi
 
 warnings=0
 failures=0
