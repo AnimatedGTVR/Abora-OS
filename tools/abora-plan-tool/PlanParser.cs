@@ -74,6 +74,11 @@ public static class PlanParser
                 : "";
 
             var errors = new List<string>();
+            if (HasControlChars(language))
+            {
+                errors.Add("language must not contain tab, newline, or carriage return characters.");
+            }
+
             var operations = new List<PlanOperation>();
             var index = 0;
             foreach (var entry in opsElement.EnumerateArray())
@@ -121,6 +126,10 @@ public static class PlanParser
                 {
                     errors.Add($"operation {index}: set requires a value");
                 }
+                else if (HasControlChars(value))
+                {
+                    errors.Add($"operation {index}: set value must not contain tab, newline, or carriage return characters");
+                }
                 operations.Add(new PlanOperation(op, key, value));
                 break;
             }
@@ -128,6 +137,10 @@ public static class PlanParser
             case "disable":
             {
                 var feature = GetString(entry, "feature");
+                if (HasControlChars(feature))
+                {
+                    errors.Add($"operation {index}: feature must not contain tab, newline, or carriage return characters");
+                }
                 operations.Add(new PlanOperation(op, feature, ""));
                 break;
             }
@@ -154,6 +167,14 @@ public static class PlanParser
         if (!entry.TryGetProperty(property, out var value)) return "";
         return value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : "";
     }
+
+    // Program.cs writes each field into a tab/newline-delimited line for
+    // scripts/anix.sh to split (`IFS=$'\t' read`, `mapfile` on '\n') -- a
+    // value containing one of these characters would corrupt that framing
+    // (truncating the value and/or injecting a bogus extra operation)
+    // instead of failing loudly.
+    private static bool HasControlChars(string s) =>
+        s.Any(c => c is '\t' or '\n' or '\r');
 
     private static bool IsValidPackageName(string name) =>
         name.Length > 0 && name.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '+' or '-');

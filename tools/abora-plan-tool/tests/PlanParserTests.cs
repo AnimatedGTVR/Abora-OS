@@ -82,6 +82,37 @@ public class PlanParserTests
     }
 
     [Fact]
+    public void RejectsSetValueContainingNewline()
+    {
+        // Program.cs writes "op\tfield1\tfield2" per line for anix.sh to
+        // split on tab/newline -- an embedded newline here would corrupt
+        // that framing (truncated value + a bogus extra operation) instead
+        // of failing loudly.
+        var json = """{"planVersion":1,"operations":[{"op":"set","key":"wallpaper","value":"foo\nbar"}]}""";
+        var result = PlanParser.Parse(json, V);
+        Assert.False(result.Success);
+        Assert.Contains(result.Errors, e => e.Contains("must not contain tab, newline"));
+    }
+
+    [Fact]
+    public void RejectsFeatureNameContainingTab()
+    {
+        var json = """{"planVersion":1,"operations":[{"op":"enable","feature":"blue\ttooth"}]}""";
+        var result = PlanParser.Parse(json, V);
+        Assert.False(result.Success);
+        Assert.Contains(result.Errors, e => e.Contains("must not contain tab, newline"));
+    }
+
+    [Fact]
+    public void RejectsLanguageContainingCarriageReturn()
+    {
+        var json = """{"planVersion":1,"language":"te\rst","operations":[{"op":"package.add","name":"firefox"}]}""";
+        var result = PlanParser.Parse(json, V);
+        Assert.False(result.Success);
+        Assert.Contains(result.Errors, e => e.Contains("language must not contain"));
+    }
+
+    [Fact]
     public void RejectsInvalidPackageName()
     {
         var json = """{"planVersion":1,"operations":[{"op":"package.add","name":"firefox; rm -rf /"}]}""";
