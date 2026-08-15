@@ -433,6 +433,7 @@ in
   environment.systemPackages = (with pkgs; [
     # ── Abora installer toolchain ────────────────────────────────────────────
     tinypmPackage
+    abora-update-resolver
     aboraApps
     aboraCustomPackages
     aboraAdoptNixos
@@ -668,11 +669,13 @@ in
       "abora/pkgs/scenefx-0_5.nix".source = ../pkgs/scenefx-0_5.nix;
       "abora/pkgs/modularity.nix".source = ../pkgs/modularity.nix;
       "abora/pkgs/moducpp-anix.nix".source = ../pkgs/moducpp-anix.nix;
+      "abora/pkgs/abora-update-resolver.nix".source = ../pkgs/abora-update-resolver.nix;
       "abora/tools/moducpp-anix" = {
         source = ../../tools/moducpp-anix;
         mode = "0755";
       };
       "abora/tinypm".source = tinypmDir;
+      "abora/update-resolver".source = ../../tools/abora-update-resolver;
       "abora/vendor/modularity".source = ../../vendor/modularity;
       "abora/docs".source = ../../docs;
       "abora/anix-languages".source = ../../assets/anix-languages;

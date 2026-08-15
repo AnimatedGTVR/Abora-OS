@@ -73,6 +73,7 @@ let
     else
       bootloaderDir + "/background.png";
   tinypmDir            = ./tinypm;
+  updateResolverDir    = ./update-resolver;
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
   # TinyPM was rewritten from a bash multicall tree to a real Rust crate
   # (see TinyPM's own CLAUDE.md: "the old Bash runtime was removed"). The
@@ -323,6 +324,9 @@ in
       moducpp-anix = final.callPackage ./pkgs/moducpp-anix.nix {
         moducppAnixSrc = moducppAnixTool;
       };
+      abora-update-resolver = final.callPackage ./pkgs/abora-update-resolver.nix {
+        resolverSrc = updateResolverDir;
+      };
     })
   ];
 
@@ -458,6 +462,7 @@ in
 
   environment.systemPackages = with pkgs; [
     tinypmPackage
+    abora-update-resolver
     aboraApps
     aboraCustomPackages
     aboraAdoptNixos
@@ -690,6 +695,7 @@ in
       "abora/mango/config.conf".source = mangoConfigFile;
       "mango/config.conf".text = lib.mkDefault mangoConfigText;
       "abora/tinypm".source = tinypmDir;
+      "abora/update-resolver".source = updateResolverDir;
       "abora/vendor/modularity".source = modularitySrc;
       # The generated /etc/nixos/flake.nix pins its nixpkgs input to
       # "path:/etc/abora/nixpkgs". Expose the build-time nixpkgs source here so

@@ -32,6 +32,16 @@ pre_alpha_mode="${ABORA_PRE_ALPHA_MODE:-0}"
 pre_alpha_ref="${ABORA_PRE_ALPHA_REF:-edge}"
 dry_run="${ABORA_DRY_RUN:-0}"
 git_fetch_timeout="${ABORA_GIT_FETCH_TIMEOUT:-300}"
+# The channel/version decision logic in resolve_update_ref/
+# guard_against_accidental_downgrade below is a real Native AOT C# binary
+# (tools/abora-update-resolver) -- see its Program.cs for why: it's a
+# decision tree over version strings and tags that was nested bash case/
+# sort -V string manipulation, ported to a real, unit-tested language. This
+# script still owns every bit of I/O (git ls-remote, reading VERSION,
+# printing colored UI text) and just shells out for the decision itself.
+# Defaults to relying on PATH (present via Nix systemPackages on any real
+# Abora system); override for local/test runs against an unpublished build.
+resolver_bin="${ABORA_UPDATE_RESOLVER_BIN:-abora-update-resolver}"
 effective_ref=""
 effective_ref_reason=""
 update_tmp_files=()
@@ -220,123 +230,78 @@ latest_tag_from_list() {
 # concrete git ref to update to (a tag or "edge" -- the repo's nightly
 # branch; see CLAUDE.md's Branch Policy, there is no "main"), setting
 # effective_ref and a human-readable effective_ref_reason for later
-# display. "stable" is the most involved: prefer the newest final tag
-# that's not older than what's installed, then fall back to a matching
-# demo/dev tag for the same release line, and only fall back to tracking
-# edge directly if neither exists yet.
+# display. All I/O (git ls-remote for tags/branch existence) happens here
+# in bash; the actual channel/tag decision -- "stable" is the most involved,
+# preferring the newest final tag not older than what's installed, then a
+# matching demo/dev tag, then edge -- is delegated to $resolver_bin (see its
+# definition above and tools/abora-update-resolver/UpdateResolver.cs).
 resolve_update_ref() {
-    local channel="$1" current_version="$2" tags final_tag demo_tag older_tag
+    local channel="$1" current_version="$2"
+    local tags="" edge_exists_flag=() fallback_flag=() output
 
     effective_ref=""
     effective_ref_reason=""
 
     if [[ "$fallback_mode" -eq 1 ]]; then
-        effective_ref="$fallback_ref"
-        effective_ref_reason="explicit fallback requested"
         allow_downgrade=1
-        return 0
+        fallback_flag=(--fallback-mode)
+    else
+        case "$channel" in
+            demo|dev|stable|"")
+                tags="$(list_release_tags || true)"
+                if [[ -z "$tags" ]]; then
+                    remote_ref_exists edge && edge_exists_flag=(--edge-exists)
+                fi
+                ;;
+        esac
     fi
 
-    case "$channel" in
-        pre-alpha|prealpha)
-            effective_ref="$pre_alpha_ref"
-            effective_ref_reason="pre-alpha build requested explicitly"
-            return 0
-            ;;
-        unstable)
-            effective_ref="edge"
-            effective_ref_reason="unstable channel tracks edge"
-            return 0
-            ;;
-        demo|dev)
-            tags="$(list_release_tags | while IFS= read -r tag; do is_demo_release_tag "$tag" && printf '%s\n' "$tag"; done || true)"
-            demo_tag="$(printf '%s\n' "$tags" | awk -v cur="$current_version" 'NF && $0 ~ ("^v?" cur) { print }' | latest_tag_from_list)"
-            if [[ -z "$demo_tag" ]]; then
-                demo_tag="$(printf '%s\n' "$tags" | latest_tag_from_list)"
-            fi
-            if [[ -n "$demo_tag" ]]; then
-                effective_ref="$demo_tag"
-                effective_ref_reason="demo channel selected latest demo/dev tag"
-                return 0
-            fi
-            ;;
-        stable|"")
-            tags="$(list_release_tags || true)"
-            if [[ -z "$tags" ]]; then
-                if remote_ref_exists edge; then
-                    effective_ref="edge"
-                    effective_ref_reason="stable channel could not read release tags; using edge"
-                    return 0
-                fi
-            fi
-            final_tag="$(
-                printf '%s\n' "$tags" \
-                    | grep -E '^v[0-9]+([.][0-9]+)*$' \
-                    | while IFS= read -r tag; do
-                        [[ -n "$tag" ]] || continue
-                        if ! version_lt "$(tag_base_version "$tag")" "$current_version"; then
-                            printf '%s\n' "$tag"
-                        fi
-                    done \
-                    | latest_tag_from_list
-            )"
-            if [[ -n "$final_tag" ]]; then
-                effective_ref="$final_tag"
-                effective_ref_reason="stable channel selected latest final tag not older than installed version"
-                return 0
-            fi
+    if ! output="$("$resolver_bin" resolve-ref \
+        --channel "$channel" \
+        --current-version "$current_version" \
+        --tags "$tags" \
+        "${edge_exists_flag[@]}" \
+        "${fallback_flag[@]}" \
+        --fallback-ref "$fallback_ref" \
+        --pre-alpha-ref "$pre_alpha_ref")"; then
+        abora_error "Could not resolve an Abora update ref for channel '${channel}'."
+        return 1
+    fi
 
-            demo_tag="$(
-                {
-                    printf '%s\n' "$tags" \
-                        | while IFS= read -r tag; do is_demo_release_tag "$tag" && printf '%s\n' "$tag"; done \
-                        | awk -v cur="$current_version" 'NF && $0 ~ ("^v?" cur) { print }' \
-                        | latest_tag_from_list
-                } || true
-            )"
-            if [[ -n "$demo_tag" ]]; then
-                effective_ref="$demo_tag"
-                effective_ref_reason="stable channel found no final tag for this release line; using matching demo/dev tag"
-                return 0
-            fi
+    effective_ref="${output%%$'\t'*}"
+    effective_ref_reason="${output#*$'\t'}"
 
-            older_tag="$(printf '%s\n' "$tags" | grep -E '^v[0-9]+([.][0-9]+)*$' | latest_tag_from_list)"
-            if [[ -n "$older_tag" ]]; then
-                effective_ref="edge"
-                effective_ref_reason="stable channel has no final tag newer than installed version; using edge"
-                return 0
-            fi
-            ;;
-        *)
-            abora_warn "Unknown channel '${channel}' — using unstable/edge." >&2
-            effective_ref="edge"
-            effective_ref_reason="unknown channel fallback to edge"
-            return 0
-            ;;
-    esac
-
-    abora_error "Could not resolve an Abora update ref for channel '${channel}'."
-    return 1
+    if [[ "$effective_ref_reason" == "unknown channel fallback to edge" ]]; then
+        abora_warn "Unknown channel '${channel}' — using unstable/edge." >&2
+    fi
 }
 
 # A normal `abora update` should never silently move a system backwards
 # (e.g. because a stable tag got deleted/retagged) — only an explicit
 # `abora fallback --release <tag>` (which sets allow_downgrade=1) or
-# tracking edge directly is allowed to move to an older version.
+# tracking edge directly is allowed to move to an older version. The
+# decision is delegated to $resolver_bin; only the user-facing error
+# message stays here.
 guard_against_accidental_downgrade() {
-    local current_version="$1" selected_ref="$2" selected_version
+    local current_version="$1" selected_ref="$2"
+    local allow_flag=()
 
-    [[ "$selected_ref" == "edge" || "$allow_downgrade" -eq 1 ]] && return 0
-    selected_version="$(tag_base_version "$selected_ref")"
-    if version_lt "$selected_version" "$current_version"; then
-        abora_error "Refusing accidental downgrade."
-        abora_error "  installed version : ${current_version}"
-        abora_error "  selected ref      : ${selected_ref}"
-        abora_error "  selected version  : ${selected_version}"
-        abora_error "Use an explicit fallback command to downgrade intentionally:"
-        abora_error "  sudo abora fallback --release ${selected_ref}"
-        return 1
+    [[ "$allow_downgrade" -eq 1 ]] && allow_flag=(--allow-downgrade)
+
+    if "$resolver_bin" guard-downgrade \
+        --current-version "$current_version" \
+        --selected-ref "$selected_ref" \
+        "${allow_flag[@]}"; then
+        return 0
     fi
+
+    abora_error "Refusing accidental downgrade."
+    abora_error "  installed version : ${current_version}"
+    abora_error "  selected ref      : ${selected_ref}"
+    abora_error "  selected version  : $(tag_base_version "$selected_ref")"
+    abora_error "Use an explicit fallback command to downgrade intentionally:"
+    abora_error "  sudo abora fallback --release ${selected_ref}"
+    return 1
 }
 
 # ── Usage ─────────────────────────────────────────────────────────────────────
@@ -807,6 +772,13 @@ release_has_source_build_helper() {
     ! version_lt "$(tag_base_version "$selected_ref")" "4.0"
 }
 
+release_has_update_resolver() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "edge" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
+}
+
 required_upstream_paths() {
     local selected_ref="${1:-edge}"
     cat <<'EOF'
@@ -895,6 +867,14 @@ EOF
 scripts/abora-build.sh
 scripts/abora-adopt-nixos.sh
 scripts/abora-custom-packages.sh
+EOF
+    fi
+
+    if release_has_update_resolver "$selected_ref"; then
+        cat <<'EOF'
+tools/abora-update-resolver/AboraUpdateResolver.csproj
+tools/abora-update-resolver/Program.cs
+nix/pkgs/abora-update-resolver.nix
 EOF
     fi
 }
@@ -1172,6 +1152,13 @@ sync_abora_files() {
     if [[ -f "$upstream_dir/tools/moducpp-anix" ]]; then
         copy_upstream_file "$upstream_dir/tools/moducpp-anix" "$abora_dir/tools/moducpp-anix"
         chmod 0755 "$abora_dir/tools/moducpp-anix" 2>/dev/null || true
+    fi
+    if [[ -f "$upstream_dir/nix/pkgs/abora-update-resolver.nix" ]]; then
+        copy_upstream_file "$upstream_dir/nix/pkgs/abora-update-resolver.nix" "$abora_dir/pkgs/abora-update-resolver.nix"
+    fi
+    if [[ -d "$upstream_dir/tools/abora-update-resolver" ]]; then
+        rm -rf "$abora_dir/update-resolver"
+        cp -R "$upstream_dir/tools/abora-update-resolver" "$abora_dir/update-resolver"
     fi
 
     if [[ ! -f "$abora_dir/apps.list" ]]; then

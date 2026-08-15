@@ -972,6 +972,7 @@ check_install_environment() {
         /etc/abora/pkgs/scenefx-0_5.nix
         /etc/abora/pkgs/modularity.nix
         /etc/abora/pkgs/moducpp-anix.nix
+        /etc/abora/pkgs/abora-update-resolver.nix
         /etc/abora/tools/moducpp-anix
         /etc/abora/installed-base.nix
         /etc/abora/abora-options.nix
@@ -980,6 +981,8 @@ check_install_environment() {
         /etc/abora/tinypm/Cargo.toml
         /etc/abora/tinypm/src/main.rs
         /etc/abora/tinypm/src/bin/grab.rs
+        /etc/abora/update-resolver/AboraUpdateResolver.csproj
+        /etc/abora/update-resolver/Program.cs
         /etc/abora/vendor/modularity
         /etc/abora/installer.sh
         /etc/abora/setup-launcher.sh
@@ -1960,6 +1963,7 @@ write_branding_assets() {
     cp_required /etc/abora/pkgs/scenefx-0_5.nix    "${root}/etc/nixos/abora/pkgs/scenefx-0_5.nix"
     cp_required /etc/abora/pkgs/modularity.nix     "${root}/etc/nixos/abora/pkgs/modularity.nix"
     cp_required /etc/abora/pkgs/moducpp-anix.nix   "${root}/etc/nixos/abora/pkgs/moducpp-anix.nix"
+    cp_required /etc/abora/pkgs/abora-update-resolver.nix "${root}/etc/nixos/abora/pkgs/abora-update-resolver.nix"
     cp_required /etc/abora/tools/moducpp-anix      "${root}/etc/nixos/abora/tools/moducpp-anix"
     cp_required /etc/abora/anix-module.nix         "${root}/etc/nixos/abora/anix-module.nix"
     cp_required /etc/abora/abora-options.nix       "${root}/etc/nixos/abora/abora-options.nix"
@@ -1983,6 +1987,11 @@ write_branding_assets() {
         # symlinks as symlinks.  No -L so we never follow absolute symlinks
         # that may exist in older live ISOs.
         cp -a /etc/abora/tinypm/. "${root}/etc/nixos/abora/tinypm/"
+    fi
+
+    if [[ -e /etc/abora/update-resolver ]]; then
+        mkdir -p "${root}/etc/nixos/abora/update-resolver"
+        cp -a /etc/abora/update-resolver/. "${root}/etc/nixos/abora/update-resolver/"
     fi
 
     if [[ -d /etc/abora/docs ]]; then

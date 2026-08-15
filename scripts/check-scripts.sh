@@ -95,6 +95,34 @@ fail() {
   failed=1
 }
 
+# ── abora-update-resolver (C# decision logic for abora-update.sh) ──────────────
+# The runtime tests further down that exercise resolve_update_ref/
+# guard_against_accidental_downgrade need a real built binary -- there's no
+# bash implementation to fall back to anymore (see scripts/abora-update.sh's
+# resolver_bin). A plain `dotnet build` (not the slower AOT publish used for
+# the real Nix package) is enough for behavioral testing.
+resolver_bin=""
+if command -v dotnet >/dev/null 2>&1; then
+  if MSBuildEnableWorkloadResolver=false dotnet build \
+      "$repo_dir/tools/abora-update-resolver/AboraUpdateResolver.csproj" \
+      -c Debug >/dev/null 2>&1; then
+    # scripts/abora-update.sh calls $resolver_bin as a single executable
+    # (matching how it's found on a real system, via PATH) -- this wrapper
+    # gives the "dotnet <dll>" invocation that single-executable shape.
+    resolver_wrapper="$(mktemp)"
+    printf '#!/usr/bin/env bash\nexec dotnet %q "$@"\n' \
+      "$repo_dir/tools/abora-update-resolver/bin/Debug/net10.0/abora-update-resolver.dll" \
+      > "$resolver_wrapper"
+    chmod +x "$resolver_wrapper"
+    resolver_bin="$resolver_wrapper"
+    pass "abora-update-resolver: built for runtime tests"
+  else
+    fail "abora-update-resolver: dotnet build failed"
+  fi
+else
+  pass "dotnet unavailable (abora-update-resolver runtime tests skipped)"
+fi
+
 for file in "${bash_scripts[@]}"; do
   if [[ ! -f "$file" ]]; then
     fail "Missing file: $file"
@@ -312,7 +340,7 @@ rm -rf "$tmp_mango_repair"
 tmp_ok="$(mktemp -d)"
 tmp_empty="$(mktemp -d)"
 tmp_update_flake="$(mktemp -d)"
-trap 'rm -rf "$tmp_ok" "$tmp_empty" "$tmp_update_flake"' EXIT
+trap 'rm -rf "$tmp_ok" "$tmp_empty" "$tmp_update_flake"; rm -f "${resolver_wrapper:-}"' EXIT
 
 cat > "$tmp_update_flake/flake.nix" <<'EOF'
 {
@@ -345,60 +373,87 @@ else
   fail "runtime: release manifest includes dotfiles importer"
 fi
 
-_resolver_tags="v2.5.0 v3.14"
-if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable | grep -q '^v3\.14[[:space:]]'; then
-  pass "runtime: resolver keeps 3.14 on v3.14"
+if [[ -n "$resolver_bin" ]]; then
+  export ABORA_UPDATE_RESOLVER_BIN="$resolver_bin"
+
+  _resolver_tags="v2.5.0 v3.14"
+  if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable | grep -q '^v3\.14[[:space:]]'; then
+    pass "runtime: resolver keeps 3.14 on v3.14"
+  else
+    fail "runtime: resolver keeps 3.14 on v3.14"
+  fi
+
+  _resolver_tags="v2.5.0 v3.14"
+  if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable | grep -q '^v3\.14[[:space:]]'; then
+    pass "runtime: resolver prefers final v3.14 when present"
+  else
+    fail "runtime: resolver prefers final v3.14 when present"
+  fi
+
+  _resolver_tags="v2.5.0"
+  if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable | grep -q '^edge[[:space:]]'; then
+    pass "runtime: resolver avoids stable-channel downgrade"
+  else
+    fail "runtime: resolver avoids stable-channel downgrade"
+  fi
+
+  if ABORA_RELEASE_TAGS="" ABORA_REMOTE_REFS="edge" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 4.0 stable | grep -q '^edge[[:space:]]'; then
+    pass "runtime: resolver falls back to edge when stable tags are unavailable"
+  else
+    fail "runtime: resolver falls back to edge when stable tags are unavailable"
+  fi
+
+  if ABORA_RELEASE_TAGS="v4.0-EVEREST-ALPHA v3.14" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 4.0 demo | grep -q '^v4\.0-EVEREST-ALPHA[[:space:]]'; then
+    pass "runtime: resolver recognizes Everest alpha tags as development releases"
+  else
+    fail "runtime: resolver recognizes Everest alpha tags as development releases"
+  fi
+
+  if ABORA_RELEASE_TAGS="v2.5.0" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-fallback 3.14 v2.5.0 | grep -q '^v2\.5\.0[[:space:]]'; then
+    pass "runtime: resolver allows explicit fallback downgrade"
+  else
+    fail "runtime: resolver allows explicit fallback downgrade"
+  fi
+
+  # Regression test: installed_version() used to return the literal path
+  # string "$config_dir/abora/VERSION" (unparsed, un-fed-to-version_lt-safe)
+  # whenever that specific candidate file didn't exist, instead of falling
+  # through to /etc/abora/VERSION and finally the repo's own VERSION file.
+  # Point config_dir somewhere with no abora/VERSION and confirm the real
+  # repo VERSION ("4.0") is still found via the final fallback candidate.
+  _tmp_no_config_dir="$(mktemp -d)"
+  _installed_version_check="$(ABORA_SYSTEM_CONFIG="$_tmp_no_config_dir" ABORA_RELEASE_TAGS="v99.0" \
+    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh --check 2>/dev/null | \
+    awk -F'\t' '/^ABORA_UPDATE_AVAILABLE/ {print $2}' || true)"
+  rm -rf "$_tmp_no_config_dir"
+  if [[ "$_installed_version_check" == "$(tr -d '[:space:]' < "$repo_dir/VERSION")" ]]; then
+    pass "runtime: installed_version() falls through to repo VERSION when installed paths are missing"
+  else
+    fail "runtime: installed_version() returned '${_installed_version_check}' instead of the repo VERSION"
+  fi
+
+  unset ABORA_UPDATE_RESOLVER_BIN
 else
-  fail "runtime: resolver keeps 3.14 on v3.14"
+  pass "runtime: abora-update-resolver tests skipped (dotnet unavailable)"
 fi
 
-_resolver_tags="v2.5.0 v3.14"
-if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable | grep -q '^v3\.14[[:space:]]'; then
-  pass "runtime: resolver prefers final v3.14 when present"
+if [[ -n "$resolver_bin" ]]; then
+  prealpha_dry_run_output="$(
+    ABORA_PRE_ALPHA_ACCEPT="I ACCEPT THE RISK" \
+    ABORA_INSTALLED_VERSION="4.0" \
+    ABORA_SYSTEM_CONFIG="$tmp_update_flake" \
+    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+    ABORA_UPDATE_RESOLVER_BIN="$resolver_bin" \
+    bash scripts/abora-update.sh install pre-alpha --dry-run --ref test-prealpha 2>&1
+  )"
+  if printf '%s' "$prealpha_dry_run_output" | grep -q 'Selected update ref.*test-prealpha' \
+    && printf '%s' "$prealpha_dry_run_output" | grep -q 'Dry run complete'; then
+    pass "runtime: pre-alpha dry-run previews selected ref"
+  else
+    fail "runtime: pre-alpha dry-run previews selected ref"
+  fi
 else
-  fail "runtime: resolver prefers final v3.14 when present"
-fi
-
-_resolver_tags="v2.5.0"
-if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable | grep -q '^edge[[:space:]]'; then
-  pass "runtime: resolver avoids stable-channel downgrade"
-else
-  fail "runtime: resolver avoids stable-channel downgrade"
-fi
-
-if ABORA_RELEASE_TAGS="" ABORA_REMOTE_REFS="edge" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 4.0 stable | grep -q '^edge[[:space:]]'; then
-  pass "runtime: resolver falls back to edge when stable tags are unavailable"
-else
-  fail "runtime: resolver falls back to edge when stable tags are unavailable"
-fi
-
-if ABORA_RELEASE_TAGS="v4.0-EVEREST-ALPHA v3.14" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 4.0 demo | grep -q '^v4\.0-EVEREST-ALPHA[[:space:]]'; then
-  pass "runtime: resolver recognizes Everest alpha tags as development releases"
-else
-  fail "runtime: resolver recognizes Everest alpha tags as development releases"
-fi
-
-if ABORA_RELEASE_TAGS="v2.5.0" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-fallback 3.14 v2.5.0 | grep -q '^v2\.5\.0[[:space:]]'; then
-  pass "runtime: resolver allows explicit fallback downgrade"
-else
-  fail "runtime: resolver allows explicit fallback downgrade"
-fi
-
-# Regression test: installed_version() used to return the literal path
-# string "$config_dir/abora/VERSION" (unparsed, un-fed-to-version_lt-safe)
-# whenever that specific candidate file didn't exist, instead of falling
-# through to /etc/abora/VERSION and finally the repo's own VERSION file.
-# Point config_dir somewhere with no abora/VERSION and confirm the real
-# repo VERSION ("4.0") is still found via the final fallback candidate.
-_tmp_no_config_dir="$(mktemp -d)"
-_installed_version_check="$(ABORA_SYSTEM_CONFIG="$_tmp_no_config_dir" ABORA_RELEASE_TAGS="v99.0" \
-  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh --check 2>/dev/null | \
-  awk -F'\t' '/^ABORA_UPDATE_AVAILABLE/ {print $2}' || true)"
-rm -rf "$_tmp_no_config_dir"
-if [[ "$_installed_version_check" == "$(tr -d '[:space:]' < "$repo_dir/VERSION")" ]]; then
-  pass "runtime: installed_version() falls through to repo VERSION when installed paths are missing"
-else
-  fail "runtime: installed_version() returned '${_installed_version_check}' instead of the repo VERSION"
+  pass "runtime: pre-alpha dry-run test skipped (dotnet unavailable)"
 fi
 
 if ABORA_PRE_ALPHA_ACCEPT="I ACCEPT THE RISK" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-pre-alpha-confirm >/dev/null; then
@@ -411,20 +466,6 @@ if ABORA_PRE_ALPHA_ACCEPT="I accept the risk" ABORA_UI_LIB="$repo_dir/scripts/ab
   fail "runtime: pre-alpha warning rejects non-exact phrase"
 else
   pass "runtime: pre-alpha warning rejects non-exact phrase"
-fi
-
-prealpha_dry_run_output="$(
-  ABORA_PRE_ALPHA_ACCEPT="I ACCEPT THE RISK" \
-  ABORA_INSTALLED_VERSION="4.0" \
-  ABORA_SYSTEM_CONFIG="$tmp_update_flake" \
-  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
-  bash scripts/abora-update.sh install pre-alpha --dry-run --ref test-prealpha 2>&1
-)"
-if printf '%s' "$prealpha_dry_run_output" | grep -q 'Selected update ref.*test-prealpha' \
-  && printf '%s' "$prealpha_dry_run_output" | grep -q 'Dry run complete'; then
-  pass "runtime: pre-alpha dry-run previews selected ref"
-else
-  fail "runtime: pre-alpha dry-run previews selected ref"
 fi
 
 if grep -q '^[[:space:]]*rollback)' scripts/abora.sh \

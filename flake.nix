@@ -16,6 +16,7 @@
         mango = final.callPackage ./nix/pkgs/mango.nix {};
         modularity = final.callPackage ./nix/pkgs/modularity.nix {};
         moducpp-anix = final.callPackage ./nix/pkgs/moducpp-anix.nix {};
+        abora-update-resolver = final.callPackage ./nix/pkgs/abora-update-resolver.nix {};
         abora-desktop-preview = final.callPackage ./nix/pkgs/desktop-preview.nix {};
         abora-hardware-test = final.callPackage ./nix/pkgs/hardware-test.nix {};
       };
