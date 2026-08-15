@@ -26,6 +26,8 @@ let
     if builtins.pathExists ./welcome-gui.py then ./welcome-gui.py else null;
   configGuiScript =
     if builtins.pathExists ./config-gui.py then ./config-gui.py else null;
+  gamingWelcomeGuiScript =
+    if builtins.pathExists ./gaming-welcome-gui.py then ./gaming-welcome-gui.py else null;
   anixScript           = ./anix.sh;
   optionsModule        = ./abora-options.nix;
   anixModule           = ./anix-module.nix;
@@ -150,6 +152,17 @@ let
     export ABORA_CONFIG_SCRIPT="''${ABORA_CONFIG_SCRIPT:-/etc/abora/config.sh}"
     exec ${aboraGuiPython}/bin/python3 /etc/abora/config-gui.py "$@"
   '';
+  # Abora Welcome (aboraWelcomeGui above) covers the system in general;
+  # this is a separate, dedicated app for games specifically -- your
+  # gaming platforms at a glance, signing into Steam, and installing a
+  # platform to get a game running through. See abora-gaming-welcome-gui.py.
+  aboraGamingWelcomeGui = pkgs.writeShellScriptBin "abora-gaming-welcome-gui" ''
+    export GI_TYPELIB_PATH="${aboraGuiGiPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+    export LD_LIBRARY_PATH="${aboraGuiLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    export ABORA_APPS_SCRIPT="''${ABORA_APPS_SCRIPT:-/etc/abora/apps.sh}"
+    export ABORA_APP_CATALOG="''${ABORA_APP_CATALOG:-/etc/abora/app-catalog.sh}"
+    exec ${aboraGuiPython}/bin/python3 /etc/abora/gaming-welcome-gui.py "$@"
+  '';
   anixCommand = pkgs.writeShellScriptBin "anix" ''
     exec env ANIX_SYSTEM_CONFIG=/etc/nixos ANIX_FLAKE_CONFIG_NAME=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/anix.sh "$@"
   '';
@@ -199,6 +212,20 @@ let
       Exec=abora-config-gui
       Icon=preferences-system
       Categories=System;Settings;
+      Terminal=false
+    '';
+  };
+  aboraGamingWelcomeDesktopPkg = pkgs.writeTextFile {
+    name = "abora-gaming-welcome-desktop";
+    destination = "/share/applications/abora-gaming-welcome.desktop";
+    text = ''
+      [Desktop Entry]
+      Type=Application
+      Name=Abora Gaming
+      Comment=Sign in and get a gaming platform ready
+      Exec=abora-gaming-welcome-gui
+      Icon=input-gaming
+      Categories=System;Game;
       Terminal=false
     '';
   };
@@ -490,6 +517,8 @@ in
     aboraWelcomeDesktopPkg
     aboraConfigGui
     aboraConfigDesktopPkg
+    aboraGamingWelcomeGui
+    aboraGamingWelcomeDesktopPkg
     aboraWallpapersPackage
     aboraInstaller
     aboraSetup
@@ -940,6 +969,9 @@ in
     }
     // lib.optionalAttrs (configGuiScript != null) {
       "abora/config-gui.py".source = configGuiScript;
+    }
+    // lib.optionalAttrs (gamingWelcomeGuiScript != null) {
+      "abora/gaming-welcome-gui.py".source = gamingWelcomeGuiScript;
     };
 
   environment.shellAliases.fastfetch = "fastfetch -c /etc/xdg/fastfetch/config.jsonc";

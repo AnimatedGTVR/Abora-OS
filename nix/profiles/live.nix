@@ -243,6 +243,25 @@ let
       export GDK_BACKEND="''${GDK_BACKEND:-wayland,x11}"
       exec ${python}/bin/python3 /etc/abora/config-gui.py "$@"
     '';
+  aboraGamingWelcomeGui =
+    let
+      python = pkgs.python3.withPackages (ps: with ps; [ pygobject3 ]);
+      giPath = lib.makeSearchPath "lib/girepository-1.0" (with pkgs; [
+        gtk4 libadwaita glib gdk-pixbuf (lib.getLib pango) harfbuzz graphene cairo gobject-introspection
+      ]);
+      libPath = lib.makeLibraryPath (with pkgs; [
+        gtk4 libadwaita glib gdk-pixbuf cairo
+      ]);
+    in
+    pkgs.writeShellScriptBin "abora-gaming-welcome-gui" ''
+      export GI_TYPELIB_PATH="${giPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+      export LD_LIBRARY_PATH="${libPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      export ABORA_APPS_SCRIPT="''${ABORA_APPS_SCRIPT:-/etc/abora/apps.sh}"
+      export ABORA_APP_CATALOG="''${ABORA_APP_CATALOG:-/etc/abora/app-catalog.sh}"
+      export GSK_RENDERER="''${GSK_RENDERER:-cairo}"
+      export GDK_BACKEND="''${GDK_BACKEND:-wayland,x11}"
+      exec ${python}/bin/python3 /etc/abora/gaming-welcome-gui.py "$@"
+    '';
   aboraWallpapersPackage = pkgs.runCommandLocal "abora-wallpapers" { } ''
     mkdir -p "$out/share/backgrounds/abora" "$out/share/abora/themes" "$out/share/gnome-background-properties"
     find ${wallpaperDir} -maxdepth 1 -type f -exec cp {} "$out/share/backgrounds/abora/" \;
@@ -694,6 +713,7 @@ in
       };
       "abora/welcome-gui.py".source = ../../scripts/abora-welcome-gui.py;
       "abora/config-gui.py".source = ../../scripts/abora-config-gui.py;
+      "abora/gaming-welcome-gui.py".source = ../../scripts/abora-gaming-welcome-gui.py;
       "abora/anix.sh" = {
         source = ../../scripts/anix.sh;
         mode = "0755";

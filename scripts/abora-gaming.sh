@@ -22,6 +22,7 @@ show_help() {
   cat <<'EOF'
 Abora Gaming commands:
   abora gaming status       show installed gaming tools
+  abora gaming welcome      open Abora Gaming Welcome (sign in, install a platform)
   abora gaming enable       enable desktop gaming
   abora gaming disable      disable the gaming layer
   abora gaming big-picture  launch Steam Big Picture
@@ -156,12 +157,23 @@ launch_big_picture() {
   steam -gamepadui "$@" || exec steam -bigpicture "$@"
 }
 
+launch_welcome() {
+  if ! has_cmd abora-gaming-welcome-gui; then
+    err "abora-gaming-welcome-gui is not available on this system."
+    exit 1
+  fi
+  exec abora-gaming-welcome-gui
+}
+
 case "${1:-status}" in
   status)
     show_status
     ;;
   doctor)
     run_doctor
+    ;;
+  welcome)
+    launch_welcome
     ;;
   big-picture|bigpicture)
     shift

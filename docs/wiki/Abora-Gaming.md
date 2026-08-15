@@ -117,6 +117,7 @@ This keeps the normal install small and fast. Autostart remains a config-only op
 
 ```sh
 abora gaming status
+abora gaming welcome
 abora gaming doctor
 abora gaming enable
 abora gaming disable
@@ -126,6 +127,15 @@ abora gaming gamescope on
 abora gaming vulkan on
 abora gaming autostart off
 ```
+
+## Abora Gaming Welcome
+
+A separate GTK app (`abora-gaming-welcome-gui`, or `abora gaming welcome`)
+from Abora Welcome — Abora Welcome covers the system in general, this one
+is dedicated to games: turning the gaming layer on, signing into Steam,
+and installing a platform (Steam, Lutris, Heroic, Bottles, GameMode,
+MangoHud) to get a game running through. Abora Welcome links to it once
+gaming is enabled.
 
 Enable the layer in `/etc/nixos/abora-local.nix`, then run `sudo abora update`:
 

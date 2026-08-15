@@ -16,6 +16,7 @@ This roadmap tracks the current Abora direction after Abora OS v4 Everest and th
 
 ## Recently Delivered
 
+- **Abora Gaming Welcome** — a separate GTK app from Abora Welcome, dedicated to games: turning gaming on, signing into Steam, and installing a platform. Abora Welcome's own layout also moved to left-right tabs (Home / System) via `Adw.ViewSwitcherBar` for a friendlier first-run experience
 - real IANA timezone data (every real zoneinfo entry, fuzzy-searchable, e.g. `America/Indiana/Knox`) instead of a small hand-picked list, in both `abora-config-gui.py` and `abora-installer-gui.py` — this was a real correctness gap: multi-zone regions like Indiana were only showing one of their eight actual zones
 - `abora update --check` — query update availability without installing, with machine-parseable output for the Welcome GUI's status card
 - full step-indexed back navigation through the GTK installer wizard — every screen can be undone with `Esc` (new) or `← Back` (already existed), answers preserved since pages are built once and reused rather than recreated

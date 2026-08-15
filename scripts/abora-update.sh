@@ -786,6 +786,13 @@ release_has_plan_tool() {
     ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
 }
 
+release_has_gaming_welcome_gui() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "edge" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
+}
+
 required_upstream_paths() {
     local selected_ref="${1:-edge}"
     cat <<'EOF'
@@ -851,6 +858,12 @@ EOF
         cat <<'EOF'
 scripts/abora-welcome-gui.py
 scripts/abora-config-gui.py
+EOF
+    fi
+
+    if release_has_gaming_welcome_gui "$selected_ref"; then
+        cat <<'EOF'
+scripts/abora-gaming-welcome-gui.py
 EOF
     fi
 
@@ -1100,6 +1113,9 @@ sync_abora_files() {
     fi
     if [[ -f "$upstream_dir/scripts/abora-config-gui.py" ]]; then
         copy_upstream_file "$upstream_dir/scripts/abora-config-gui.py" "$abora_dir/config-gui.py"
+    fi
+    if [[ -f "$upstream_dir/scripts/abora-gaming-welcome-gui.py" ]]; then
+        copy_upstream_file "$upstream_dir/scripts/abora-gaming-welcome-gui.py" "$abora_dir/gaming-welcome-gui.py"
     fi
     copy_upstream_file "$upstream_dir/scripts/anix.sh" "$abora_dir/anix.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-app-catalog.sh" "$abora_dir/app-catalog.sh"

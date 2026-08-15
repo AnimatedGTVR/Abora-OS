@@ -66,6 +66,7 @@ nix_files=(
 python_scripts=(
   "scripts/abora-config-gui.py"
   "scripts/abora-welcome-gui.py"
+  "scripts/abora-gaming-welcome-gui.py"
 )
 
 required_files=(
@@ -1845,6 +1846,28 @@ if grep -q 'read_bool_setting gaming.enable' scripts/abora-welcome.sh \
   pass "runtime: abora welcome exposes gaming status and action"
 else
   fail "runtime: abora welcome exposes gaming status and action"
+fi
+
+# Abora Gaming Welcome is a deliberately separate app from Abora Welcome
+# (see abora-gaming-welcome-gui.py's own module docstring for why) --
+# the normal welcome only hands off to it via a button, it doesn't embed
+# gaming-specific platform/sign-in UI itself.
+if grep -q "class GamingWelcomeWindow" scripts/abora-gaming-welcome-gui.py \
+  && grep -q "def read_gaming_catalog" scripts/abora-gaming-welcome-gui.py \
+  && grep -q "category != 'Gaming'" scripts/abora-gaming-welcome-gui.py \
+  && grep -q "def _steam_installed" scripts/abora-gaming-welcome-gui.py \
+  && grep -q "'Open Steam'" scripts/abora-gaming-welcome-gui.py \
+  && grep -q "'Install Steam'" scripts/abora-gaming-welcome-gui.py \
+  && grep -q "APPS_SCRIPT, 'add', app_id" scripts/abora-gaming-welcome-gui.py \
+  && grep -q "abora gaming enable && exec abora-update" scripts/abora-gaming-welcome-gui.py \
+  && grep -q "GAMING_WELCOME_SCRIPT" scripts/abora-welcome-gui.py \
+  && grep -q "_open_gaming_welcome" scripts/abora-welcome-gui.py \
+  && grep -q "welcome)" scripts/abora-gaming.sh \
+  && grep -q "launch_welcome" scripts/abora-gaming.sh \
+  && grep -q "abora-gaming-welcome-gui" scripts/abora-gaming.sh; then
+  pass "runtime: Abora Gaming Welcome is a separate app with a hand-off from Abora Welcome"
+else
+  fail "runtime: Abora Gaming Welcome is a separate app with a hand-off from Abora Welcome"
 fi
 
 tmp_gaming_config="$(mktemp -d)"
