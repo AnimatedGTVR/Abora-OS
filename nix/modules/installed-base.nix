@@ -74,9 +74,16 @@ let
       bootloaderDir + "/limine-background.png"
     else
       bootloaderDir + "/background.png";
-  tinypmDir            = ./tinypm;
-  updateResolverDir    = ./update-resolver;
-  planToolDir          = ./plan-tool;
+  # Optional, like welcomeGuiScript/configGuiScript above: a system mid-
+  # update (new installed-base.nix synced before the corresponding new
+  # directory finishes copying) must not fail evaluation just because one
+  # of these hasn't landed yet.
+  tinypmDir =
+    if builtins.pathExists ./tinypm then ./tinypm else null;
+  updateResolverDir =
+    if builtins.pathExists ./update-resolver then ./update-resolver else null;
+  planToolDir =
+    if builtins.pathExists ./plan-tool then ./plan-tool else null;
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
   # TinyPM was rewritten from a bash multicall tree to a real Rust crate
   # (see TinyPM's own CLAUDE.md: "the old Bash runtime was removed"). The
@@ -87,13 +94,16 @@ let
   # multicall wrapper's much longer alias list (tiny/Parcel/search/term/
   # start/supdate/grab-add-repo/grab-de/syspm), none of which have a Rust
   # equivalent.
-  tinypmPackage = pkgs.rustPlatform.buildRustPackage {
-    pname = "tinypm";
-    version = "0.8.1-alpha";
-    src = tinypmDir;
-    cargoLock.lockFile = tinypmDir + "/Cargo.lock";
-    doCheck = false;
-  };
+  tinypmPackage =
+    if tinypmDir != null then
+      pkgs.rustPlatform.buildRustPackage {
+        pname = "tinypm";
+        version = "0.8.1-alpha";
+        src = tinypmDir;
+        cargoLock.lockFile = tinypmDir + "/Cargo.lock";
+        doCheck = false;
+      }
+    else null;
   aboraApps = pkgs.writeShellScriptBin "abora-apps" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/apps.sh "$@"
   '';
@@ -352,9 +362,13 @@ in
       moducpp-anix = final.callPackage ./pkgs/moducpp-anix.nix {
         moducppAnixSrc = moducppAnixTool;
       };
+    }
+    // lib.optionalAttrs (updateResolverDir != null) {
       abora-update-resolver = final.callPackage ./pkgs/abora-update-resolver.nix {
         resolverSrc = updateResolverDir;
       };
+    }
+    // lib.optionalAttrs (planToolDir != null) {
       abora-plan-tool = final.callPackage ./pkgs/abora-plan-tool.nix {
         toolSrc = planToolDir;
       };
@@ -424,7 +438,13 @@ in
     ethernet.macAddress = lib.mkDefault "preserve";
     wifi.macAddress = lib.mkDefault "preserve";
   };
-  networking.modemmanager.enable = lib.mkDefault config.abora.extras.mobileBroadband;
+  # Not mkDefault: nixpkgs' own networkmanager.nix module also sets this via
+  # mkDefault true whenever NetworkManager is enabled (which Abora enables
+  # by default), so two same-priority mkDefault definitions with different
+  # values would conflict. A plain assignment cleanly wins over nixpkgs'
+  # own default while still respecting the abora.extras.mobileBroadband
+  # knob -- users can still force it either way with lib.mkForce.
+  networking.modemmanager.enable = config.abora.extras.mobileBroadband;
   security.polkit.enable = lib.mkDefault true;
   services.udisks2.enable = lib.mkDefault true;
   services.blueman.enable = lib.mkDefault true;
@@ -492,9 +512,6 @@ in
   };
 
   environment.systemPackages = with pkgs; [
-    tinypmPackage
-    abora-update-resolver
-    abora-plan-tool
     aboraApps
     aboraCustomPackages
     aboraAdoptNixos
@@ -554,7 +571,10 @@ in
     zenity
     swaybg
     zsh
-  ] ++ lib.optionals config.abora.extras.diagnostics (with pkgs; [
+  ] ++ lib.optional (tinypmPackage != null) tinypmPackage
+    ++ lib.optional (pkgs ? abora-update-resolver) pkgs.abora-update-resolver
+    ++ lib.optional (pkgs ? abora-plan-tool) pkgs.abora-plan-tool
+  ++ lib.optionals config.abora.extras.diagnostics (with pkgs; [
     dmidecode
     ethtool
     htop
@@ -728,9 +748,6 @@ in
       };
       "abora/mango/config.conf".source = mangoConfigFile;
       "mango/config.conf".text = lib.mkDefault mangoConfigText;
-      "abora/tinypm".source = tinypmDir;
-      "abora/update-resolver".source = updateResolverDir;
-      "abora/plan-tool".source = planToolDir;
       "abora/vendor/modularity".source = modularitySrc;
       # The generated /etc/nixos/flake.nix pins its nixpkgs input to
       # "path:/etc/abora/nixpkgs". Expose the build-time nixpkgs source here so
@@ -972,6 +989,15 @@ in
     }
     // lib.optionalAttrs (gamingWelcomeGuiScript != null) {
       "abora/gaming-welcome-gui.py".source = gamingWelcomeGuiScript;
+    }
+    // lib.optionalAttrs (tinypmDir != null) {
+      "abora/tinypm".source = tinypmDir;
+    }
+    // lib.optionalAttrs (updateResolverDir != null) {
+      "abora/update-resolver".source = updateResolverDir;
+    }
+    // lib.optionalAttrs (planToolDir != null) {
+      "abora/plan-tool".source = planToolDir;
     };
 
   environment.shellAliases.fastfetch = "fastfetch -c /etc/xdg/fastfetch/config.jsonc";

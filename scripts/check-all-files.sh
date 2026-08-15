@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # check-all-files.sh — glob-based repo sweep, independent of check-scripts.sh's
 # hardcoded file lists. Walks every .sh, .nix, .py, .md, .yml, .json, and
-# .desktop file actually on disk (skipping out/, .git/, and vendor/) and
-# validates each by type, plus every extensionless-but-shebanged script (e.g.
+# .desktop file actually on disk (skipping out/, .git/, vendor/, and the
+# TinyPM/ submodule -- like vendor/, it's third-party-shaped: a separate
+# repo with its own upstream conventions and its own CI) and validates each
+# by type, plus every extensionless-but-shebanged script (e.g.
 # tools/moducpp-anix) and every ANIX v2 source file (.anix/.mko/.moducpp) via
 # `anix diff-plan`, so a new file that nobody registered anywhere still gets
 # checked.
@@ -27,6 +29,26 @@ if [[ -t 1 && -z "${NO_COLOR:-}" && "${TERM:-}" != "dumb" ]]; then
     C_NC=$'\033[0m'
 else
     C_GREEN="" C_RED="" C_YELLOW="" C_ORANGE="" C_DIM="" C_CYAN="" C_BOLD="" C_NC=""
+fi
+
+# `anix diff-plan` (used below to validate every .anix/.mko/.moducpp file)
+# needs a real abora-plan-tool binary -- see scripts/anix.sh's
+# parse_and_validate_plan(). There's no bash fallback anymore, so build one
+# for this sweep the same way check-scripts.sh does (plain `dotnet build`,
+# not the slower AOT publish used for the real Nix package).
+plan_tool_bin=""
+if command -v dotnet >/dev/null 2>&1 && [[ -f tools/abora-plan-tool/AboraPlanTool.csproj ]]; then
+    if MSBuildEnableWorkloadResolver=false dotnet build \
+        tools/abora-plan-tool/AboraPlanTool.csproj -c Debug >/dev/null 2>&1; then
+        plan_tool_wrapper="$(mktemp)"
+        printf '#!/usr/bin/env bash\nexec dotnet %q "$@"\n' \
+            "$repo_dir/tools/abora-plan-tool/bin/Debug/net10.0/abora-plan-tool.dll" \
+            > "$plan_tool_wrapper"
+        chmod +x "$plan_tool_wrapper"
+        plan_tool_bin="$plan_tool_wrapper"
+        trap 'rm -f "${plan_tool_wrapper:-}"' EXIT
+        export ABORA_PLAN_TOOL_BIN="$plan_tool_bin"
+    fi
 fi
 
 failed=0
@@ -85,11 +107,12 @@ section() {
 }
 
 # Find files by extension, excluding generated output, git internals, and
-# vendored third-party code (vendor/ has its own upstream conventions).
+# vendored/submodule third-party code (vendor/ and TinyPM/ have their own
+# upstream conventions).
 find_files() {
     local ext="$1"
     find . \
-        \( -path './out' -o -path './.git' -o -path './vendor' \) -prune -o \
+        \( -path './out' -o -path './.git' -o -path './vendor' -o -path './TinyPM' \) -prune -o \
         -type f -name "*.${ext}" -print \
         | sed 's|^\./||' | sort
 }
@@ -99,7 +122,7 @@ find_files() {
 # `find_files sh` can't see by name alone.
 find_shebang_scripts() {
     find . \
-        \( -path './out' -o -path './.git' -o -path './vendor' \) -prune -o \
+        \( -path './out' -o -path './.git' -o -path './vendor' -o -path './TinyPM' \) -prune -o \
         -type f -executable ! -name '*.*' -print 2>/dev/null \
         | sed 's|^\./||' | sort \
         | while IFS= read -r f; do
@@ -234,7 +257,7 @@ check_nix_referenced() {
 
     local hits
     hits="$(grep -rl --include='*.nix' -F "$base" . \
-        --exclude-dir=out --exclude-dir=.git --exclude-dir=vendor \
+        --exclude-dir=out --exclude-dir=.git --exclude-dir=vendor --exclude-dir=TinyPM \
         2>/dev/null | grep -vF "./$file" | wc -l)"
 
     if [[ "$hits" -eq 0 ]]; then
@@ -446,7 +469,7 @@ check_anix_plan() {
     local file="$1"
     anix_count=$((anix_count + 1))
 
-    if ! command -v jq >/dev/null 2>&1 || [[ ! -f scripts/anix.sh ]]; then
+    if ! command -v jq >/dev/null 2>&1 || [[ ! -f scripts/anix.sh ]] || [[ -z "$plan_tool_bin" ]]; then
         anix_skipped=$((anix_skipped + 1))
         return
     fi

@@ -196,6 +196,7 @@ let
   pkgsPath = ${pkgs_path};
   evalConfig = import (pkgsPath + "/nixos/lib/eval-config.nix");
   installedBase = import ${staged_abora}/installed-base.nix;
+  aboraOptions = import ${staged_abora}/abora-options.nix;
   desktopModule = { pkgs, lib, ... }: {
     system.nixos.variantName = "Abora ${release_short} ${desktop_label} Edition";
     system.nixos.variant_id = "${desktop_variant_id}";
@@ -242,7 +243,7 @@ ${desktop_packages}
   };
   config = (evalConfig {
     system = "x86_64-linux";
-    modules = [ installedBase desktopModule ];
+    modules = [ installedBase aboraOptions desktopModule ];
   }).config;
 in
   {

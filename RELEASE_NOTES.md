@@ -127,6 +127,8 @@ anix enable gaming
 anix enable gaming.big-picture
 ```
 
+**Abora Gaming Welcome** is a new, separate GTK app (`abora-gaming-welcome-gui`, or `abora gaming welcome`) dedicated to games specifically: turning the gaming layer on, signing into Steam, and installing a platform (Steam, Lutris, Heroic, Bottles, GameMode, MangoHud). Abora Welcome — the general first-steps app, now with left-right navigable tabs — links to it once gaming is enabled.
+
 ### TinyPM v0.8
 
 TinyPM is the app layer. It has been rewritten from the ground up as a real
@@ -145,6 +147,10 @@ Carried forward from DENALI 3.14 and updated for Abora OS v4 Everest throughout 
 - Omarchy-inspired TUI installer with a GPU step alongside identity, desktop, and disk selection
 - Limine bootloader, Plymouth splash, and the Abora wallpaper pack
 - Dark-first defaults, Papirus Dark icons, Fastfetch on first shell open, zsh with Spaceship prompt
+- Every real IANA timezone (not a short hand-picked list) is selectable, with fuzzy search, in both the config and installer GUIs
+- The GTK installer wizard can be undone a step at a time with `Esc` as well as the `← Back` button
+- `abora update --check` queries update availability without installing, powering Welcome's status card
+- Real, unit-tested logic (not ad hoc bash/jq string manipulation) now backs the update-channel resolver and ANIX Plan JSON validation, both shipped as small self-contained tools with no added runtime dependency
 
 ### Hardware and Live Image
 
