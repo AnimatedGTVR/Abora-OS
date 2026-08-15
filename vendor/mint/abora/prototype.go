@@ -121,6 +121,7 @@ func (o PrototypeOptions) Run() error {
 		Drivers:     state.drivers,
 		Updates:     state.updates,
 		Extras:      state.extras,
+		AppsTiming:  state.appsTiming,
 		FirstBoot:   state.firstBoot,
 		Dotfiles:    state.dotfiles,
 	})
@@ -181,6 +182,7 @@ func (o PrototypeOptions) Run() error {
 			Drivers:      drivers,
 			Updates:      updates,
 			Extras:       extras,
+			AppsTiming:   state.appsTiming,
 			FirstBoot:    firstBoot,
 			Dotfiles:     dotfiles,
 		})
@@ -223,6 +225,7 @@ type wizardState struct {
 	drivers        string
 	updates        string
 	extras         string
+	appsTiming     string
 	firstBoot      string
 	dotfiles       string
 }
@@ -271,6 +274,7 @@ func runWizard(o PrototypeOptions, st *wizardState, reader *bufio.Reader, intera
 		{"Software", stepDrivers},
 		{"Software", stepUpdates},
 		{"Software", stepExtras},
+		{"Software", stepAppsTiming},
 		{"Software", stepFirstBoot},
 		{"Dotfiles", stepDotfiles},
 	}
@@ -965,12 +969,20 @@ func stepUpdates(o PrototypeOptions, st *wizardState, reader *bufio.Reader, inte
 	return navNext, nil
 }
 
+// Starter bundle IDs and order must stay in sync with abora-installer.sh's
+// step_apps and abora-app-catalog.sh's recognized bundle names (favorites,
+// essentials, social, creator, developer, gaming, system, plus the literal
+// "none" sentinel that skips a bundle entirely).
 func stepExtras(o PrototypeOptions, st *wizardState, reader *bufio.Reader, interactive bool, dir navResult) (navResult, error) {
-	value, nav, err := selectChoiceNav(reader, interactive, "Extra software", []choiceItem{
-		{Label: "Essentials only", Value: "essentials"},
-		{Label: "Gaming tools", Value: "gaming"},
-		{Label: "Creator tools", Value: "creator"},
-		{Label: "Developer tools", Value: "developer"},
+	value, nav, err := selectChoiceNav(reader, interactive, "Starter app bundle", []choiceItem{
+		{Label: "Fan Favorites (recommended)", Value: "favorites"},
+		{Label: "Essentials", Value: "essentials"},
+		{Label: "Social", Value: "social"},
+		{Label: "Creator", Value: "creator"},
+		{Label: "Developer", Value: "developer"},
+		{Label: "Gaming", Value: "gaming"},
+		{Label: "System Tools", Value: "system"},
+		{Label: "None - add apps later with grab", Value: "none"},
 	}, true)
 	if err != nil {
 		return navNext, err
@@ -979,6 +991,29 @@ func stepExtras(o PrototypeOptions, st *wizardState, reader *bufio.Reader, inter
 		return navBack, nil
 	}
 	st.extras = value
+	return navNext, nil
+}
+
+// Only asked when a real bundle was chosen -- "none" has nothing to time.
+// Mirrors abora-installer.sh's step_apps nested "When should apps install?"
+// prompt, which is its own independent choice, not derived from the
+// Updates step's answer.
+func stepAppsTiming(o PrototypeOptions, st *wizardState, reader *bufio.Reader, interactive bool, dir navResult) (navResult, error) {
+	if st.extras == "none" {
+		st.appsTiming = "after"
+		return dir, nil
+	}
+	value, nav, err := selectChoiceNav(reader, interactive, "When should apps install?", []choiceItem{
+		{Label: "After first boot (fast)", Value: "after"},
+		{Label: "During setup (slow, can fail on cache misses)", Value: "during"},
+	}, true)
+	if err != nil {
+		return navNext, err
+	}
+	if nav == navBack {
+		return navBack, nil
+	}
+	st.appsTiming = value
 	return navNext, nil
 }
 
@@ -1147,6 +1182,7 @@ type prototypePlan struct {
 	Drivers      string
 	Updates      string
 	Extras       string
+	AppsTiming   string
 	FirstBoot    string
 	Dotfiles     string
 }
@@ -1165,6 +1201,7 @@ func renderPrototypeSummary(plan prototypePlan) {
 		{"Network", plan.Network}, {"Boot", plan.BootMode},
 		{"Kernel", plan.Kernel}, {"Drivers", plan.Drivers},
 		{"Updates", plan.Updates}, {"Extras", plan.Extras},
+		{"Apps timing", plan.AppsTiming},
 		{"First boot", plan.FirstBoot}, {"Dotfiles", plan.Dotfiles},
 	}
 	for i := 0; i < len(rows); i += 2 {
@@ -1380,11 +1417,15 @@ func writeBatchParams(plan prototypePlan) (string, error) {
 	defer file.Close()
 
 	appsLabel := mapChoice(plan.Extras, map[string]string{
+		"favorites":  "Fan Favorites",
 		"essentials": "Essentials",
-		"gaming":     "Gaming",
+		"social":     "Social",
 		"creator":    "Creator",
 		"developer":  "Developer",
-	}, "Essentials")
+		"gaming":     "Gaming",
+		"system":     "System Tools",
+		"none":       "None",
+	}, "Fan Favorites")
 	desktop := normalizeBackendDesktop(plan.Edition)
 	xkb := xkbForKeyboard(plan.Keyboard)
 	gpu := backendGPU(plan.Drivers)
@@ -1407,7 +1448,7 @@ func writeBatchParams(plan prototypePlan) (string, error) {
 		"gpu_value":                 gpu,
 		"starter_apps_bundle":       plan.Extras,
 		"starter_apps_label":        appsLabel,
-		"install_apps_during_setup": mapChoice(plan.Updates, map[string]string{"install": "yes", "defer": "no"}, "no"),
+		"install_apps_during_setup": mapChoice(plan.AppsTiming, map[string]string{"during": "yes", "after": "no"}, "no"),
 		"anix_enabled":              "yes",
 		"github_identity":           "Skipped",
 		"user_password_hash":        plan.PasswordHash,
