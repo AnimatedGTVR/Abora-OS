@@ -44,7 +44,7 @@ func (o PrototypeOptions) Run() error {
 
 	logoMode := "auto"
 	if o.TTY {
-		logoMode = "auto"
+		logoMode = "tty"
 	}
 	if o.Kitty {
 		logoMode = "kitty"

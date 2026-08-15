@@ -145,6 +145,34 @@ else
   pass "dotnet unavailable (abora-plan-tool runtime tests skipped)"
 fi
 
+# ── MINT (vendored Go installer front-end) ──────────────────────────────────
+# vendor/mint had no automated verification anywhere in this repo before --
+# only the manual `make test-installer*` targets, which a human has to
+# remember to run. That's a real contributing factor to regressions only
+# being caught after they ship. `go vet` and `go test` here are intentionally
+# separate from a full lint pass (golangci-lint isn't assumed to be
+# installed) -- this is the same baseline safety net every other language in
+# this repo already gets from check-scripts.sh/check-all-files.sh.
+if command -v go >/dev/null 2>&1; then
+  if (cd "$repo_dir/vendor/mint" && go build ./... >/dev/null 2>&1); then
+    pass "vendor/mint: go build"
+  else
+    fail "vendor/mint: go build"
+  fi
+  if (cd "$repo_dir/vendor/mint" && go vet ./... >/dev/null 2>&1); then
+    pass "vendor/mint: go vet"
+  else
+    fail "vendor/mint: go vet"
+  fi
+  if (cd "$repo_dir/vendor/mint" && go test ./... >/dev/null 2>&1); then
+    pass "vendor/mint: go test"
+  else
+    fail "vendor/mint: go test"
+  fi
+else
+  pass "go unavailable (vendor/mint build/vet/test skipped)"
+fi
+
 for file in "${bash_scripts[@]}"; do
   if [[ ! -f "$file" ]]; then
     fail "Missing file: $file"
