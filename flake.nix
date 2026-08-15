@@ -17,6 +17,7 @@
         modularity = final.callPackage ./nix/pkgs/modularity.nix {};
         moducpp-anix = final.callPackage ./nix/pkgs/moducpp-anix.nix {};
         abora-update-resolver = final.callPackage ./nix/pkgs/abora-update-resolver.nix {};
+        abora-plan-tool = final.callPackage ./nix/pkgs/abora-plan-tool.nix {};
         abora-desktop-preview = final.callPackage ./nix/pkgs/desktop-preview.nix {};
         abora-hardware-test = final.callPackage ./nix/pkgs/hardware-test.nix {};
       };

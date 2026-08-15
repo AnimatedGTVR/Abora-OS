@@ -123,6 +123,26 @@ else
   pass "dotnet unavailable (abora-update-resolver runtime tests skipped)"
 fi
 
+# ── abora-plan-tool (C# Plan JSON structural validation for anix.sh) ───────────
+plan_tool_bin=""
+if command -v dotnet >/dev/null 2>&1; then
+  if MSBuildEnableWorkloadResolver=false dotnet build \
+      "$repo_dir/tools/abora-plan-tool/AboraPlanTool.csproj" \
+      -c Debug >/dev/null 2>&1; then
+    plan_tool_wrapper="$(mktemp)"
+    printf '#!/usr/bin/env bash\nexec dotnet %q "$@"\n' \
+      "$repo_dir/tools/abora-plan-tool/bin/Debug/net10.0/abora-plan-tool.dll" \
+      > "$plan_tool_wrapper"
+    chmod +x "$plan_tool_wrapper"
+    plan_tool_bin="$plan_tool_wrapper"
+    pass "abora-plan-tool: built for runtime tests"
+  else
+    fail "abora-plan-tool: dotnet build failed"
+  fi
+else
+  pass "dotnet unavailable (abora-plan-tool runtime tests skipped)"
+fi
+
 for file in "${bash_scripts[@]}"; do
   if [[ ! -f "$file" ]]; then
     fail "Missing file: $file"
@@ -340,7 +360,7 @@ rm -rf "$tmp_mango_repair"
 tmp_ok="$(mktemp -d)"
 tmp_empty="$(mktemp -d)"
 tmp_update_flake="$(mktemp -d)"
-trap 'rm -rf "$tmp_ok" "$tmp_empty" "$tmp_update_flake"; rm -f "${resolver_wrapper:-}"' EXIT
+trap 'rm -rf "$tmp_ok" "$tmp_empty" "$tmp_update_flake"; rm -f "${resolver_wrapper:-}" "${plan_tool_wrapper:-}"' EXIT
 
 cat > "$tmp_update_flake/flake.nix" <<'EOF'
 {
@@ -1297,6 +1317,8 @@ else
   fail "runtime: anix generation rollback"
 fi
 
+if [[ -n "$plan_tool_bin" ]]; then
+export ABORA_PLAN_TOOL_BIN="$plan_tool_bin"
 tmp_anix_plan_dir="$tmp_ok/anix-plan"
 mkdir -p "$tmp_anix_plan_dir"
 
@@ -1410,6 +1432,10 @@ if printf '%s' "$anix_diff_plan_change_output" | grep -q "CHANGE.*disable blueto
 else
   fail "runtime: anix diff-plan labels a real flip as CHANGE"
 fi
+unset ABORA_PLAN_TOOL_BIN
+else
+  pass "runtime: anix plan-JSON tests skipped (dotnet unavailable)"
+fi
 
 tmp_anix_lang_dir="$tmp_ok/anix-language"
 tmp_anix_lang_adapters="$tmp_ok/anix-language-adapters"
@@ -1490,6 +1516,8 @@ anix_e2e_run() {
     scripts/anix.sh run "$example" --yes >/dev/null 2>&1
 }
 
+if [[ -n "$plan_tool_bin" ]]; then
+export ABORA_PLAN_TOOL_BIN="$plan_tool_bin"
 tmp_anix_e2e_anix="$tmp_ok/anix-e2e-anix"
 mkdir -p "$tmp_anix_e2e_anix"
 anix_e2e_run "examples/anix-v2/simple.anix" "$tmp_anix_e2e_anix" || true
@@ -1566,9 +1594,15 @@ if command -v moducpp-anix >/dev/null 2>&1; then
 else
   pass "moducpp-anix unavailable (ModuCPP e2e tests skipped)"
 fi
+unset ABORA_PLAN_TOOL_BIN
+else
+  pass "runtime: anix e2e run tests skipped (dotnet unavailable)"
+fi
 
 # ── ANIX v2 failure paths: invalid input must never mutate state ───────────
 
+if [[ -n "$plan_tool_bin" ]]; then
+export ABORA_PLAN_TOOL_BIN="$plan_tool_bin"
 tmp_anix_fail_bad_plan="$tmp_ok/anix-fail-bad-plan"
 mkdir -p "$tmp_anix_fail_bad_plan"
 printf '%s' '{"planVersion":1,"language":"test","operations":[{"op":"set","key":"totally-not-a-key","value":"x"}]}' \
@@ -1641,6 +1675,10 @@ elif [[ -f "$tmp_anix_fail_adapter_error/anix.nix" ]]; then
   fail "runtime: run surfaces an adapter's own failure without writing anix.nix"
 else
   pass "runtime: run surfaces an adapter's own failure without writing anix.nix"
+fi
+unset ABORA_PLAN_TOOL_BIN
+else
+  pass "runtime: anix plan failure-path tests skipped (dotnet unavailable)"
 fi
 
 if [[ "$failed" -ne 0 ]]; then

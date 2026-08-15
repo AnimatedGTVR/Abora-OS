@@ -74,6 +74,17 @@ recovery_doc_file="${ANIX_RECOVERY_DOC_FILE:-$docs_dir/Recovery.md}"
 anix_system_language_dir="${ANIX_SYSTEM_LANGUAGE_DIR:-/etc/anix/languages}"
 anix_user_language_dir="${ANIX_USER_LANGUAGE_DIR:-$HOME/.config/anix/languages}"
 anix_plan_version=1
+# Plan JSON structural validation/parsing (well-formed JSON, planVersion,
+# operation shapes, the "set" key allowlist, package-name syntax) is a real
+# Native AOT C# binary (tools/abora-plan-tool) -- see its PlanParser.cs for
+# why: it's the same class of "structured data through jq shell-outs and
+# string matching" problem as tools/abora-update-resolver, and it replaces
+# what used to be many `jq` subprocess calls (one per field per operation)
+# with a single call that parses the whole plan at once. ANIX-specific
+# business rules that must stay a single source of truth with do_toggle/
+# do_set (feature_to_anix_key, per-key value validation) are NOT duplicated
+# there -- see parse_and_validate_plan() below and PlanParser.cs's comment.
+plan_tool_bin="${ABORA_PLAN_TOOL_BIN:-abora-plan-tool}"
 
 valid_desktops=(
     none gnome plasma hyprland sway xfce cinnamon mate budgie lxqt pantheon
@@ -981,7 +992,7 @@ do_set() {
 }
 
 # Single source of truth for feature name -> anix.nix key, shared by
-# do_toggle (writes), validate_plan_json (allowlist), and do_diff_plan
+# do_toggle (writes), parse_and_validate_plan (allowlist), and do_diff_plan
 # (reads current state) so the three can never drift out of sync with each
 # other. Prints the key on success; returns non-zero and prints nothing on
 # an unknown feature.
@@ -2370,66 +2381,49 @@ plan_from_source_file() {
 # do_package already enforce, so a plan can never do anything an interactive
 # ANIX command couldn't. Never writes state; returns non-zero on any
 # violation and prints every problem found, not just the first.
-validate_plan_json() {
+# Parses+validates a Plan JSON string via $plan_tool_bin (JSON well-
+# formedness, planVersion, operations array/op shapes, the "set" key
+# allowlist, package-name syntax -- see PlanParser.cs), plus the one
+# business rule that must stay a single source of truth with do_toggle/
+# do_diff_plan: enable/disable feature names are resolved through
+# feature_to_anix_key. On success, sets $plan_language and populates the
+# $plan_ops array (one entry per operation, tab-separated
+# "op<TAB>field1<TAB>field2") so callers can iterate the plan without
+# re-parsing JSON themselves.
+plan_language=""
+plan_ops=()
+parse_and_validate_plan() {
     local plan="$1"
-    require_command jq
+    require_command "$plan_tool_bin"
 
-    if ! jq -e . >/dev/null 2>&1 <<<"$plan"; then
-        abora_error "Plan is not valid JSON."
+    plan_language=""
+    plan_ops=()
+
+    local output="" rc=0
+    output="$("$plan_tool_bin" parse --expected-version "$anix_plan_version" <<<"$plan" 2>&1)" || rc=$?
+    if [[ "$rc" -ne 0 ]]; then
+        local line=""
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && abora_error "$line"
+        done <<<"$output"
         return 1
     fi
 
-    local version=""
-    version="$(jq -r '.planVersion // empty' <<<"$plan")"
-    if [[ "$version" != "$anix_plan_version" ]]; then
-        abora_error "Unsupported plan version: '${version:-missing}' (expected ${anix_plan_version})."
-        return 1
+    local header="${output%%$'\n'*}"
+    plan_language="${header#language$'\t'}"
+
+    if [[ "$output" == *$'\n'* ]]; then
+        local rest="${output#*$'\n'}"
+        [[ -n "$rest" ]] && mapfile -t plan_ops <<<"$rest"
     fi
 
-    if [[ "$(jq -r '.operations | type' <<<"$plan" 2>/dev/null)" != "array" ]]; then
-        abora_error "Plan is missing an 'operations' array."
-        return 1
-    fi
-
-    local failures=0
-    local count=0
-    count="$(jq '.operations | length' <<<"$plan")"
-    local i=0
-    while [[ "$i" -lt "$count" ]]; do
-        local entry op
-        entry="$(jq -c ".operations[$i]" <<<"$plan")"
-        op="$(jq -r '.op // empty' <<<"$entry")"
-        case "$op" in
-            set)
-                local key
-                key="$(jq -r '.key // empty' <<<"$entry")"
-                case "$key" in
-                    hostname|timezone|keyboard|keyboard.console|keyboard.xkb|desktop|wallpaper|shell|gc.days|garbageCollect.dates|gc.dates) ;;
-                    *) abora_error "operation ${i}: unknown set key '${key}'"; failures=$((failures + 1)) ;;
-                esac
-                [[ "$(jq -r '.value // empty' <<<"$entry")" != "" ]] || { abora_error "operation ${i}: set requires a value"; failures=$((failures + 1)); }
-                ;;
-            enable|disable)
-                local feature
-                feature="$(jq -r '.feature // empty' <<<"$entry")"
-                if ! feature_to_anix_key "$feature" >/dev/null; then
-                    abora_error "operation ${i}: unknown feature '${feature}'"
-                    failures=$((failures + 1))
-                fi
-                ;;
-            package.add|package.remove)
-                local pkg_name
-                pkg_name="$(jq -r '.name // empty' <<<"$entry")"
-                if [[ ! "$pkg_name" =~ ^[A-Za-z0-9._+-]+$ ]]; then
-                    abora_error "operation ${i}: invalid package name '${pkg_name}'"
-                    failures=$((failures + 1))
-                fi
-                ;;
-            *)
-                abora_error "operation ${i}: unknown op '${op}'"
-                failures=$((failures + 1))
-                ;;
-        esac
+    local failures=0 i=0 entry op field1 field2
+    for entry in "${plan_ops[@]}"; do
+        IFS=$'\t' read -r op field1 field2 <<<"$entry"
+        if [[ "$op" == "enable" || "$op" == "disable" ]] && ! feature_to_anix_key "$field1" >/dev/null; then
+            abora_error "operation ${i}: unknown feature '${field1}'"
+            failures=$((failures + 1))
+        fi
         i=$((i + 1))
     done
 
@@ -2442,7 +2436,7 @@ validate_plan_json() {
 # those commands by hand), then a single dry-build + confirm + switch closes
 # the transaction instead of one apply per setting.
 #
-# validate_plan_json only checks that each operation's key/op/shape is
+# parse_and_validate_plan only checks that each operation's key/op/shape is
 # recognized -- it does not (and cannot, without duplicating do_set's own
 # logic) check that a "set desktop" value is an actual supported profile, or
 # that a hostname passes the hostname regex. Those checks only run inside
@@ -2462,16 +2456,15 @@ apply_plan_json() {
     local plan="$1"
     local skip_confirm="${2:-no}"
 
-    validate_plan_json "$plan" || { abora_error "Refusing to apply an invalid plan."; exit 1; }
+    parse_and_validate_plan "$plan" || { abora_error "Refusing to apply an invalid plan."; exit 1; }
 
-    local count=0
-    count="$(jq '.operations | length' <<<"$plan")"
+    local count="${#plan_ops[@]}"
     if [[ "$count" -eq 0 ]]; then
         abora_warn "Plan has no operations."
         return 0
     fi
 
-    abora_banner "ANIX Plan" "$(jq -r '"\(.operations | length) operation(s) from " + (.language // "unknown")' <<<"$plan")"
+    abora_banner "ANIX Plan" "${count} operation(s) from ${plan_language:-unknown}"
 
     ensure_anix_file
     local real_anix_file="$anix_file"
@@ -2480,26 +2473,24 @@ apply_plan_json() {
     cp -f "$real_anix_file" "$staged_anix_file"
     anix_file="$staged_anix_file"
 
-    local i=0 op_rc=0
-    while [[ "$i" -lt "$count" ]]; do
-        local entry op
-        entry="$(jq -c ".operations[$i]" <<<"$plan")"
-        op="$(jq -r '.op' <<<"$entry")"
+    local i=0 op_rc=0 entry op field1 field2
+    for entry in "${plan_ops[@]}"; do
+        IFS=$'\t' read -r op field1 field2 <<<"$entry"
         case "$op" in
             set)
-                ( do_set "$(jq -r '.key' <<<"$entry")" "$(jq -r '.value' <<<"$entry")" ) || op_rc=$?
+                ( do_set "$field1" "$field2" ) || op_rc=$?
                 ;;
             enable)
-                ( do_toggle true "$(jq -r '.feature' <<<"$entry")" ) || op_rc=$?
+                ( do_toggle true "$field1" ) || op_rc=$?
                 ;;
             disable)
-                ( do_toggle false "$(jq -r '.feature' <<<"$entry")" ) || op_rc=$?
+                ( do_toggle false "$field1" ) || op_rc=$?
                 ;;
             package.add)
-                ( do_package add "$(jq -r '.name' <<<"$entry")" ) || op_rc=$?
+                ( do_package add "$field1" ) || op_rc=$?
                 ;;
             package.remove)
-                ( do_package remove "$(jq -r '.name' <<<"$entry")" ) || op_rc=$?
+                ( do_package remove "$field1" ) || op_rc=$?
                 ;;
         esac
         [[ "$op_rc" -ne 0 ]] && break
@@ -2549,8 +2540,8 @@ do_validate_plan() {
     [[ -n "$file" && -f "$file" ]] || { abora_error "Usage: anix validate-plan <plan.json>"; exit 1; }
     local plan=""
     plan="$(cat "$file")"
-    if validate_plan_json "$plan"; then
-        abora_success "Plan is valid: $(jq -r '.operations | length' <<<"$plan") operation(s)."
+    if parse_and_validate_plan "$plan"; then
+        abora_success "Plan is valid: ${#plan_ops[@]} operation(s)."
         printf '\n'
     else
         abora_error "Plan is invalid."
@@ -2580,36 +2571,29 @@ do_diff_plan() {
     else
         plan="$(plan_from_source_file "$file" "")"
     fi
-    validate_plan_json "$plan" || { abora_error "Refusing to diff an invalid plan."; exit 1; }
+    parse_and_validate_plan "$plan" || { abora_error "Refusing to diff an invalid plan."; exit 1; }
 
-    abora_banner "ANIX Plan Diff" "$(jq -r '.language // "unknown"' <<<"$plan")"
+    abora_banner "ANIX Plan Diff" "${plan_language:-unknown}"
 
-    local count=0
-    count="$(jq '.operations | length' <<<"$plan")"
-    local i=0
-    while [[ "$i" -lt "$count" ]]; do
-        local entry op label=""
-        entry="$(jq -c ".operations[$i]" <<<"$plan")"
-        op="$(jq -r '.op' <<<"$entry")"
+    local entry op field1 field2 label=""
+    for entry in "${plan_ops[@]}"; do
+        IFS=$'\t' read -r op field1 field2 <<<"$entry"
         case "$op" in
             set)
-                local key value current
-                key="$(jq -r '.key' <<<"$entry")"
-                value="$(jq -r '.value' <<<"$entry")"
-                current="$( [[ -f "$anix_file" ]] && read_anix_option "$key" || true )"
+                local current
+                current="$( [[ -f "$anix_file" ]] && read_anix_option "$field1" || true )"
                 if [[ -z "$current" ]]; then label="ADD"
-                elif [[ "$current" == "$value" ]]; then label="SAME"
+                elif [[ "$current" == "$field2" ]]; then label="SAME"
                 else label="CHANGE"; fi
-                printf '  %-7s set %s = "%s"' "$label" "$key" "$value"
+                printf '  %-7s set %s = "%s"' "$label" "$field1" "$field2"
                 [[ "$label" == "CHANGE" ]] && printf ' (was "%s")' "$current"
                 printf '\n'
                 ;;
             enable|disable)
-                local feature wanted current_bool anix_key
-                feature="$(jq -r '.feature' <<<"$entry")"
+                local wanted current_bool anix_key
                 wanted="$([[ "$op" == "enable" ]] && printf 'true' || printf 'false')"
                 current_bool=""
-                if anix_key="$(feature_to_anix_key "$feature")"; then
+                if anix_key="$(feature_to_anix_key "$field1")"; then
                     current_bool="$(read_anix_bool_option "$anix_key")"
                 fi
                 if [[ -z "$current_bool" ]]; then
@@ -2619,25 +2603,20 @@ do_diff_plan() {
                 else
                     label="CHANGE"
                 fi
-                printf '  %-7s %s %s\n' "$label" "$op" "$feature"
+                printf '  %-7s %s %s\n' "$label" "$op" "$field1"
                 ;;
             package.add)
-                local name
-                name="$(jq -r '.name' <<<"$entry")"
-                if [[ -f "$anix_file" ]] && grep -Eq "anix\\.packages = with pkgs; \\[[^]]*([[:space:][])${name}([[:space:]]|\\])" "$anix_file"; then
+                if [[ -f "$anix_file" ]] && grep -Eq "anix\\.packages = with pkgs; \\[[^]]*([[:space:][])${field1}([[:space:]]|\\])" "$anix_file"; then
                     label="SAME"
                 else
                     label="ADD"
                 fi
-                printf '  %-7s package %s\n' "$label" "$name"
+                printf '  %-7s package %s\n' "$label" "$field1"
                 ;;
             package.remove)
-                local name
-                name="$(jq -r '.name' <<<"$entry")"
-                printf '  %-7s package %s\n' "REMOVE" "$name"
+                printf '  %-7s package %s\n' "REMOVE" "$field1"
                 ;;
         esac
-        i=$((i + 1))
     done
     printf '\n'
 }

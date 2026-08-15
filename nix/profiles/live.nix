@@ -434,6 +434,7 @@ in
     # ── Abora installer toolchain ────────────────────────────────────────────
     tinypmPackage
     abora-update-resolver
+    abora-plan-tool
     aboraApps
     aboraCustomPackages
     aboraAdoptNixos
@@ -670,12 +671,14 @@ in
       "abora/pkgs/modularity.nix".source = ../pkgs/modularity.nix;
       "abora/pkgs/moducpp-anix.nix".source = ../pkgs/moducpp-anix.nix;
       "abora/pkgs/abora-update-resolver.nix".source = ../pkgs/abora-update-resolver.nix;
+      "abora/pkgs/abora-plan-tool.nix".source = ../pkgs/abora-plan-tool.nix;
       "abora/tools/moducpp-anix" = {
         source = ../../tools/moducpp-anix;
         mode = "0755";
       };
       "abora/tinypm".source = tinypmDir;
       "abora/update-resolver".source = ../../tools/abora-update-resolver;
+      "abora/plan-tool".source = ../../tools/abora-plan-tool;
       "abora/vendor/modularity".source = ../../vendor/modularity;
       "abora/docs".source = ../../docs;
       "abora/anix-languages".source = ../../assets/anix-languages;

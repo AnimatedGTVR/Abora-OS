@@ -779,6 +779,13 @@ release_has_update_resolver() {
     ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
 }
 
+release_has_plan_tool() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "edge" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
+}
+
 required_upstream_paths() {
     local selected_ref="${1:-edge}"
     cat <<'EOF'
@@ -875,6 +882,14 @@ EOF
 tools/abora-update-resolver/AboraUpdateResolver.csproj
 tools/abora-update-resolver/Program.cs
 nix/pkgs/abora-update-resolver.nix
+EOF
+    fi
+
+    if release_has_plan_tool "$selected_ref"; then
+        cat <<'EOF'
+tools/abora-plan-tool/AboraPlanTool.csproj
+tools/abora-plan-tool/Program.cs
+nix/pkgs/abora-plan-tool.nix
 EOF
     fi
 }
@@ -1159,6 +1174,13 @@ sync_abora_files() {
     if [[ -d "$upstream_dir/tools/abora-update-resolver" ]]; then
         rm -rf "$abora_dir/update-resolver"
         cp -R "$upstream_dir/tools/abora-update-resolver" "$abora_dir/update-resolver"
+    fi
+    if [[ -f "$upstream_dir/nix/pkgs/abora-plan-tool.nix" ]]; then
+        copy_upstream_file "$upstream_dir/nix/pkgs/abora-plan-tool.nix" "$abora_dir/pkgs/abora-plan-tool.nix"
+    fi
+    if [[ -d "$upstream_dir/tools/abora-plan-tool" ]]; then
+        rm -rf "$abora_dir/plan-tool"
+        cp -R "$upstream_dir/tools/abora-plan-tool" "$abora_dir/plan-tool"
     fi
 
     if [[ ! -f "$abora_dir/apps.list" ]]; then
