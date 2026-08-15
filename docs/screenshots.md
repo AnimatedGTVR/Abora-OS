@@ -20,7 +20,8 @@ fresh ISO whenever possible so the screenshots match what users see.
 ## Installed System
 
 - first boot desktop with the Abora wallpaper
-- `abora welcome` or welcome GUI
+- `abora welcome` or welcome GUI, showing the Home and System tabs
+- Abora Gaming Welcome (`abora gaming welcome`) showing the platform list and Steam sign-in card
 - `abora config` or config GUI
 - `anix language list` showing ANIX Native, MAKO, and ModuCPP
 - `anix diff-plan examples/anix-v2/workstation.mko`
