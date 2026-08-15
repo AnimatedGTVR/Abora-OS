@@ -95,6 +95,8 @@
         moducpp-anix = pkgs.moducpp-anix;
         abora-desktop-preview = pkgs.abora-desktop-preview;
         abora-hardware-test = pkgs.abora-hardware-test;
+        abora-update-resolver = pkgs.abora-update-resolver;
+        abora-plan-tool = pkgs.abora-plan-tool;
 
         default = self.nixosConfigurations.abora-live-cosmic.config.system.build.isoImage;
       };

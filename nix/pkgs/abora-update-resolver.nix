@@ -1,6 +1,7 @@
 { lib
 , buildDotnetModule
 , dotnetCorePackages
+, clang
   # Two possible locations depending on whether this is evaluated from the
   # repo's own flake.nix (../../tools/...) or from an installed system's
   # copy under /etc/nixos/abora (../update-resolver) -- same dual-path
@@ -38,6 +39,9 @@ buildDotnetModule rec {
 
   dotnet-sdk = dotnetCorePackages.sdk_10_0;
   dotnet-runtime = dotnetCorePackages.runtime_10_0;
+
+  # Native AOT's ILCompiler needs a real C linker on PATH at publish time.
+  nativeBuildInputs = [ clang ];
 
   selfContainedBuild = true;
   useAppHost = true;
