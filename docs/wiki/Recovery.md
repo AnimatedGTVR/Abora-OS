@@ -11,7 +11,7 @@ abora network
 anix status
 anix doctor
 anix --gui
-tinypm system
+tinypm doctor
 ```
 
 ## Roll Back
@@ -71,8 +71,8 @@ Reboot when ready.
 ## Repair App Sources
 
 ```sh
-tinypm repair
-tinypm sources
+tinypm doctor
+tinypm providers
 ```
 
 If Flatpak is the issue:

@@ -135,7 +135,7 @@ When installation finishes:
 4. confirm networking works
 5. run `abora doctor`
 6. run `anix quickstart`
-7. run `tinypm sources`
+7. run `tinypm providers`
 8. run `sudo abora update` when ready to test updates
 
 The installed system is intentionally lean. Extra diagnostics, VM guest agents,
@@ -151,8 +151,8 @@ abora doctor
 anix status
 anix doctor
 anix --gui
-tinypm system
-tinypm sources
+tinypm doctor
+tinypm providers
 ```
 
 For tiling desktop installs, you can import dotfiles again or test a local

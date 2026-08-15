@@ -3,9 +3,10 @@ set -euo pipefail
 
 # Builds a standalone ANIX tarball for non-NixOS/non-Abora users: a
 # self-contained bin/+share/ tree with its own install.sh, so `anix` and its
-# docs/languages/TinyPM bundle work outside the Abora ISO entirely (the
-# generated bin/anix wrapper below sets ANIX_* env vars pointing at the
-# bundled share/anix/ paths instead of relying on /etc/abora).
+# docs/languages bundle work outside the Abora ISO entirely (the generated
+# bin/anix wrapper below sets ANIX_* env vars pointing at the bundled
+# share/anix/ paths instead of relying on /etc/abora). TinyPM is a separate
+# Rust CLI distributed through its own release archives, not bundled here.
 repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 out_dir="${ABORA_OUT_DIR:-$repo_dir/out}"
 package_dir="${ABORA_PACKAGE_DIR:-$out_dir/packages}"
@@ -52,7 +53,7 @@ install -Dm0755 "$repo_dir/scripts/anix.sh" "$stage_dir/share/anix/anix.sh"
 install -Dm0644 "$repo_dir/scripts/abora-ui.sh" "$stage_dir/share/anix/abora-ui.sh"
 install -Dm0644 "$repo_dir/nix/modules/anix.nix" "$stage_dir/share/anix/anix-module.nix"
 install -Dm0644 "$repo_dir/docs/wiki/ANIX-V1.md" "$stage_dir/share/anix/docs/wiki/ANIX-V1.md"
-install -Dm0644 "$repo_dir/docs/wiki/TinyPM-V4.md" "$stage_dir/share/anix/docs/wiki/TinyPM-V4.md"
+install -Dm0644 "$repo_dir/docs/wiki/TinyPM.md" "$stage_dir/share/anix/docs/wiki/TinyPM.md"
 install -Dm0644 "$repo_dir/docs/wiki/Abora-Tools.md" "$stage_dir/share/anix/docs/wiki/Abora-Tools.md"
 install -Dm0644 "$repo_dir/docs/wiki/Recovery.md" "$stage_dir/share/anix/docs/wiki/Recovery.md"
 install -Dm0644 "$repo_dir/docs/wiki/ANIX-V2-Languages.md" "$stage_dir/share/anix/docs/wiki/ANIX-V2-Languages.md"
@@ -64,11 +65,6 @@ fi
 
 if [[ -f "$repo_dir/tools/moducpp-anix" ]]; then
   install -Dm0755 "$repo_dir/tools/moducpp-anix" "$stage_dir/share/anix/tools/moducpp-anix"
-fi
-
-if [[ -d "$repo_dir/vendor/tinypm" ]]; then
-  mkdir -p "$stage_dir/share/anix/tinypm"
-  cp -a "$repo_dir/vendor/tinypm/." "$stage_dir/share/anix/tinypm/"
 fi
 
 if [[ -d "$repo_dir/assets/wallpapers/collection" ]]; then
@@ -93,7 +89,6 @@ share_dir="$prefix/share/anix"
 export ANIX_UI_LIB="$share_dir/abora-ui.sh"
 export ANIX_DOCS_DIR="$share_dir/docs/wiki"
 export ANIX_SYSTEM_LANGUAGE_DIR="$share_dir/languages"
-export ANIX_TINYPM_SOURCE="$share_dir/tinypm"
 export ANIX_WALLPAPER_DIR="$share_dir/wallpapers"
 export ANIX_SOUND_FILE="$share_dir/effects/v3StartingAbora.mp3"
 export PATH="$share_dir/tools:$PATH"
@@ -139,7 +134,10 @@ This installs:
 - bundled docs
 - bundled ANIX v2 language manifests
 - bundled ModuCPP ANIX adapter helper
-- bundled TinyPM source for `anix tinypm install`
+
+TinyPM is a separate Rust CLI (`tinypm`/`grab`) with its own release
+archives -- see the TinyPM docs bundled here (`share/anix/docs/wiki/TinyPM.md`)
+for how to install it alongside ANIX.
 
 ## Flake Usage
 

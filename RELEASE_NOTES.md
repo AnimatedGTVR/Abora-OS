@@ -129,13 +129,13 @@ anix enable gaming.big-picture
 
 ### TinyPM v0.8
 
-TinyPM is the app layer, unchanged from DENALI 3.14:
+TinyPM is the app layer. It has been rewritten from the ground up as a real
+Rust crate, replacing the DENALI 3.14 Bash multicall tool with two binaries:
 
 ```sh
 grab firefox             # install through the best available source
-tinypm sources            # show native/Flatpak/Snap availability
-tinypm system              # Abora/NixOS/ANIX bridge status
-tinypm repair              # repair-focused doctor checks
+tinypm providers          # show native/Flatpak/Snap availability
+tinypm doctor              # provider diagnostics
 ```
 
 ### Installer and Abora Branding

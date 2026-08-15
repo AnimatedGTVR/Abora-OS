@@ -74,24 +74,22 @@ let
       bootloaderDir + "/background.png";
   tinypmDir            = ./tinypm;
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
-  mkGrabCmd = name: pkgs.writeShellScriptBin name ''
-    runtime=/etc/abora/tinypm
-    entry="$runtime/bin/${name}"
-    if [ ! -x "$entry" ]; then
-      entry="$runtime/${name}"
-    fi
-    if [ ! -x "$entry" ]; then
-      case "${name}" in
-        Parcel|version)
-          exec env TINYPM_FLAVOR=abora ${pkgs.bashInteractive}/bin/bash "$runtime/bin/tinypm" version "$@"
-          ;;
-        *)
-          exec env TINYPM_FLAVOR=abora TINYPM_ENTRYPOINT=${name} ${pkgs.bashInteractive}/bin/bash "$runtime/bin/tinypm" "$@"
-          ;;
-      esac
-    fi
-    exec env TINYPM_FLAVOR=abora TINYPM_ENTRYPOINT=${name} ${pkgs.bashInteractive}/bin/bash "$entry" "$@"
-  '';
+  # TinyPM was rewritten from a bash multicall tree to a real Rust crate
+  # (see TinyPM's own CLAUDE.md: "the old Bash runtime was removed"). The
+  # installer copies the vendored source to /etc/nixos/abora/tinypm
+  # (tinypmDir above), and this builds it the same way
+  # nix/profiles/live.nix's tinypmPackage does for the live ISO. Only two
+  # binaries exist now -- tinypm and grab -- replacing the old mkGrabCmd
+  # multicall wrapper's much longer alias list (tiny/Parcel/search/term/
+  # start/supdate/grab-add-repo/grab-de/syspm), none of which have a Rust
+  # equivalent.
+  tinypmPackage = pkgs.rustPlatform.buildRustPackage {
+    pname = "tinypm";
+    version = "0.8.1-alpha";
+    src = tinypmDir;
+    cargoLock.lockFile = tinypmDir + "/Cargo.lock";
+    doCheck = false;
+  };
   aboraApps = pkgs.writeShellScriptBin "abora-apps" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/apps.sh "$@"
   '';
@@ -459,17 +457,7 @@ in
   };
 
   environment.systemPackages = with pkgs; [
-    (mkGrabCmd "tinypm")
-    (mkGrabCmd "tiny")
-    (mkGrabCmd "Parcel")
-    (mkGrabCmd "grab")
-    (mkGrabCmd "search")
-    (mkGrabCmd "term")
-    (mkGrabCmd "start")
-    (mkGrabCmd "supdate")
-    (mkGrabCmd "grab-add-repo")
-    (mkGrabCmd "grab-de")
-    (mkGrabCmd "syspm")
+    tinypmPackage
     aboraApps
     aboraCustomPackages
     aboraAdoptNixos

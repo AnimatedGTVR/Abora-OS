@@ -61,10 +61,9 @@ wallpaper_dir="${ANIX_WALLPAPER_DIR:-/etc/abora/wallpapers}"
 anix_state_dir="${ANIX_STATE_DIR:-$config_dir/.anix}"        # git snapshots + this tool's own settings
 anix_tool_config="${ANIX_TOOL_CONFIG:-$anix_state_dir/config}"
 docs_dir="${ANIX_DOCS_DIR:-/etc/abora/docs/wiki}"
-tinypm_source_dir="${ANIX_TINYPM_SOURCE:-/etc/abora/tinypm}"
 sound_file="${ANIX_SOUND_FILE:-/etc/abora/effects/v3StartingAbora.mp3}"
 anix_doc_file="${ANIX_DOC_FILE:-$docs_dir/ANIX-V1.md}"
-tinypm_doc_file="${ANIX_TINYPM_DOC_FILE:-$docs_dir/TinyPM-V4.md}"
+tinypm_doc_file="${ANIX_TINYPM_DOC_FILE:-$docs_dir/TinyPM.md}"
 abora_tools_doc_file="${ANIX_ABORA_TOOLS_DOC_FILE:-$docs_dir/Abora-Tools.md}"
 recovery_doc_file="${ANIX_RECOVERY_DOC_FILE:-$docs_dir/Recovery.md}"
 
@@ -733,8 +732,9 @@ render_template() {
   ## Command: anix set shell zsh
   anix.shell = "zsh";
 
-  ## TinyPM installs per-user on first login when a TinyPM source is available.
-  ## Command: anix tinypm install
+  ## TinyPM ships system-wide as an ordinary package; this option is
+  ## historical and no longer does anything (see anix.tinypm.enable docs).
+  ## Command: anix tinypm status
   anix.tinypm.enable = true;
 
   ## System services.
@@ -801,7 +801,7 @@ show_config() {
     fi
 
     local hostname timezone kb_console kb_xkb desktop wallpaper
-    local allow_unfree tinypm bluetooth flatpak audio openssh gc shell
+    local allow_unfree bluetooth flatpak audio openssh gc shell
     local gaming gaming_big_picture gaming_autostart gaming_gamescope gaming_vulkan
     hostname="$(read_anix_option "hostname")"
     timezone="$(read_anix_option "timezone")"
@@ -811,7 +811,6 @@ show_config() {
     wallpaper="$(read_anix_option "wallpaper")"
     shell="$(read_anix_option "shell")"
     allow_unfree="$(sed -nE 's|^[[:space:]]*anix\.allowUnfree[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
-    tinypm="$(sed -nE 's|^[[:space:]]*anix\.tinypm\.enable[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
     bluetooth="$(sed -nE 's|^[[:space:]]*anix\.services\.bluetooth[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
     flatpak="$(sed -nE 's|^[[:space:]]*anix\.services\.flatpak[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
     audio="$(sed -nE 's|^[[:space:]]*anix\.services\.audio[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
@@ -847,7 +846,11 @@ show_config() {
     abora_card_end
 
     abora_card_start "Services"
-    abora_kv "TinyPM"      "${tinypm:-—}"
+    if tinypm_available; then
+        abora_kv "TinyPM"  "yes (system, $(tinypm_version))"
+    else
+        abora_kv "TinyPM"  "not found on PATH"
+    fi
     abora_kv "Bluetooth"   "${bluetooth:-—}"
     abora_kv "Flatpak"     "${flatpak:-—}"
     abora_kv "Audio"       "${audio:-—}"
@@ -994,7 +997,6 @@ feature_to_anix_key() {
         openssh|ssh) printf 'services.openssh' ;;
         thermald) printf 'power.thermald' ;;
         tlp) printf 'power.tlp' ;;
-        tinypm) printf 'tinypm.enable' ;;
         gaming) printf 'gaming.enable' ;;
         gaming.big-picture|gaming.bigPictureShortcut|bigPicture|big-picture) printf 'gaming.bigPictureShortcut' ;;
         gaming.autostart|gaming.bigPictureAutostart) printf 'gaming.bigPictureAutostart' ;;
@@ -1027,7 +1029,7 @@ do_toggle() {
 
     if ! key="$(feature_to_anix_key "$name")"; then
         abora_error "Unknown feature: ${name}"
-        abora_dim_line "Known: allowUnfree experimentalNix bluetooth printing flatpak audio openssh thermald tlp tinypm gaming gaming.big-picture gaming.autostart gaming.gamescope gaming.vulkan garbageCollect"
+        abora_dim_line "Known: allowUnfree experimentalNix bluetooth printing flatpak audio openssh thermald tlp gaming gaming.big-picture gaming.autostart gaming.gamescope gaming.vulkan garbageCollect"
         exit 1
     fi
 
@@ -1280,27 +1282,29 @@ do_status() {
     abora_card_end
 
     abora_card_start "TinyPM"
-    if tinypm_installed; then
-        abora_kv "installed" "yes"
-        local _ver=""
-        _ver="$("${HOME}/.tinypm/bin/version" 2>/dev/null | head -1 || true)"
-        abora_kv "version" "${_ver:-unknown}"
+    if tinypm_available; then
+        abora_kv "installed" "yes (system-wide)"
+        abora_kv "version" "$(tinypm_version)"
     else
-        abora_kv "installed" "no — run: anix tinypm install"
+        abora_kv "installed" "no — not found on PATH"
     fi
     abora_card_end
     printf '\n'
 }
 
-# Marker file recording that this user has run TinyPM's installer through
-# ANIX before — lets `anix tinypm install` refuse to silently reinstall
-# unless the user explicitly asks for `reinstall`.
-tinypm_stamp() {
-    printf '%s' "${XDG_STATE_HOME:-${HOME}/.local/state}/tinypm/anix-init-done"
+# TinyPM was rewritten from a bash multicall tree (with its own per-user
+# "flavor" installer) into a real Rust crate that ships system-wide via
+# nix/profiles/live.nix's tinypmPackage — the same as any other
+# environment.systemPackages entry. There is no per-user install step
+# anymore: `tinypm`/`grab` are just on PATH once the system is built.
+tinypm_available() {
+    command -v tinypm >/dev/null 2>&1
 }
 
-tinypm_installed() {
-    [[ -f "$(tinypm_stamp)" ]] && [[ -d "${HOME}/.tinypm/bin" ]]
+tinypm_version() {
+    local ver=""
+    ver="$(tinypm --version 2>/dev/null | head -1 || true)"
+    printf '%s' "${ver:-unknown}"
 }
 
 do_tinypm() {
@@ -1311,49 +1315,30 @@ do_tinypm() {
         status)
             abora_banner "TinyPM" "Abora Package Manager"
             abora_card_start "Status"
-            if tinypm_installed; then
-                abora_kv "installed"  "yes (${HOME}/.tinypm)"
-                local ver=""
-                ver="$("${HOME}/.tinypm/bin/version" 2>/dev/null | head -1 || true)"
-                abora_kv "version"    "${ver:-unknown}"
-                abora_kv "commands"   "grab  search  term  start  supdate"
+            if tinypm_available; then
+                abora_kv "installed" "yes (system-wide)"
+                abora_kv "version"   "$(tinypm_version)"
+                abora_kv "commands"  "tinypm  grab"
             else
-                abora_kv "installed"  "no"
-                abora_kv "stamp"      "$(tinypm_stamp)"
+                abora_kv "installed" "no — not found on PATH"
+                abora_dim_line "TinyPM ships as a system package on Abora; if it's"
+                abora_dim_line "missing, rebuild the system (sudo abora update)."
             fi
-            abora_kv "system src" "${tinypm_source_dir}"
             abora_card_end
             printf '\n'
-            if ! tinypm_installed; then
-                abora_dim_line "Run 'anix tinypm install' to set up TinyPM now."
-                printf '\n'
-            fi
             ;;
         install|setup|reinstall)
-            local src="${tinypm_source_dir}"
-            if [[ ! -f "${src}/install.sh" ]]; then
-                abora_error "TinyPM source not found at ${src}/install.sh"
-                exit 1
+            if tinypm_available; then
+                abora_success "TinyPM is already installed system-wide ($(tinypm_version))."
+                abora_dim_line "It ships with Abora itself — there's no separate install step."
+            else
+                abora_warn "TinyPM was not found on PATH."
+                abora_dim_line "It should ship system-wide with Abora; try: sudo abora update"
             fi
-            if tinypm_installed && [[ "$sub" != "reinstall" ]]; then
-                abora_warn "TinyPM is already installed at ${HOME}/.tinypm"
-                abora_dim_line "Use 'anix tinypm reinstall' to force a fresh install."
-                printf '\n'
-                return 0
-            fi
-            abora_step "Installing TinyPM (flavor: abora)…"
-            TINYPM_FLAVOR=abora bash "${src}/install.sh" \
-                --flavor abora --yes --native nix
-            local stamp_dir
-            stamp_dir="$(dirname "$(tinypm_stamp)")"
-            mkdir -p "${stamp_dir}"
-            touch "$(tinypm_stamp)"
-            printf '\n'
-            abora_success "TinyPM installed. Open a new shell or run: hash -r"
             printf '\n'
             ;;
         *)
-            abora_error "Usage: anix tinypm [status|install|reinstall]"
+            abora_error "Usage: anix tinypm [status|install]"
             exit 1
             ;;
     esac
@@ -1547,8 +1532,6 @@ gui_pick_feature_action() {
         "thermald:off" "Disable thermald" \
         "tlp:on" "Enable TLP power management" \
         "tlp:off" "Disable TLP" \
-        "tinypm:on" "Turn on TinyPM bootstrap" \
-        "tinypm:off" "Turn off TinyPM bootstrap" \
         "garbageCollect:on" "Enable scheduled garbage collection" \
         "garbageCollect:off" "Disable scheduled garbage collection" \
         "back" "Return to the main menu"
@@ -1699,16 +1682,14 @@ gui_packages_menu() {
     local action pkg
 
     while true; do
-        action="$(gui_choose_action "ANIX Packages" "Manage TinyPM bootstrap and simple package edits." \
+        action="$(gui_choose_action "ANIX Packages" "Check TinyPM and edit simple package lists." \
             "tinypm-status" "Show TinyPM status" \
-            "tinypm-install" "Install or repair TinyPM for this user" \
             "package-add" "Add a package to anix.packages" \
             "package-remove" "Remove a package from anix.packages" \
             "back" "Return to the main menu")"
 
         case "$action" in
             tinypm-status) gui_capture "TinyPM Status" do_tinypm status ;;
-            tinypm-install) gui_capture "TinyPM Install" do_tinypm install ;;
             package-add)
                 pkg="$(gui_prompt_text "Add Package" "Package name to add to anix.packages")"
                 [[ -n "$pkg" ]] || continue
@@ -1776,8 +1757,7 @@ terminal_prompt_feature_action() {
     printf '  7  OpenSSH\n'
     printf '  8  Thermald\n'
     printf '  9  TLP\n'
-    printf '  10 TinyPM bootstrap\n'
-    printf '  11 Garbage collect\n'
+    printf '  10 Garbage collect\n'
     printf '  0  Back\n\n'
     printf '  Select: '
 }
@@ -1840,8 +1820,7 @@ terminal_features_menu() {
             7) feature="openssh" ;;
             8) feature="thermald" ;;
             9) feature="tlp" ;;
-            10) feature="tinypm" ;;
-            11) feature="garbageCollect" ;;
+            10) feature="garbageCollect" ;;
             0|"") return 0 ;;
             *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
         esac
@@ -3137,7 +3116,7 @@ usage() {
     abora_dim_line "  Update a simple ANIX setting."
     printf '\n'
     printf '  %banix enable <feature>%b / %banix disable <feature>%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
-    abora_dim_line "  Toggle bluetooth, flatpak, audio, openssh, allowUnfree, tinypm, gc, and power helpers."
+    abora_dim_line "  Toggle bluetooth, flatpak, audio, openssh, allowUnfree, gc, and power helpers."
     printf '\n'
     printf '  %banix package add <pkg>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     printf '  %banix package remove <pkg>%b\n' "$ABORA_CYAN" "$ABORA_NC"
@@ -3176,8 +3155,8 @@ usage() {
     printf '  %banix diff-plan <file>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Show ADD/CHANGE/REMOVE/SAME for a source or Plan JSON file against current state."
     printf '\n'
-    printf '  %banix tinypm [status|install|reinstall]%b\n' "$ABORA_CYAN" "$ABORA_NC"
-    abora_dim_line "  Manage the TinyPM per-user installation."
+    printf '  %banix tinypm [status|install]%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Check TinyPM, the system-wide package manager frontend."
     printf '\n'
 }
 

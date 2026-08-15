@@ -977,13 +977,9 @@ check_install_environment() {
         /etc/abora/abora-options.nix
         /etc/abora/anix.sh
         /etc/abora/anix-module.nix
-        /etc/abora/tinypm/tinypm
-        /etc/abora/tinypm/grab
-        /etc/abora/tinypm/Parcel
-        /etc/abora/tinypm/version
-        /etc/abora/tinypm/bin/tinypm
-        /etc/abora/tinypm/lib/tinypm/core/version.sh
-        /etc/abora/tinypm/lib/tinypm/providers/anix.sh
+        /etc/abora/tinypm/Cargo.toml
+        /etc/abora/tinypm/src/main.rs
+        /etc/abora/tinypm/src/bin/grab.rs
         /etc/abora/vendor/modularity
         /etc/abora/installer.sh
         /etc/abora/setup-launcher.sh
@@ -999,7 +995,7 @@ check_install_environment() {
     local -a optional_paths=(
         /etc/abora/docs/wiki/ANIX-V1.md
         /etc/abora/docs/wiki/ANIX-V2-Languages.md
-        /etc/abora/docs/wiki/TinyPM-V4.md
+        /etc/abora/docs/wiki/TinyPM.md
         /etc/abora/docs/wiki/Abora-Tools.md
         /etc/abora/docs/wiki/Abora-Gaming.md
         /etc/abora/docs/wiki/Recovery.md
@@ -1847,51 +1843,10 @@ render_apps_nix() {
     } > "$nix"
 }
 
-write_tinypm_system_fallback() {
-    local target="$1"
-    mkdir -p "$(dirname "$target")"
-    cat > "$target" <<'EOF'
-#!/usr/bin/env bash
-# Fallback TinyPM system bridge for older Abora ISO payloads.
-system_command_state() { command -v "$1" >/dev/null 2>&1 && printf available || printf missing; }
-system_layer_name() {
-    if [[ -r /etc/os-release ]]; then
-        . /etc/os-release
-        case "${ID:-}:${PRETTY_NAME:-}" in
-            abora:*|*:*"Abora"*) printf 'Abora OS'; return ;;
-            nixos:*|*nixos*) printf 'NixOS'; return ;;
-        esac
-    fi
-    printf 'Linux'
-}
-system_config_dir() { printf '%s\n' "${TINYPM_SYSTEM_CONFIG:-${ANIX_SYSTEM_CONFIG:-/etc/nixos}}"; }
-system_file_exists() { [[ -e "$1" ]]; }
-system_flake_state() { [[ -f "$(system_config_dir)/flake.nix" ]] && printf present || printf missing; }
-system_generation_state() { [[ -e /run/current-system ]] && printf active || printf unknown; }
-system_native_strategy() { printf 'Native packages with Abora/ANIX bridges when available'; }
-system_print_report() {
-    printf 'Parcel system layer\n'
-    printf '%s\n' '------------------------------------------------------------'
-    printf '  %-18s %s\n' system "$(system_layer_name)"
-    printf '  %-18s %s\n' config_dir "$(system_config_dir)"
-    printf '  %-18s %s\n' flake "$(system_flake_state)"
-    printf '  %-18s %s\n' generation "$(system_generation_state)"
-    printf '  %-18s %s\n' abora "$(system_command_state abora)"
-    printf '  %-18s %s\n' anix "$(system_command_state anix)"
-}
-system_bridge_command() {
-    local tool="$1"; shift
-    command -v "$tool" >/dev/null 2>&1 || die "$tool is not available on this system"
-    [[ $# -gt 0 ]] || set -- help
-    exec "$tool" "$@"
-}
-EOF
-}
-
 write_docs_fallback() {
     local docs_dir="$1"
     mkdir -p "$docs_dir/wiki"
-    for doc in ANIX-V1 ANIX-V2-Languages TinyPM-V4 Abora-Tools Abora-Gaming Recovery Updating-Abora; do
+    for doc in ANIX-V1 ANIX-V2-Languages TinyPM Abora-Tools Abora-Gaming Recovery Updating-Abora; do
         [[ -f "$docs_dir/wiki/${doc}.md" ]] && continue
         cat > "$docs_dir/wiki/${doc}.md" <<EOF
 # ${doc}
@@ -1904,8 +1859,8 @@ Useful commands:
 abora doctor
 anix status
 anix doctor
-tinypm system
-tinypm sources
+tinypm doctor
+tinypm providers
 \`\`\`
 EOF
     done
@@ -2028,11 +1983,6 @@ write_branding_assets() {
         # symlinks as symlinks.  No -L so we never follow absolute symlinks
         # that may exist in older live ISOs.
         cp -a /etc/abora/tinypm/. "${root}/etc/nixos/abora/tinypm/"
-    fi
-    if [[ -d "${root}/etc/nixos/abora/tinypm/lib/core" \
-          && ! -f "${root}/etc/nixos/abora/tinypm/lib/core/system.sh" \
-          && ! -f "${root}/etc/nixos/abora/tinypm/lib/tinypm/providers/anix.sh" ]]; then
-        write_tinypm_system_fallback "${root}/etc/nixos/abora/tinypm/lib/core/system.sh"
     fi
 
     if [[ -d /etc/abora/docs ]]; then

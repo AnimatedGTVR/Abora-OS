@@ -6,7 +6,7 @@
 - [Abora Tools](Abora-Tools.md)
 - [Abora Gaming](Abora-Gaming.md)
 - [Recovery](Recovery.md)
-- [TinyPM v0.8](TinyPM-V4.md)
+- [TinyPM v0.8](TinyPM.md)
 - [ANIX v1](ANIX-V1.md)
 - [ANIX v2 Languages](ANIX-V2-Languages.md)
 - [ANIX standalone](ANIX-Standalone.md)

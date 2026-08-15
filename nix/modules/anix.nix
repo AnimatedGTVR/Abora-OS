@@ -195,17 +195,27 @@ in
         type = lib.types.bool;
         default = true;
         description = ''
-          Auto-install TinyPM into each user's home directory on their first
-          login via a systemd user service. TinyPM provides the grab, search,
-          term, start, and supdate commands for managing Flatpak, Nix, and
-          Snap packages on Abora OS.
+          Historical option, kept only so existing `anix.tinypm.enable`
+          settings in installed systems' abora-local.nix still evaluate.
+          TinyPM was rewritten from a bash multicall tree (with its own
+          per-user "flavor" install step) into a real Rust crate that
+          ships as an ordinary system package -- see
+          nix/profiles/live.nix's `tinypmPackage`. There is no longer a
+          per-user install step for this option to gate: `tinypm`/`grab`
+          are on PATH for every user as soon as the system is built, the
+          same as any other systemPackages entry. This option no longer
+          does anything.
         '';
       };
 
       flavor = lib.mkOption {
         type = lib.types.str;
         default = "abora";
-        description = "TinyPM flavor to use during the per-user installation.";
+        description = ''
+          Historical option, kept only for eval compatibility with
+          existing configs -- the Rust TinyPM has no flavor/branding
+          system. Unused.
+        '';
       };
     };
   };
@@ -313,34 +323,9 @@ in
         options = cfg.garbageCollect.options;
       };
     })
-    (lib.mkIf cfg.tinypm.enable {
-      # On first login, install TinyPM into the user's home directory.
-      # A stamp file prevents reinstallation on subsequent logins.
-      systemd.user.services.tinypm-init = {
-        description = "TinyPM first-login user setup";
-        wantedBy = [ "default.target" ];
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-          ExecStart =
-            let
-              script = pkgs.writeShellScript "tinypm-user-init" ''
-                stamp_dir="''${XDG_STATE_HOME:-''${HOME}/.local/state}/tinypm"
-                stamp="''${stamp_dir}/anix-init-done"
-                [ -f "''${stamp}" ] && exit 0
-                src="/etc/abora/tinypm"
-                [ -f "''${src}/install.sh" ] || exit 0
-                TINYPM_FLAVOR="${cfg.tinypm.flavor}" \
-                  ${pkgs.bash}/bin/bash "''${src}/install.sh" \
-                    --flavor "${cfg.tinypm.flavor}" --yes --native nix \
-                  >/dev/null 2>&1 || true
-                mkdir -p "''${stamp_dir}"
-                touch "''${stamp}"
-              '';
-            in
-              "${script}";
-        };
-      };
-    })
+    # cfg.tinypm.enable/flavor are intentionally unused now -- see their
+    # option descriptions above. There is no per-user tinypm-init service
+    # anymore: TinyPM ships system-wide via nix/profiles/live.nix's
+    # tinypmPackage, the same as any other systemPackages entry.
   ]);
 }

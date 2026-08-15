@@ -42,7 +42,7 @@ abora doctor
 anix status
 anix learn
 anix --gui
-tinypm sources
+tinypm providers
 abora apps custom list
 sudo abora update
 ```
@@ -189,7 +189,7 @@ Use TinyPM for apps:
 ```sh
 grab firefox
 tinypm search krita
-tinypm sources
+tinypm providers
 ```
 
 Use ANIX or Abora config for system-level changes.

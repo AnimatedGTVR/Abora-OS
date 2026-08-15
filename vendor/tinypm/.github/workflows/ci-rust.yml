@@ -1,0 +1,148 @@
+name: Rust CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  dependency-audit:
+    name: Audit locked dependencies
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: cargo-audit
+          cache-bin: true
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --version 0.22.2 --locked
+      - name: Check RustSec advisories
+        run: cargo audit --deny warnings
+
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test --locked
+      - name: Verify publishable Rust crate
+        run: cargo package --locked
+      - run: cargo build --release --locked
+      - name: Check portable Linux targets
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          rustup target add aarch64-unknown-linux-gnu
+          rustup target add aarch64-unknown-linux-musl
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          cargo check --locked --target x86_64-unknown-linux-musl
+          cargo check --locked --target aarch64-unknown-linux-gnu
+          cargo check --locked --target aarch64-unknown-linux-musl
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: msrv
+      - run: cargo check --locked
+
+  distro-detection:
+    name: Detect provider on ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu
+            image: ubuntu:24.04
+            provider: apt
+            manager: apt-get
+          - name: Fedora
+            image: fedora:42
+            provider: dnf
+            manager: dnf
+          - name: Arch Linux
+            image: archlinux:base
+            provider: pacman
+            manager: pacman
+          - name: Alpine
+            image: alpine:3.22
+            provider: apk
+            manager: apk
+          - name: openSUSE Tumbleweed
+            image: opensuse/tumbleweed:latest
+            provider: zypper
+            manager: zypper
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: distro-detection
+      - name: Install musl linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+      - name: Build portable binaries
+        run: cargo build --release --locked --target x86_64-unknown-linux-musl
+      - name: Verify detection and dry-run plans
+        shell: bash
+        env:
+          IMAGE: ${{ matrix.image }}
+          EXPECTED_PROVIDER: ${{ matrix.provider }}
+          EXPECTED_MANAGER: ${{ matrix.manager }}
+        run: |
+          set -euo pipefail
+          release_dir="${PWD}/target/x86_64-unknown-linux-musl/release"
+          tinypm="${release_dir}/tinypm"
+          grab="${release_dir}/grab"
+          report="$(docker run --rm \
+            --volume "${tinypm}:/usr/local/bin/tinypm:ro" \
+            "${IMAGE}" \
+            /usr/local/bin/tinypm explain curl --json)"
+          actual_provider="$(jq -r '.provider_key' <<<"${report}")"
+          test "${actual_provider}" = "${EXPECTED_PROVIDER}"
+          for operation in "install curl" "remove curl" "update"; do
+            read -r -a arguments <<<"${operation}"
+            plan="$(docker run --rm \
+              --volume "${grab}:/usr/local/bin/grab:ro" \
+              "${IMAGE}" \
+              /usr/local/bin/grab --dry-run "${arguments[@]}")"
+            grep -q -- "${EXPECTED_MANAGER}" <<<"${plan}"
+          done
+      - name: Verify real install, remove, and undo transaction
+        if: matrix.provider == 'apk'
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_dir="${PWD}/target/x86_64-unknown-linux-musl/release"
+          docker run --rm \
+            --volume "${release_dir}/grab:/usr/local/bin/grab:ro" \
+            --volume "${release_dir}/tinypm:/usr/local/bin/tinypm:ro" \
+            alpine:3.22 /bin/sh -euc '
+              apk update >/dev/null
+              export XDG_STATE_HOME=/tmp/tinypm-state
+              /usr/local/bin/grab --no-progress install tree
+              apk info -e tree >/dev/null
+              /usr/local/bin/grab --no-progress remove tree
+              if apk info -e tree >/dev/null 2>&1; then exit 20; fi
+              /usr/local/bin/grab --no-progress undo --yes
+              apk info -e tree >/dev/null
+              /usr/local/bin/tinypm history --json > /tmp/history.json
+              /usr/local/bin/tinypm managed --json > /tmp/managed.json
+              test "$(grep -c action /tmp/history.json)" -eq 3
+              test "$(grep -c action /tmp/managed.json)" -eq 1
+              grep -q reverts /tmp/managed.json
+            '

@@ -90,7 +90,7 @@ Important files:
 
 Vendored external code that Abora uses directly.
 
-- `vendor/tinypm/`: TinyPM v0.8 source used for Abora `grab`, `search`, `term`, `start`, `supdate`, and Abora/ANIX/Nix system bridges
+- `vendor/tinypm/`: TinyPM v0.8 Rust crate source, built into the `tinypm` and `grab` binaries shipped system-wide
 
 ## Generated Output
 

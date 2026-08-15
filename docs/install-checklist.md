@@ -88,7 +88,7 @@ abora support-report
 - login prompt starts
 - networking is enabled and functional
 - `abora setup` launches the installed reconfiguration tool
-- `grab`, `search`, `term`, `start`, and `supdate` are available
+- `tinypm` and `grab` are available
 - `abora gaming status` and `abora gaming doctor` run after install
 - on GNOME installs, Abora wallpapers appear in `Settings -> Appearance`
 - on every supported desktop, first login starts on the Abora default wallpaper

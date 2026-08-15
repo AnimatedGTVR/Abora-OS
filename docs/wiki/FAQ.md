@@ -173,7 +173,7 @@ make qemu-disk
 
 TinyPM is part of the Abora ecosystem, but it is not a full replacement for declarative NixOS configuration.
 
-In Abora it provides friendly app commands such as `grab`, `search`, `term`, `start`, and `supdate`, plus helpers such as `tinypm sources`, `tinypm system`, `tinypm anix <command>`, and `tinypm abora <command>`.
+In Abora it provides two commands: `grab` for installing/removing/updating packages, and `tinypm` for search, info, checks, and diagnostics such as `tinypm doctor` and `tinypm providers`.
 
 ## Is Modularity available in Abora?
 

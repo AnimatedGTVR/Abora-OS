@@ -1,0 +1,55 @@
+name: Discord Changelog (Release)
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post release to Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_CHANGELOG_WEBHOOK }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+          TITLE: ${{ github.event.release.name }}
+          URL: ${{ github.event.release.html_url }}
+          BODY: ${{ github.event.release.body }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "Missing DISCORD_CHANGELOG_WEBHOOK secret."
+            exit 1
+          fi
+
+          python3 - <<'PY'
+import json
+import os
+import urllib.request
+
+webhook = os.environ["WEBHOOK"]
+repo = os.environ["REPO"]
+tag = os.environ["TAG"]
+title = os.environ.get("TITLE") or f"Release {tag}"
+url = os.environ["URL"]
+body = (os.environ.get("BODY") or "").replace("\r", "")[:1200]
+
+content = f"**#/var/changelog**\n**{repo}** -> **{title}** (**{tag}**)\n{url}"
+if body:
+    content += f"\n\n{body}"
+
+payload = {"content": content}
+req = urllib.request.Request(
+    webhook,
+    data=json.dumps(payload).encode("utf-8"),
+    headers={"Content-Type": "application/json"},
+)
+try:
+    with urllib.request.urlopen(req) as response:
+        print(f"Discord webhook status: {response.status}")
+        response.read()
+except Exception as exc:
+    print(f"Discord webhook failed: {exc}")
+    raise
+PY

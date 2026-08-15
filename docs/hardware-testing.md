@@ -97,7 +97,7 @@ This does not replace a real Abora boot, but it catches obvious problems:
 - `abora setup` opens the installed reconfiguration launcher
 - `abora desktop list` shows supported desktop profiles
 - `abora config` shows hostname, timezone, keyboard, desktop, wallpaper, user, disk, and state version
-- `grab`, `search`, `term`, `start`, and `supdate` are available
+- `tinypm` and `grab` are available
 - `sudo abora update` works
 - rollback works if an update is tested
 - default wallpaper is applied

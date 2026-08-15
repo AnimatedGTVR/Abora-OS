@@ -73,15 +73,15 @@ required_files=(
   "scripts/abora-setup.desktop"
   "docs/wiki/ANIX-V1.md"
   "docs/wiki/ANIX-V2-Languages.md"
-  "docs/wiki/TinyPM-V4.md"
+  "docs/wiki/TinyPM.md"
   "docs/wiki/Abora-Tools.md"
   "docs/wiki/Abora-Gaming.md"
   "docs/wiki/Recovery.md"
   "docs/wiki/Updating-Abora.md"
   "docs/bug-report-template.md"
-  "vendor/tinypm/bin/tinypm"
-  "vendor/tinypm/lib/tinypm/core/version.sh"
-  "vendor/tinypm/lib/tinypm/providers/anix.sh"
+  "vendor/tinypm/Cargo.toml"
+  "vendor/tinypm/src/main.rs"
+  "vendor/tinypm/src/bin/grab.rs"
 )
 
 failed=0
@@ -813,7 +813,7 @@ fi
 if grep -q '/etc/abora/docs/wiki/ANIX-V2-Languages.md' scripts/abora-installer.sh \
   && grep -q '/etc/abora/docs/wiki/Abora-Gaming.md' scripts/abora-installer.sh \
   && grep -q '/etc/abora/docs/wiki/Updating-Abora.md' scripts/abora-installer.sh \
-  && grep -q 'for doc in ANIX-V1 ANIX-V2-Languages TinyPM-V4 Abora-Tools Abora-Gaming Recovery Updating-Abora' scripts/abora-installer.sh; then
+  && grep -q 'for doc in ANIX-V1 ANIX-V2-Languages TinyPM Abora-Tools Abora-Gaming Recovery Updating-Abora' scripts/abora-installer.sh; then
   pass "runtime: installer ships current local docs"
 else
   fail "runtime: installer ships current local docs"
@@ -965,7 +965,7 @@ if grep -q 'out/iso/.*iso' .github/workflows/build-iso.yml \
   && grep -A2 'branches:' .github/workflows/build-iso.yml | grep -q 'edge' \
   && grep -A2 'branches:' .github/workflows/publish-tinypm-package.yml | grep -q 'edge' \
   && grep -q 'edge only' .github/workflows/flake-check.yml \
-  && grep -q 'vendor/tinypm/lib/tinypm/core/common.sh vendor/tinypm/lib/core/common.sh' .github/workflows/publish-tinypm-package.yml \
+  && grep -q 'vendor/tinypm/Cargo.toml' .github/workflows/publish-tinypm-package.yml \
   && grep -q 'out/packages/tinypm' .github/workflows/build-iso.yml \
   && grep -q 'out/packages/anix' .github/workflows/build-iso.yml \
   && grep -q 'out/release/SHA256SUMS' .github/workflows/build-iso.yml \
@@ -978,14 +978,14 @@ else
   fail "runtime: GitHub workflows publish generated release bundle paths"
 fi
 
-if grep -q 'ln -s /opt/tinypm/project/syspm /usr/local/bin/syspm' packaging/tinypm/Dockerfile \
-  && ! grep -q 'syspm.sh' packaging/tinypm/Dockerfile \
-  && [[ -x vendor/tinypm/syspm ]] \
-  && [[ -x vendor/tinypm/tinypm ]] \
-  && [[ -x vendor/tinypm/Parcel ]]; then
-  pass "runtime: TinyPM container entrypoints match vendored executables"
+if grep -q 'COPY --from=build /build/target/release/tinypm /usr/local/bin/tinypm' packaging/tinypm/Dockerfile \
+  && grep -q 'COPY --from=build /build/target/release/grab /usr/local/bin/grab' packaging/tinypm/Dockerfile \
+  && grep -q 'cargo build --release --locked' packaging/tinypm/Dockerfile \
+  && [[ -f vendor/tinypm/Cargo.toml ]] \
+  && [[ -f vendor/tinypm/src/bin/grab.rs ]]; then
+  pass "runtime: TinyPM container builds the real Rust binaries"
 else
-  fail "runtime: TinyPM container entrypoints match vendored executables"
+  fail "runtime: TinyPM container builds the real Rust binaries"
 fi
 
 empty_output="$(ABORA_OUT_DIR="$tmp_empty" scripts/release-metadata.sh 2>&1 || true)"

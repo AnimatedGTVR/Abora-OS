@@ -42,12 +42,7 @@ jobs:
             *) abora_tag="v$abora_value" ;;
           esac
 
-          tinypm_version=""
-          for common_sh in vendor/tinypm/lib/tinypm/core/common.sh vendor/tinypm/lib/core/common.sh; do
-            [ -f "$common_sh" ] || continue
-            tinypm_version="$(awk -F'"' '/^tinypm_version=/{print $2; exit}' "$common_sh")"
-            [ -n "$tinypm_version" ] && break
-          done
+          tinypm_version="$(awk -F'"' '/^version[[:space:]]*=/{print $2; exit}' vendor/tinypm/Cargo.toml)"
           tinypm_version="$(printf '%s' "${tinypm_version:-unknown}" | tr -cd '[:alnum:]._-')"
 
           echo "image=$image" >> "$GITHUB_OUTPUT"
@@ -79,8 +74,8 @@ jobs:
             type=raw,value=v${{ steps.vars.outputs.tinypm_version }},enable=${{ startsWith(github.ref, 'refs/tags/') }}
             type=raw,value=abora-${{ steps.vars.outputs.abora_tag }},enable=${{ startsWith(github.ref, 'refs/tags/') }}
           labels: |
-            org.opencontainers.image.title=TinyPM v4
-            org.opencontainers.image.description=TinyPM v4 CLI container published from the Abora OS repository.
+            org.opencontainers.image.title=TinyPM
+            org.opencontainers.image.description=TinyPM CLI container published from the Abora OS repository.
             org.opencontainers.image.licenses=GPL-3.0-or-later
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             io.abora.version=${{ steps.vars.outputs.abora_value }}

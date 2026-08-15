@@ -43,8 +43,6 @@ run_optional_command() {
 
     if command -v "$command_name" >/dev/null 2>&1; then
         run_section "$title" "$command_name" "$@"
-    elif [[ "$command_name" == "tinypm" && -x /etc/abora/tinypm/tinypm ]]; then
-        run_section "$title" env TINYPM_FLAVOR=abora /etc/abora/tinypm/tinypm "$@"
     else
         {
             printf '\n## %s\n\n' "$title"
@@ -115,7 +113,7 @@ run_section "ANIX status" anix status
 run_section "ANIX doctor" anix doctor
 run_section "ANIX profiles" anix profiles
 run_section "ANIX generations" anix generations
-run_optional_command "TinyPM version" tinypm version
+run_optional_command "TinyPM version" tinypm --version
 run_optional_command "TinyPM package check" tinypm check firefox
 run_optional_command "TinyPM doctor" tinypm doctor
 run_section "Abora desktop" abora desktop list
