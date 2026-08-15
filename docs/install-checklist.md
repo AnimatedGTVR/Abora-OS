@@ -51,28 +51,33 @@ Use this after building a release candidate ISO and after running one real insta
 
 ## Failure Capture
 
-When a tester reports a failed install, ask for:
+When a tester reports a failure, collect the basics:
 
 ```sh
 abora bug-report
 abora bug-report --github --web
 abora logs --lines 200
+abora network
+abora support-report
+```
+
+Add these if it happened during install, before first boot:
+
+```sh
 cat /tmp/abora-install.log
 cat /tmp/abora-config.log
-abora network
-abora support-report
 ```
 
-If the system installed but updates or Wi-Fi fail after boot:
+Add these if it happened after first boot (updates, Wi-Fi, or other
+post-install failures):
 
 ```sh
-abora bug-report
-abora bug-report --github --web
-abora logs --lines 200
-abora network
 abora check-full
-abora support-report
+journalctl -b --no-pager
 ```
+
+Attach the generated support archive and installer logs if available.
+Use [Bug Report Template](bug-report-template.md) for full reports.
 
 ## ANIX Languages
 
@@ -93,21 +98,5 @@ abora support-report
 - on GNOME installs, Abora wallpapers appear in `Settings -> Appearance`
 - on every supported desktop, first login starts on the Abora default wallpaper
 - on GNOME installs, picking an Abora wallpaper updates accent/style automatically
-
-## Bug Report
-
-Collect:
-
-```sh
-abora bug-report
-abora bug-report --github --web
-abora logs --lines 200
-abora network
-abora support-report
-journalctl -b --no-pager
-```
-
-Attach the generated support archive and installer logs if available.
-Use [Bug Report Template](bug-report-template.md) for full reports.
 
 For release screenshots, use [Screenshot Checklist](screenshots.md).

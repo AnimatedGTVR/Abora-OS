@@ -74,27 +74,27 @@ Use this after a local release build or after the GitHub ISO workflow succeeds.
 
 ## Last-Minute Failure Triage
 
-When a tester hits an installer, network, or update failure, collect these
-before rebooting:
+When a tester hits an installer, network, or update failure, collect the
+basics before rebooting:
 
 ```sh
 abora bug-report
 abora bug-report --github --web
 abora logs --lines 200
-cat /tmp/abora-install.log
-cat /tmp/abora-config.log
 abora network
 abora support-report
 ```
 
-If the failure happened after first boot, collect:
+Add these if it happened during install, before first boot:
 
 ```sh
-abora bug-report
-abora bug-report --github --web
-abora logs --lines 200
-abora network
+cat /tmp/abora-install.log
+cat /tmp/abora-config.log
+```
+
+Add these if it happened after first boot:
+
+```sh
 abora check-full
-abora support-report
 sudo journalctl -b --no-pager
 ```
