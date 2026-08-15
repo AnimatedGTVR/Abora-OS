@@ -28,12 +28,13 @@ buildDotnetModule rec {
   src = resolverSrc;
 
   projectFile = "AboraUpdateResolver.csproj";
-  # Generated via `nuget-to-nix` against a real `dotnet restore` of this
-  # project -- requires network access this sandbox doesn't have. Run once
-  # on a machine with Nix + network:
-  #   nix build .#abora-update-resolver 2>&1 | grep 'got:' # first pass to get the hash
-  #   nuget-to-nix <restored-packages-dir> > nix/pkgs/abora-update-resolver-deps.nix
-  nugetDeps = ./abora-update-resolver-deps.nix;
+  # Generated via `nuget-to-json` (nuget-to-nix's replacement in current
+  # nixpkgs) -- requires network access this sandbox doesn't have. Run once
+  # on a machine with Nix + network, from this directory:
+  #   nix run nixpkgs#nuget-to-json -- . > ../../nix/pkgs/abora-update-resolver-deps.json
+  # Check `nix run nixpkgs#nuget-to-json -- --help` first if that doesn't
+  # work as-is -- the exact invocation has shifted across nixpkgs revisions.
+  nugetDeps = ./abora-update-resolver-deps.json;
 
   dotnet-sdk = dotnetCorePackages.sdk_10_0;
   dotnet-runtime = dotnetCorePackages.runtime_10_0;

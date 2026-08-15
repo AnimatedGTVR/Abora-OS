@@ -25,12 +25,12 @@ buildDotnetModule rec {
   src = toolSrc;
 
   projectFile = "AboraPlanTool.csproj";
-  # Generated via `nuget-to-nix` against a real `dotnet restore` of this
-  # project -- requires network access. Run once on a machine with Nix +
-  # network (same step as nix/pkgs/abora-update-resolver.nix):
-  #   nix build .#abora-plan-tool 2>&1 | grep 'got:' # first pass to get the hash
-  #   nuget-to-nix <restored-packages-dir> > nix/pkgs/abora-plan-tool-deps.nix
-  nugetDeps = ./abora-plan-tool-deps.nix;
+  # Generated via `nuget-to-json` (nuget-to-nix's replacement in current
+  # nixpkgs) -- requires network access. Run once on a machine with Nix +
+  # network, from this directory (same step as
+  # nix/pkgs/abora-update-resolver.nix):
+  #   nix run nixpkgs#nuget-to-json -- . > ../../nix/pkgs/abora-plan-tool-deps.json
+  nugetDeps = ./abora-plan-tool-deps.json;
 
   dotnet-sdk = dotnetCorePackages.sdk_10_0;
   dotnet-runtime = dotnetCorePackages.runtime_10_0;
