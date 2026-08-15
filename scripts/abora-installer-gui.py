@@ -25,6 +25,13 @@ LOG_FILE       = '/tmp/abora-gui-installer.log'
 VERSION        = os.environ.get('ABORA_VERSION', 'v4 Everest')
 LOGO_FILE      = os.environ.get('ABORA_LOGO', '/etc/abora/Abora-LOGO.png')
 EDITION        = os.environ.get('ABORA_EDITION', 'cosmic')
+ZONE_DIR       = Path('/usr/share/zoneinfo')
+
+# Only these top-level zoneinfo directories are real continents/areas; the
+# rest (Brazil, Canada, US, posix, right, Factory, ...) are legacy aliases
+# that duplicate zones already reachable under their real continent.
+ZONE_TOP_LEVEL = {'Africa', 'America', 'Antarctica', 'Arctic', 'Asia', 'Atlantic',
+                  'Australia', 'Europe', 'Indian', 'Pacific'}
 
 
 def write_log(message: str):
@@ -35,6 +42,23 @@ def write_log(message: str):
             f.write(f'[{stamp}] {message.rstrip()}\n')
     except Exception:
         pass
+
+
+def list_timezones() -> list[str]:
+    """Every real IANA zone on this system, e.g. America/Indiana/Knox --
+    a hand-picked list would always miss zones like Indiana's, which has
+    eight distinct real timezones within the same state."""
+    zones: list[str] = []
+    if not ZONE_DIR.exists():
+        return ['UTC']
+    for top in sorted(ZONE_DIR.iterdir()):
+        if top.name not in ZONE_TOP_LEVEL:
+            continue
+        for path in sorted(top.rglob('*')):
+            if path.is_file():
+                zones.append(str(path.relative_to(ZONE_DIR)))
+    zones.append('UTC')
+    return zones
 
 # ── Desktop choices ────────────────────────────────────────────────────────────
 DESKTOPS = [
@@ -217,42 +241,6 @@ KEYBOARDS = [
     ('kr',  'Korean'),
     ('tr',  'Turkish'),
     ('br',  'Brazilian Portuguese'),
-]
-
-TIMEZONES = [
-    ('UTC',                 'UTC'),
-    ('America/New_York',    'US Eastern (New York)'),
-    ('America/Chicago',     'US Central (Chicago)'),
-    ('America/Denver',      'US Mountain (Denver)'),
-    ('America/Los_Angeles', 'US Pacific (Los Angeles)'),
-    ('America/Anchorage',   'US Alaska (Anchorage)'),
-    ('Pacific/Honolulu',    'US Hawaii (Honolulu)'),
-    ('America/Sao_Paulo',   'Brazil (São Paulo)'),
-    ('America/Buenos_Aires','Argentina (Buenos Aires)'),
-    ('America/Bogota',      'Colombia (Bogotá)'),
-    ('Europe/London',       'UK (London)'),
-    ('Europe/Paris',        'Central Europe (Paris/Berlin)'),
-    ('Europe/Madrid',       'Western Europe (Madrid)'),
-    ('Europe/Warsaw',       'Eastern Europe (Warsaw)'),
-    ('Europe/Stockholm',    'Northern Europe (Stockholm)'),
-    ('Europe/Moscow',       'Russia (Moscow)'),
-    ('Europe/Istanbul',     'Turkey (Istanbul)'),
-    ('Asia/Dubai',          'Gulf (Dubai)'),
-    ('Asia/Kolkata',        'India (Kolkata)'),
-    ('Asia/Dhaka',          'Bangladesh (Dhaka)'),
-    ('Asia/Bangkok',        'Indochina (Bangkok)'),
-    ('Asia/Singapore',      'Singapore'),
-    ('Asia/Shanghai',       'China (Shanghai)'),
-    ('Asia/Tokyo',          'Japan (Tokyo)'),
-    ('Asia/Seoul',          'South Korea (Seoul)'),
-    ('Asia/Jakarta',        'Indonesia (Jakarta)'),
-    ('Africa/Cairo',        'Egypt (Cairo)'),
-    ('Africa/Lagos',        'Nigeria (Lagos)'),
-    ('Africa/Johannesburg', 'South Africa (Johannesburg)'),
-    ('Africa/Nairobi',      'Kenya (Nairobi)'),
-    ('Australia/Sydney',    'Australia East (Sydney)'),
-    ('Australia/Perth',     'Australia West (Perth)'),
-    ('Pacific/Auckland',    'New Zealand (Auckland)'),
 ]
 
 WALLPAPERS = [
@@ -770,12 +758,12 @@ class LanguagePage(Gtk.Widget):
         self._locale_row.set_selected(0)
         grp.add(self._locale_row)
 
-        tz_model = Gtk.StringList()
-        for _, lbl in TIMEZONES:
-            tz_model.append(lbl)
+        self._zones = list_timezones()
+        tz_model = Gtk.StringList.new(self._zones)
         self._tz_row = Adw.ComboRow(title='Timezone')
         self._tz_row.set_model(tz_model)
-        self._tz_row.set_selected(0)
+        self._tz_row.set_enable_search(True)
+        self._tz_row.set_selected(self._zones.index('UTC') if 'UTC' in self._zones else 0)
         grp.add(self._tz_row)
 
         kb_model = Gtk.StringList()
@@ -801,7 +789,7 @@ class LanguagePage(Gtk.Widget):
         ki = self._kb_row.get_selected()
         self._state.locale       = LOCALES[li][0]
         self._state.locale_label = LOCALES[li][1]
-        self._state.tz           = TIMEZONES[ti][0]
+        self._state.tz           = self._zones[ti]
         self._state.keyboard     = KEYBOARDS[ki][0]
 
 
