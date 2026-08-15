@@ -12,13 +12,13 @@ This roadmap tracks the current Abora direction after Abora OS v4 Everest and th
 ## In Progress Toward the Next Release
 
 - **MINT** as the default guided installer front-end, handing the confirmed plan to the existing bash installer as its backend
-- full step-indexed back navigation through the installer wizard — every screen can be undone with `Esc` or `← Back`, answers preserved
 - `abora welcome-gui` and `abora config-gui` — the first GTK4/libadwaita graphical tools, thin front-ends over the existing CLI so nothing they do is GUI-exclusive
 
 ## Recently Delivered
 
 - real IANA timezone data (every real zoneinfo entry, fuzzy-searchable, e.g. `America/Indiana/Knox`) instead of a small hand-picked list, in both `abora-config-gui.py` and `abora-installer-gui.py` — this was a real correctness gap: multi-zone regions like Indiana were only showing one of their eight actual zones
 - `abora update --check` — query update availability without installing, with machine-parseable output for the Welcome GUI's status card
+- full step-indexed back navigation through the GTK installer wizard — every screen can be undone with `Esc` (new) or `← Back` (already existed), answers preserved since pages are built once and reused rather than recreated
 
 ## Near-Term Direction
 

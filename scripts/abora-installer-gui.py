@@ -1410,6 +1410,18 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
 
         self._build_ui()
 
+        key_controller = Gtk.EventControllerKey()
+        key_controller.connect('key-pressed', self._on_key_pressed)
+        self.add_controller(key_controller)
+
+    def _on_key_pressed(self, _controller, keyval, _keycode, _state):
+        """Esc is a second way to go back a step, alongside the ← Back
+        button -- every screen should be undoable either way."""
+        if keyval == Gdk.KEY_Escape and not self._installing and self._cur > 0:
+            self._go_back(None)
+            return True
+        return False
+
     def _build_ui(self):
         shell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         shell.set_hexpand(True)
