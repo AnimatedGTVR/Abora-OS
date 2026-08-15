@@ -272,7 +272,7 @@ func runWizard(o PrototypeOptions, st *wizardState, reader *bufio.Reader, intera
 		{"Software", stepUpdates},
 		{"Software", stepExtras},
 		{"Software", stepFirstBoot},
-		{"Hyprland", stepDotfiles},
+		{"Dotfiles", stepDotfiles},
 	}
 
 	dir := navNext
@@ -997,8 +997,14 @@ func stepFirstBoot(o PrototypeOptions, st *wizardState, reader *bufio.Reader, in
 	return navNext, nil
 }
 
+// Only shown for editions where a bare tiling WM/compositor is genuinely
+// unusable without some config: hyprland (single-desktop edition) and
+// other (the tiling-WM picker -- sway, i3, niri, qtile, bspwm, and the
+// rest). Every other edition ships a full desktop shell that works out of
+// the box. Must stay in sync with abora-installer.sh's step_dotfiles,
+// which gates on the same two editions for the same reason.
 func stepDotfiles(o PrototypeOptions, st *wizardState, reader *bufio.Reader, interactive bool, dir navResult) (navResult, error) {
-	if st.edition != "hyprland" {
+	if st.edition != "hyprland" && st.edition != "other" {
 		st.dotfiles = "skip"
 		return dir, nil
 	}
