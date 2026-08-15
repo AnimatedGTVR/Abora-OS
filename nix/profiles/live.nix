@@ -79,6 +79,9 @@ let
   aboraRecovery = pkgs.writeShellScriptBin "abora-recovery" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/recovery.sh "$@"
   '';
+  aboraRepairFlakePurity = pkgs.writeShellScriptBin "abora-repair-flake-purity" ''
+    exec env ABORA_SYSTEM_CONFIG=/etc/nixos ${pkgs.bashInteractive}/bin/bash /etc/abora/repair-flake-purity.sh "$@"
+  '';
   aboraWelcome = pkgs.writeShellScriptBin "abora-welcome" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/welcome.sh "$@"
   '';
@@ -469,6 +472,7 @@ in
     aboraDoctor
     aboraHardwareTest
     aboraRecovery
+    aboraRepairFlakePurity
     aboraSessionSetup
     aboraSetup
     aboraSetupDesktopPkg

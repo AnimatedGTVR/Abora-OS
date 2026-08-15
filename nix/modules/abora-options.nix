@@ -265,6 +265,17 @@ in
           extraGroups  = [ "wheel" "networkmanager" "audio" "video" ];
           hashedPassword = cfg.user.hashedPassword;
         };
+
+        # NixOS treats an empty hashedPassword as "login without password"
+        # (see nixos/modules/config/users-groups.nix's allowsLogin), not as
+        # "unset" -- so leaving this at its default would silently build a
+        # passwordless wheel-group account instead of failing loudly.
+        assertions = [
+          {
+            assertion = cfg.user.hashedPassword != "";
+            message = "abora.user.hashedPassword is empty while abora.user.name is set (\"${cfg.user.name}\"). An empty hash means NixOS allows login without a password. Generate one with: mkpasswd";
+          }
+        ];
       }
 
       # ── GPU ────────────────────────────────────────────────────────────

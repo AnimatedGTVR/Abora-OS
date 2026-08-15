@@ -530,12 +530,8 @@ in
     aboraSupportReport
     aboraUpdate
     aboraWelcome
-    aboraWelcomeGui
     aboraWelcomeDesktopPkg
-    aboraConfigGui
     aboraConfigDesktopPkg
-    aboraGamingWelcomeGui
-    aboraGamingWelcomeDesktopPkg
     aboraWallpapersPackage
     aboraInstaller
     aboraSetup
@@ -574,6 +570,10 @@ in
   ] ++ lib.optional (tinypmPackage != null) tinypmPackage
     ++ lib.optional (pkgs ? abora-update-resolver) pkgs.abora-update-resolver
     ++ lib.optional (pkgs ? abora-plan-tool) pkgs.abora-plan-tool
+    ++ lib.optional (welcomeGuiScript != null) aboraWelcomeGui
+    ++ lib.optional (configGuiScript != null) aboraConfigGui
+    ++ lib.optional (gamingWelcomeGuiScript != null && config.abora.gaming.enable) aboraGamingWelcomeGui
+    ++ lib.optional config.abora.gaming.enable aboraGamingWelcomeDesktopPkg
   ++ lib.optionals config.abora.extras.diagnostics (with pkgs; [
     dmidecode
     ethtool

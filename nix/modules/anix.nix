@@ -275,6 +275,13 @@ in
         "anix.gaming.* is set but has no effect here: it requires abora-options.nix (part of nixosModules.installed-base) to also be imported."
       ];
     })
+    (lib.mkIf (hasAboraGamingOptions && cfg.gaming.enable != true &&
+      (cfg.gaming.bigPictureShortcut != null || cfg.gaming.bigPictureAutostart != null ||
+       cfg.gaming.gamescopeSession != null || cfg.gaming.vulkanTools != null)) {
+      warnings = [
+        "anix.gaming.* sub-options are set but anix.gaming.enable is not true, so abora.gaming.enable stays off (unless something else turns it on) -- every gaming package/service these sub-options would configure is gated behind abora.gaming.enable and won't be installed."
+      ];
+    })
     (lib.mkIf (cfg.packages != [ ]) {
       environment.systemPackages = cfg.packages;
     })
