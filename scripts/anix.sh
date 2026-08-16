@@ -3122,43 +3122,43 @@ usage() {
 do_learn() {
     abora_banner "ANIX quick start" "Small commands for changing Abora without wrestling Nix."
     abora_card_start "Read First"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix learn" "$ABORA_NC" "show this cheat sheet"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix status" "$ABORA_NC" "show profile, generation, Git, and snapshot state"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix show" "$ABORA_NC" "show the current ANIX settings"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix doctor" "$ABORA_NC" "check the ANIX/Nix config layer"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix learn" "$ABORA_NC" "show this cheat sheet"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix status" "$ABORA_NC" "show profile, generation, Git, and snapshot state"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix show" "$ABORA_NC" "show the current ANIX settings"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix doctor" "$ABORA_NC" "check the ANIX/Nix config layer"
     abora_card_end
     printf '\n'
 
     abora_card_start "Change Settings"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix set hostname my-pc" "$ABORA_NC" "rename the computer"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix set desktop cosmic" "$ABORA_NC" "choose cosmic, gnome, plasma, hyprland, or other"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix set timezone America/New_York" "$ABORA_NC" "set timezone"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix set wallpaper titlis-alps.jpg" "$ABORA_NC" "set wallpaper"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix enable flatpak" "$ABORA_NC" "enable a feature"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix disable openssh" "$ABORA_NC" "disable a feature"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix set hostname my-pc" "$ABORA_NC" "rename the computer"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix set desktop cosmic" "$ABORA_NC" "choose cosmic, gnome, plasma, hyprland, or other"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix set timezone America/New_York" "$ABORA_NC" "set timezone"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix set wallpaper titlis-alps.jpg" "$ABORA_NC" "set wallpaper"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix enable flatpak" "$ABORA_NC" "enable a feature"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix disable openssh" "$ABORA_NC" "disable a feature"
     abora_card_end
     printf '\n'
 
     abora_card_start "Packages"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix package add fastfetch" "$ABORA_NC" "add a Nix package"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix pkg remove fastfetch" "$ABORA_NC" "remove a Nix package"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix apply" "$ABORA_NC" "rebuild after ANIX changes"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix package add fastfetch" "$ABORA_NC" "add a Nix package"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix pkg remove fastfetch" "$ABORA_NC" "remove a Nix package"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix apply" "$ABORA_NC" "rebuild after ANIX changes"
     abora_card_end
     printf '\n'
 
     abora_card_start "Try, Apply, Undo"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix diff nix" "$ABORA_NC" "preview package closure changes"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix test nix" "$ABORA_NC" "try a rebuild without making it boot default"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix switch nix abora" "$ABORA_NC" "switch to a named profile"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix rollback nix --now" "$ABORA_NC" "roll back immediately"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix save \"message\"" "$ABORA_NC" "save a local /etc/nixos snapshot"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix diff nix" "$ABORA_NC" "preview package closure changes"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix test nix" "$ABORA_NC" "try a rebuild without making it boot default"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix switch nix abora" "$ABORA_NC" "switch to a named profile"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix rollback nix --now" "$ABORA_NC" "roll back immediately"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix save \"message\"" "$ABORA_NC" "save a local /etc/nixos snapshot"
     abora_card_end
     printf '\n'
 
     abora_card_start "ANIX v2 Languages"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix language list" "$ABORA_NC" "show .anix, MAKO, ModuCPP, and custom adapters"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix run workstation.mko" "$ABORA_NC" "run a frontend file as one ANIX transaction"
-    printf '  %b%-40s%b %s\n' "$ABORA_CYAN" "anix diff-plan plan.json" "$ABORA_NC" "preview a plan before applying it"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix language list" "$ABORA_NC" "show .anix, MAKO, ModuCPP, and custom adapters"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix run workstation.mko" "$ABORA_NC" "run a frontend file as one ANIX transaction"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix diff-plan plan.json" "$ABORA_NC" "preview a plan before applying it"
     abora_card_end
     printf '\n'
 }
