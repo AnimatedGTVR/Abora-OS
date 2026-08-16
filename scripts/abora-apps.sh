@@ -15,8 +15,6 @@ if [[ ! -f "$ui_lib" && -f /etc/abora/ui.sh ]]; then
     ui_lib="/etc/abora/ui.sh"
 fi
 
-# shellcheck source=/dev/null
-source "$catalog_lib"
 if [[ -f "$ui_lib" ]]; then
     # shellcheck source=/dev/null
     source "$ui_lib"
@@ -43,6 +41,20 @@ else
     abora_cols()     { printf '80\n'; }
     abora_trunc()    { printf '%s' "$1"; }
 fi
+
+# Unlike abora-ui.sh (cosmetics only), the app catalog is real data this
+# script cannot function without -- there's no meaningful "fallback"
+# catalog to fabricate. But a raw "No such file or directory" from a bare
+# `source` is still a worse failure mode than a clear, actionable error,
+# so fail loudly through the UI layer (now guaranteed available above)
+# instead of crashing with an unhandled bash error.
+if [[ ! -f "$catalog_lib" ]]; then
+    abora_error "App catalog not found: ${catalog_lib}"
+    abora_dim_line "Expected it at \$ABORA_APP_CATALOG_LIB, ${script_dir}/abora-app-catalog.sh, or /etc/abora/app-catalog.sh."
+    exit 1
+fi
+# shellcheck source=/dev/null
+source "$catalog_lib"
 
 config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
 abora_dir="${config_dir}/abora"
