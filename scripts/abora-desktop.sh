@@ -36,6 +36,35 @@ run_config() {
     fi
 }
 
+# `abora desktop`'s own usage text (below) promises this shows just the
+# current desktop setting -- it used to instead delegate to run_config
+# with no args, which is `abora config show`'s full system-config dump
+# (hostname, timezone, keyboard, gpu, all five gaming toggles, all three
+# extras, user, disk, state version), not anything desktop-specific.
+# Reproduced directly: `abora desktop` printed 18 unrelated lines. Reads
+# abora-local.nix the same way abora-config.sh's read_option does, since
+# there's no narrower "get one key" command to delegate to instead.
+show_current_desktop() {
+    local config_dir local_module current
+    config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
+    local_module="${config_dir}/abora-local.nix"
+    if [[ -f "$local_module" ]]; then
+        current="$(sed -nE 's|^[[:space:]]*abora\.desktop[[:space:]]*=[[:space:]]*"([^"]+)".*|\1|p' "$local_module" | head -n1)"
+    fi
+    if [[ -z "${current:-}" ]]; then
+        abora_error "No desktop setting found in ${local_module}."
+        exit 1
+    fi
+    abora_sync_desktop_label "$current"
+    abora_banner "Desktop" "Current desktop profile."
+    abora_card_start "Current"
+    printf '  %b│%b  %b%-16s%b %b%s%b\n' \
+        "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "$current" "$ABORA_NC" "$ABORA_DIM" "$desktop_label" "$ABORA_NC"
+    abora_card_end
+    abora_dim_line "Run 'abora desktop set <profile>' to change it."
+    printf '\n'
+}
+
 usage() {
     abora_banner "Desktop" "View or switch Abora desktop profiles."
     printf '  %babora desktop%b\n' "$ABORA_CYAN" "$ABORA_NC"
@@ -51,7 +80,7 @@ usage() {
 
 case "${1:-show}" in
     show|"")
-        run_config
+        show_current_desktop
         ;;
     list)
         abora_banner "Desktop Profiles" "These names work with 'abora desktop set <profile>'."
