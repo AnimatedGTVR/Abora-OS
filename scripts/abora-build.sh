@@ -25,6 +25,7 @@ EOF
 }
 
 checkout="$default_checkout"
+checkout_explicit=0
 from_source=0
 
 while [[ $# -gt 0 ]]; do
@@ -36,6 +37,7 @@ while [[ $# -gt 0 ]]; do
     --checkout)
       [[ -n "${2:-}" ]] || { printf 'abora build: --checkout needs a directory\n' >&2; exit 2; }
       checkout="$2"
+      checkout_explicit=1
       shift 2
       ;;
     --target)
@@ -104,7 +106,7 @@ clone_source_checkout() {
   return 1
 }
 
-if [[ -f flake.nix && -d .git ]]; then
+if [[ "$checkout_explicit" != 1 && -f flake.nix && -d .git ]]; then
   checkout="$PWD"
 elif [[ -d "$checkout/.git" && -f "$checkout/flake.nix" ]]; then
   :
