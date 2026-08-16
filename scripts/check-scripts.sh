@@ -2104,17 +2104,24 @@ cat > "$tmp_legacy_module" <<'EOF'
   i18n.defaultLocale = "en_US.UTF-8";
   console.keyMap = "us";
   services.desktopManager.gnome.enable = true;
-  users.users.abora = {
+  users.users."quinn" = {
     hashedPassword = "!";
   };
   system.stateVersion = "26.05";
 }
 EOF
+# Regression test: the username fixture here used to be "abora" -- the
+# exact string migrate_legacy_config's (previously broken) username regex
+# silently fell back to on a match failure, so a real extraction bug could
+# never have been caught by this test no matter what the regex actually
+# did. Using a distinct name ("quinn") and asserting on it directly closes
+# that gap.
 if ABORA_NO_SUDO=1 \
   ABORA_SYSTEM_CONFIG="$tmp_legacy_config" \
   scripts/abora-config.sh set hostname migrated-host >/dev/null 2>&1 \
   && grep -q 'abora.hostname = "migrated-host";' "$tmp_legacy_module" \
   && grep -q 'abora.desktop = "gnome";' "$tmp_legacy_module" \
+  && grep -q 'abora.user.name = "quinn";' "$tmp_legacy_module" \
   && compgen -G "${tmp_legacy_module}.legacy.*" >/dev/null; then
   pass "runtime: abora config migrates a legacy abora-local.nix on write"
 else
