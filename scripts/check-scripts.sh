@@ -234,6 +234,32 @@ print('\n'.join(sorted(ids)))
   fi
 fi
 
+# Regression test: abora-installer-gui.py's get_disks() re-implements
+# abora-installer.sh's collect_disks() disk-name filtering in Python (can't
+# source the bash awk filter), and it silently drifted -- missing "ram" and
+# "zram" from its excluded-prefix list, so the GUI installer offered
+# /dev/zram0 (RAM-backed, never real storage) as a selectable, pre-checked
+# "Available Disk" whenever no other disk was excludable, while the TUI
+# installer correctly filters it via `^(fd|loop|ram|sr|zram)`. Compares the
+# GUI's real exclusion tuple against the TUI's real awk regex, not a copy of
+# either.
+if command -v python3 >/dev/null 2>&1; then
+  _disk_filter_tui="$(grep -oE '\^\(fd\|loop\|ram\|sr\|zram\)' scripts/abora-installer.sh | head -1)"
+  _disk_filter_gui="$(python3 -c "
+import re
+text = open('scripts/abora-installer-gui.py').read()
+m = re.search(r\"name\.startswith\(\((.*?)\)\)\", text)
+prefixes = sorted(re.findall(r\"'(\w+)'\", m.group(1)))
+print(','.join(prefixes))
+")"
+  if [[ -n "$_disk_filter_tui" ]] \
+    && [[ "$_disk_filter_gui" == "fd,loop,ram,sr,zram" ]]; then
+    pass "runtime: abora-installer-gui.py's disk filter excludes ram/zram like abora-installer.sh"
+  else
+    fail "runtime: abora-installer-gui.py's disk filter excludes ram/zram like abora-installer.sh"
+  fi
+fi
+
 if command -v shellcheck >/dev/null 2>&1; then
   # -S error matches the dedicated "ShellCheck scripts" CI workflow step —
   # info/warning-level style nits (SC1007, SC2015, SC2016, SC2086, etc.) are

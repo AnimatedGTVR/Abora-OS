@@ -567,9 +567,10 @@ def _boot_media_disk_names() -> set[str]:
 
 def get_disks() -> list[tuple[str, str, str]]:
     """Return [(device, size, model), …] for internal block devices,
-    excluding loop/sr/fd-prefixed names, hotplug-flagged devices, and
-    (via _boot_media_disk_names) the actual disk the live session booted
-    from."""
+    excluding loop/sr/fd/ram/zram-prefixed names (mirroring
+    abora-installer.sh's collect_disks() awk filter), hotplug-flagged
+    devices, and (via _boot_media_disk_names) the actual disk the live
+    session booted from."""
     boot_names = _boot_media_disk_names()
     try:
         r = subprocess.run(
@@ -582,7 +583,7 @@ def get_disks() -> list[tuple[str, str, str]]:
             if d.get('type') != 'disk':
                 continue
             name = d.get('name', '')
-            if not name or name.startswith(('loop', 'sr', 'fd')):
+            if not name or name.startswith(('loop', 'sr', 'fd', 'ram', 'zram')):
                 continue
             if d.get('hotplug') == '1':
                 continue
