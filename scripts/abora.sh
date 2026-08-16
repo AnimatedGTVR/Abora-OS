@@ -20,6 +20,7 @@ Most-used commands:
   sudo abora rollback                 go back to the previous generation
 
 Change the system:
+  sudo abora setup                    interactive reconfiguration wizard
   abora desktop list                  show desktop choices
   sudo abora desktop set gnome        switch desktop profile
   sudo abora config set timezone America/New_York
@@ -55,6 +56,7 @@ show_help() {
     cat <<'EOF'
 Abora commands:
   abora learn           short cheat sheet for the commands people actually use
+  abora setup           installed reconfiguration launcher
   abora welcome         first-boot welcome and quick actions
   abora welcome-gui     graphical first-steps and update-check app
   abora doctor          check Abora system health
@@ -436,6 +438,10 @@ EOF
                 exit 1
                 ;;
         esac
+        ;;
+    setup)
+        shift
+        exec abora-setup "$@"
         ;;
     welcome)
         shift

@@ -607,6 +607,26 @@ else
   fail "runtime: abora command routes update, channel, rollback, network, logs, bug-report, dotfiles, gaming, and pre-alpha"
 fi
 
+# Regression test: `abora setup` was documented as "the installed
+# reconfiguration launcher" in 5 separate doc files (docs/hardware-testing.md,
+# docs/install-checklist.md, docs/release-checklist.md,
+# docs/wiki/Updating-Abora.md, docs/wiki/Abora-Tools.md) but abora.sh's
+# dispatcher had no "setup)" case at all -- `abora setup` failed outright
+# with "Unknown Abora command: setup" (reproduced directly) despite every
+# doc claiming it worked. Checks both that the dispatcher now has the case
+# (statically) and that running it actually reaches the exec attempt at
+# runtime (fails on "abora-setup: not found" -- expected on a bare
+# checkout without the Nix-built wrapper on PATH -- rather than "Unknown
+# Abora command", proving it's routed correctly).
+_setup_run_out="$(./abora setup 2>&1 || true)"
+if grep -q '^[[:space:]]*setup)' scripts/abora.sh \
+  && grep -q 'exec abora-setup "\$@"' scripts/abora.sh \
+  && ! printf '%s' "$_setup_run_out" | grep -q 'Unknown Abora command'; then
+  pass "runtime: abora setup is routed to abora-setup, matching its documented behavior"
+else
+  fail "runtime: abora setup is routed to abora-setup, matching its documented behavior"
+fi
+
 build_help_out="$(scripts/abora-build.sh --help 2>&1)"
 if printf '%s' "$build_help_out" | grep -q 'abora build --from-source' \
   && ./abora --help | grep -q 'abora build --from-source' \
