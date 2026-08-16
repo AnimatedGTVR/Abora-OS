@@ -315,11 +315,19 @@ abora_dim_line() {
 
 # ── Key-value row ─────────────────────────────────────────────────────────────
 
-# Print a neatly aligned key-value pair.
+# Print a neatly aligned key-value pair, as a row inside an
+# abora_card_start/abora_card_end box -- the left "|" here is that box's
+# side border, matching the "|" abora_card_start/abora_card_end draw on
+# their own border lines. Every abora_kv/abora_kv_faint call site in this
+# codebase is used between a card_start/card_end pair (verified across
+# anix.sh, abora-config.sh, abora-welcome.sh, etc.), so omitting it here
+# left every row unaligned with its own card's border -- reproduced via
+# `abora config show`, `anix status`, and `abora welcome`.
 # Usage: abora_kv "key" "value" [key_width]
 abora_kv() {
     local key="$1" value="$2" key_width="${3:-18}"
-    printf '  %b%-*s%b  %b%s%b\n' \
+    printf '  %b│%b  %b%-*s%b  %b%s%b\n' \
+        "$ABORA_BLUE" "$ABORA_NC" \
         "$ABORA_DIM" "$key_width" "$key" "$ABORA_NC" \
         "$ABORA_CYAN" "$value" "$ABORA_NC"
 }
@@ -327,7 +335,8 @@ abora_kv() {
 # Print a key-value with a dim/faint value (for read-only info).
 abora_kv_faint() {
     local key="$1" value="$2" key_width="${3:-18}"
-    printf '  %b%-*s%b  %b%s%b\n' \
+    printf '  %b│%b  %b%-*s%b  %b%s%b\n' \
+        "$ABORA_BLUE" "$ABORA_NC" \
         "$ABORA_DIM" "$key_width" "$key" "$ABORA_NC" \
         "$ABORA_FAINT" "$value" "$ABORA_NC"
 }
