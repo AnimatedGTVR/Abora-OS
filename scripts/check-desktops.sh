@@ -81,7 +81,7 @@ assert_supported_everywhere() {
     "$repo_dir/scripts/abora-config.sh" \
     "$repo_dir/nix/modules/abora-options.nix" \
     "$repo_dir/nix/modules/anix.nix"; do
-    if ! grep -Eq "\"?${profile}\"?([[:space:]]|$)" "$file"; then
+    if ! grep -Eq "(^|[^A-Za-z0-9_-])\"?${profile}\"?([[:space:]]|$)" "$file"; then
       fail "desktop list missing ${profile}: ${file#$repo_dir/}"
     fi
   done
