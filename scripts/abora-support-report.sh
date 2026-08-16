@@ -126,6 +126,7 @@ main() {
     copy_if_exists "${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/abora/dotfiles-import.log" dotfiles-import.log
 
     tar -C "$output_root" -czf "$archive_path" "$(basename "$report_dir")"
+    rm -rf "$report_dir"
 
     printf 'Abora support archive created:\n' >&2
     printf '  %s\n' "$archive_path" >&2
