@@ -2110,6 +2110,27 @@ else
   fail "runtime: Abora Gaming Welcome is a separate app with a hand-off from Abora Welcome"
 fi
 
+# Found by actually clicking through the gaming welcome GUI: the "Sign In"
+# card treats Steam as installed via read_installed_apps() OR
+# shutil.which('steam'), but the Platforms list's button only checked
+# read_installed_apps() -- so a Steam installed outside Abora's own app
+# tracking showed "Installed" in one place and a live "Install" button for
+# the same app just below it. _set_platform_button_state must also fall
+# back to _steam_installed() for the steam row.
+if command -v python3 >/dev/null 2>&1; then
+  if python3 -c "
+import re
+text = open('scripts/abora-gaming-welcome-gui.py').read()
+m = re.search(r'def _set_platform_button_state.*?(?=\n    def )', text, re.S)
+import sys
+sys.exit(0 if m and '_steam_installed()' in m.group(0) else 1)
+"; then
+    pass "runtime: gaming welcome Platforms Steam row matches Sign In's installed detection"
+  else
+    fail "runtime: gaming welcome Platforms Steam row matches Sign In's installed detection"
+  fi
+fi
+
 tmp_gaming_config="$(mktemp -d)"
 tmp_gaming_module="$tmp_gaming_config/abora-local.nix"
 cat > "$tmp_gaming_module" <<'EOF'

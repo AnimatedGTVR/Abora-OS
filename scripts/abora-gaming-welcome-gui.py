@@ -268,7 +268,14 @@ class GamingWelcomeWindow(Adw.ApplicationWindow):
                 self._set_platform_button_state(app_id, button)
 
     def _set_platform_button_state(self, app_id: str, button: Gtk.Button):
+        # Steam gets the same shutil.which() fallback as the Sign In card
+        # (_steam_installed()) -- otherwise a Steam installed outside Abora's
+        # own app tracking (a manual package, a pre-existing install) shows
+        # "Installed" up in Sign In but a live, clickable "Install" button
+        # here for the same app.
         installed = app_id in read_installed_apps()
+        if app_id == 'steam':
+            installed = installed or self._steam_installed()
         if installed:
             button.set_label('Installed')
             button.set_sensitive(False)
