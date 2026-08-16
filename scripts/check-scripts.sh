@@ -433,7 +433,12 @@ if [[ -n "$resolver_bin" ]]; then
     fail "runtime: resolver keeps 3.14 on v3.14"
   fi
 
-  _resolver_tags="v2.5.0 v3.14"
+  # Regression test: this used to be a byte-for-byte copy of the "keeps
+  # 3.14 on v3.14" test above (same tag list, same expectation), which
+  # meant "prefers final over demo" was never actually exercised -- both
+  # a demo tag and the final tag exist for the same version here, and the
+  # final one must win (see UpdateResolver.cs's ResolveStableChannel).
+  _resolver_tags="v2.5.0 v3.14-DEMO v3.14"
   if ABORA_RELEASE_TAGS="$_resolver_tags" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-resolve-ref 3.14 stable | grep -q '^v3\.14[[:space:]]'; then
     pass "runtime: resolver prefers final v3.14 when present"
   else
