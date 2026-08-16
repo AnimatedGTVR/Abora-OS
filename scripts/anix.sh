@@ -2701,7 +2701,15 @@ do_switch() {
     local now="false"
     local target=""
 
-    shift 2 2>/dev/null || true
+    # Shift off only the positionals that were actually present (family,
+    # then profile) rather than an unconditional `shift 2` — with a single
+    # arg (e.g. `anix switch nix`), `shift 2` fails and shifts nothing,
+    # leaving "nix" for the flag loop below to reject as an unknown option
+    # instead of reaching the usage message. Mirrors do_rollback's pattern.
+    shift 1 2>/dev/null || true
+    if [[ -n "$profile" ]]; then
+        shift 1 2>/dev/null || true
+    fi
     while [[ "$#" -gt 0 ]]; do
         case "$1" in
             --now) now="true" ;;

@@ -127,10 +127,10 @@ Go back to stable the same way (`sudo abora channel set stable`) whenever you've
 ANIX is Abora’s command-line tool for common system management tasks.
 
 ```bash
-anix update
-anix switch
-anix rollback
 anix status
+anix switch nix <profile>
+anix rollback nix
+anix apply
 ```
 
 > [!NOTE]

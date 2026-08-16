@@ -1318,6 +1318,23 @@ else
   fail "runtime: anix switch maps flake profile"
 fi
 
+# `anix switch nix` (family only, no profile) must fall through to the
+# "Usage: anix switch nix <profile> [--now]" message rather than misreading
+# the leftover "nix" positional as an unrecognized --flag.
+anix_switch_family_only_output="$(
+  PATH="$tmp_anix_bin:$PATH" \
+    ANIX_NO_SUDO=1 \
+    ANIX_SYSTEM_CONFIG="$tmp_anix_switch_dir" \
+    ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+    scripts/anix.sh switch nix 2>&1 || true
+)"
+if printf '%s' "$anix_switch_family_only_output" | grep -q "Usage: anix switch nix <profile>" \
+  && ! printf '%s' "$anix_switch_family_only_output" | grep -q "Unknown switch option"; then
+  pass "runtime: anix switch with family only shows usage"
+else
+  fail "runtime: anix switch with family only shows usage"
+fi
+
 # Simulates the "git needs root" case (a repo owned by a different UID —
 # git calls this "dubious ownership" and refuses to operate as the invoking
 # user): the fake `git` here fails for the calling user but succeeds via
