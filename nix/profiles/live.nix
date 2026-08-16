@@ -694,7 +694,9 @@ in
       "abora/pkgs/modularity.nix".source = ../pkgs/modularity.nix;
       "abora/pkgs/moducpp-anix.nix".source = ../pkgs/moducpp-anix.nix;
       "abora/pkgs/abora-update-resolver.nix".source = ../pkgs/abora-update-resolver.nix;
+      "abora/pkgs/abora-update-resolver-deps.json".source = ../pkgs/abora-update-resolver-deps.json;
       "abora/pkgs/abora-plan-tool.nix".source = ../pkgs/abora-plan-tool.nix;
+      "abora/pkgs/abora-plan-tool-deps.json".source = ../pkgs/abora-plan-tool-deps.json;
       "abora/tools/moducpp-anix" = {
         source = ../../tools/moducpp-anix;
         mode = "0755";

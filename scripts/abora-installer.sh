@@ -1498,7 +1498,21 @@ step_options() {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 step_gpu() {
-    tab_header 7
+    # Shared by both flows (release_install_flow and the --reconfig wizard),
+    # which use two different, differently-ordered progress headers --
+    # tab_header's _TABS array reflects the reconfig step_* sequence
+    # (Language, Network, Identity, Desktop, Apps, Options, GPU, Dotfiles,
+    # Disk, Preflight, Confirm), not release_install_flow's real order
+    # (Welcome, Network, Disk, Identity, Locale, Desktop, GPU, Gaming, Apps,
+    # Preflight, Review). Always calling tab_header 7 here showed a step
+    # grid with wrong checkmarks during a real install (Disk unchecked
+    # despite already being confirmed, Apps/Options checked despite not
+    # having run yet) -- reproduced by actually running the installer.
+    if [[ "${reconfig_mode:-0}" == "1" ]]; then
+        tab_header 7
+    else
+        release_header "GPU driver"
+    fi
 
     local detected="$gpu_value"
     msg "Detected GPU driver: ${detected}"
@@ -1968,7 +1982,9 @@ write_branding_assets() {
     cp_required /etc/abora/pkgs/modularity.nix     "${root}/etc/nixos/abora/pkgs/modularity.nix"
     cp_required /etc/abora/pkgs/moducpp-anix.nix   "${root}/etc/nixos/abora/pkgs/moducpp-anix.nix"
     cp_required /etc/abora/pkgs/abora-update-resolver.nix "${root}/etc/nixos/abora/pkgs/abora-update-resolver.nix"
+    cp_required /etc/abora/pkgs/abora-update-resolver-deps.json "${root}/etc/nixos/abora/pkgs/abora-update-resolver-deps.json"
     cp_required /etc/abora/pkgs/abora-plan-tool.nix "${root}/etc/nixos/abora/pkgs/abora-plan-tool.nix"
+    cp_required /etc/abora/pkgs/abora-plan-tool-deps.json "${root}/etc/nixos/abora/pkgs/abora-plan-tool-deps.json"
     cp_required /etc/abora/tools/moducpp-anix      "${root}/etc/nixos/abora/tools/moducpp-anix"
     cp_required /etc/abora/anix-module.nix         "${root}/etc/nixos/abora/anix-module.nix"
     cp_required /etc/abora/abora-options.nix       "${root}/etc/nixos/abora/abora-options.nix"

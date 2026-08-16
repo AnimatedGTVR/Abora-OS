@@ -1224,12 +1224,18 @@ sync_abora_files() {
     if [[ -f "$upstream_dir/nix/pkgs/abora-update-resolver.nix" ]]; then
         copy_upstream_file "$upstream_dir/nix/pkgs/abora-update-resolver.nix" "$abora_dir/pkgs/abora-update-resolver.nix"
     fi
+    if [[ -f "$upstream_dir/nix/pkgs/abora-update-resolver-deps.json" ]]; then
+        copy_upstream_file "$upstream_dir/nix/pkgs/abora-update-resolver-deps.json" "$abora_dir/pkgs/abora-update-resolver-deps.json"
+    fi
     if [[ -d "$upstream_dir/tools/abora-update-resolver" ]]; then
         rm -rf "$abora_dir/update-resolver"
         cp -R "$upstream_dir/tools/abora-update-resolver" "$abora_dir/update-resolver"
     fi
     if [[ -f "$upstream_dir/nix/pkgs/abora-plan-tool.nix" ]]; then
         copy_upstream_file "$upstream_dir/nix/pkgs/abora-plan-tool.nix" "$abora_dir/pkgs/abora-plan-tool.nix"
+    fi
+    if [[ -f "$upstream_dir/nix/pkgs/abora-plan-tool-deps.json" ]]; then
+        copy_upstream_file "$upstream_dir/nix/pkgs/abora-plan-tool-deps.json" "$abora_dir/pkgs/abora-plan-tool-deps.json"
     fi
     if [[ -d "$upstream_dir/tools/abora-plan-tool" ]]; then
         rm -rf "$abora_dir/plan-tool"

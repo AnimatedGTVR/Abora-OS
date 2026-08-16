@@ -903,6 +903,25 @@ else
   fail "runtime: installer copies ANIX language adapters"
 fi
 
+# Regression test: a real fresh install (reproduced by actually running the
+# installer through nixos-install in QEMU, not just static review) failed
+# with "path '/mnt/etc/nixos/abora/pkgs/abora-update-resolver-deps.json'
+# does not exist" -- nix/pkgs/abora-update-resolver.nix's/abora-plan-tool.nix's
+# `nugetDeps = ./abora-*-deps.json;` is a path relative to wherever the .nix
+# file itself ends up, so the deps.json has to be shipped and copied
+# alongside its .nix file at every hop (live ISO -> installed target ->
+# later abora update syncs), not just the .nix file itself.
+if grep -q '"abora/pkgs/abora-update-resolver-deps.json".source = ../pkgs/abora-update-resolver-deps.json' nix/profiles/live.nix \
+  && grep -q '"abora/pkgs/abora-plan-tool-deps.json".source = ../pkgs/abora-plan-tool-deps.json' nix/profiles/live.nix \
+  && grep -q 'cp_required /etc/abora/pkgs/abora-update-resolver-deps.json' scripts/abora-installer.sh \
+  && grep -q 'cp_required /etc/abora/pkgs/abora-plan-tool-deps.json' scripts/abora-installer.sh \
+  && grep -q 'copy_upstream_file "$upstream_dir/nix/pkgs/abora-update-resolver-deps.json"' scripts/abora-update.sh \
+  && grep -q 'copy_upstream_file "$upstream_dir/nix/pkgs/abora-plan-tool-deps.json"' scripts/abora-update.sh; then
+  pass "runtime: installer and updater ship nugetDeps json alongside the C# tool .nix files"
+else
+  fail "runtime: installer and updater ship nugetDeps json alongside the C# tool .nix files"
+fi
+
 if grep -q 'dotfilesImportScript[[:space:]]*= ./dotfiles-import.sh;' nix/modules/installed-base.nix \
   && grep -q 'aboraDotfilesImport = pkgs.writeShellScriptBin "abora-dotfiles-import"' nix/modules/installed-base.nix \
   && grep -q 'aboraDotfilesImport' nix/modules/installed-base.nix \
