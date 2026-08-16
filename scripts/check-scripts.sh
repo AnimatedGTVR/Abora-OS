@@ -1768,6 +1768,21 @@ else
   fail "runtime: e2e .anix simple example applies through anix run"
 fi
 
+# do_set only bans '"', '\', and '${' for timezone/keyboard.xkb/gc.days/
+# gc.dates -- a systemd OnCalendar-style gc.dates value like "Sun 03:00:00"
+# is legal there and via a JSON Plan's "value" field, but
+# NativePlanBuilder's `set` used to require exactly 3 whitespace-split
+# tokens, silently truncating/rejecting any value containing a space.
+tmp_anix_e2e_spaced_value="$tmp_ok/anix-e2e-spaced-value"
+mkdir -p "$tmp_anix_e2e_spaced_value"
+printf 'set gc.dates Sun 03:00:00\n' > "$tmp_anix_e2e_spaced_value/plan.anix"
+anix_e2e_run "$tmp_anix_e2e_spaced_value/plan.anix" "$tmp_anix_e2e_spaced_value" || true
+if grep -Eq 'anix\.garbageCollect\.dates[[:space:]]*=[[:space:]]*"Sun 03:00:00"' "$tmp_anix_e2e_spaced_value/anix.nix" 2>/dev/null; then
+  pass "runtime: native .anix 'set' preserves a space-containing value"
+else
+  fail "runtime: native .anix 'set' preserves a space-containing value"
+fi
+
 tmp_anix_e2e_anix_ws="$tmp_ok/anix-e2e-anix-workstation"
 mkdir -p "$tmp_anix_e2e_anix_ws"
 anix_e2e_run "examples/anix-v2/workstation.anix" "$tmp_anix_e2e_anix_ws" || true

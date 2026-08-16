@@ -33,7 +33,7 @@ public static class NativePlanBuilder
                 }
 
                 var words = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-                var error = WriteOperation(writer, words);
+                var error = WriteOperation(writer, line, words);
                 if (error is not null)
                 {
                     return new BuildResult(null, $"{lineNumber}: {error}");
@@ -61,19 +61,28 @@ public static class NativePlanBuilder
 
     /// Returns an error message (without the line number, which the caller
     /// adds) or null on success.
-    private static string? WriteOperation(Utf8JsonWriter writer, string[] words)
+    private static string? WriteOperation(Utf8JsonWriter writer, string line, string[] words)
     {
         var command = words.Length > 0 ? words[0] : "";
         switch (command)
         {
             case "set":
-                if (words.Length != 3) return "usage: set <key> <value>";
+            {
+                // Split into at most 3 parts (command, key, value) instead of
+                // reusing the plain whitespace-tokenized `words` -- do_set
+                // only bans '"', '\', and '${' for timezone/keyboard.xkb/
+                // gc.days/gc.dates, so a legitimate value like a systemd
+                // OnCalendar gc.dates spec ("Sun 03:00:00") contains a space
+                // and must not be truncated the way `words.Length != 3` would.
+                var parts = line.Split((char[]?)null, 3, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length != 3) return "usage: set <key> <value>";
                 writer.WriteStartObject();
                 writer.WriteString("op", "set");
-                writer.WriteString("key", words[1]);
-                writer.WriteString("value", words[2]);
+                writer.WriteString("key", parts[1]);
+                writer.WriteString("value", parts[2]);
                 writer.WriteEndObject();
                 return null;
+            }
 
             case "enable":
                 if (words.Length != 2) return "usage: enable <feature>";
