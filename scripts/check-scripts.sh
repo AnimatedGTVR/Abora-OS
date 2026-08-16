@@ -1069,6 +1069,38 @@ else
 fi
 rm -rf "$tmp_support_home" "$tmp_support_out"
 
+# abora-support-report.sh vendors its own copy of abora-check-full.sh's
+# redact_stream() (no shared source) — nothing keeps them mirrored, so a fix
+# to one (e.g. the missing trailing "@" that let the credential-URL pattern
+# devour plain timestamps like "16:41:11") can silently drift from the other.
+redact_stream_check_full="$(sed -n '/^redact_stream() {/,/^}/p' scripts/abora-check-full.sh)"
+redact_stream_support_report="$(sed -n '/^redact_stream() {/,/^}/p' scripts/abora-support-report.sh)"
+if [[ -n "$redact_stream_check_full" ]] \
+  && [[ "$redact_stream_check_full" == "$redact_stream_support_report" ]]; then
+  pass "runtime: redact_stream is identical in abora-check-full.sh and abora-support-report.sh"
+else
+  fail "runtime: redact_stream is identical in abora-check-full.sh and abora-support-report.sh"
+fi
+
+# The credential-URL redaction pattern must require a trailing "@" so it only
+# matches real embedded-credential URLs (user:pass@host), not any bare
+# "word:word" text — otherwise plain timestamps and host:port pairs get
+# mangled into "[redacted-user]:[redacted]" throughout the whole report.
+# eval the exact function body extracted above (renamed to avoid clobbering
+# anything) rather than re-deriving the regex, so the test exercises the
+# real source, not a hand-copied approximation of it.
+eval "$(printf '%s' "$redact_stream_check_full" | sed '1s/^redact_stream/_redact_stream_under_test/')"
+redact_probe_out="$(printf 'Generated: 2026-08-16T16:43:28-04:00\nport: talking to host:8080 now\nurl: https://user:pass@example.com/repo\n' \
+  | _redact_stream_under_test)"
+if printf '%s' "$redact_probe_out" | grep -q '2026-08-16T16:43:28-04:00' \
+  && printf '%s' "$redact_probe_out" | grep -q 'host:8080' \
+  && printf '%s' "$redact_probe_out" | grep -q '\[redacted-user\]:\[redacted\]@example.com/repo' \
+  && ! printf '%s' "$redact_probe_out" | grep -q 'user:pass'; then
+  pass "runtime: redact_stream credential regex does not devour timestamps or host:port pairs"
+else
+  fail "runtime: redact_stream credential regex does not devour timestamps or host:port pairs"
+fi
+
 if grep -q 'redact_file "$tmp" >>"$report"' scripts/abora-check-full.sh \
   && grep -q 'redact_file "$tmp" >>"$report_dir/report.txt"' scripts/abora-support-report.sh \
   && grep -q 'Abora network diagnostics' scripts/abora-support-report.sh \
