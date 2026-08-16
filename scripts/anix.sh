@@ -2498,7 +2498,14 @@ do_run() {
     shift || true
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --language) language="${2:-}"; shift 2 ;;
+            --language)
+                if [[ -z "${2:-}" ]]; then
+                    abora_error "Usage: anix run <file> [--language <id>] [--yes]"
+                    exit 1
+                fi
+                language="$2"
+                shift 2
+                ;;
             --yes|-y) yes="yes"; shift ;;
             *) abora_error "Unknown option: $1"; exit 1 ;;
         esac

@@ -1548,6 +1548,22 @@ else
   fail "runtime: anix run applies a .anix Native file as one plan"
 fi
 
+# `anix run <file> --language` with no value after --language must print the
+# usage message, not crash silently: the old `shift 2` failed under `set -e`
+# when only one positional remained, exiting with no output at all.
+anix_run_missing_lang_value_out="$(
+  ANIX_NO_SUDO=1 \
+    ANIX_ASSUME_YES=1 \
+    ANIX_SYSTEM_CONFIG="$tmp_anix_native_dir" \
+    ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+    scripts/anix.sh run "$tmp_anix_native_dir/plan.anix" --language 2>&1 || true
+)"
+if printf '%s' "$anix_run_missing_lang_value_out" | grep -q "Usage: anix run <file>"; then
+  pass "runtime: anix run with a valueless --language shows usage instead of crashing silently"
+else
+  fail "runtime: anix run with a valueless --language shows usage instead of crashing silently"
+fi
+
 tmp_anix_diff_plan_dir="$tmp_ok/anix-diff-plan"
 mkdir -p "$tmp_anix_diff_plan_dir"
 anix_diff_plan_output="$(
