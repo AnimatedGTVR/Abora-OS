@@ -931,6 +931,7 @@ EOF
 tools/abora-update-resolver/AboraUpdateResolver.csproj
 tools/abora-update-resolver/Program.cs
 nix/pkgs/abora-update-resolver.nix
+nix/pkgs/abora-update-resolver-deps.json
 EOF
     fi
 
@@ -939,6 +940,7 @@ EOF
 tools/abora-plan-tool/AboraPlanTool.csproj
 tools/abora-plan-tool/Program.cs
 nix/pkgs/abora-plan-tool.nix
+nix/pkgs/abora-plan-tool-deps.json
 EOF
     fi
 }

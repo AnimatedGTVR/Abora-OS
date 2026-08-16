@@ -22,6 +22,10 @@ nix/pkgs/mango.nix
 nix/pkgs/scenefx-0_5.nix
 nix/pkgs/modularity.nix
 nix/pkgs/moducpp-anix.nix
+nix/pkgs/abora-update-resolver.nix
+nix/pkgs/abora-update-resolver-deps.json
+nix/pkgs/abora-plan-tool.nix
+nix/pkgs/abora-plan-tool-deps.json
 scripts/abora-update.sh
 scripts/abora-installer.sh
 scripts/abora-repair-flake-purity.sh
@@ -32,6 +36,9 @@ scripts/abora-build.sh
 scripts/abora-adopt-nixos.sh
 scripts/abora-desktop.sh
 scripts/abora-gaming.sh
+scripts/abora-welcome-gui.py
+scripts/abora-config-gui.py
+scripts/abora-gaming-welcome-gui.py
 scripts/abora-doctor.sh
 scripts/abora-recovery.sh
 scripts/abora-welcome.sh
@@ -49,6 +56,10 @@ docs/wiki/Abora-Gaming.md
 docs/wiki/ANIX-V2-Languages.md
 docs/wiki/Updating-Abora.md
 tools/moducpp-anix
+tools/abora-update-resolver/AboraUpdateResolver.csproj
+tools/abora-update-resolver/Program.cs
+tools/abora-plan-tool/AboraPlanTool.csproj
+tools/abora-plan-tool/Program.cs
 assets/mango/config.conf
 assets/anix-languages
 assets/abora-title.txt

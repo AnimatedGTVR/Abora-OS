@@ -423,6 +423,32 @@ else
   fail "runtime: release manifest includes dotfiles importer"
 fi
 
+# Regression test: check-release-files.sh's own header comment says its list
+# "mirrors abora-update.sh's required_upstream_paths()" -- but nothing ever
+# verified that claim stayed true, and it silently drifted by 9 real files
+# (all 3 Python GUIs, both C# tools' source/csproj/nix files) before this was
+# added. A file missing here means `make check` won't catch it before a tag,
+# even though `sudo abora update` against that tag will fail
+# validate_upstream_checkout() for real users -- exactly the failure mode the
+# earlier abora-update-resolver-deps.json bug shipped through. Extracts both
+# lists straight from the source text (not by running abora-update.sh, which
+# does real network/system work) and diffs them; nix/pkgs/scenefx-0_5.nix is
+# the one documented, intentional exception (an internal mango build
+# dependency the updater never syncs directly).
+_update_paths="$(sed -n '/^required_upstream_paths() {/,/^}$/p' scripts/abora-update.sh \
+  | grep -E '^[A-Za-z0-9_./-]+$' | sort -u)"
+_release_paths="$(sed -n '/^required_paths() {/,/^}$/p' scripts/check-release-files.sh \
+  | grep -E '^[A-Za-z0-9_./-]+$' | sort -u)"
+_missing_from_release="$(comm -23 <(printf '%s\n' "$_update_paths") <(printf '%s\n' "$_release_paths"))"
+if [[ -z "$_missing_from_release" ]]; then
+  pass "runtime: check-release-files.sh mirrors abora-update.sh's required_upstream_paths"
+else
+  fail "runtime: check-release-files.sh mirrors abora-update.sh's required_upstream_paths"
+  printf '%s\n' "$_missing_from_release" | while IFS= read -r _p; do
+    printf '              missing from check-release-files.sh: %s\n' "$_p"
+  done
+fi
+
 if [[ -n "$resolver_bin" ]]; then
   export ABORA_UPDATE_RESOLVER_BIN="$resolver_bin"
 
