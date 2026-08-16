@@ -73,6 +73,7 @@ DESKTOPS = [
     ('budgie',        'Budgie',        'Clean panel desktop'),
     ('cinnamon',      'Cinnamon',      'Traditional layout'),
     ('mate',          'MATE',          'Classic GNOME 2'),
+    ('pantheon',      'Pantheon',      'elementary OS desktop'),
     ('xfce',          'Xfce',          'Lightweight GTK'),
     ('lxqt',          'LXQt',          'Lightweight Qt'),
     ('niri',          'Niri',          'Scrollable Wayland'),

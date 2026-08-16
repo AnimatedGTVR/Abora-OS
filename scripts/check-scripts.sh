@@ -208,6 +208,32 @@ else
   pass "python3 unavailable (GUI syntax checks skipped)"
 fi
 
+# Regression test: abora-installer-gui.py can't source the bash desktop
+# library, so it keeps its own DESKTOPS list -- which silently drifted by
+# one entry (missing "pantheon" entirely, so the graphical installer could
+# never offer it even though it's a fully supported profile everywhere
+# else: abora_supported_desktop_profiles, anix.sh's valid_desktops, and
+# abora-options.nix's desktop enum all include it) before this check was
+# added. Compares the real bash function's output against the GUI's real
+# Python list, not a copy of either.
+if command -v python3 >/dev/null 2>&1; then
+  # shellcheck source=/dev/null
+  _desktop_bash_list="$(source scripts/abora-desktop-profiles.sh; abora_supported_desktop_profiles | sort)"
+  _desktop_gui_list="$(python3 -c "
+import re
+text = open('scripts/abora-installer-gui.py').read()
+m = re.search(r'DESKTOPS = \[(.*?)\]', text, re.S)
+ids = re.findall(r\"\('(\w+)'\", m.group(1))
+print('\n'.join(sorted(ids)))
+")"
+  if [[ "$_desktop_bash_list" == "$_desktop_gui_list" ]]; then
+    pass "runtime: abora-installer-gui.py's DESKTOPS matches abora_supported_desktop_profiles"
+  else
+    fail "runtime: abora-installer-gui.py's DESKTOPS matches abora_supported_desktop_profiles"
+    diff <(printf '%s\n' "$_desktop_bash_list") <(printf '%s\n' "$_desktop_gui_list") | sed 's/^/              /'
+  fi
+fi
+
 if command -v shellcheck >/dev/null 2>&1; then
   # -S error matches the dedicated "ShellCheck scripts" CI workflow step —
   # info/warning-level style nits (SC1007, SC2015, SC2016, SC2086, etc.) are
