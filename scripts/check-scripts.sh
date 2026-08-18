@@ -3271,6 +3271,21 @@ else
   printf '              list_disks: %s, has_internal_disk rc: %s\n' "$_hwtest_disks" "$_hwtest_internal_rc"
 fi
 
+# Regression test: abora-custom-packages.sh's install_modularity_zip() hard
+# requires unzip ("unzip is required to install Modularity Stable", exit 1
+# otherwise) to run `abora apps custom update modularity-stable --zip
+# <file>`, a real documented feature (abora.sh's own help text, this
+# script's usage). unzip was never declared in installed-base.nix's
+# environment.systemPackages, so on a genuinely clean install this feature
+# would fail every time with no way to fix it short of installing unzip
+# out of band. Static check since this is a package-declaration fact, not
+# behavior to execute.
+if grep -qE '^\s*unzip\s*$' nix/modules/installed-base.nix; then
+  pass "runtime: installed-base.nix declares unzip (required by abora apps custom update --zip)"
+else
+  fail "runtime: installed-base.nix declares unzip (required by abora apps custom update --zip)"
+fi
+
 if [[ "$failed" -ne 0 ]]; then
   printf '\nOne or more checks failed.\n' >&2
   exit 1

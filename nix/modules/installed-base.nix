@@ -557,6 +557,7 @@ in
     rollbackCommand
     spaceship-prompt
     starship
+    unzip
     usbutils
     wget
     papirus-icon-theme
