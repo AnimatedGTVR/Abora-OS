@@ -86,7 +86,13 @@ bin_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 prefix="$(CDPATH= cd -- "$bin_dir/.." && pwd)"
 share_dir="$prefix/share/anix"
 
-export ANIX_UI_LIB="$share_dir/abora-ui.sh"
+# anix.sh reads ABORA_UI_LIB (not a per-script ANIX_-prefixed name -- every
+# script in this repo shares that one convention). Harmless as an unset var
+# in practice, since anix.sh's own fallback ($script_dir/abora-ui.sh)
+# always resolves correctly here anyway (anix.sh and abora-ui.sh are
+# always installed side by side), but naming it correctly avoids relying
+# on that coincidence.
+export ABORA_UI_LIB="$share_dir/abora-ui.sh"
 export ANIX_DOCS_DIR="$share_dir/docs/wiki"
 export ANIX_SYSTEM_LANGUAGE_DIR="$share_dir/languages"
 export ANIX_WALLPAPER_DIR="$share_dir/wallpapers"
