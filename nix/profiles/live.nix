@@ -410,6 +410,22 @@ in
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.initrd.systemd.enable = true;
   boot.initrd.verbose = false;
+  # Ventoy boots an ISO by presenting it as a real by-label block device to
+  # the target kernel (exactly the mechanism NixOS's own iso-image.nix
+  # `/iso` mount relies on), but bridging "GRUB-level ISO loopback" into
+  # "kernel-visible block device" needs help from Ventoy's own udev hook
+  # (/ventoy/hook/default/udev/udev_disk_hook.sh, injected by Ventoy
+  # itself, not part of this repo). That hook assumes common utilities
+  # (grep/sed/awk/cut/blkid, etc.) are on PATH in the target initrd -- a
+  # real, reproduced failure: `udev_disk_hook.sh sdb2 noreplace` exiting 1,
+  # which cascaded straight into "Timed out waiting for device
+  # /dev/disk/by-label/nixos-26.05-x86_64" ~27s later on real hardware.
+  # iso-image.nix's own initrdBin only adds util-linux ("most of
+  # util-linux is not included by default") -- nowhere near a full
+  # userland. busybox provides the standard POSIX utility set Ventoy's
+  # hook expects; NixOS list options merge across modules (no mkForce
+  # here or in iso-image.nix), so this adds to, not replaces, that.
+  boot.initrd.systemd.initrdBin = [ pkgs.busybox ];
   boot.initrd.kernelModules = lib.mkForce [
     "loop"
     "overlay"
