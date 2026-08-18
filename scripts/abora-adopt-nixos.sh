@@ -296,7 +296,17 @@ fi
 timestamp="$(date +%Y%m%d-%H%M%S)"
 backup_dir="$config_dir/abora-backups/$timestamp"
 mkdir -p "$backup_dir"
-cp -a "$config_dir"/. "$backup_dir"/
+# Excludes abora-backups/ itself -- `cp -a "$config_dir"/. "$backup_dir"/`
+# tries to copy config_dir's whole tree (which, from the second run
+# onward, already contains every prior backup) into a fresh subdirectory
+# of that same tree. GNU cp detects the resulting self-reference and
+# refuses ("cp: cannot copy a directory ... into itself"), returning
+# non-zero -- which set -e turns into the whole script aborting right
+# here, before any of the real adoption work runs, on every run after
+# the first. Confirmed by actually reproducing it: a second run against
+# the same config_dir crashed here every time.
+find "$config_dir" -mindepth 1 -maxdepth 1 ! -name 'abora-backups' \
+  -exec cp -a {} "$backup_dir"/ \;
 
 abora_dir="$config_dir/abora"
 mkdir -p "$abora_dir"

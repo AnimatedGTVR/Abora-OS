@@ -866,6 +866,47 @@ print('\n'.join(sorted(set(required))))
   fi
 fi
 
+# Regression test: abora-adopt-nixos.sh's backup step used to crash on
+# every run after the first against the same --config-dir. It backs up
+# $config_dir into $config_dir/abora-backups/<timestamp>/ -- but from the
+# second run onward, $config_dir already contains every prior backup, so
+# `cp -a "$config_dir"/. "$backup_dir"/` tries to copy that whole tree
+# (including the fresh, now-nested backup_dir itself) into itself. GNU cp
+# detects this and refuses ("cp: cannot copy a directory ... into
+# itself"), returning non-zero, which set -euo pipefail turns into the
+# entire script aborting right there -- before any of the real adoption
+# work (the file copies checked above) ever runs. Exercises the real
+# backup logic for real, three runs in a row against the same directory,
+# confirming it doesn't abort and doesn't grow backups inside backups.
+tmp_backup_dir="$(mktemp -d)"
+printf 'test config\n' > "$tmp_backup_dir/configuration.nix"
+tmp_backup_snippet="$(mktemp)"
+awk '/^timestamp="\$\(date \+%Y%m%d-%H%M%S\)"$/{p=1} p{print} p && /-exec cp -a/{exit}' \
+  scripts/abora-adopt-nixos.sh > "$tmp_backup_snippet"
+backup_all_ok=1
+if [[ -s "$tmp_backup_snippet" ]] && bash -n "$tmp_backup_snippet" 2>/dev/null; then
+  for run in 1 2 3; do
+    if ! ( config_dir="$tmp_backup_dir"; set -euo pipefail; source "$tmp_backup_snippet" ) >/dev/null 2>&1; then
+      backup_all_ok=0
+    fi
+    sleep 1.1
+  done
+  backup_count="$(find "$tmp_backup_dir/abora-backups" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)"
+  [[ "$backup_count" -eq 3 ]] || backup_all_ok=0
+  nested_count="$(find "$tmp_backup_dir/abora-backups" -mindepth 2 -maxdepth 2 -type d -name 'abora-backups' 2>/dev/null | wc -l)"
+  [[ "$nested_count" -eq 0 ]] || backup_all_ok=0
+else
+  backup_all_ok=0
+fi
+rm -f "$tmp_backup_snippet"
+rm -rf "$tmp_backup_dir"
+
+if [[ "$backup_all_ok" -eq 1 ]]; then
+  pass "runtime: abora-adopt-nixos.sh's backup step survives repeated runs against the same config-dir"
+else
+  fail "runtime: abora-adopt-nixos.sh's backup step survives repeated runs against the same config-dir"
+fi
+
 # Regression test for ensure_import_in_configuration(): both of its
 # branches used to produce a real syntax/semantic break on the *standard*
 # nixos-generate-config output shape (function header on its own line,
