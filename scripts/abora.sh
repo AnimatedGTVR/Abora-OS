@@ -271,19 +271,29 @@ EOF
         {
             show_bug_report_template
             printf '\n## Auto-Collected Pointers\n\n'
-            printf '- Command: `abora bug-report --github`\n'
-            printf '- Logs: run `abora logs --lines 200`\n'
-            printf '- Network diagnostics: run `abora network`\n'
+            # bash's builtin printf treats a format string starting with
+            # '-' as an option flag ("printf: - : invalid option"), not
+            # literal text -- confirmed directly: every one of these six
+            # calls crashed the very first time it ran, under this
+            # function's own `set -e`, meaning `abora bug-report --github`
+            # (without --body-file) failed on every single invocation,
+            # before gh was ever even reached, also leaking $tmp_body since
+            # the crash happened before its cleanup below. `--` tells
+            # printf "no more options follow" so the leading '-' is read as
+            # ordinary text again.
+            printf -- '- Command: `abora bug-report --github`\n'
+            printf -- '- Logs: run `abora logs --lines 200`\n'
+            printf -- '- Network diagnostics: run `abora network`\n'
             if [[ "$with_report" -eq 1 ]]; then
                 support_archive="$(abora support-report 2>/dev/null || true)"
                 if [[ -n "$support_archive" ]]; then
-                    printf '- Support archive created locally: `%s`\n' "$support_archive"
+                    printf -- '- Support archive created locally: `%s`\n' "$support_archive"
                     printf '\nGitHub CLI cannot attach arbitrary files directly from this command. Drag the archive into the issue after it opens, or attach it in a follow-up comment.\n'
                 else
-                    printf '- Support archive: creation failed or was cancelled\n'
+                    printf -- '- Support archive: creation failed or was cancelled\n'
                 fi
             else
-                printf '- Support archive: run `abora support-report --output-dir ~/Desktop`\n'
+                printf -- '- Support archive: run `abora support-report --output-dir ~/Desktop`\n'
             fi
         } >"$tmp_body"
     fi

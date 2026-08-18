@@ -3047,6 +3047,44 @@ else
   pass "zip/unzip unavailable (custom-packages temp-cleanup test skipped)"
 fi
 
+# Regression test: abora.sh's create_github_issue() (`abora bug-report
+# --github`) built its auto-generated issue body with six `printf '- ...'`
+# calls. bash's builtin printf treats a format string starting with '-' as
+# an option flag, not literal text -- confirmed directly:
+# `printf -- '- Command: x\n'` is fine, but plain `printf '- Command:
+# x\n'` fails with "printf: - : invalid option". The very first of the six
+# calls crashed every single time, under this function's own `set -e`,
+# so `abora bug-report --github` (without --body-file) failed on every
+# real invocation before gh was ever reached -- and leaked its $tmp_body
+# temp file too, since the crash happened before the cleanup that follows
+# it. Runs the real command end-to-end with a fake gh on PATH (so it never
+# touches the network) and checks it exits 0, prints all three
+# auto-collected pointer lines, and leaves no temp file behind.
+tmp_gh_bin="$(mktemp -d)"
+cat > "$tmp_gh_bin/gh" <<'GHEOF'
+#!/usr/bin/env bash
+exit 0
+GHEOF
+chmod +x "$tmp_gh_bin/gh"
+_bugreport_tmp_before="$(find /tmp -maxdepth 1 -name 'tmp.*' 2>/dev/null | sort)"
+set +e
+_bugreport_out="$(PATH="$tmp_gh_bin:$PATH" bash scripts/abora.sh bug-report --github --dry-run --title "test issue" 2>&1)"
+_bugreport_status=$?
+set -e
+_bugreport_tmp_after="$(find /tmp -maxdepth 1 -name 'tmp.*' 2>/dev/null | sort)"
+_bugreport_leaked="$(comm -13 <(printf '%s\n' "$_bugreport_tmp_before") <(printf '%s\n' "$_bugreport_tmp_after"))"
+rm -rf "$tmp_gh_bin" $_bugreport_leaked
+if [[ "$_bugreport_status" -eq 0 ]] \
+  && grep -q '^- Command: `abora bug-report --github`$' <<<"$_bugreport_out" \
+  && grep -q '^- Logs: run `abora logs --lines 200`$' <<<"$_bugreport_out" \
+  && grep -q '^- Network diagnostics: run `abora network`$' <<<"$_bugreport_out" \
+  && [[ -z "$_bugreport_leaked" ]]; then
+  pass "runtime: abora bug-report --github builds its auto-generated body without crashing"
+else
+  fail "runtime: abora bug-report --github builds its auto-generated body without crashing"
+  printf '              exit status: %s, leaked: %s\n' "$_bugreport_status" "${_bugreport_leaked:-<none>}"
+fi
+
 if [[ "$failed" -ne 0 ]]; then
   printf '\nOne or more checks failed.\n' >&2
   exit 1
