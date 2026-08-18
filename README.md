@@ -128,7 +128,7 @@ ANIX is Abora’s command-line tool for common system management tasks.
 
 ```bash
 anix status
-anix switch nix <profile>
+anix switch nix gaming
 anix rollback nix
 anix apply
 ```
