@@ -2463,16 +2463,59 @@ resolve_nixpkgs() {
     return 1
 }
 
+# GPT partition-type GUID for a BIOS boot partition (what `parted ... set 1
+# bios_grub on` in partition_disk() creates) — the standard type Limine
+# (and GRUB) look for when installing the legacy-BIOS stage 1 to a GPT
+# disk.
+readonly BIOS_BOOT_PARTTYPE_GUID="21686148-6449-6e6f-744e-656564454649"
+
+# Whether $disk has a BIOS-boot-typed partition — used by validate_boot()
+# to catch a `limine bios-install` that failed silently. See
+# find_existing_esp() for why lsblk -P (not columnar -o output) is used.
+_has_bios_boot_partition() {
+    local disk="$1"
+    lsblk -Pnb -o NAME,PARTTYPE,TYPE "$disk" 2>/dev/null | \
+        awk -v bios="$BIOS_BOOT_PARTTYPE_GUID" "$_lsblk_pairs_awk_prelude"'
+        {
+            parse_pairs($0)
+            if (f["TYPE"] == "part" && tolower(f["PARTTYPE"]) == bios) { found = 1; exit }
+        }
+        END { exit !found }'
+}
+
 # Sanity check that nixos-install actually produced a bootable ESP —
 # either a generic UEFI fallback (BOOTX64.EFI) or a Limine EFI/BIOS binary —
 # before declaring the install a success. A missing bootloader here means a
 # silent, unbootable install, which is worse than failing loudly now.
+#
+# The BIOS half of this is deliberately more than a file-existence check:
+# limine-install.py copies limine-bios.sys into /mnt/boot *before* it runs
+# `limine bios-install <device>` — that copy happens unconditionally,
+# regardless of whether the bios-install step that actually writes to the
+# disk's boot sector/BIOS-boot partition succeeds, and nixpkgs never checks
+# that subprocess's exit code (confirmed directly: `limine bios-install`
+# fails outright, exit 1, on a GPT disk with no BIOS-boot partition). So
+# the file's mere presence proves nothing about whether BIOS boot would
+# actually work — only that biosSupport was requested. When BIOS support
+# was requested for this install (install_disk_mode != "existing"; see
+# diskBiosSupport), this also confirms the BIOS-boot partition
+# bios-install depends on is still really there.
 validate_boot() {
-    [[ -f /mnt/boot/EFI/BOOT/BOOTX64.EFI ]] && return 0
+    local has_efi=0 has_bios_file=0
+
+    [[ -f /mnt/boot/EFI/BOOT/BOOTX64.EFI ]] && has_efi=1
     find /mnt/boot -maxdepth 3 \
         \( -iname '*limine*.efi' -o -iname 'limine-bios.sys' \) 2>/dev/null \
-        | grep -q . && return 0
-    die "Bootloader not found after nixos-install. See ${install_log}."
+        | grep -q . && has_bios_file=1
+
+    if [[ "$has_efi" -eq 0 && "$has_bios_file" -eq 0 ]]; then
+        die "Bootloader not found after nixos-install. See ${install_log}."
+    fi
+
+    if [[ "$install_disk_mode" != "existing" && -n "$disk" ]] \
+        && ! _has_bios_boot_partition "$disk"; then
+        die "BIOS boot was requested but ${disk} has no BIOS-boot partition — limine bios-install likely failed silently. See ${install_log}."
+    fi
 }
 
 # Limine's config uses indentation-as-nesting ("/"-prefixed lines whose

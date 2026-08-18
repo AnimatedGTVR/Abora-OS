@@ -2465,6 +2465,48 @@ else
   fail "runtime: installer disables Limine BIOS install for the no-bios_grub-partition disk mode"
 fi
 
+# Regression test for validate_boot()'s BIOS-boot-partition check
+# (_has_bios_boot_partition): validate_boot()'s existing bootloader check
+# only confirmed limine-bios.sys was *copied* into /mnt/boot, which
+# nixpkgs' limine-install.py does unconditionally before it runs the
+# subprocess that can actually fail (`limine bios-install <device>`,
+# confirmed to exit 1 on a GPT disk with no BIOS-boot partition -- see the
+# disk-mode commit above) -- so the file's presence proved nothing about
+# whether BIOS boot would actually work. Extracts the real
+# _has_bios_boot_partition function (it depends on the shared lsblk -P
+# parsing prelude, so pulls that in too) and exercises it against a fake
+# lsblk on PATH for both the present and missing case.
+tmp_biosboot_funcs="$(mktemp)"
+tmp_lsblk_bin2="$(mktemp -d)"
+{
+  sed -n '/^readonly ESP_PARTTYPE_GUID=/,/^check_install_environment()/p' scripts/abora-installer.sh | sed '$d'
+  sed -n '/^readonly BIOS_BOOT_PARTTYPE_GUID=/,/^validate_boot()/p' scripts/abora-installer.sh | sed '$d'
+} > "$tmp_biosboot_funcs"
+if [[ -s "$tmp_biosboot_funcs" ]] && bash -n "$tmp_biosboot_funcs" 2>/dev/null; then
+  cat > "$tmp_lsblk_bin2/lsblk" <<'LSBLK_SHIM2'
+#!/usr/bin/env bash
+if [[ "${DISK_HAS_BIOSGRUB:-0}" == "1" ]]; then
+  printf 'NAME="sda1" PARTTYPE="21686148-6449-6e6f-744e-656564454649" TYPE="part"\n'
+  printf 'NAME="sda2" PARTTYPE="c12a7328-f81f-11d2-ba4b-00a0c93ec93b" TYPE="part"\n'
+else
+  printf 'NAME="sda1" PARTTYPE="c12a7328-f81f-11d2-ba4b-00a0c93ec93b" TYPE="part"\n'
+  printf 'NAME="sda2" PARTTYPE="0fc63daf-8483-4772-8e79-3d69d8477de4" TYPE="part"\n'
+fi
+LSBLK_SHIM2
+  chmod +x "$tmp_lsblk_bin2/lsblk"
+
+  if PATH="$tmp_lsblk_bin2:$PATH" DISK_HAS_BIOSGRUB=1 bash -c "source '$tmp_biosboot_funcs'; _has_bios_boot_partition /dev/sda" \
+    && ! PATH="$tmp_lsblk_bin2:$PATH" DISK_HAS_BIOSGRUB=0 bash -c "source '$tmp_biosboot_funcs'; _has_bios_boot_partition /dev/sda"; then
+    pass "runtime: _has_bios_boot_partition correctly detects a missing BIOS-boot partition"
+  else
+    fail "runtime: _has_bios_boot_partition correctly detects a missing BIOS-boot partition"
+  fi
+else
+  fail "runtime: could not extract _has_bios_boot_partition from abora-installer.sh"
+fi
+rm -f "$tmp_biosboot_funcs"
+rm -rf "$tmp_lsblk_bin2"
+
 if [[ "$failed" -ne 0 ]]; then
   printf '\nOne or more checks failed.\n' >&2
   exit 1
