@@ -106,10 +106,45 @@ clone_source_checkout() {
   return 1
 }
 
+update_existing_checkout() {
+  local checkout="$1" url ref
+
+  while IFS= read -r ref; do
+    [[ -n "$ref" ]] || continue
+    for url in $repo_urls; do
+      if git -C "$checkout" fetch --depth=1 "$url" "$ref" >/dev/null 2>&1 \
+        && git -C "$checkout" checkout -q -B "$ref" FETCH_HEAD 2>/dev/null; then
+        if [[ "$ref" != "$repo_ref" ]]; then
+          printf 'abora build: selected ref "%s" was unavailable; using branch fallback "%s".\n' "$repo_ref" "$ref" >&2
+        fi
+        return 0
+      fi
+    done
+  done < <(ref_fallback_candidates "$repo_ref")
+
+  printf 'abora build: failed to update existing checkout at %s to any known ref.\n' "$checkout" >&2
+  printf 'abora build: tried remotes: %s\n' "$repo_urls" >&2
+  printf 'abora build: tried refs: %s\n' "$(ref_fallback_candidates "$repo_ref" | paste -sd ' ' -)" >&2
+  return 1
+}
+
 if [[ "$checkout_explicit" != 1 && -f flake.nix && -d .git ]]; then
   checkout="$PWD"
 elif [[ -d "$checkout/.git" && -f "$checkout/flake.nix" ]]; then
-  :
+  # An existing checkout at this path used to just get reused as-is, with
+  # no `git fetch`/`checkout` at all -- the "Source ref: <requested>" line
+  # printed below always showed what the caller asked for, regardless of
+  # what was actually checked out here, so a second `abora build
+  # --from-source --ref X` run against an already-cloned default location
+  # silently kept building whatever ref the *first* run had checked out.
+  # Reproduced directly: a checkout left on "edge" stayed on "edge" (same
+  # branch, same file content) after a second run requesting "main", with
+  # the tool's own status output claiming "main" the whole time.
+  command -v git >/dev/null 2>&1 || {
+    printf 'abora build: git is required to update %s\n' "$checkout" >&2
+    exit 1
+  }
+  update_existing_checkout "$checkout" || exit 1
 else
   command -v git >/dev/null 2>&1 || {
     printf 'abora build: git is required to clone %s\n' "$repo_url" >&2

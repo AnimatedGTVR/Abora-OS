@@ -3085,6 +3085,61 @@ else
   printf '              exit status: %s, leaked: %s\n' "$_bugreport_status" "${_bugreport_leaked:-<none>}"
 fi
 
+# Regression test: abora-build.sh --from-source used to silently reuse an
+# already-cloned checkout at the default/--checkout location with no `git
+# fetch`/`checkout` at all -- the "Source ref: <requested>" status line
+# always showed what --ref asked for, regardless of what was actually
+# checked out there. A second `abora build --from-source --ref X` run
+# against an already-cloned checkout silently kept building whatever ref
+# the *first* run had checked out, while claiming to build X. Reproduced
+# directly: a checkout cloned on "edge" stayed on "edge" (branch and file
+# content unchanged) after a second run requesting "main". Runs the real
+# script twice against a real local two-branch git repo (no network) and
+# confirms the second run, which asks for the other branch, actually
+# switches to it.
+if command -v git >/dev/null 2>&1; then
+  tmp_build_repo="$(mktemp -d)"
+  tmp_build_checkout="$(mktemp -d)"
+  (
+    set -e
+    cd "$tmp_build_repo"
+    git init -q
+    git config user.email a@b.c
+    git config user.name test
+    printf '{ description = "fake"; }\n' > flake.nix
+    git checkout -q -b edge
+    git add flake.nix
+    git commit -q -m edge
+    printf 'edge-marker\n' > MARKER.txt
+    git add MARKER.txt
+    git commit -q -m marker
+    git checkout -q -b main
+    printf 'main-marker\n' > MARKER.txt
+    git commit -q -am marker
+    git checkout -q edge
+  ) >/dev/null 2>&1
+  rmdir "$tmp_build_checkout"
+  git clone -q --branch edge "$tmp_build_repo" "$tmp_build_checkout" >/dev/null 2>&1
+  (
+    cd /tmp
+    ABORA_SOURCE_DIR="$tmp_build_checkout" ABORA_REPO_URLS="$tmp_build_repo" \
+      bash "$repo_dir/scripts/abora-build.sh" --from-source --ref main --target ".#doesnotexist" \
+      >/dev/null 2>&1 || true
+  )
+  _build_ref_after="$(git -C "$tmp_build_checkout" branch --show-current 2>/dev/null || true)"
+  _build_marker_after="$(cat "$tmp_build_checkout/MARKER.txt" 2>/dev/null || true)"
+  rm -rf "$tmp_build_repo" "$tmp_build_checkout"
+  if [[ "$_build_ref_after" == "main" && "$_build_marker_after" == "main-marker" ]]; then
+    pass "runtime: abora build --from-source switches an already-cloned checkout to the requested --ref"
+  else
+    fail "runtime: abora build --from-source switches an already-cloned checkout to the requested --ref"
+    printf '              branch after: %s, marker after: %s (wanted main / main-marker)\n' \
+      "$_build_ref_after" "$_build_marker_after"
+  fi
+else
+  pass "git unavailable (abora-build ref-switch test skipped)"
+fi
+
 if [[ "$failed" -ne 0 ]]; then
   printf '\nOne or more checks failed.\n' >&2
   exit 1
