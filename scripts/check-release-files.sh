@@ -52,6 +52,8 @@ scripts/abora-desktop-profiles.sh
 scripts/abora-session-setup.sh
 scripts/abora-dotfiles-import.sh
 scripts/abora-theme-sync.sh
+scripts/abora-check-full.sh
+scripts/abora-setup-launcher.sh
 docs/wiki/Abora-Gaming.md
 docs/wiki/ANIX-V2-Languages.md
 docs/wiki/Updating-Abora.md
@@ -62,6 +64,7 @@ tools/abora-plan-tool/AboraPlanTool.csproj
 tools/abora-plan-tool/Program.cs
 assets/mango/config.conf
 assets/anix-languages
+scripts/abora-setup.desktop
 assets/abora-title.txt
 assets/fastfetch-logo.txt
 assets/fastfetch-config.jsonc

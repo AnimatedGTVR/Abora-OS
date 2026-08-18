@@ -853,6 +853,9 @@ scripts/abora-hardware-test.sh
 scripts/abora-desktop-profiles.sh
 scripts/abora-session-setup.sh
 scripts/abora-theme-sync.sh
+scripts/abora-check-full.sh
+scripts/abora-setup-launcher.sh
+scripts/abora-setup.desktop
 assets/abora-title.txt
 assets/fastfetch-logo.txt
 assets/fastfetch-config.jsonc
@@ -1170,6 +1173,10 @@ sync_abora_files() {
         "$upstream_dir/assets/wallpapers/collection/tannheimer-mountains.jpg" \
         "$upstream_dir/assets/wallpapers/collection/alpine-glacier.jpg"
     copy_upstream_file "$upstream_dir/scripts/abora-desktop-profiles.sh" "$abora_dir/desktop-profiles.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-check-full.sh" "$abora_dir/check-full.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-installer.sh" "$abora_dir/installer.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-setup-launcher.sh" "$abora_dir/setup-launcher.sh"
+    copy_upstream_file "$upstream_dir/scripts/abora-setup.desktop" "$abora_dir/setup.desktop"
     copy_upstream_file "$upstream_dir/nix/modules/installed-base.nix" "$abora_dir/installed-base.nix"
     if [[ -d "$upstream_dir/assets/anix-languages" ]]; then
         rm -rf "$abora_dir/anix-languages"

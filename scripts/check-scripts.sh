@@ -866,6 +866,65 @@ print('\n'.join(sorted(set(required))))
   fi
 fi
 
+# Regression test: abora-update.sh's sync_abora_files() used to never copy
+# check-full.sh, installer.sh, setup-launcher.sh, or setup.desktop into
+# $abora_dir, even though it also copies installed-base.nix, which
+# references all four as unconditional, non-pathExists-guarded path
+# literals. `sudo abora update` on any system missing one of these (an
+# install predating a feature, or a fresh checkout mirroring the update
+# path) would drop in the new installed-base.nix but leave these paths
+# missing, and the next nixos-rebuild would fail Nix evaluation outright --
+# the same failure class the abora-adopt-nixos.sh copy-list gap above
+# shipped. required_upstream_paths() (check-full.sh, setup-launcher.sh,
+# setup.desktop) and check-release-files.sh's manifest (same three) had the
+# same gap. Runs the real sync_abora_files() (not a copy of it) against
+# this real repo checkout as its "upstream", with
+# prepare_verified_upstream/drop_upstream_git_metadata stubbed out (both do
+# real git/network work unrelated to the copy list itself), and checks
+# every required destination path installed-base.nix's own source actually
+# demands.
+if command -v python3 >/dev/null 2>&1; then
+  tmp_update_funcs="$(mktemp)"
+  {
+    sed -n '/^copy_upstream_file() {/,/^}$/p' scripts/abora-update.sh
+    sed -n '/^copy_first_existing_upstream_file() {/,/^}$/p' scripts/abora-update.sh
+    sed -n '/^install_mango_config_asset() {/,/^}$/p' scripts/abora-update.sh
+    sed -n '/^rewrite_installed_mango_config_paths() {/,/^}$/p' scripts/abora-update.sh
+    awk '/^sync_abora_files\(\) \{/{p=1} p{print} p && /drop_upstream_git_metadata/{print "}"; exit}' scripts/abora-update.sh
+  } > "$tmp_update_funcs"
+  tmp_update_target="$(mktemp -d)"
+  if bash -n "$tmp_update_funcs" 2>/dev/null \
+    && ( \
+      prepare_verified_upstream() { return 0; }; \
+      drop_upstream_git_metadata() { :; }; \
+      config_dir="$tmp_update_target"; \
+      upstream_dir="$repo_dir"; \
+      mkdir -p "$config_dir/abora"; \
+      source "$tmp_update_funcs"; \
+      sync_abora_files "edge" \
+    ) >/dev/null 2>&1; then
+    update_copy_ok=1
+    while IFS= read -r required_path; do
+      [[ -n "$required_path" ]] || continue
+      if [[ ! -e "$tmp_update_target/abora/$required_path" ]]; then
+        update_copy_ok=0
+        printf '              missing after copy: abora/%s\n' "$required_path"
+      fi
+    done <<<"$_required_dests"
+  else
+    update_copy_ok=0
+    printf '              copy logic itself failed to run\n'
+  fi
+  rm -f "$tmp_update_funcs"
+  rm -rf "$tmp_update_target"
+
+  if [[ "$update_copy_ok" -eq 1 ]]; then
+    pass "runtime: abora-update.sh copies every file installed-base.nix requires"
+  else
+    fail "runtime: abora-update.sh copies every file installed-base.nix requires"
+  fi
+fi
+
 # Regression test: abora-adopt-nixos.sh's backup step used to crash on
 # every run after the first against the same --config-dir. It backs up
 # $config_dir into $config_dir/abora-backups/<timestamp>/ -- but from the
