@@ -2265,13 +2265,18 @@ write_branding_assets() {
         -exec cp -L {} "${root}/etc/nixos/abora/themes/" \; 2>/dev/null || true
 
     if git -C "${root}/etc/nixos" rev-parse --git-dir >/dev/null 2>&1; then
-        git -C "${root}/etc/nixos" add \
+        # One git-add call per path, not a single multi-path call: git add
+        # fails (and stages nothing at all, for any of the paths given) the
+        # moment one pathspec doesn't match. See the identical fix in
+        # abora-repair-flake-purity.sh for the failure mode this avoids.
+        for _branding_git_path in \
             abora/mango/config.conf \
             abora/abora-options.nix \
             abora/installed-base.nix \
             abora/desktops/mangowm.nix \
-            abora/repair-flake-purity.sh \
-            2>/dev/null || true
+            abora/repair-flake-purity.sh; do
+            git -C "${root}/etc/nixos" add "$_branding_git_path" 2>/dev/null || true
+        done
     fi
 }
 

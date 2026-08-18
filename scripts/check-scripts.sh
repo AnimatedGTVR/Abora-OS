@@ -2757,6 +2757,54 @@ fi
 rm -f "$tmp_biosboot_funcs"
 rm -rf "$tmp_lsblk_bin2"
 
+# Regression test: abora-repair-flake-purity.sh's post-repair `git add`
+# used to be one call listing all four paths at once. `git add` fails (and
+# stages NOTHING it was given, not just the bad pathspec) the instant one
+# path doesn't match a real file -- and abora/desktops/mangowm.nix doesn't
+# exist on installs from before nix/modules/desktops became its own
+# directory (release_uses_modern_layout in abora-update.sh). On exactly
+# those legacy installs, a freshly-created abora/mango/config.conf (this
+# same script's own job when it's missing) would silently stay untracked,
+# invisible to a pure `nix flake` evaluation -- the exact failure this
+# script exists to repair. Runs the real script end-to-end (not a copy of
+# its logic) against a sandbox git repo that's missing mangowm.nix, the
+# same setup the "pure-eval: Mango repair" test above uses except with
+# that one file left out, and checks the other three real files still got
+# staged. abora-installer.sh's install-time counterpart had the identical
+# multi-path `git add` pattern (checked statically below, since
+# reproducing its full chroot-install context here isn't worth the cost).
+tmp_repair_git="$(mktemp -d)"
+mkdir -p "$tmp_repair_git/abora/desktops" "$tmp_repair_git/.abora-upstream/assets/mango"
+git -C "$tmp_repair_git" init -q
+git -C "$tmp_repair_git" config user.email test@example.com
+git -C "$tmp_repair_git" config user.name test
+cp nix/modules/abora-options.nix "$tmp_repair_git/abora/abora-options.nix"
+cp nix/modules/installed-base.nix "$tmp_repair_git/abora/installed-base.nix"
+cp assets/mango/config.conf "$tmp_repair_git/.abora-upstream/assets/mango/config.conf"
+# abora/desktops/mangowm.nix intentionally left out -- the legacy-install case.
+if ABORA_SYSTEM_CONFIG="$tmp_repair_git" bash scripts/abora-repair-flake-purity.sh --mango >/dev/null 2>&1; then
+  _repair_staged="$(git -C "$tmp_repair_git" diff --cached --name-only)"
+  if grep -qx 'abora/mango/config.conf' <<<"$_repair_staged" \
+    && grep -qx 'abora/abora-options.nix' <<<"$_repair_staged" \
+    && grep -qx 'abora/installed-base.nix' <<<"$_repair_staged"; then
+    pass "runtime: flake-purity repair stages existing files even when mangowm.nix is missing"
+  else
+    fail "runtime: flake-purity repair stages existing files even when mangowm.nix is missing"
+    printf '              staged: %s\n' "${_repair_staged:-<none>}"
+  fi
+else
+  fail "runtime: flake-purity repair stages existing files even when mangowm.nix is missing"
+  printf '              repair script itself failed to run\n'
+fi
+rm -rf "$tmp_repair_git"
+
+if grep -q 'for _branding_git_path in' scripts/abora-installer.sh \
+  && grep -A6 'for _branding_git_path in' scripts/abora-installer.sh | grep -q 'git -C "\${root}/etc/nixos" add "\$_branding_git_path"'; then
+  pass "runtime: installer's branding git-add stages each path independently"
+else
+  fail "runtime: installer's branding git-add stages each path independently"
+fi
+
 if [[ "$failed" -ne 0 ]]; then
   printf '\nOne or more checks failed.\n' >&2
   exit 1
