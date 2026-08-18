@@ -108,11 +108,23 @@ section() {
 
 # Find files by extension, excluding generated output, git internals, and
 # vendored/submodule third-party code (vendor/ and TinyPM/ have their own
-# upstream conventions).
+# upstream conventions). Also prunes any `obj`/`bin` directory at any depth
+# -- each C# project under tools/ has its own local .gitignore with those
+# bare names (a standard dotnet template convention), which git respects
+# but plain `find` has no way to know about. Without this, a prior `dotnet
+# build` (this script's own plan-tool build below, or check-scripts.sh's
+# resolver/plan-tool builds, both run routinely) leaves dozens of
+# generated *.json files (project.assets.json, *.deps.json,
+# *.runtimeconfig.json, ...) on disk that this sweep would otherwise
+# "check" as if they were real repo source -- currently harmless since
+# they happen to be well-formed, but a stale/interrupted build leaving a
+# truncated one behind would fail this check for something that was never
+# committed and isn't part of the repo at all.
 find_files() {
     local ext="$1"
     find . \
-        \( -path './out' -o -path './.git' -o -path './vendor' -o -path './TinyPM' \) -prune -o \
+        \( -path './out' -o -path './.git' -o -path './vendor' -o -path './TinyPM' \
+           -o -name obj -o -name bin \) -prune -o \
         -type f -name "*.${ext}" -print \
         | sed 's|^\./||' | sort
 }
@@ -122,7 +134,8 @@ find_files() {
 # `find_files sh` can't see by name alone.
 find_shebang_scripts() {
     find . \
-        \( -path './out' -o -path './.git' -o -path './vendor' -o -path './TinyPM' \) -prune -o \
+        \( -path './out' -o -path './.git' -o -path './vendor' -o -path './TinyPM' \
+           -o -name obj -o -name bin \) -prune -o \
         -type f -executable ! -name '*.*' -print 2>/dev/null \
         | sed 's|^\./||' | sort \
         | while IFS= read -r f; do

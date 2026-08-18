@@ -3140,6 +3140,41 @@ else
   pass "git unavailable (abora-build ref-switch test skipped)"
 fi
 
+# Regression test: check-all-files.sh's find_files()/find_shebang_scripts()
+# used to have no exclusion for `obj`/`bin` directories -- each C# project
+# under tools/ has its own local .gitignore with those bare names (a
+# standard dotnet template convention) that git respects but plain `find`
+# doesn't know about. A prior `dotnet build` (which this same suite's own
+# resolver/plan-tool tests routinely trigger) leaves dozens of generated
+# *.json files on disk that check-all-files.sh would otherwise "check" as
+# if they were real repo source -- harmless while they happen to be
+# well-formed, but a stale/interrupted build leaving a truncated one
+# behind would fail that check for something never committed at all.
+# Extracts the real find_files() function and runs it against a sandbox
+# tree shaped like a real dotnet project layout (a real committed .json
+# alongside a fake tools/*/obj/*.json), confirming the real file is found
+# and the build-artifact one is not.
+tmp_findfiles_funcs="$(mktemp)"
+sed -n '/^find_files() {/,/^}$/p' scripts/check-all-files.sh > "$tmp_findfiles_funcs"
+tmp_findfiles_tree="$(mktemp -d)"
+mkdir -p "$tmp_findfiles_tree/nix/pkgs" "$tmp_findfiles_tree/tools/fake-project/obj/Debug"
+printf '{"real": true}\n' > "$tmp_findfiles_tree/nix/pkgs/real-deps.json"
+printf '{"generated": true}\n' > "$tmp_findfiles_tree/tools/fake-project/obj/Debug/project.assets.json"
+if bash -n "$tmp_findfiles_funcs" 2>/dev/null; then
+  _findfiles_out="$(cd "$tmp_findfiles_tree" && bash -c "source '$tmp_findfiles_funcs'; find_files json")"
+else
+  _findfiles_out="<extraction failed>"
+fi
+rm -f "$tmp_findfiles_funcs"
+rm -rf "$tmp_findfiles_tree"
+if grep -qx 'nix/pkgs/real-deps.json' <<<"$_findfiles_out" \
+  && ! grep -q 'obj/Debug/project.assets.json' <<<"$_findfiles_out"; then
+  pass "runtime: check-all-files.sh's find_files() excludes tools/*/obj and tools/*/bin build artifacts"
+else
+  fail "runtime: check-all-files.sh's find_files() excludes tools/*/obj and tools/*/bin build artifacts"
+  printf '              found: %s\n' "$_findfiles_out"
+fi
+
 if [[ "$failed" -ne 0 ]]; then
   printf '\nOne or more checks failed.\n' >&2
   exit 1
