@@ -26,7 +26,18 @@ public static class NativePlanBuilder
             foreach (var rawLine in content.Split('\n'))
             {
                 lineNumber++;
-                var line = rawLine.TrimStart();
+                // Splitting on '\n' alone leaves a trailing '\r' on every
+                // line of a CRLF-line-ended file. words.Split(null, ...)
+                // below treats '\r' as whitespace and drops it for
+                // enable/disable/package, but "set"'s 3-way split caps at 3
+                // pieces, so its last piece is the untouched remainder of
+                // the line -- the '\r' rode along inside the value
+                // (`abora.hostname = "myhost\r";`) instead of being
+                // stripped. TrimEnd('\r') only removes that specific
+                // artifact, not other trailing whitespace, since a "set"
+                // value like a gc.dates OnCalendar spec is allowed to keep
+                // trailing/internal spacing verbatim (see WriteOperation).
+                var line = rawLine.TrimStart().TrimEnd('\r');
                 if (line.Length == 0 || line[0] == '#')
                 {
                     continue;

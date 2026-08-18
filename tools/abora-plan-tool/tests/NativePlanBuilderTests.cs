@@ -72,4 +72,27 @@ public class NativePlanBuilderTests
         var result = NativePlanBuilder.Build(content, "1");
         Assert.StartsWith("2:", result.Error);
     }
+
+    // Splitting the file's content on '\n' alone leaves a trailing '\r' on
+    // every line of a CRLF-line-ended .anix file (a plausible real file --
+    // hand-edited on Windows, or via WSL/an editor that defaults to CRLF).
+    // enable/disable/package tokenize with a plain whitespace split, which
+    // treats '\r' as a delimiter and drops it. "set" used to be different:
+    // its 3-way-capped split's last piece is the untouched line remainder,
+    // so the '\r' rode along inside the captured value
+    // (`abora.hostname = "myhost\r";` once written to Nix) instead of
+    // being stripped.
+    [Fact]
+    public void StripsTrailingCarriageReturnFromCrlfLines()
+    {
+        var content = "set hostname myhost\r\nset gc.dates Sun 03:00:00\r\nenable bluetooth\r\n";
+        var result = NativePlanBuilder.Build(content, "1");
+
+        Assert.Null(result.Error);
+        var doc = JsonDocument.Parse(result.PlanJson!);
+        var ops = doc.RootElement.GetProperty("operations");
+        Assert.Equal("myhost", ops[0].GetProperty("value").GetString());
+        Assert.Equal("Sun 03:00:00", ops[1].GetProperty("value").GetString());
+        Assert.Equal("bluetooth", ops[2].GetProperty("feature").GetString());
+    }
 }
