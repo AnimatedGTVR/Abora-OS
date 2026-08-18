@@ -2292,6 +2292,7 @@ generate_nixos_config() {
 
     local desktop_pkgs root_pw_line host_nix user_nix locale_nix timezone_nix keyboard_nix xkb_nix desktop_nix wallpaper_nix anix_import_line disk_nix gpu_nix
     local gaming_enabled_nix gaming_big_picture_nix gaming_autostart_nix gaming_gamescope_nix gaming_vulkan_nix
+    local disk_bios_support_nix
     timezone_value="$(normalize_timezone "$timezone_value")"
     desktop_pkgs="$(abora_desktop_package_block "$desktop_profile")"
     host_nix="$(nix_string "$hostname_value")"
@@ -2304,6 +2305,18 @@ generate_nixos_config() {
     wallpaper_nix="$(nix_string "$wallpaper_name")"
     disk_nix="$(nix_string "$disk")"
     gpu_nix="$(nix_string "$gpu_value")"
+    # "Use an existing partition" mode never creates a bios_grub partition
+    # (it never repartitions the disk at all) -- `limine bios-install`
+    # fails outright on a GPT disk with none. That failure is silent all
+    # the way up (nixpkgs' limine-install.py doesn't check the subprocess
+    # exit code), so a Legacy-BIOS machine using this mode would end up
+    # with a fully unbootable install and no error anywhere. UEFI boot
+    # through the reused ESP is unaffected either way.
+    if [[ "$install_disk_mode" == "existing" ]]; then
+        disk_bios_support_nix="false"
+    else
+        disk_bios_support_nix="true"
+    fi
     gaming_enabled_nix="$(nix_bool "$gaming_enabled")"
     gaming_big_picture_nix="$(nix_bool "$gaming_big_picture")"
     gaming_autostart_nix="$(nix_bool "$gaming_autostart")"
@@ -2388,6 +2401,7 @@ EOF
   abora.wallpaper = "${wallpaper_nix}";
   abora.gpu = "${gpu_nix}";
   abora.disk = "${disk_nix}";
+  abora.diskBiosSupport = ${disk_bios_support_nix};
   abora.stateVersion = "26.05";
   abora.gaming.enable = ${gaming_enabled_nix};
   abora.gaming.bigPictureShortcut = ${gaming_big_picture_nix};

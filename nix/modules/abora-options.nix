@@ -124,6 +124,23 @@ in
       description = "Install disk for the Limine bootloader (e.g. /dev/sda, /dev/nvme0n1).";
     };
 
+    diskBiosSupport = lib.mkOption {
+      type    = lib.types.bool;
+      default = true;
+      description = ''
+        Whether to install Limine's legacy-BIOS stage 1 bootloader
+        (`limine bios-install`) in addition to the UEFI path. This needs a
+        dedicated `bios_grub`-flagged partition to exist on the disk (what
+        the installer's "erase entire disk" mode always creates) — on a GPT
+        disk with no such partition (the installer's "use an existing
+        partition" mode never creates one, since it never repartitions the
+        disk at all), `limine bios-install` fails outright with "no BIOS
+        boot partition specified or detected". Set to false for a disk that
+        has no `bios_grub` partition; the machine still boots fine over
+        UEFI through the ESP alone.
+      '';
+    };
+
     gpu = lib.mkOption {
       type = lib.types.enum [ "nouveau" "nvidia" "nvidia-open" "amdgpu" "intel" "none" ];
       default = "none";
@@ -387,7 +404,7 @@ in
           enable              = true;
           enableEditor        = false;
           maxGenerations      = lib.mkDefault 8;
-          biosSupport         = true;
+          biosSupport         = cfg.diskBiosSupport;
           biosDevice          = cfg.disk;
           efiSupport          = true;
           efiInstallAsRemovable = true;

@@ -2434,6 +2434,37 @@ else
   fail "runtime: anix.nix gaming warning checks abora.gaming.enable, not just anix.gaming.enable"
 fi
 
+# Regression test for a real, silent boot-breaking bug: `limine
+# bios-install` fails outright ("no BIOS boot partition specified or
+# detected", confirmed against a real `limine` binary) on a GPT disk with
+# no bios_grub partition -- exactly what "use an existing partition" mode
+# produces, since it never repartitions the disk at all. nixpkgs'
+# limine-install.py never checks that subprocess's exit code, so the
+# failure is completely silent: a Legacy-BIOS machine using this mode
+# would end up with a fully unbootable install and no error anywhere.
+# Fixed with a new abora.diskBiosSupport option the installer sets to
+# false only for this mode (UEFI boot through the reused ESP is
+# unaffected either way). Extracts the real conditional from
+# abora-installer.sh and runs it directly for both modes, and confirms
+# the option is both declared in abora-options.nix and actually written
+# into the generated config.
+tmp_bios_snippet="$(mktemp)"
+sed -n '/^    # "Use an existing partition" mode never creates a bios_grub partition$/,/^    fi$/p' scripts/abora-installer.sh \
+  > "$tmp_bios_snippet"
+_bios_existing="$(install_disk_mode="existing"; . "$tmp_bios_snippet"; printf '%s' "$disk_bios_support_nix")"
+_bios_erase="$(install_disk_mode="erase"; . "$tmp_bios_snippet"; printf '%s' "$disk_bios_support_nix")"
+rm -f "$tmp_bios_snippet"
+
+if [[ "$_bios_existing" == "false" ]] \
+  && [[ "$_bios_erase" == "true" ]] \
+  && grep -q 'abora.diskBiosSupport = ${disk_bios_support_nix};' scripts/abora-installer.sh \
+  && grep -q 'diskBiosSupport = lib.mkOption' nix/modules/abora-options.nix \
+  && grep -q 'biosSupport         = cfg.diskBiosSupport;' nix/modules/abora-options.nix; then
+  pass "runtime: installer disables Limine BIOS install for the no-bios_grub-partition disk mode"
+else
+  fail "runtime: installer disables Limine BIOS install for the no-bios_grub-partition disk mode"
+fi
+
 if [[ "$failed" -ne 0 ]]; then
   printf '\nOne or more checks failed.\n' >&2
   exit 1
