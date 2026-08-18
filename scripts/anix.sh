@@ -1789,7 +1789,7 @@ terminal_settings_menu() {
         terminal_prompt_setting_key
         read -r choice || choice="0"
         case "$choice" in
-            1) show_config ;;
+            1) ( show_config ) || true ;;
             2) key="hostname" ;;
             3) key="timezone" ;;
             4) key="keyboard.console" ;;
@@ -1812,7 +1812,14 @@ terminal_settings_menu() {
         printf '  Current [%s]: ' "${current:-unset}"
         read -r value || value=""
         [[ -n "$value" ]] || continue
-        do_set "$key" "$value"
+        # do_set exit 1's on invalid input (belt-and-suspenders value
+        # checks, invalid hostname/desktop/wallpaper/shell) -- that's
+        # correct for direct CLI `anix set`, but here it silently killed
+        # this entire interactive menu (and the whole `anix --gui` session)
+        # on a plain typo, with no way back to the menu. Reproduced
+        # directly: typing a hostname containing a space exited the whole
+        # process. A subshell contains do_set's exit to just this call.
+        ( do_set "$key" "$value" ) || true
         printf '\nPress Enter to return to settings.'
         read -r _ || true
     done
@@ -1847,7 +1854,9 @@ terminal_features_menu() {
             off|disable|disabled|false|no|n) wanted="false" ;;
             *) abora_warn "Type on or off."; printf '\n'; continue ;;
         esac
-        do_toggle "$wanted" "$feature"
+        # do_toggle can exit on a bad state; see the identical do_set fix
+        # in terminal_settings_menu above for why this needs a subshell.
+        ( do_toggle "$wanted" "$feature" ) || true
         printf '\nPress Enter to return to features.'
         read -r _ || true
     done
@@ -1869,15 +1878,20 @@ terminal_profiles_menu() {
         printf '  0  Back\n\n'
         printf '  Select: '
         read -r choice || choice="0"
+        # Every action below is subshell + `|| true`-guarded: do_switch and
+        # do_rollback exit on failure (a real, plausible outcome here --
+        # e.g. no previous generation to roll back to), which would
+        # otherwise kill this whole interactive menu on `set -e`. See the
+        # identical do_set fix in terminal_settings_menu above.
         case "$choice" in
-            1) do_profiles ;;
-            2) do_generations ;;
-            3) profile="$(gui_pick_profile)"; do_diff nix "$profile" ;;
-            4) profile="$(gui_pick_profile)"; do_build_profile nix "$profile" ;;
-            5) profile="$(gui_pick_profile)"; do_test nix "$profile" ;;
-            6) profile="$(gui_pick_profile)"; do_boot nix "$profile" ;;
-            7) profile="$(gui_pick_profile)"; do_switch nix "$profile" ;;
-            8) do_rollback ;;
+            1) ( do_profiles ) || true ;;
+            2) ( do_generations ) || true ;;
+            3) profile="$(gui_pick_profile)"; ( do_diff nix "$profile" ) || true ;;
+            4) profile="$(gui_pick_profile)"; ( do_build_profile nix "$profile" ) || true ;;
+            5) profile="$(gui_pick_profile)"; ( do_test nix "$profile" ) || true ;;
+            6) profile="$(gui_pick_profile)"; ( do_boot nix "$profile" ) || true ;;
+            7) profile="$(gui_pick_profile)"; ( do_switch nix "$profile" ) || true ;;
+            8) ( do_rollback ) || true ;;
             0|"") return 0 ;;
             *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
         esac
@@ -1899,21 +1913,25 @@ terminal_snapshots_menu() {
         printf '  0  Back\n\n'
         printf '  Select: '
         read -r choice || choice="0"
+        # Subshell + `|| true`-guarded: do_save/do_tool_config exit on
+        # failure, which would otherwise kill this whole interactive menu
+        # on `set -e`. See the identical do_set fix in
+        # terminal_settings_menu above.
         case "$choice" in
-            1) do_status ;;
+            1) ( do_status ) || true ;;
             2)
                 printf '  Message [anix: local config snapshot]: '
                 read -r message || message=""
-                do_save "${message:-anix: local config snapshot}"
+                ( do_save "${message:-anix: local config snapshot}" ) || true
                 ;;
             3)
                 if is_yes "$current"; then
-                    do_tool_config set snapshots.push false
+                    ( do_tool_config set snapshots.push false ) || true
                 else
-                    do_tool_config set snapshots.push true
+                    ( do_tool_config set snapshots.push true ) || true
                 fi
                 ;;
-            4) do_tool_config show ;;
+            4) ( do_tool_config show ) || true ;;
             0|"") return 0 ;;
             *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
         esac
@@ -1934,18 +1952,23 @@ terminal_packages_menu() {
         printf '  0  Back\n\n'
         printf '  Select: '
         read -r choice || choice="0"
+        # Subshell + `|| true`-guarded: do_tinypm/do_package exit on
+        # failure (e.g. an unknown package name -- a very plausible typo
+        # here), which would otherwise kill this whole interactive menu on
+        # `set -e`. See the identical do_set fix in terminal_settings_menu
+        # above.
         case "$choice" in
-            1) do_tinypm status ;;
-            2) do_tinypm install ;;
+            1) ( do_tinypm status ) || true ;;
+            2) ( do_tinypm install ) || true ;;
             3)
                 printf '  Package to add: '
                 read -r pkg || pkg=""
-                [[ -n "$pkg" ]] && do_package add "$pkg"
+                if [[ -n "$pkg" ]]; then ( do_package add "$pkg" ) || true; fi
                 ;;
             4)
                 printf '  Package to remove: '
                 read -r pkg || pkg=""
-                [[ -n "$pkg" ]] && do_package remove "$pkg"
+                if [[ -n "$pkg" ]]; then ( do_package remove "$pkg" ) || true; fi
                 ;;
             0|"") return 0 ;;
             *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
@@ -1968,12 +1991,17 @@ terminal_maintenance_menu() {
         printf '  0  Back\n\n'
         printf '  Select: '
         read -r choice || choice="0"
+        # Subshell + `|| true`-guarded: do_doctor/do_apply exit on failure
+        # -- exactly the outcome a user reaching for "Doctor" or "Apply" on
+        # an already-troubled system is likely to hit -- which would
+        # otherwise kill this whole interactive menu on `set -e`. See the
+        # identical do_set fix in terminal_settings_menu above.
         case "$choice" in
-            1) do_quickstart ;;
-            2) do_doctor ;;
-            3) do_doctor --fix ;;
-            4) do_apply ;;
-            5) do_docs ;;
+            1) ( do_quickstart ) || true ;;
+            2) ( do_doctor ) || true ;;
+            3) ( do_doctor --fix ) || true ;;
+            4) ( do_apply ) || true ;;
+            5) ( do_docs ) || true ;;
             0|"") return 0 ;;
             *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
         esac

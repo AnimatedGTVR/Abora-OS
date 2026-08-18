@@ -2840,6 +2840,75 @@ else
     "$_recovery_menu_status" "$_recovery_menu_renders"
 fi
 
+# Regression test: abora-welcome.sh's interactive menu had the identical
+# bug -- `abora doctor` (choice "1" in the first-run welcome menu) exits 1
+# whenever it finds any problem at all, which killed the entire first-run
+# welcome flow before the user ever saw the app manager, gaming setup,
+# snapshot, desktop switch, or recovery options. Reproduces with a fake
+# always-failing `abora`, feeding choice "1" then "q".
+tmp_welcome_bin="$(mktemp -d)"
+cat > "$tmp_welcome_bin/abora" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$tmp_welcome_bin/abora"
+set +e
+_welcome_menu_out="$(printf '1\n\nq\n' | PATH="$tmp_welcome_bin:$PATH" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-welcome.sh menu 2>&1)"
+_welcome_menu_status=$?
+set -e
+rm -rf "$tmp_welcome_bin"
+_welcome_menu_renders="$(grep -c 'Run system doctor' <<<"$_welcome_menu_out")"
+if [[ "$_welcome_menu_status" -eq 0 && "$_welcome_menu_renders" -ge 2 ]]; then
+  pass "runtime: welcome menu survives a failing action and returns to the menu"
+else
+  fail "runtime: welcome menu survives a failing action and returns to the menu"
+  printf '              exit status: %s, menu renders: %s (need 0 and >=2)\n' \
+    "$_welcome_menu_status" "$_welcome_menu_renders"
+fi
+
+# Regression test: anix.sh's "ANIX Control Center" terminal menus had the
+# same bug, but worse -- do_set/do_toggle/do_switch/do_rollback/do_save/
+# do_tool_config/do_tinypm/do_package/do_doctor/do_apply all call `exit`
+# (not `return`) on failure, so even a subshell-less `|| true` at the call
+# site couldn't have caught it; each call needed wrapping in its own `(
+# ... )` subshell so the exit only ends that subshell. Reproduced directly:
+# typing a hostname containing a space into "Settings > Hostname" killed
+# the entire `anix --gui` session before it ever returned to the settings
+# menu or the control center. Runs the real terminal UI end-to-end (no
+# DISPLAY/zenity, so it falls back to do_gui_terminal) against a sandboxed
+# ANIX_SYSTEM_CONFIG, entering Settings (2) -> Hostname (2) -> an invalid
+# value, and checks the control center/settings banners rendered more than
+# once and the whole process exited cleanly.
+tmp_anix_menu_cfg="$(mktemp -d)"
+printf '{ ... }: { imports = [ ./anix.nix ]; }\n' > "$tmp_anix_menu_cfg/configuration.nix"
+set +e
+_anix_menu_out="$(
+  printf '2\n2\nbad hostname\nq\n0\nq\n' | \
+    DISPLAY= WAYLAND_DISPLAY= \
+    ANIX_SYSTEM_CONFIG="$tmp_anix_menu_cfg" ANIX_NO_SUDO=1 ANIX_ASSUME_YES=1 \
+    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/anix.sh --gui 2>&1
+)"
+_anix_menu_status=$?
+set -e
+rm -rf "$tmp_anix_menu_cfg"
+_anix_menu_renders="$(grep -c 'ANIX Control Center\|ANIX Settings' <<<"$_anix_menu_out")"
+if [[ "$_anix_menu_status" -eq 0 && "$_anix_menu_renders" -ge 3 ]] \
+  && grep -q '( do_toggle "\$wanted" "\$feature" ) || true' scripts/anix.sh \
+  && grep -q '( do_switch nix "\$profile" ) || true' scripts/anix.sh \
+  && grep -q '( do_rollback ) || true' scripts/anix.sh \
+  && grep -q '( do_save "\${message:-anix: local config snapshot}" ) || true' scripts/anix.sh \
+  && grep -q '( do_tool_config show ) || true' scripts/anix.sh \
+  && grep -q '( do_tinypm install ) || true' scripts/anix.sh \
+  && grep -q '( do_package add "\$pkg" ) || true' scripts/anix.sh \
+  && grep -q '( do_doctor ) || true' scripts/anix.sh \
+  && grep -q '( do_apply ) || true' scripts/anix.sh; then
+  pass "runtime: ANIX terminal menus survive a failing action and return to the menu"
+else
+  fail "runtime: ANIX terminal menus survive a failing action and return to the menu"
+  printf '              exit status: %s, menu renders: %s (need 0 and >=3)\n' \
+    "$_anix_menu_status" "$_anix_menu_renders"
+fi
+
 if [[ "$failed" -ne 0 ]]; then
   printf '\nOne or more checks failed.\n' >&2
   exit 1

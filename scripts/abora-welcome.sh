@@ -135,13 +135,24 @@ case "${1:-menu}" in
         while true; do
             menu
             read -r -p "  Choose: " choice
+            # Every action below is `|| true`-guarded: under this script's
+            # own `set -e`, a failing choice would otherwise kill the whole
+            # first-run welcome flow instead of returning to the menu.
+            # `abora doctor` in particular exits 1 whenever it finds any
+            # problem at all (see abora-doctor.sh) -- on a brand-new install
+            # with even one flagged issue, choosing "1) Run system doctor"
+            # (a very plausible first click in a first-run menu) would end
+            # the entire welcome session before the user ever saw the app
+            # manager, gaming setup, snapshot, desktop switch, or recovery
+            # options. Reproduced directly and fixed the same way as the
+            # identical bug in abora-recovery.sh's interactive menu.
             case "$choice" in
-                1) abora doctor ;;
-                2) abora apps ;;
-                3) abora gaming status ;;
-                4) anix save "anix: first Abora snapshot" ;;
-                5) abora desktop list ;;
-                6) abora recovery ;;
+                1) abora doctor || true ;;
+                2) abora apps || true ;;
+                3) abora gaming status || true ;;
+                4) anix save "anix: first Abora snapshot" || true ;;
+                5) abora desktop list || true ;;
+                6) abora recovery || true ;;
                 q|Q) exit 0 ;;
                 *) abora_warn "Unknown choice: $choice" ;;
             esac
