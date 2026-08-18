@@ -3175,6 +3175,56 @@ else
   printf '              found: %s\n' "$_findfiles_out"
 fi
 
+# Regression test: rebuild-vm.sh's fresh-workspace clone used to be a plain
+# `git clone` with no --branch -- checking out the repo's default HEAD
+# branch (stable) instead of $repo_branch (edge by default), silently, on
+# exactly the scenario this script exists for: a fresh or reset persistent
+# build workspace. Reproduced directly against a real local two-branch
+# repo (no network): a fresh clone with ABORA_REPO_BRANCH=edge against a
+# repo whose default HEAD is "stable" landed on stable every time. Runs
+# the real script end-to-end (build-iso.sh is expected to fail in this
+# sandbox -- there's no real flake.nix -- only the clone step is being
+# checked) and confirms the resulting workspace checkout is actually on
+# the requested branch.
+if command -v git >/dev/null 2>&1; then
+  tmp_vm_repo="$(mktemp -d)"
+  tmp_vm_workspace="$(mktemp -d)"
+  (
+    set -e
+    cd "$tmp_vm_repo"
+    git init -q
+    git config user.email a@b.c
+    git config user.name test
+    printf 'stable-fake\n' > MARKER.txt
+    git checkout -q -b stable
+    git add MARKER.txt
+    git commit -q -m stable
+    git checkout -q -b edge
+    printf 'edge-fake\n' > MARKER.txt
+    git commit -q -am edge
+    git symbolic-ref HEAD refs/heads/stable
+    git checkout -q stable
+  ) >/dev/null 2>&1
+  rmdir "$tmp_vm_workspace"
+  (
+    cd /tmp
+    ABORA_VM_WORKSPACE="$tmp_vm_workspace" ABORA_REPO_URL="$tmp_vm_repo" ABORA_REPO_BRANCH="edge" \
+      bash "$repo_dir/scripts/rebuild-vm.sh" >/dev/null 2>&1 || true
+  )
+  _vm_branch_after="$(git -C "$tmp_vm_workspace/abora-os" branch --show-current 2>/dev/null || true)"
+  _vm_marker_after="$(cat "$tmp_vm_workspace/abora-os/MARKER.txt" 2>/dev/null || true)"
+  rm -rf "$tmp_vm_repo" "$tmp_vm_workspace"
+  if [[ "$_vm_branch_after" == "edge" && "$_vm_marker_after" == "edge-fake" ]]; then
+    pass "runtime: rebuild-vm.sh clones the requested branch on a fresh workspace"
+  else
+    fail "runtime: rebuild-vm.sh clones the requested branch on a fresh workspace"
+    printf '              branch after: %s, marker after: %s (wanted edge / edge-fake)\n' \
+      "$_vm_branch_after" "$_vm_marker_after"
+  fi
+else
+  pass "git unavailable (rebuild-vm branch test skipped)"
+fi
+
 if [[ "$failed" -ne 0 ]]; then
   printf '\nOne or more checks failed.\n' >&2
   exit 1

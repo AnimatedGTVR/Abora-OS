@@ -25,7 +25,14 @@ fi
 mkdir -p "$workspace"
 
 if [[ ! -d "$repo_dir/.git" ]]; then
-    git clone "$repo_url" "$repo_dir"
+    # Without --branch, a plain clone checks out the repo's default HEAD
+    # branch (stable), not $repo_branch (edge by default here) -- silently
+    # wrong on exactly the case this script exists for, a fresh/reset
+    # persistent build workspace, since there's no error or warning, just
+    # a build from the wrong branch. Reproduced directly: a fresh clone
+    # with ABORA_REPO_BRANCH=edge against a repo whose default branch is
+    # stable landed on stable every time.
+    git clone --branch "$repo_branch" "$repo_url" "$repo_dir"
 else
     git -C "$repo_dir" fetch origin "$repo_branch"
     git -C "$repo_dir" checkout "$repo_branch"
