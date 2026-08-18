@@ -794,6 +794,78 @@ else
   fail "runtime: existing NixOS adoption path is non-destructive by default"
 fi
 
+# Regression test: abora-adopt-nixos.sh's copy list used to cover barely
+# half of what nix/modules/installed-base.nix unconditionally requires
+# (its own header comment: "the installer copies every required file via
+# cp_required before the first nixos-rebuild, so the ./x paths are always
+# present" -- true for the real installer's write_branding_assets(), but
+# abora-adopt-nixos.sh has its own separate, hand-maintained copy list
+# that had drifted, missing ~15 required files/dirs including
+# adopt-nixos.sh itself, plus a destination-name bug (wallpaper-themes
+# instead of the themes name installed-base.nix actually looks for) and a
+# missing-parent-directory bug in copy_if_exists() (vendor/modularity and
+# tools/moducpp-anix both failed to copy: "cp: cannot create directory").
+# `sudo abora adopt-nixos --apply` followed by its own documented next
+# step (`sudo nixos-rebuild test`) could not have completed a real
+# adoption before this fix, regardless of the configuration.nix fixes
+# made separately. This runs the real copy logic (not a copy of it)
+# against this real repo checkout into a sandboxed directory, and checks
+# every required destination path installed-base.nix's own source
+# actually demands.
+if command -v python3 >/dev/null 2>&1; then
+  _required_dests="$(python3 -c "
+import re
+text = open('nix/modules/installed-base.nix').read()
+let_block = text.split('\nin\n')[0]
+lines = let_block.splitlines()
+required = []
+i = 0
+while i < len(lines):
+    m = re.match(r'\s*(\w+)\s*=\s*(.*)', lines[i])
+    if m:
+        name, rhs = m.groups()
+        chunk = rhs
+        j = i
+        while ';' not in chunk and j < len(lines) - 1:
+            j += 1
+            chunk += ' ' + lines[j]
+        if 'pathExists' not in chunk:
+            paths = re.findall(r'\./([A-Za-z0-9_./-]+)', chunk)
+            required += paths
+    i += 1
+print('\n'.join(sorted(set(required))))
+")"
+
+  tmp_adopt_copy="$(mktemp)"
+  {
+    sed -n '/^copy_if_exists() {/,/^}$/p' scripts/abora-adopt-nixos.sh
+    sed -n '/^abora_dir="\$config_dir\/abora"$/,/^cat > "\$target_import"/p' scripts/abora-adopt-nixos.sh | sed '$d'
+  } > "$tmp_adopt_copy"
+  tmp_adopt_target="$(mktemp -d)"
+  if bash -n "$tmp_adopt_copy" 2>/dev/null \
+    && ( repo_dir="$repo_dir"; config_dir="$tmp_adopt_target"; source "$tmp_adopt_copy" ) >/dev/null 2>&1; then
+    adopt_copy_ok=1
+    while IFS= read -r required_path; do
+      [[ -n "$required_path" ]] || continue
+      if [[ ! -e "$tmp_adopt_target/abora/$required_path" ]]; then
+        adopt_copy_ok=0
+        printf '              missing after copy: abora/%s\n' "$required_path"
+      fi
+    done <<<"$_required_dests"
+  else
+    adopt_copy_ok=0
+    printf '              copy logic itself failed to run\n'
+  fi
+  rm -f "$tmp_adopt_copy"
+  rm -rf "$tmp_adopt_target"
+
+  if [[ "$adopt_copy_ok" -eq 1 ]]; then
+    pass "runtime: abora-adopt-nixos.sh copies every file installed-base.nix requires"
+  else
+    fail "runtime: abora-adopt-nixos.sh copies every file installed-base.nix requires"
+  fi
+fi
+
 # Regression test for ensure_import_in_configuration(): both of its
 # branches used to produce a real syntax/semantic break on the *standard*
 # nixos-generate-config output shape (function header on its own line,

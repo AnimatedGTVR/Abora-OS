@@ -172,6 +172,14 @@ copy_if_exists() {
   local dest="$2"
   [[ -e "$source" ]] || return 0
   rm -rf "$dest"
+  # cp -R needs $dest's parent to already exist -- true for every
+  # top-level entry under $abora_dir, but not for a nested destination
+  # like vendor/modularity or tools/moducpp-anix, whose own parent
+  # (vendor/, tools/) is never separately created. Confirmed as a real,
+  # pre-existing failure by actually running this against a real repo
+  # checkout: "cp: cannot create directory '.../vendor/modularity': No
+  # such file or directory".
+  mkdir -p "$(dirname "$dest")"
   cp -R "$source" "$dest"
 }
 
@@ -300,7 +308,11 @@ copy_if_exists "$repo_dir/nix/modules/anix.nix" "$abora_dir/anix-module.nix"
 copy_if_exists "$repo_dir/nix/modules/desktops" "$abora_dir/desktops"
 copy_if_exists "$repo_dir/nix/pkgs" "$abora_dir/pkgs"
 copy_if_exists "$repo_dir/assets/wallpapers" "$abora_dir/wallpapers"
-copy_if_exists "$repo_dir/assets/wallpaper-themes" "$abora_dir/wallpaper-themes"
+# installed-base.nix's wallpaperThemeDir looks for ./themes (matching what
+# abora-installer.sh's write_branding_assets() also copies to, on a real
+# install), not ./wallpaper-themes -- was silently wrong here, so an
+# adopted system would fail Nix evaluation on this path not existing.
+copy_if_exists "$repo_dir/assets/wallpaper-themes" "$abora_dir/themes"
 copy_if_exists "$repo_dir/assets/bootloader" "$abora_dir/bootloader"
 copy_if_exists "$repo_dir/assets/plymouth" "$abora_dir/plymouth"
 copy_if_exists "$repo_dir/assets/Effects" "$abora_dir/effects"
@@ -308,7 +320,26 @@ copy_if_exists "$repo_dir/assets/mango" "$abora_dir/mango"
 copy_if_exists "$repo_dir/assets/anix-languages" "$abora_dir/anix-languages"
 copy_if_exists "$repo_dir/docs" "$abora_dir/docs"
 copy_if_exists "$repo_dir/vendor/modularity" "$abora_dir/vendor/modularity"
+copy_if_exists "$repo_dir/tools/moducpp-anix" "$abora_dir/tools/moducpp-anix"
+copy_if_exists "$repo_dir/assets/abora-title.txt" "$abora_dir/title.txt"
+copy_if_exists "$repo_dir/assets/fastfetch-logo.txt" "$abora_dir/fastfetch-logo.txt"
+copy_if_exists "$repo_dir/assets/fastfetch-config.jsonc" "$abora_dir/fastfetch-config.jsonc"
+copy_if_exists "$repo_dir/assets/wallpapers/collection/titlis-alps.jpg" "$abora_dir/default-wallpaper.png"
 
+# Every one of these is unconditionally required by installed-base.nix
+# (nix/modules/installed-base.nix's own header comment: "the installer
+# copies every required file via cp_required before the first
+# nixos-rebuild, so the ./x paths are always present" -- not guarded by
+# builtins.pathExists like the truly-optional ones). This list used to
+# cover barely half of them: missing check-full.sh, custom-packages.sh,
+# desktop-profiles.sh, installer.sh, repair-flake-purity.sh,
+# session-setup.sh, setup-launcher.sh, setup.desktop, the three GUI .py
+# scripts, and adopt-nixos.sh itself meant `sudo abora adopt-nixos
+# --apply` followed by its own documented next step (`sudo nixos-rebuild
+# test`) would fail Nix evaluation on the very first missing required
+# path -- this feature could not have completed a real adoption before
+# this fix, regardless of the configuration.nix-corruption fixes already
+# made separately.
 for pair in \
   "scripts/abora-ui.sh:ui.sh" \
   "scripts/abora.sh:abora.sh" \
@@ -326,7 +357,19 @@ for pair in \
   "scripts/abora-gaming.sh:gaming.sh" \
   "scripts/anix.sh:anix.sh" \
   "scripts/abora-update.sh:update.sh" \
-  "scripts/abora-theme-sync.sh:theme-sync.sh"; do
+  "scripts/abora-theme-sync.sh:theme-sync.sh" \
+  "scripts/abora-check-full.sh:check-full.sh" \
+  "scripts/abora-custom-packages.sh:custom-packages.sh" \
+  "scripts/abora-desktop-profiles.sh:desktop-profiles.sh" \
+  "scripts/abora-installer.sh:installer.sh" \
+  "scripts/abora-repair-flake-purity.sh:repair-flake-purity.sh" \
+  "scripts/abora-session-setup.sh:session-setup.sh" \
+  "scripts/abora-setup-launcher.sh:setup-launcher.sh" \
+  "scripts/abora-setup.desktop:setup.desktop" \
+  "scripts/abora-adopt-nixos.sh:adopt-nixos.sh" \
+  "scripts/abora-welcome-gui.py:welcome-gui.py" \
+  "scripts/abora-config-gui.py:config-gui.py" \
+  "scripts/abora-gaming-welcome-gui.py:gaming-welcome-gui.py"; do
   src="${pair%%:*}"
   dest="${pair#*:}"
   copy_if_exists "$repo_dir/$src" "$abora_dir/$dest"
