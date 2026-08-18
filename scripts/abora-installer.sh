@@ -15,6 +15,9 @@ install_log="/tmp/abora-install.log"
 disk=""
 efi_part=""
 root_part=""
+install_disk_mode="erase"
+target_partition=""
+target_esp=""
 hostname_value="abora"
 username_value="abora"
 timezone_value="UTC"
@@ -930,6 +933,100 @@ collect_disks() {
         }'
 }
 
+# GPT partition-type GUID for an EFI System Partition — the one PARTTYPE
+# value that means "this is an ESP" regardless of filesystem label,
+# mountpoint, or which OS created it.
+readonly ESP_PARTTYPE_GUID="c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
+
+# Shared parsing core: reads `lsblk -P` (KEY="value" pairs, one line per
+# device) on stdin and calls the awk function named by -v fn on a
+# per-line associative array `f` of every requested column. -P instead of
+# plain columnar `-o` output deliberately — lsblk's normal column mode is
+# space-padded/aligned, not a fixed delimiter, so any value containing a
+# space (a Windows "System Reserved" LABEL is the single most common real
+# example, and exactly the kind of partition this dual-boot-safe disk
+# mode needs to describe correctly) silently shifts every field after it
+# out of position. -P's KEY="value" pairs keep each value intact
+# regardless of what's inside it, parsed here with a POSIX match() loop
+# rather than gawk-only extensions, matching this file's existing
+# portable-awk style.
+_lsblk_pairs_awk_prelude='
+    function parse_pairs(line,    rest, m, pair, eq) {
+        delete f
+        rest = line
+        while (match(rest, /[A-Za-z]+="[^"]*"/)) {
+            pair = substr(rest, RSTART, RLENGTH)
+            eq = index(pair, "=")
+            f[substr(pair, 1, eq - 1)] = substr(pair, eq + 2, length(pair) - eq - 2)
+            rest = substr(rest, RSTART + RLENGTH)
+        }
+    }
+'
+
+# Partition names (no /dev/ prefix, system-wide, not scoped to one disk)
+# that are somebody else's parent device right now — a LUKS/LVM/RAID
+# member shows no mountpoint of its own even while very much in active
+# use, only its mapped child does (e.g. a LUKS partition's decrypted
+# "root" mapper). Checked system-wide via PKNAME rather than only under
+# the target disk's own lsblk tree because the mapper device itself
+# doesn't nest under the disk in flat (-l) output.
+_partitions_with_children() {
+    lsblk -Pnb -o NAME,PKNAME 2>/dev/null | awk "$_lsblk_pairs_awk_prelude"'
+        { parse_pairs($0); if (f["PKNAME"] != "") print f["PKNAME"] }
+    ' | sort -u
+}
+
+# Existing partitions on $1 (a whole disk, e.g. /dev/nvme0n1), one
+# "path|description" row per line, for the "use an existing partition"
+# install mode's picker. Deliberately TYPE=="part" only (not "disk" or a
+# LUKS "crypt" mapper child lsblk also lists) and deliberately excludes
+# anything currently mounted *or* backing a mounted/active child device
+# (LUKS, LVM, RAID) — reformatting a partition out from under the running
+# system, directly or through a mapper, is exactly the kind of mistake
+# this list exists to prevent, not just fail to prevent.
+list_disk_partitions() {
+    local disk="$1"
+    local busy_list; busy_list="$(_partitions_with_children | tr '\n' ' ')"
+
+    lsblk -Pnb -o NAME,SIZE,FSTYPE,PARTTYPE,LABEL,TYPE,MOUNTPOINT "$disk" 2>/dev/null | \
+        awk -v esp="$ESP_PARTTYPE_GUID" -v busy_list="$busy_list" "$_lsblk_pairs_awk_prelude"'
+        BEGIN {
+            n = split(busy_list, arr, " ")
+            for (i = 1; i <= n; i++) busy[arr[i]] = 1
+        }
+        {
+            parse_pairs($0)
+            if (f["TYPE"] != "part") next
+            if (f["MOUNTPOINT"] != "") next
+            if (f["NAME"] in busy) next
+
+            size_h = f["SIZE"] + 0
+            fstype = (f["FSTYPE"] == "" ? "no filesystem" : f["FSTYPE"])
+            unit = "B"
+            if (size_h >= 1073741824) { size_h /= 1073741824; unit = "G" }
+            else if (size_h >= 1048576) { size_h /= 1048576; unit = "M" }
+            tag = (f["PARTTYPE"] == esp) ? " [ESP]" : ""
+            desc = sprintf("%.1f%s  %s%s", size_h, unit, fstype, tag)
+            if (f["LABEL"] != "") desc = desc "  (" f["LABEL"] ")"
+            print "/dev/" f["NAME"] "|" desc
+        }'
+}
+
+# First existing ESP-typed partition on $1, or empty if none — used by the
+# "use an existing partition" install mode to reuse a pre-existing EFI
+# System Partition (the normal, correct thing to do alongside an existing
+# Windows or Linux install, which already has one) instead of creating a
+# second one.
+find_existing_esp() {
+    local disk="$1"
+    lsblk -Pnb -o NAME,PARTTYPE,TYPE "$disk" 2>/dev/null | \
+        awk -v esp="$ESP_PARTTYPE_GUID" "$_lsblk_pairs_awk_prelude"'
+        {
+            parse_pairs($0)
+            if (f["TYPE"] == "part" && f["PARTTYPE"] == esp) { print "/dev/" f["NAME"]; exit }
+        }'
+}
+
 check_install_environment() {
     local mode="${1:-summary}"
     local failed=0 cmd path nixpkgs
@@ -1635,7 +1732,7 @@ step_preflight() {
 
 step_disk() {
     tab_header 9
-    warn "All data on the selected disk will be permanently erased!"
+    warn "Choose the target disk. What gets erased depends on the mode you pick next."
     printf '\n'
 
     local -a disks=() row
@@ -1660,7 +1757,23 @@ step_disk() {
 
     menu "Choose Installation Disk" "${disks[@]}"
     disk="${disks[$MENU_RESULT]%%|*}"
+    install_disk_mode="erase"
+    target_partition=""
+    target_esp=""
 
+    printf '\n'
+    menu "How should Abora use ${disk}?" \
+        "Erase entire disk|Wipe everything and use the whole disk" \
+        "Use an existing partition|Format only one partition; keep everything else (dual-boot)" \
+        "Choose a different disk|Go back"
+    case "$MENU_RESULT" in
+        0) step_disk_confirm_erase ;;
+        1) step_disk_existing_partition ;;
+        *) step_disk; return ;;
+    esac
+}
+
+step_disk_confirm_erase() {
     printf '\n'
     warn "This will erase ALL data on: ${disk}"
     printf '\n'
@@ -1671,6 +1784,59 @@ step_disk() {
         step_disk
         return
     fi
+    install_disk_mode="erase"
+}
+
+# The "don't wipe the full disk" path: format only one existing partition
+# the operator explicitly picks, reusing an existing ESP on the same disk
+# rather than creating a second one. Requires both to already exist —
+# this does not carve free space into new partitions, and does not
+# offer a partition that's mounted or backing an active LUKS/LVM/RAID
+# device (see list_disk_partitions()).
+step_disk_existing_partition() {
+    printf '\n'
+    local -a parts=() row
+    while IFS= read -r row; do
+        [[ -n "$row" ]] && parts+=("$row")
+    done < <(list_disk_partitions "$disk")
+
+    if [[ ${#parts[@]} -eq 0 ]]; then
+        warn "No usable existing partitions found on ${disk}."
+        printf '\n'
+        msg "Every partition on this disk is either mounted, in active use, or there isn't a free one yet — this mode needs an existing, unused partition to format."
+        printf '\n'
+        menu "OK" "Back|Choose a different disk or mode"
+        step_disk
+        return
+    fi
+
+    local esp; esp="$(find_existing_esp "$disk")"
+    if [[ -z "$esp" ]]; then
+        warn "No existing EFI System Partition found on ${disk}."
+        printf '\n'
+        msg "This mode reuses an existing ESP instead of creating a new one. Use 'Erase entire disk' instead, or create an ESP with another tool first."
+        printf '\n'
+        menu "OK" "Back|Choose a different disk or mode"
+        step_disk
+        return
+    fi
+
+    menu "Choose the partition to install onto" "${parts[@]}"
+    target_partition="${parts[$MENU_RESULT]%%|*}"
+    target_esp="$esp"
+
+    printf '\n'
+    warn "This will erase ${target_partition} and use it as the Abora root partition."
+    msg "Everything else on ${disk} — including the existing EFI partition ${target_esp}, reused as-is — stays untouched."
+    printf '\n'
+    menu "Are you sure?" \
+        "Yes — format ${target_partition} and install|Only this one partition will be erased" \
+        "No — go back|Choose a different partition"
+    if [[ "$MENU_RESULT" -eq 1 ]]; then
+        step_disk_existing_partition
+        return
+    fi
+    install_disk_mode="existing"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1678,7 +1844,10 @@ step_disk() {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _print_summary() {
-    if [[ -n "$disk" ]]; then
+    if [[ -n "$disk" && "$install_disk_mode" == "existing" ]]; then
+        printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Disk:" "$R" "${disk}  (only ${target_partition} will be erased)"
+        printf '  %b  %-16s%b  %s\n' "${D}${CI}" "EFI partition:" "$R" "${target_esp}  ← reused as-is, not reformatted"
+    elif [[ -n "$disk" ]]; then
         printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Disk:" "$R" "${disk}  ← will be erased"
     else
         printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Disk:" "$R" "unchanged"
@@ -1717,13 +1886,17 @@ _print_summary() {
 }
 
 step_confirm() {
+    local install_now_desc="Erase ${disk} and install ${release_name}"
+    [[ "$install_disk_mode" == "existing" ]] && \
+        install_now_desc="Format ${target_partition} and install ${release_name}"
+
     while true; do
         tab_header 11
         printf '  %bInstallation Summary%b\n\n' "${B}${CS}" "$R"
         _print_summary
 
         menu "Ready to install?" \
-            "Install now|Erase ${disk} and install ${release_name}" \
+            "Install now|${install_now_desc}" \
             "Change password|Reset user password before installing" \
             "Cancel|Abort and return to the live shell"
 
@@ -1812,6 +1985,48 @@ partition_disk() {
     }
     log_install_step "partition_disk: verified root label ABORA_ROOT on ${root_part}"
     log_install_step "partition_disk: format complete"
+}
+
+# The "use an existing partition" counterpart to partition_disk(): formats
+# only $target_partition as the new root, reuses $target_esp completely
+# unformatted, and never touches wipefs/mklabel/mkpart at all — everything
+# else already on $disk (a Windows install, another Linux install, a data
+# partition) is left exactly as it was. Requires an existing ESP to
+# already be present on the disk (set via find_existing_esp in
+# step_disk()); this mode does not carve a new one out of free space.
+partition_disk_existing() {
+    log_install_step "partition_disk_existing: start disk=${disk} target=${target_partition} esp=${target_esp}"
+    if [[ -z "$target_partition" || ! -b "$target_partition" ]]; then
+        log_install_step "partition_disk_existing: refusing — '${target_partition}' is not a block device"
+        return 1
+    fi
+    if [[ -z "$target_esp" || ! -b "$target_esp" ]]; then
+        log_install_step "partition_disk_existing: refusing — '${target_esp}' is not a block device"
+        return 1
+    fi
+    if [[ "$target_partition" == "$disk" || "$target_esp" == "$disk" ]]; then
+        log_install_step "partition_disk_existing: refusing — target resolves to the whole disk, not a partition"
+        return 1
+    fi
+
+    umount -R /mnt >/dev/null 2>&1 || true
+    # Deliberately no wipefs/mklabel/mkpart here — that's the entire point
+    # of this mode. Only the one partition the operator explicitly chose
+    # and confirmed in step_disk() ever gets formatted.
+    mkfs.ext4 -F -L ABORA_ROOT "$target_partition" >>"$install_log" 2>&1 || return 1
+    sync || true
+    udevadm settle >>"$install_log" 2>&1 || true
+
+    efi_part="$target_esp"
+    root_part="$target_partition"
+    log_install_step "partition_disk_existing: efi=${efi_part} root=${root_part}"
+
+    ensure_root_label "$root_part" || {
+        log_install_step "partition_disk_existing: root label verification failed for ${root_part}"
+        return 1
+    }
+    log_install_step "partition_disk_existing: verified root label ABORA_ROOT on ${root_part}"
+    log_install_step "partition_disk_existing: format complete (disk otherwise untouched)"
 }
 
 mount_target() {
@@ -2764,7 +2979,11 @@ run_install() {
     fi
 
     msg "Preparing target disk…"
-    if ! partition_disk; then die "Partitioning failed. See ${install_log}."; fi
+    if [[ "$install_disk_mode" == "existing" ]]; then
+        if ! partition_disk_existing; then die "Formatting the selected partition failed. See ${install_log}."; fi
+    else
+        if ! partition_disk; then die "Partitioning failed. See ${install_log}."; fi
+    fi
     progress_line 20 "Disk ready"
     ok "Disk partitioned"
 

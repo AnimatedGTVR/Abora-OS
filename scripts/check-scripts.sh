@@ -260,6 +260,64 @@ print(','.join(prefixes))
   fi
 fi
 
+# Regression test for the "use an existing partition" install mode
+# (list_disk_partitions/find_existing_esp/_partitions_with_children):
+# extracts the real functions from abora-installer.sh (it can't be
+# sourced wholesale -- it unconditionally runs `main "$@"` at the bottom)
+# and exercises them against a fake `lsblk` on PATH, no root or real
+# block devices required. Covers the exact bug class this code went
+# through several rounds of real fixes for: lsblk's default columnar
+# output is space-padded/aligned, not a fixed delimiter, so any value
+# containing a space (a Windows "System Reserved" LABEL being the most
+# common real example) silently shifted every field after it out of
+# position under naive `awk` field splitting -- switched to `lsblk -P`
+# (KEY="value" pairs) parsed with a portable match() loop instead.
+tmp_partfuncs="$(mktemp)"
+tmp_lsblk_bin="$(mktemp -d)"
+sed -n '/^readonly ESP_PARTTYPE_GUID=/,/^check_install_environment()/p' scripts/abora-installer.sh \
+  | sed '$d' > "$tmp_partfuncs"
+if [[ -s "$tmp_partfuncs" ]] && bash -n "$tmp_partfuncs" 2>/dev/null; then
+  cat > "$tmp_lsblk_bin/lsblk" <<'LSBLK_SHIM'
+#!/usr/bin/env bash
+if [[ "$*" == *"NAME,PKNAME"* ]]; then
+  printf 'NAME="sda" PKNAME=""\n'
+  printf 'NAME="sda1" PKNAME="sda"\n'
+  printf 'NAME="sda2" PKNAME="sda"\n'
+  printf 'NAME="sda3" PKNAME="sda"\n'
+  printf 'NAME="sda4" PKNAME="sda"\n'
+  printf 'NAME="mapper-root" PKNAME="sda3"\n'
+  exit 0
+fi
+if [[ "$*" == *"PARTTYPE,TYPE"* ]]; then
+  printf 'NAME="sda1" PARTTYPE="c12a7328-f81f-11d2-ba4b-00a0c93ec93b" TYPE="part"\n'
+  printf 'NAME="sda2" PARTTYPE="0fc63daf-8483-4772-8e79-3d69d8477de4" TYPE="part"\n'
+  exit 0
+fi
+printf 'NAME="sda1" SIZE="2147483648" FSTYPE="vfat" PARTTYPE="c12a7328-f81f-11d2-ba4b-00a0c93ec93b" LABEL="System Reserved" TYPE="part" MOUNTPOINT="/boot"\n'
+printf 'NAME="sda2" SIZE="107374182400" FSTYPE="ext4" PARTTYPE="0fc63daf-8483-4772-8e79-3d69d8477de4" LABEL="" TYPE="part" MOUNTPOINT=""\n'
+printf 'NAME="sda3" SIZE="500000000000" FSTYPE="crypto_LUKS" PARTTYPE="" LABEL="" TYPE="part" MOUNTPOINT=""\n'
+printf 'NAME="sda4" SIZE="1390104516608" FSTYPE="ntfs" PARTTYPE="" LABEL="Windows Data Disk" TYPE="part" MOUNTPOINT=""\n'
+LSBLK_SHIM
+  chmod +x "$tmp_lsblk_bin/lsblk"
+
+  _parts_out="$(PATH="$tmp_lsblk_bin:$PATH" bash -c "source '$tmp_partfuncs'; list_disk_partitions /dev/sda")"
+  _esp_out="$(PATH="$tmp_lsblk_bin:$PATH" bash -c "source '$tmp_partfuncs'; find_existing_esp /dev/sda")"
+
+  if printf '%s' "$_parts_out" | grep -q '^/dev/sda2|' \
+    && printf '%s' "$_parts_out" | grep -q '^/dev/sda4|.*(Windows Data Disk)' \
+    && ! printf '%s' "$_parts_out" | grep -q '^/dev/sda1|' \
+    && ! printf '%s' "$_parts_out" | grep -q '^/dev/sda3|' \
+    && [[ "$_esp_out" == "/dev/sda1" ]]; then
+    pass "runtime: list_disk_partitions/find_existing_esp parse lsblk -P correctly (including multi-word LABEL)"
+  else
+    fail "runtime: list_disk_partitions/find_existing_esp parse lsblk -P correctly (including multi-word LABEL)"
+  fi
+else
+  fail "runtime: could not extract disk-partition helper functions from abora-installer.sh"
+fi
+rm -f "$tmp_partfuncs"
+rm -rf "$tmp_lsblk_bin"
+
 if command -v shellcheck >/dev/null 2>&1; then
   # -S error matches the dedicated "ShellCheck scripts" CI workflow step —
   # info/warning-level style nits (SC1007, SC2015, SC2016, SC2086, etc.) are

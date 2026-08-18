@@ -37,6 +37,9 @@ Use this after building a release candidate ISO and after running one real insta
 - network step can run Quick Wi-Fi connect without `nmtui`
 - network step can turn Wi-Fi on and rescan
 - disk selection and user creation remain interactive
+- "Use an existing partition" mode formats only the chosen partition and
+  reuses an existing ESP on a disk that already has one (e.g. a dual-boot
+  Windows install), leaving every other partition on the disk untouched
 - password mismatch recovery works
 - GitHub login can be skipped cleanly
 - generated config validation runs before `nixos-install`
