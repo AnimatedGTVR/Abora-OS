@@ -153,14 +153,28 @@ case "${1:-menu}" in
         while true; do
             menu
             read -r -p "  Choose: " choice
+            # Every action below is `|| true`-guarded: this is the interactive
+            # recovery menu, reached specifically when something on the
+            # system is already broken. Under the script's own `set -e`, a
+            # failing rollback/doctor/rebuild/report/repair (exactly the
+            # commands most likely to fail on a broken system) would
+            # otherwise kill this whole loop and drop the user with no way
+            # back to try a different recovery option -- reproduced
+            # directly: choosing "5) Run ANIX doctor" with a failing `anix`
+            # on PATH exited the entire script instead of looping back to
+            # the menu. The failure is still visible (run_cmd/run_diag both
+            # print it); it just no longer ends the session. Direct
+            # non-interactive invocation (`abora recovery rollback`, etc.,
+            # the case above) is intentionally left propagating real exit
+            # codes, since scripted callers need that.
             case "$choice" in
-                1) run_cmd anix rollback nix --now ;;
-                2) run_cmd abora support-report ;;
-                3) repair_flathub ;;
-                4) rebuild_current ;;
-                5) run_cmd anix doctor ;;
-                6) run_cmd abora doctor ;;
-                7) network_diagnostics ;;
+                1) run_cmd anix rollback nix --now || true ;;
+                2) run_cmd abora support-report || true ;;
+                3) repair_flathub || true ;;
+                4) rebuild_current || true ;;
+                5) run_cmd anix doctor || true ;;
+                6) run_cmd abora doctor || true ;;
+                7) network_diagnostics || true ;;
                 q|Q) exit 0 ;;
                 *) abora_warn "Unknown choice: $choice" ;;
             esac

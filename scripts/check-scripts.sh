@@ -2805,6 +2805,41 @@ else
   fail "runtime: installer's branding git-add stages each path independently"
 fi
 
+# Regression test: abora-recovery.sh's interactive menu used to let a
+# failing action kill the whole script instead of returning to the menu.
+# Every menu choice runs under the script's own `set -euo pipefail`; run_cmd
+# (used by rollback/report/rebuild/anix-doctor/abora-doctor) just runs "$@"
+# as its last statement with no guard, so a nonzero exit propagated straight
+# through `set -e` and exited the entire process -- reproduced directly:
+# choosing "5) Run ANIX doctor" with a failing `anix` on PATH terminated the
+# script immediately, before it ever showed the menu a second time or
+# reached the "Press Enter to continue" prompt, leaving no way to try any
+# other recovery option in that session -- exactly backwards for a tool
+# whose whole purpose is recovering an already-broken system. Runs the real
+# script's interactive menu (not a copy of its logic) with a fake `anix`
+# that always fails, feeding choice "5" then "q", and checks the menu
+# banner actually rendered twice (proving the loop survived) and the
+# script exited 0 (a clean quit, not a crash).
+tmp_recovery_bin="$(mktemp -d)"
+cat > "$tmp_recovery_bin/anix" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$tmp_recovery_bin/anix"
+set +e
+_recovery_menu_out="$(printf '5\n\nq\n' | PATH="$tmp_recovery_bin:$PATH" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-recovery.sh menu 2>&1)"
+_recovery_menu_status=$?
+set -e
+rm -rf "$tmp_recovery_bin"
+_recovery_menu_renders="$(grep -c 'Roll back previous generation' <<<"$_recovery_menu_out")"
+if [[ "$_recovery_menu_status" -eq 0 && "$_recovery_menu_renders" -ge 2 ]]; then
+  pass "runtime: recovery menu survives a failing action and returns to the menu"
+else
+  fail "runtime: recovery menu survives a failing action and returns to the menu"
+  printf '              exit status: %s, menu renders: %s (need 0 and >=2)\n' \
+    "$_recovery_menu_status" "$_recovery_menu_renders"
+fi
+
 if [[ "$failed" -ne 0 ]]; then
   printf '\nOne or more checks failed.\n' >&2
   exit 1
