@@ -176,18 +176,93 @@ copy_if_exists() {
 }
 
 ensure_import_in_configuration() {
-  local import_line='    ./abora-adopt.nix'
-
   [[ -f "$configuration_nix" ]] || return 0
   grep -q './abora-adopt.nix' "$configuration_nix" && return 0
 
   if grep -q '^[[:space:]]*imports[[:space:]]*=' "$configuration_nix"; then
-    sed -i "/^[[:space:]]*imports[[:space:]]*=/a\\$import_line" "$configuration_nix"
+    # Insert right after the list's opening "[", not right after "imports =".
+    # nixos-generate-config's own standard output (what most real
+    # configuration.nix files still look like) puts "imports =" and "["
+    # on separate lines:
+    #   imports =
+    #     [ # Include the results of the hardware scan.
+    #       ./hardware-configuration.nix
+    #     ];
+    # Inserting right after "imports =" used to land the new path *before*
+    # that "[", producing `imports = ./abora-adopt.nix [ ... ];` --
+    # Nix parses that as function application (call the path
+    # ./abora-adopt.nix with the list as its argument), not list
+    # concatenation, and fails at eval time with "attempt to call
+    # something which is not a function but a path". The "[" can be on
+    # the very same line as "imports =" instead (`imports = [ ./hw.nix ];`)
+    # too, which this handles the same way either way.
+    # Splices in right after the "[" character itself (not as a whole new
+    # line following it) -- a single-line `imports = [ ./hw.nix ];` still
+    # has its closing "];" on that same line, so inserting a *new line*
+    # after it would land the addition after the closing bracket, outside
+    # the list, the same class of bug this is fixing.
+    awk '
+      BEGIN { seeking = 0; done = 0 }
+      {
+        line = $0
+        if (!seeking && !done && line ~ /^[[:space:]]*imports[[:space:]]*=/) { seeking = 1 }
+        if (seeking && !done) {
+          pos = index(line, "[")
+          if (pos > 0) {
+            print substr(line, 1, pos) " ./abora-adopt.nix"
+            rest = substr(line, pos + 1)
+            if (rest != "") print rest
+            seeking = 0
+            done = 1
+            next
+          }
+        }
+        print line
+      }
+    ' "$configuration_nix" > "$configuration_nix.abora-tmp"
+    mv "$configuration_nix.abora-tmp" "$configuration_nix"
   else
-    sed -i '0,/{/s//{\
-  imports = [\
-    .\/abora-adopt.nix\
-  ];/' "$configuration_nix"
+    # No existing imports attribute: add a fresh one right inside the
+    # config body's opening "{". The body's brace is *not* generally the
+    # first "{" in the file -- nixos-generate-config's standard format
+    # starts with a function header on its own line first:
+    #   { config, pkgs, ... }:
+    #
+    #   { ... }
+    # Naively replacing the first "{" in the whole file (the old
+    # approach) mangled the function's own argument list instead --
+    # `{ imports = [ ./abora-adopt.nix ]; config, pkgs, ... }:` -- a hard
+    # Nix syntax error, not just a semantic mismatch. Skips past a
+    # single-line function header (a line ending in ":") before looking
+    # for the body's "{", same as ordinary hand-written configs that
+    # start directly with "{ ... }" (no function header at all) still
+    # work correctly since there's nothing to skip.
+    awk '
+      BEGIN { past_header = 0; done = 0 }
+      {
+        line = $0
+        if (!past_header) {
+          if (line ~ /^[[:space:]]*$/) { print; next }
+          past_header = 1
+          if (line ~ /:[[:space:]]*(#.*)?$/) { print; next }
+        }
+        if (!done) {
+          pos = index(line, "{")
+          if (pos > 0) {
+            print substr(line, 1, pos)
+            print "  imports = ["
+            print "    ./abora-adopt.nix"
+            print "  ];"
+            rest = substr(line, pos + 1)
+            if (rest != "") print rest
+            done = 1
+            next
+          }
+        }
+        print
+      }
+    ' "$configuration_nix" > "$configuration_nix.abora-tmp"
+    mv "$configuration_nix.abora-tmp" "$configuration_nix"
   fi
 }
 

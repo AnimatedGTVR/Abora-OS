@@ -794,6 +794,84 @@ else
   fail "runtime: existing NixOS adoption path is non-destructive by default"
 fi
 
+# Regression test for ensure_import_in_configuration(): both of its
+# branches used to produce a real syntax/semantic break on the *standard*
+# nixos-generate-config output shape (function header on its own line,
+# "imports =" and its "[" on separate lines) -- inserting right after
+# "imports =" landed the new path *before* the "[", which Nix parses as
+# function application (`imports = ./abora-adopt.nix [ ... ];` calls the
+# path as a function) rather than list concatenation; the "no imports at
+# all" fallback replaced the *first* "{" in the file, which for the
+# standard format is the function argument list's own brace, not the
+# config body's, producing a hard parse error. Extracts the real function
+# (it can't be sourced wholesale -- this script parses its own $@ at load
+# time) and confirms the real `nix-instantiate` can both parse and
+# evaluate the result for four real shapes: multi-line imports (the
+# standard shape), single-line imports, a function-header body with no
+# imports at all, and a bare attrset with no function header and no
+# imports.
+if command -v nix-instantiate >/dev/null 2>&1; then
+  tmp_adopt_fn="$(mktemp)"
+  awk '/^ensure_import_in_configuration\(\) \{/{p=1} p{print} p && /^}$/{exit}' \
+    scripts/abora-adopt-nixos.sh > "$tmp_adopt_fn"
+  tmp_adopt_dir="$(mktemp -d)"
+
+  cat > "$tmp_adopt_dir/multiline.nix" <<'EOF'
+{ config, pkgs, ... }:
+
+{
+  imports =
+    [ # Include the results of the hardware scan.
+      ./hardware-configuration.nix
+    ];
+
+  boot.loader.systemd-boot.enable = true;
+}
+EOF
+  cat > "$tmp_adopt_dir/singleline.nix" <<'EOF'
+{ config, pkgs, ... }:
+{
+  imports = [ ./hardware-configuration.nix ];
+  boot.loader.systemd-boot.enable = true;
+}
+EOF
+  cat > "$tmp_adopt_dir/noimports-header.nix" <<'EOF'
+{ config, pkgs, ... }:
+
+{
+  boot.loader.systemd-boot.enable = true;
+}
+EOF
+  cat > "$tmp_adopt_dir/noimports-bare.nix" <<'EOF'
+{
+  boot.loader.systemd-boot.enable = true;
+}
+EOF
+  printf '{ imports = [ ]; }\n' > "$tmp_adopt_dir/abora-adopt.nix"
+
+  adopt_all_ok=1
+  for shape in multiline singleline noimports-header noimports-bare; do
+    cp "$tmp_adopt_dir/$shape.nix" "$tmp_adopt_dir/configuration.nix"
+    if ! ( configuration_nix="$tmp_adopt_dir/configuration.nix"; source "$tmp_adopt_fn"; ensure_import_in_configuration ) \
+      || ! nix-instantiate --parse "$tmp_adopt_dir/configuration.nix" >/dev/null 2>&1 \
+      || ! nix-instantiate --eval -E \
+           "let raw = import $tmp_adopt_dir/configuration.nix; cfg = if builtins.isFunction raw then raw { config = {}; pkgs = {}; lib = (import <nixpkgs> {}).lib; } else raw; in builtins.length cfg.imports" \
+           >/dev/null 2>&1; then
+      adopt_all_ok=0
+      printf '              %s shape failed to parse/eval after ensure_import_in_configuration\n' "$shape"
+    fi
+    rm -f "$tmp_adopt_dir/configuration.nix"
+  done
+  rm -f "$tmp_adopt_fn"
+  rm -rf "$tmp_adopt_dir"
+
+  if [[ "$adopt_all_ok" -eq 1 ]]; then
+    pass "runtime: ensure_import_in_configuration produces valid Nix for standard configuration.nix shapes"
+  else
+    fail "runtime: ensure_import_in_configuration produces valid Nix for standard configuration.nix shapes"
+  fi
+fi
+
 # The interactive wizard (run with zero args) is a real, separate code path
 # from the flag-based one above -- exercise it for real rather than just
 # grepping source, same as the rest of this file's "runtime:" checks.
