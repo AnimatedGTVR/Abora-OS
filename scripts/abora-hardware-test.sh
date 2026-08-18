@@ -83,6 +83,15 @@ memory_gib() {
     awk '/MemTotal:/ { printf "%.1f", $2 / 1024 / 1024 }' /proc/meminfo 2>/dev/null || printf '0'
 }
 
+# TYPE=disk alone does not mean real storage -- zram (RAM-backed swap)
+# reports TYPE=disk too, confirmed directly against a real machine (lsblk
+# -P showed /dev/zram0 as TYPE="disk", RM="0", TRAN=""), so the RM/TYPE
+# checks below never excluded it on their own: this hardware-readiness
+# tool reported zram0 as one of "2 disk target(s)" and counted it toward
+# "at least one fixed internal disk is visible" -- the opposite of what
+# those checks exist to confirm. abora-installer.sh already excludes
+# exactly these name prefixes for the same reason (collect_disks()'s
+# ^(fd|loop|ram|sr|zram) filter); both functions below mirror it.
 list_disks() {
     lsblk -dn -P -e 7,11 -o NAME,SIZE,MODEL,TRAN,RM,TYPE 2>/dev/null | awk '
         {
@@ -103,6 +112,9 @@ list_disks() {
             if (type != "disk") {
                 next
             }
+            if (name ~ /^(fd|loop|ram|sr|zram)/) {
+                next
+            }
             if (model == "") model = "Unknown model"
             if (tran == "") tran = "internal"
             removable = (rm == "1" ? "removable" : "fixed")
@@ -112,7 +124,8 @@ list_disks() {
 }
 
 has_internal_disk() {
-    lsblk -dn -e 7,11 -o RM,TYPE 2>/dev/null | awk '$2 == "disk" && $1 == "0" { found = 1 } END { exit(found ? 0 : 1) }'
+    lsblk -dn -e 7,11 -o NAME,RM,TYPE 2>/dev/null \
+        | awk '$3 == "disk" && $2 == "0" && $1 !~ /^(fd|loop|ram|sr|zram)/ { found = 1 } END { exit(found ? 0 : 1) }'
 }
 
 has_transport() {

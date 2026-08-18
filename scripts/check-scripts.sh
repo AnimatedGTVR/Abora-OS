@@ -3225,6 +3225,52 @@ else
   pass "git unavailable (rebuild-vm branch test skipped)"
 fi
 
+# Regression test: abora-hardware-test.sh's list_disks()/has_internal_disk()
+# filtered only on TYPE=disk and RM=0, with no name-prefix exclusion --
+# zram (RAM-backed swap) reports TYPE=disk too, confirmed directly against
+# a real machine (lsblk -P: /dev/zram0 TYPE="disk", RM="0", TRAN=""), so
+# this hardware-readiness tool counted it as a real disk target and toward
+# "at least one fixed internal disk is visible", exactly backwards for a
+# check whose whole purpose is telling a user whether their machine has
+# real, safe-to-install storage. abora-installer.sh already excludes the
+# same name prefixes (collect_disks()'s ^(fd|loop|ram|sr|zram) filter).
+# Extracts the real functions and runs them against a fake lsblk including
+# a zram device, confirming it's excluded from both.
+tmp_hwtest_funcs="$(mktemp)"
+sed -n '/^list_disks() {/,/^}$/p; /^has_internal_disk() {/,/^}$/p' scripts/abora-hardware-test.sh > "$tmp_hwtest_funcs"
+tmp_hwtest_bin="$(mktemp -d)"
+cat > "$tmp_hwtest_bin/lsblk" <<'LSBLKEOF'
+#!/usr/bin/env bash
+if [[ "$*" == *"-P"* ]]; then
+  printf 'NAME="zram0" SIZE="8G" MODEL="" TRAN="" RM="0" TYPE="disk"\n'
+  printf 'NAME="sda" SIZE="256G" MODEL="Fake SSD" TRAN="sata" RM="0" TYPE="disk"\n'
+else
+  printf 'zram0 0 disk\n'
+  printf 'sda 0 disk\n'
+fi
+LSBLKEOF
+chmod +x "$tmp_hwtest_bin/lsblk"
+if bash -n "$tmp_hwtest_funcs" 2>/dev/null; then
+  set +e
+  _hwtest_disks="$(PATH="$tmp_hwtest_bin:$PATH" bash -c "source '$tmp_hwtest_funcs'; list_disks")"
+  PATH="$tmp_hwtest_bin:$PATH" bash -c "source '$tmp_hwtest_funcs'; has_internal_disk"
+  _hwtest_internal_rc=$?
+  set -e
+else
+  _hwtest_disks="<extraction failed>"
+  _hwtest_internal_rc=99
+fi
+rm -f "$tmp_hwtest_funcs"
+rm -rf "$tmp_hwtest_bin"
+if ! grep -q 'zram0' <<<"$_hwtest_disks" \
+  && grep -q '/dev/sda' <<<"$_hwtest_disks" \
+  && [[ "$_hwtest_internal_rc" -eq 0 ]]; then
+  pass "runtime: abora-hardware-test.sh excludes zram/loop/ram/sr/fd from disk detection"
+else
+  fail "runtime: abora-hardware-test.sh excludes zram/loop/ram/sr/fd from disk detection"
+  printf '              list_disks: %s, has_internal_disk rc: %s\n' "$_hwtest_disks" "$_hwtest_internal_rc"
+fi
+
 if [[ "$failed" -ne 0 ]]; then
   printf '\nOne or more checks failed.\n' >&2
   exit 1
