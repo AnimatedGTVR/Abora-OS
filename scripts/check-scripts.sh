@@ -265,13 +265,23 @@ fi
 # extracts the real functions from abora-installer.sh (it can't be
 # sourced wholesale -- it unconditionally runs `main "$@"` at the bottom)
 # and exercises them against a fake `lsblk` on PATH, no root or real
-# block devices required. Covers the exact bug class this code went
-# through several rounds of real fixes for: lsblk's default columnar
-# output is space-padded/aligned, not a fixed delimiter, so any value
-# containing a space (a Windows "System Reserved" LABEL being the most
-# common real example) silently shifted every field after it out of
-# position under naive `awk` field splitting -- switched to `lsblk -P`
-# (KEY="value" pairs) parsed with a portable match() loop instead.
+# block devices required. Covers two real bug classes this code went
+# through several rounds of real fixes for:
+#   1. lsblk's default columnar output is space-padded/aligned, not a
+#      fixed delimiter, so any value containing a space (a Windows
+#      "System Reserved" LABEL being the most common real example)
+#      silently shifted every field after it out of position under
+#      naive `awk` field splitting -- switched to `lsblk -P`
+#      (KEY="value" pairs) parsed with a portable match() loop instead.
+#   2. list_disk_partitions() tagged ESP-typed partitions with "[ESP]"
+#      but didn't exclude them from the candidate *root* list -- an
+#      operator could select the very ESP find_existing_esp() found to
+#      reuse unformatted as their new root partition instead, and
+#      partition_disk_existing() would then mkfs.ext4 over it. sda5
+#      below is an unmounted, unused ESP (plausible real state: left
+#      over after a previous install was wiped) that must never appear
+#      in list_disk_partitions()'s output even though it would pass
+#      every other filter (not mounted, no busy children).
 tmp_partfuncs="$(mktemp)"
 tmp_lsblk_bin="$(mktemp -d)"
 sed -n '/^readonly ESP_PARTTYPE_GUID=/,/^check_install_environment()/p' scripts/abora-installer.sh \
@@ -285,18 +295,21 @@ if [[ "$*" == *"NAME,PKNAME"* ]]; then
   printf 'NAME="sda2" PKNAME="sda"\n'
   printf 'NAME="sda3" PKNAME="sda"\n'
   printf 'NAME="sda4" PKNAME="sda"\n'
+  printf 'NAME="sda5" PKNAME="sda"\n'
   printf 'NAME="mapper-root" PKNAME="sda3"\n'
   exit 0
 fi
 if [[ "$*" == *"PARTTYPE,TYPE"* ]]; then
   printf 'NAME="sda1" PARTTYPE="c12a7328-f81f-11d2-ba4b-00a0c93ec93b" TYPE="part"\n'
   printf 'NAME="sda2" PARTTYPE="0fc63daf-8483-4772-8e79-3d69d8477de4" TYPE="part"\n'
+  printf 'NAME="sda5" PARTTYPE="c12a7328-f81f-11d2-ba4b-00a0c93ec93b" TYPE="part"\n'
   exit 0
 fi
 printf 'NAME="sda1" SIZE="2147483648" FSTYPE="vfat" PARTTYPE="c12a7328-f81f-11d2-ba4b-00a0c93ec93b" LABEL="System Reserved" TYPE="part" MOUNTPOINT="/boot"\n'
 printf 'NAME="sda2" SIZE="107374182400" FSTYPE="ext4" PARTTYPE="0fc63daf-8483-4772-8e79-3d69d8477de4" LABEL="" TYPE="part" MOUNTPOINT=""\n'
 printf 'NAME="sda3" SIZE="500000000000" FSTYPE="crypto_LUKS" PARTTYPE="" LABEL="" TYPE="part" MOUNTPOINT=""\n'
 printf 'NAME="sda4" SIZE="1390104516608" FSTYPE="ntfs" PARTTYPE="" LABEL="Windows Data Disk" TYPE="part" MOUNTPOINT=""\n'
+printf 'NAME="sda5" SIZE="536870912" FSTYPE="vfat" PARTTYPE="c12a7328-f81f-11d2-ba4b-00a0c93ec93b" LABEL="" TYPE="part" MOUNTPOINT=""\n'
 LSBLK_SHIM
   chmod +x "$tmp_lsblk_bin/lsblk"
 
@@ -307,10 +320,11 @@ LSBLK_SHIM
     && printf '%s' "$_parts_out" | grep -q '^/dev/sda4|.*(Windows Data Disk)' \
     && ! printf '%s' "$_parts_out" | grep -q '^/dev/sda1|' \
     && ! printf '%s' "$_parts_out" | grep -q '^/dev/sda3|' \
+    && ! printf '%s' "$_parts_out" | grep -q '^/dev/sda5|' \
     && [[ "$_esp_out" == "/dev/sda1" ]]; then
-    pass "runtime: list_disk_partitions/find_existing_esp parse lsblk -P correctly (including multi-word LABEL)"
+    pass "runtime: list_disk_partitions/find_existing_esp parse lsblk -P correctly and never offer an ESP as a root candidate"
   else
-    fail "runtime: list_disk_partitions/find_existing_esp parse lsblk -P correctly (including multi-word LABEL)"
+    fail "runtime: list_disk_partitions/find_existing_esp parse lsblk -P correctly and never offer an ESP as a root candidate"
   fi
 else
   fail "runtime: could not extract disk-partition helper functions from abora-installer.sh"

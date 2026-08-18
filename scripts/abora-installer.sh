@@ -978,12 +978,19 @@ _partitions_with_children() {
 
 # Existing partitions on $1 (a whole disk, e.g. /dev/nvme0n1), one
 # "path|description" row per line, for the "use an existing partition"
-# install mode's picker. Deliberately TYPE=="part" only (not "disk" or a
-# LUKS "crypt" mapper child lsblk also lists) and deliberately excludes
-# anything currently mounted *or* backing a mounted/active child device
-# (LUKS, LVM, RAID) — reformatting a partition out from under the running
-# system, directly or through a mapper, is exactly the kind of mistake
-# this list exists to prevent, not just fail to prevent.
+# install mode's picker — candidate *root* targets specifically, so this
+# deliberately excludes ESP-typed partitions too, not just busy ones:
+# step_disk_existing_partition() separately finds and reuses an existing
+# ESP via find_existing_esp() and mounts it unformatted, so offering that
+# same partition here as a root candidate would let an operator select
+# it, reformat it as ext4 in partition_disk_existing(), and destroy the
+# very ESP the install is relying on reusing intact. TYPE=="part" only
+# (not "disk" or a LUKS "crypt" mapper child lsblk also lists) and
+# deliberately excludes anything currently mounted *or* backing a
+# mounted/active child device (LUKS, LVM, RAID) — reformatting a
+# partition out from under the running system, directly or through a
+# mapper, is exactly the kind of mistake this list exists to prevent,
+# not just fail to prevent.
 list_disk_partitions() {
     local disk="$1"
     local busy_list; busy_list="$(_partitions_with_children | tr '\n' ' ')"
@@ -999,14 +1006,14 @@ list_disk_partitions() {
             if (f["TYPE"] != "part") next
             if (f["MOUNTPOINT"] != "") next
             if (f["NAME"] in busy) next
+            if (f["PARTTYPE"] == esp) next
 
             size_h = f["SIZE"] + 0
             fstype = (f["FSTYPE"] == "" ? "no filesystem" : f["FSTYPE"])
             unit = "B"
             if (size_h >= 1073741824) { size_h /= 1073741824; unit = "G" }
             else if (size_h >= 1048576) { size_h /= 1048576; unit = "M" }
-            tag = (f["PARTTYPE"] == esp) ? " [ESP]" : ""
-            desc = sprintf("%.1f%s  %s%s", size_h, unit, fstype, tag)
+            desc = sprintf("%.1f%s  %s", size_h, unit, fstype)
             if (f["LABEL"] != "") desc = desc "  (" f["LABEL"] ")"
             print "/dev/" f["NAME"] "|" desc
         }'
