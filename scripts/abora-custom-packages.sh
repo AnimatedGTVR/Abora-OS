@@ -33,6 +33,32 @@ abora_dir="${config_dir}/abora"
 state_dir="${abora_dir}/custom-packages"
 flake_target="${ABORA_FLAKE_CONFIG_NAME:-abora}"
 
+# Every temp file/dir this script creates (the downloaded zip, the
+# extraction dir) is registered here and removed exactly once when the
+# process exits, for any reason. This used to be two separate `trap ...
+# RETURN` calls, one in update_package() and one in
+# install_modularity_zip() -- broken two different ways: (1) `trap ...
+# RETURN` never fires when a function ends via `exit` (only on a normal
+# `return`/falling off the end), and virtually every error path here calls
+# `exit`, including `set -e`-triggered aborts like a failed download; (2)
+# `trap` is not function-scoped in bash, so install_modularity_zip()'s
+# RETURN trap silently overwrote update_package()'s, meaning even the
+# success path never cleaned up the downloaded zip. Reproduced directly:
+# `abora apps custom update modularity-stable --url <url-that-fails>`
+# left the downloaded temp file behind in /tmp every time. A single EXIT
+# trap fires exactly once no matter how the process ends.
+_custom_pkg_cleanup_paths=()
+_custom_pkg_register_cleanup() {
+    _custom_pkg_cleanup_paths+=("$1")
+}
+_custom_pkg_cleanup() {
+    local p
+    for p in "${_custom_pkg_cleanup_paths[@]+"${_custom_pkg_cleanup_paths[@]}"}"; do
+        rm -rf "$p" 2>/dev/null || true
+    done
+}
+trap _custom_pkg_cleanup EXIT
+
 usage() {
     abora_banner "Custom Packages" "Update standalone Abora packages outside normal Nixpkgs."
     printf '  %bUsage%b\n\n' "$ABORA_WHITE" "$ABORA_NC"
@@ -176,8 +202,7 @@ install_modularity_zip() {
     command -v unzip >/dev/null 2>&1 || { abora_error "unzip is required to install Modularity Stable."; exit 1; }
 
     tmp="$(mktemp -d)"
-    ABORA_CUSTOM_EXTRACT_TMP="$tmp"
-    trap 'rm -rf "${ABORA_CUSTOM_EXTRACT_TMP:-}"' RETURN
+    _custom_pkg_register_cleanup "$tmp"
     unzip -q "$zip_path" -d "$tmp"
 
     root="$tmp/$zip_root"
@@ -270,8 +295,7 @@ update_package() {
     if [[ -n "$url" ]]; then
         local tmp_zip
         tmp_zip="$(mktemp)"
-        ABORA_CUSTOM_DOWNLOAD_TMP="$tmp_zip"
-        trap 'rm -f "${ABORA_CUSTOM_DOWNLOAD_TMP:-}"' RETURN
+        _custom_pkg_register_cleanup "$tmp_zip"
         abora_step "Downloading custom package"
         download_to_file "$url" "$tmp_zip"
         zip_path="$tmp_zip"

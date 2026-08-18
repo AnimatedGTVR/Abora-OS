@@ -2954,6 +2954,40 @@ fi
 rm -f "$_apps_render_stdout" "$_apps_render_stderr"
 rm -rf "$tmp_apps_render"
 
+# Regression test: abora-custom-packages.sh used to rely on two separate
+# `trap ... RETURN` calls (one per function) to clean up its temp
+# extraction dir and downloaded zip. Both were broken: `trap ... RETURN`
+# never fires on `exit` (only a normal function return), and every real
+# error path here calls `exit`; and `trap` isn't function-scoped in bash,
+# so the inner function's trap silently overwrote the outer one's, so even
+# the success path leaked the downloaded zip. Reproduced directly: `abora
+# apps custom update modularity-stable --zip <bad.zip>` (missing the
+# expected bin/Modularity executable, a real user mistake -- wrong zip,
+# corrupted download) left its extraction tmp dir behind in /tmp every
+# time. Runs the real script end-to-end against a real, deliberately
+# malformed zip fixture and diffs /tmp before/after.
+if command -v zip >/dev/null 2>&1 && command -v unzip >/dev/null 2>&1; then
+  tmp_badzip_dir="$(mktemp -d)"
+  mkdir -p "$tmp_badzip_dir/Modularity-1.0.0-Linux/bin"
+  touch "$tmp_badzip_dir/Modularity-1.0.0-Linux/bin/NOT_Modularity"
+  (cd "$tmp_badzip_dir" && zip -qr bad.zip Modularity-1.0.0-Linux)
+  _tmp_before="$(find /tmp -maxdepth 1 -name 'tmp.*' 2>/dev/null | sort)"
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+    bash scripts/abora-custom-packages.sh update modularity-stable \
+    --zip "$tmp_badzip_dir/bad.zip" --version 1.0.0 >/dev/null 2>&1 || true
+  _tmp_after="$(find /tmp -maxdepth 1 -name 'tmp.*' 2>/dev/null | sort)"
+  _tmp_leaked="$(comm -13 <(printf '%s\n' "$_tmp_before") <(printf '%s\n' "$_tmp_after"))"
+  rm -rf "$tmp_badzip_dir" $_tmp_leaked
+  if [[ -z "$_tmp_leaked" ]]; then
+    pass "runtime: abora-custom-packages.sh cleans up its temp extraction dir on a bad zip"
+  else
+    fail "runtime: abora-custom-packages.sh cleans up its temp extraction dir on a bad zip"
+    printf '              leaked: %s\n' "$_tmp_leaked"
+  fi
+else
+  pass "zip/unzip unavailable (custom-packages temp-cleanup test skipped)"
+fi
+
 if [[ "$failed" -ne 0 ]]; then
   printf '\nOne or more checks failed.\n' >&2
   exit 1
