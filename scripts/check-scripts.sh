@@ -260,6 +260,65 @@ print(','.join(prefixes))
   fi
 fi
 
+# Regression test: get_disks()'s hotplug filter compared `d.get('hotplug')`
+# against the string '1', but `lsblk -J` emits HOTPLUG as a real JSON
+# boolean (true/false) -- a bool never equals a str in Python, so this
+# comparison was always False and the filter never excluded a single
+# device, despite its own docstring claiming it excludes
+# "hotplug-flagged devices". A hotpluggable disk (e.g. a second USB drive
+# inserted alongside the boot media) would be offered as an install
+# target in the graphical installer. Imports the real module (skipped if
+# PyGObject/Gtk4 aren't importable) and calls the real get_disks() with
+# subprocess.run mocked to return fabricated lsblk JSON -- one disk with
+# hotplug:true, one with hotplug:false -- checking the hotplug one is
+# excluded and the other isn't.
+if command -v python3 >/dev/null 2>&1 && python3 -c "import gi; gi.require_version('Gtk','4.0')" >/dev/null 2>&1; then
+  set +e
+  _hotplug_test_out="$(python3 -c "
+import sys, json, importlib.util
+from unittest import mock
+
+spec = importlib.util.spec_from_file_location('abora_installer_gui', 'scripts/abora-installer-gui.py')
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+fake_lsblk_json = json.dumps({
+    'blockdevices': [
+        {'name': 'sda', 'size': '32G', 'type': 'disk', 'model': 'USB Drive', 'hotplug': True},
+        {'name': 'nvme0n1', 'size': '1T', 'type': 'disk', 'model': 'NVMe SSD', 'hotplug': False},
+    ]
+})
+
+class FakeResult:
+    def __init__(self, stdout):
+        self.stdout = stdout
+        self.returncode = 0
+
+def fake_run(cmd, **kwargs):
+    if cmd[0] == 'lsblk' and '-J' in cmd:
+        return FakeResult(fake_lsblk_json)
+    return FakeResult('')
+
+with mock.patch.object(mod.subprocess, 'run', side_effect=fake_run):
+    disks = mod.get_disks()
+
+names = [d[0] for d in disks]
+if '/dev/sda' in names or '/dev/nvme0n1' not in names:
+    print('FAIL: %s' % (disks,))
+    sys.exit(1)
+print('PASS')
+" 2>&1)"
+  set -e
+  if [[ "$_hotplug_test_out" == "PASS" ]]; then
+    pass "runtime: abora-installer-gui.py's get_disks() excludes hotplug-flagged disks"
+  else
+    fail "runtime: abora-installer-gui.py's get_disks() excludes hotplug-flagged disks"
+    printf '              %s\n' "$_hotplug_test_out"
+  fi
+else
+  pass "PyGObject/Gtk4 unavailable (get_disks hotplug test skipped)"
+fi
+
 # Regression test for the "use an existing partition" install mode
 # (list_disk_partitions/find_existing_esp/_partitions_with_children):
 # extracts the real functions from abora-installer.sh (it can't be

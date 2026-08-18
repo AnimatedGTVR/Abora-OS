@@ -585,7 +585,13 @@ def get_disks() -> list[tuple[str, str, str]]:
             name = d.get('name', '')
             if not name or name.startswith(('loop', 'sr', 'fd', 'ram', 'zram')):
                 continue
-            if d.get('hotplug') == '1':
+            # lsblk -J emits HOTPLUG as a real JSON boolean (true/false), not
+            # the string "1"/"0" -- `d.get('hotplug') == '1'` compared a bool
+            # against a str and was always False, so this filter never
+            # excluded a single device. str()+lower() handles both the
+            # normal boolean case and a defensive fallback if some lsblk
+            # build ever emits it as a string instead.
+            if str(d.get('hotplug', '')).strip().lower() in ('1', 'true'):
                 continue
             if name in boot_names:
                 continue
