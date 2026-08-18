@@ -2346,6 +2346,22 @@ else
   fail "runtime: abora config migrates a legacy abora-local.nix on write"
 fi
 
+# Static guard for a real fix that isn't cheap to verify behaviorally in
+# this suite (it needs a full NixOS module eval realizing abora-options.nix's
+# package references, which takes minutes -- verified manually instead, see
+# the commit that introduced this line): anix.nix's "anix.gaming.* is set
+# but anix.gaming.enable isn't true" warning used to fire even when
+# abora.gaming.enable was already true from another source (the common real
+# sequence: installer sets it in abora-local.nix, then `anix enable
+# gaming.vulkan` only touches anix.gaming.vulkanTools) -- a false-positive
+# warning on every single rebuild of an entirely normal, working config.
+# This just guards against the fix's condition being silently deleted.
+if grep -q 'config.abora.gaming.enable != true' nix/modules/anix.nix; then
+  pass "runtime: anix.nix gaming warning checks abora.gaming.enable, not just anix.gaming.enable"
+else
+  fail "runtime: anix.nix gaming warning checks abora.gaming.enable, not just anix.gaming.enable"
+fi
+
 if [[ "$failed" -ne 0 ]]; then
   printf '\nOne or more checks failed.\n' >&2
   exit 1

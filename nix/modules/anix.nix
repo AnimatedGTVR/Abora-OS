@@ -275,7 +275,16 @@ in
         "anix.gaming.* is set but has no effect here: it requires abora-options.nix (part of nixosModules.installed-base) to also be imported."
       ];
     })
+    # config.abora.gaming.enable (not just cfg.gaming.enable, which is only
+    # this module's own anix.gaming.enable input) is checked here -- the
+    # common real sequence is "installer sets abora.gaming.enable = true in
+    # abora-local.nix, then later `anix enable gaming.vulkan` only sets
+    # anix.gaming.vulkanTools" -- leaving anix.gaming.enable at its null
+    # default even though gaming genuinely is on and vulkanTools genuinely
+    # does get force-applied below. Without this check the warning fired on
+    # every rebuild in that entirely normal, working configuration.
     (lib.mkIf (hasAboraGamingOptions && cfg.gaming.enable != true &&
+      config.abora.gaming.enable != true &&
       (cfg.gaming.bigPictureShortcut != null || cfg.gaming.bigPictureAutostart != null ||
        cfg.gaming.gamescopeSession != null || cfg.gaming.vulkanTools != null)) {
       warnings = [
