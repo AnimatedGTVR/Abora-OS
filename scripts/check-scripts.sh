@@ -2909,6 +2909,51 @@ else
     "$_anix_menu_status" "$_anix_menu_renders"
 fi
 
+# Regression test: abora-apps.sh's render_apps_module() used to silently
+# drop an apps.list entry that's no longer in the app catalog (a catalog
+# entry can be renamed or removed across releases after a user already has
+# it installed) with zero warning anywhere -- `abora apps installed` still
+# listed it as installed (it reads apps.list directly, not apps.nix), while
+# the actual generated apps.nix silently no longer contained it, so the
+# app would quietly stop being part of environment.systemPackages on every
+# subsequent rebuild with no indication why. Runs the real
+# render_apps_module() (not a copy of it) against a sandboxed apps.list
+# containing one real catalog app and one stale id, and checks: the stale
+# id produces a warning on stderr, that warning does NOT leak into the
+# generated apps.nix (it's written via `{ ... } > "$tmp"`, so a
+# stdout-printing warning would corrupt the file), and the real app is
+# still rendered correctly.
+tmp_apps_render="$(mktemp -d)"
+mkdir -p "$tmp_apps_render/abora"
+printf 'firefox\nstale-removed-app\n' > "$tmp_apps_render/abora/apps.list"
+_apps_render_stdout="$(mktemp)"
+_apps_render_stderr="$(mktemp)"
+(
+  # shellcheck source=/dev/null
+  source scripts/abora-ui.sh
+  # shellcheck source=/dev/null
+  source scripts/abora-app-catalog.sh
+  config_dir="$tmp_apps_render"
+  abora_dir="$config_dir/abora"
+  apps_list="$abora_dir/apps.list"
+  apps_module="$abora_dir/apps.nix"
+  run_as_root() { "$@"; }
+  read_selected_ids() { grep -v '^[[:space:]]*$' "$apps_list" | grep -v '^[[:space:]]*#' || true; }
+  eval "$(sed -n '/^render_apps_module() {/,/^}$/p' scripts/abora-apps.sh)"
+  render_apps_module
+) >"$_apps_render_stdout" 2>"$_apps_render_stderr"
+if [[ ! -s "$_apps_render_stdout" ]] \
+  && grep -q "Skipping 'stale-removed-app'" "$_apps_render_stderr" \
+  && [[ -f "$tmp_apps_render/abora/apps.nix" ]] \
+  && ! grep -q 'Skipping' "$tmp_apps_render/abora/apps.nix" \
+  && grep -q 'firefox' "$tmp_apps_render/abora/apps.nix"; then
+  pass "runtime: render_apps_module warns (on stderr, not into apps.nix) about a stale catalog entry"
+else
+  fail "runtime: render_apps_module warns (on stderr, not into apps.nix) about a stale catalog entry"
+fi
+rm -f "$_apps_render_stdout" "$_apps_render_stderr"
+rm -rf "$tmp_apps_render"
+
 if [[ "$failed" -ne 0 ]]; then
   printf '\nOne or more checks failed.\n' >&2
   exit 1

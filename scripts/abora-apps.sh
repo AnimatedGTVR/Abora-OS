@@ -173,7 +173,24 @@ render_apps_module() {
         printf '  environment.systemPackages = with pkgs; [\n'
         while IFS= read -r app_id; do
             [[ -n "$app_id" ]] || continue
-            app_expr="$(abora_catalog_expr "$app_id")" || continue
+            # validate_ids only guarantees an id was in the catalog at the
+            # moment it was added -- the catalog itself can drop or rename
+            # an app across releases, and this silently dropped it from
+            # the rebuilt apps.nix ever after with no indication anywhere.
+            # `abora apps installed` still lists it (it reads apps.list
+            # directly, not apps.nix), so a user could see an app as
+            # "installed" while it was never actually part of
+            # environment.systemPackages on the last several rebuilds.
+            # Warn instead of silently continuing.
+            if ! app_expr="$(abora_catalog_expr "$app_id")"; then
+                # abora_warn prints to stdout, and this whole loop's stdout
+                # is redirected into $tmp (the Nix file being generated) --
+                # redirect the warning to stderr explicitly, or it corrupts
+                # apps.nix with this warning text instead of just dropping
+                # the app cleanly.
+                abora_warn "Skipping '${app_id}': no longer in the app catalog. Remove it with: abora apps remove ${app_id}" >&2
+                continue
+            fi
             printf '    %s\n' "$app_expr"
         done < <(read_selected_ids)
         printf '  ];\n'
