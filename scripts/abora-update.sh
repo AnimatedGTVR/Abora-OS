@@ -1491,7 +1491,7 @@ case "$command_name" in
 esac
 
 case "${1:-}" in
-    ""|help|-h|--help)
+    help|-h|--help)
         suppress_update_failure_message=1
         usage
         exit 0
@@ -1505,6 +1505,11 @@ case "${1:-}" in
         suppress_update_failure_message=1
         handle_channel_command "$@"
         exit 0
+        ;;
+    rollback)
+        command_name="rollback"
+        shift
+        set --
         ;;
     fallback)
         command_name="fallback"

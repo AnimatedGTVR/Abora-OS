@@ -3286,6 +3286,48 @@ else
   fail "runtime: installed-base.nix declares unzip (required by abora apps custom update --zip)"
 fi
 
+# Regression test: a bare `abora update` (no extra arguments) -- the
+# primary, documented way to run an update ("Sync the latest Abora files
+# and rebuild the system", per this script's own usage text) -- used to
+# be grouped into the same case arm as an explicit `--help` request
+# (`""|help|-h|--help)`), so it just printed usage and exited 0 instead
+# of ever reaching the real update logic. Every `abora update` invocation
+# was silently a no-op. Reproduced directly and confirmed: with no
+# ABORA_SYSTEM_CONFIG pointing at a real install, the real update path
+# fails with "NixOS config directory not found" -- that error, not the
+# usage banner, is what a bare invocation should produce.
+tmp_update_nonexistent="$(mktemp -u)"
+set +e
+_update_bare_out="$(ABORA_SYSTEM_CONFIG="$tmp_update_nonexistent" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh 2>&1)"
+set -e
+if grep -q 'NixOS config directory not found' <<<"$_update_bare_out" \
+  && ! grep -q 'Sync the latest Abora files and rebuild the system' <<<"$_update_bare_out"; then
+  pass "runtime: bare 'abora update' reaches the real update logic, not just usage"
+else
+  fail "runtime: bare 'abora update' reaches the real update logic, not just usage"
+  printf '%s\n' "$_update_bare_out" | sed 's/^/              /'
+fi
+
+# Regression test: `abora rollback` (-> `abora-update.sh rollback`) used
+# to have no matching case arm in the command-routing block that handles
+# channel/fallback/install, so the literal "rollback" argument was never
+# consumed -- it fell straight through to the "$# -gt 0" extra-arguments
+# check and failed with "This command does not take extra arguments
+# yet." every single time, never reaching the real
+# `nixos-rebuild switch --rollback` logic. Reproduced directly: same
+# "NixOS config directory not found" check as above proves it now
+# reaches the real rollback path instead of the bogus arguments error.
+set +e
+_update_rollback_out="$(ABORA_SYSTEM_CONFIG="$tmp_update_nonexistent" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh rollback 2>&1)"
+set -e
+if grep -q 'NixOS config directory not found' <<<"$_update_rollback_out" \
+  && ! grep -q 'does not take extra arguments' <<<"$_update_rollback_out"; then
+  pass "runtime: 'abora update rollback' reaches the real rollback logic"
+else
+  fail "runtime: 'abora update rollback' reaches the real rollback logic"
+  printf '%s\n' "$_update_rollback_out" | sed 's/^/              /'
+fi
+
 if [[ "$failed" -ne 0 ]]; then
   printf '\nOne or more checks failed.\n' >&2
   exit 1
