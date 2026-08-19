@@ -878,7 +878,18 @@ in
   services.qemuGuest.enable = true;
   services.spice-vdagentd.enable = true;
   virtualisation.vmware.guest.enable = pkgs.stdenv.hostPlatform.isx86;
-  virtualisation.virtualbox.guest.enable = pkgs.stdenv.hostPlatform.isx86;
+  # VirtualBox Guest Additions compiles an out-of-tree kernel module
+  # (vboxguest/vboxsf/vboxvideo) against whatever kernel the live ISO ships,
+  # and that module has a long history of breaking on new kernel releases
+  # (e.g. nixpkgs#65689, #182985, #41360; most recently vbox_fb.c failing to
+  # compile against kernel 7.1+ here). Forcing it on for every x86_64 build,
+  # including the vast majority who never boot the ISO in VirtualBox
+  # specifically (GNOME Boxes/QEMU/libvirt use spice-vdagentd/qemuGuest
+  # above instead), meant one upstream VBox/kernel incompatibility could
+  # block shipping unrelated kernel/firmware updates for everyone. Left
+  # off by default; still available to installed systems via `abora
+  # config` (abora.extras.virtualizationGuests).
+  virtualisation.virtualbox.guest.enable = false;
   virtualisation.hypervGuest.enable =
     pkgs.stdenv.hostPlatform.isx86 || pkgs.stdenv.hostPlatform.isAarch64;
 
