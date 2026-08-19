@@ -3357,6 +3357,25 @@ else
 fi
 rm -rf "$tmp_thermald_render"
 
+# Regression test: scripts/abora-setup.desktop is installed identically on
+# both the live ISO and every installed system (nix/modules/installed-base.nix),
+# but commit 15dc9ec89453f5e376cc8c97d3bb06485c072d4f changed its Name/Comment
+# to installed-inappropriate wording ("Install Abora OS" / "Install Abora OS
+# from the live desktop"). abora-setup-launcher.sh correctly detects live vs.
+# installed and only runs an installer on the live ISO (--reconfig otherwise),
+# but the static .desktop label doesn't know that, so users who already
+# installed saw a launcher that claimed to reinstall/install the OS. Reported
+# via Discord: "after i installed abora os and booted up theres a gui app
+# that just says install abora os". Checks the label is context-neutral.
+if grep -qx 'Name=Start Abora' scripts/abora-setup.desktop \
+  && grep -qx 'Comment=Install or reconfigure Abora OS' scripts/abora-setup.desktop \
+  && ! grep -q 'Name=Install Abora OS' scripts/abora-setup.desktop \
+  && ! grep -q 'from the live desktop' scripts/abora-setup.desktop; then
+  pass "runtime: abora-setup.desktop label is context-neutral (not install-only wording)"
+else
+  fail "runtime: abora-setup.desktop label is context-neutral (not install-only wording)"
+fi
+
 if [[ "$failed" -ne 0 ]]; then
   printf '\nOne or more checks failed.\n' >&2
   exit 1
