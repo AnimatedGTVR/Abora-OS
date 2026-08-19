@@ -151,7 +151,19 @@ in
     power = {
       thermald = lib.mkOption {
         type = lib.types.bool;
-        default = true;
+        # thermald is Intel's laptop-specific thermal daemon -- it detects
+        # non-mobile hardware and correctly refuses to do anything useful
+        # there, but exits nonzero doing so, and `nixos-rebuild switch`
+        # treats any failed unit as a hard activation error. Defaulting
+        # this to true meant every desktop-class Abora install had a
+        # perpetually-failing thermald.service, and every `nixos-rebuild
+        # switch` -- including `abora update`'s -- failed with "Rebuilding
+        # Abora ... failed (exit 4)" because of it. Reproduced on real
+        # desktop hardware: thermald logged "Non mobile ... THD engine"
+        # errors and the whole update aborted, existing config left
+        # untouched. Opt-in now, matching the description below; laptop
+        # users can `anix enable thermald`.
+        default = false;
         description = "Enable thermald when available.";
       };
 

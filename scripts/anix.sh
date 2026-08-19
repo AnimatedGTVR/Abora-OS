@@ -756,9 +756,12 @@ render_template() {
   anix.services.audio = true;
   anix.services.openssh = false;
 
-  ## Laptop and power helpers.
+  ## Laptop and power helpers. thermald is Intel's laptop-specific thermal
+  ## daemon -- it fails to start on non-mobile hardware, and a failed unit
+  ## makes every "anix apply"/nixos-rebuild report an error, so it's off
+  ## by default; enable it only if this is a laptop.
   ## Commands: anix enable thermald ; anix enable tlp
-  anix.power.thermald = true;
+  anix.power.thermald = false;
   anix.power.tlp = false;
 
   ## Extra packages and fonts.

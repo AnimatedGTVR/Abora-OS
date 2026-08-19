@@ -3328,6 +3328,35 @@ else
   printf '%s\n' "$_update_rollback_out" | sed 's/^/              /'
 fi
 
+# Regression test: anix.power.thermald defaulted to true in both the
+# nixosOption (nix/modules/anix.nix) and the anix.nix template render_template()
+# writes on `anix init`/`anix quickstart` -- but thermald is Intel's
+# laptop-specific thermal daemon, and it exits nonzero on non-mobile
+# hardware instead of no-op'ing. Since `nixos-rebuild switch` treats any
+# failed unit as a hard activation error, every desktop-class Abora
+# install had a perpetually-failing thermald.service, and every
+# nixos-rebuild -- including `abora update`'s -- failed because of it.
+# Reproduced on real desktop hardware: thermald logged "Non mobile ...
+# THD engine" errors and the whole update aborted. Checks both defaults
+# are false now: the nixosOption's static default, and a real render_template()
+# run (not a copy of it).
+if sed -n '/thermald = lib.mkOption {/,/description = "Enable thermald when available.";/p' nix/modules/anix.nix \
+  | grep -q 'default = false;'; then
+  pass "runtime: anix.power.thermald nixosOption defaults to false"
+else
+  fail "runtime: anix.power.thermald nixosOption defaults to false"
+fi
+
+tmp_thermald_render="$(mktemp -d)"
+ANIX_SYSTEM_CONFIG="$tmp_thermald_render" ANIX_NO_SUDO=1 ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  bash scripts/anix.sh init >/dev/null 2>&1 || true
+if grep -qx '  anix.power.thermald = false;' "$tmp_thermald_render/anix.nix" 2>/dev/null; then
+  pass "runtime: anix init's generated anix.nix defaults power.thermald to false"
+else
+  fail "runtime: anix init's generated anix.nix defaults power.thermald to false"
+fi
+rm -rf "$tmp_thermald_render"
+
 if [[ "$failed" -ne 0 ]]; then
   printf '\nOne or more checks failed.\n' >&2
   exit 1
