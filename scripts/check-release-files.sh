@@ -66,6 +66,8 @@ assets/mango/config.conf
 assets/anix-languages
 scripts/abora-setup.desktop
 assets/abora-title.txt
+assets/Abora-LOGO.png
+assets/Abora-Text.png
 assets/fastfetch-logo.txt
 assets/fastfetch-config.jsonc
 assets/bootloader/background.png
