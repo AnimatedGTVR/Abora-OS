@@ -2,6 +2,11 @@
 set hostname everest-workstation
 enable bluetooth
 enable gaming
+enable gaming.steam
 enable gaming.big-picture
+enable gaming.controllers
+enable gaming.mangohud
+enable gaming.gamemode
+enable gaming.launchers
 package add firefox
 package add git

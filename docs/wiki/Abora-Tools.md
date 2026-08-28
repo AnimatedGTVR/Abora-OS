@@ -22,8 +22,9 @@ Use these commands for Abora health, setup, recovery, desktop selection, updates
 | `abora desktop list` | List supported desktop profiles |
 | `abora desktop set <profile>` | Change desktop profile |
 | `abora dotfiles` | Import shell, app, and tiling-window-manager dotfiles |
-| `abora gaming` | Check gaming tools and launch Steam Big Picture |
-| `abora gaming enable` | Enable desktop gaming and the Big Picture launcher |
+| `abora gaming` | Check Steam, Wine, launchers, overlays, and Big Picture helpers |
+| `abora gaming enable` | Enable the full desktop gaming layer |
+| `abora gaming steam on` | Enable Steam plus required controller support |
 | `abora config set gaming true` | Enable the optional gaming layer |
 | `abora apps` | App bundle and catalog helpers |
 | `abora apps custom` | Update standalone custom packages such as Modularity Stable |

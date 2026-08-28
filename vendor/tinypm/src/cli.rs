@@ -51,8 +51,8 @@ enum Entrypoint {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Install one or more packages
-    #[command(alias = "add", alias = "get", alias = "i")]
+    /// Add one or more packages
+    #[command(name = "add", alias = "install", alias = "get", alias = "i")]
     Install { packages: Vec<String> },
     /// Search for a package
     #[command(alias = "find", alias = "s")]
@@ -178,7 +178,7 @@ impl Cli {
 
         // `grab` keeps TinyPM's install-first interface: `grab firefox`.
         if program == "grab" && should_insert_install(&args[1..]) {
-            args.insert(1, OsString::from("install"));
+            args.insert(1, OsString::from("add"));
         }
 
         let entrypoint = if program == "grab" {
@@ -962,7 +962,7 @@ fn command_for(entrypoint: Entrypoint) -> clap::Command {
             .about("Inspect packages and diagnose TinyPM")
             .mut_arg("dry_run", |argument| argument.hide(true))
             .mut_arg("no_progress", |argument| argument.hide(true))
-            .mut_subcommand("install", |command| command.hide(true))
+            .mut_subcommand("add", |command| command.hide(true))
             .mut_subcommand("remove", |command| command.hide(true))
             .mut_subcommand("update", |command| command.hide(true))
             .mut_subcommand("undo", |command| {
@@ -1032,6 +1032,10 @@ mod tests {
 
     #[test]
     fn compatibility_aliases_map_to_core_commands() {
+        let add = Cli::parse_from_args(["grab", "add", "curl"]).unwrap();
+        assert!(matches!(add.command, Command::Install { packages } if packages == ["curl"]));
+        let install = Cli::parse_from_args(["grab", "install", "curl"]).unwrap();
+        assert!(matches!(install.command, Command::Install { packages } if packages == ["curl"]));
         let remove = Cli::parse_from_args(["grab", "uninstall", "curl"]).unwrap();
         assert!(matches!(remove.command, Command::Remove { packages } if packages == ["curl"]));
         let update = Cli::parse_from_args(["tinypm", "upgrade"]).unwrap();

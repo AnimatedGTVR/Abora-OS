@@ -244,6 +244,12 @@ class ConfigWindow(Adw.ApplicationWindow):
         self._gaming_row.connect('notify::active', self._on_changed)
         gaming_group.add(self._gaming_row)
 
+        self._gaming_steam_row = Adw.SwitchRow(title='Steam')
+        self._gaming_steam_row.set_subtitle('Install Steam through the Abora Gaming layer')
+        self._gaming_steam_row.set_active(read_bool_setting('gaming.steam', True))
+        self._gaming_steam_row.connect('notify::active', self._on_changed)
+        gaming_group.add(self._gaming_steam_row)
+
         self._gaming_big_picture_row = Adw.SwitchRow(title='Steam Big Picture launcher')
         self._gaming_big_picture_row.set_active(read_bool_setting('gaming.bigPictureShortcut', True))
         self._gaming_big_picture_row.connect('notify::active', self._on_changed)
@@ -255,11 +261,35 @@ class ConfigWindow(Adw.ApplicationWindow):
         self._gaming_gamescope_row.connect('notify::active', self._on_changed)
         gaming_group.add(self._gaming_gamescope_row)
 
+        self._gaming_controller_row = Adw.SwitchRow(title='Controller support')
+        self._gaming_controller_row.set_subtitle('Install Steam/controller udev support')
+        self._gaming_controller_row.set_active(read_bool_setting('gaming.controllerSupport', True))
+        self._gaming_controller_row.connect('notify::active', self._on_changed)
+        gaming_group.add(self._gaming_controller_row)
+
+        self._gaming_mangohud_row = Adw.SwitchRow(title='MangoHud')
+        self._gaming_mangohud_row.set_subtitle('Install the in-game performance overlay')
+        self._gaming_mangohud_row.set_active(read_bool_setting('gaming.mangohud', True))
+        self._gaming_mangohud_row.connect('notify::active', self._on_changed)
+        gaming_group.add(self._gaming_mangohud_row)
+
+        self._gaming_gamemode_row = Adw.SwitchRow(title='GameMode')
+        self._gaming_gamemode_row.set_subtitle('Enable performance tuning while games run')
+        self._gaming_gamemode_row.set_active(read_bool_setting('gaming.gamemode', True))
+        self._gaming_gamemode_row.connect('notify::active', self._on_changed)
+        gaming_group.add(self._gaming_gamemode_row)
+
         self._gaming_vulkan_row = Adw.SwitchRow(title='Vulkan tools')
         self._gaming_vulkan_row.set_subtitle('Install vulkaninfo for graphics readiness checks')
         self._gaming_vulkan_row.set_active(read_bool_setting('gaming.vulkanTools', True))
         self._gaming_vulkan_row.connect('notify::active', self._on_changed)
         gaming_group.add(self._gaming_vulkan_row)
+
+        self._gaming_launchers_row = Adw.SwitchRow(title='Game launchers')
+        self._gaming_launchers_row.set_subtitle('Install Lutris, Heroic, Bottles, and ProtonUp-Qt when available')
+        self._gaming_launchers_row.set_active(read_bool_setting('gaming.launchers', True))
+        self._gaming_launchers_row.connect('notify::active', self._on_changed)
+        gaming_group.add(self._gaming_launchers_row)
 
         self._gaming_autostart_row = Adw.SwitchRow(title='Start Big Picture on login')
         self._gaming_autostart_row.set_subtitle('Best for TV/controller systems, noisy for laptops')
@@ -289,9 +319,14 @@ class ConfigWindow(Adw.ApplicationWindow):
             'wallpaper': wallpapers[self._wallpaper_row.get_selected()] if wallpapers else '',
             'gpu': gpus[self._gpu_row.get_selected()],
             'gaming': str(self._gaming_row.get_active()).lower(),
+            'gaming.steam': str(self._gaming_steam_row.get_active()).lower(),
             'gaming.big-picture': str(self._gaming_big_picture_row.get_active()).lower(),
             'gaming.gamescope': str(self._gaming_gamescope_row.get_active()).lower(),
+            'gaming.controllers': str(self._gaming_controller_row.get_active()).lower(),
+            'gaming.mangohud': str(self._gaming_mangohud_row.get_active()).lower(),
+            'gaming.gamemode': str(self._gaming_gamemode_row.get_active()).lower(),
             'gaming.vulkan': str(self._gaming_vulkan_row.get_active()).lower(),
+            'gaming.launchers': str(self._gaming_launchers_row.get_active()).lower(),
             'gaming.autostart': str(self._gaming_autostart_row.get_active()).lower(),
         }
 

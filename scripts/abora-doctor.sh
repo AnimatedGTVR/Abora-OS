@@ -165,7 +165,14 @@ check_desktop() {
 check_anix() {
     if command -v anix >/dev/null 2>&1; then
         ok "ANIX command is installed"
-        if anix doctor >/tmp/abora-anix-doctor.log 2>&1; then
+        # Fixed, predictable /tmp path by design (so "see ..." below is
+        # actionable) -- a plain `>` redirect there is a classic symlink
+        # race, so create it the same safe way abora_wu_run does: rm the
+        # name (never follows a symlink), then create with noclobber so a
+        # symlink racing back into place makes the open fail closed.
+        rm -f -- /tmp/abora-anix-doctor.log 2>/dev/null || true
+        if ( set -o noclobber; : > /tmp/abora-anix-doctor.log ) 2>/dev/null \
+            && anix doctor >>/tmp/abora-anix-doctor.log 2>&1; then
             ok "ANIX doctor completed"
         else
             warn "ANIX doctor reported issues; see /tmp/abora-anix-doctor.log"

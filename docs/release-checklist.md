@@ -54,7 +54,7 @@ Use this after a local release build or after the GitHub ISO workflow succeeds.
 - confirm the default wallpaper is applied on first login for the chosen desktop
 - confirm `abora setup` opens the installed reconfiguration launcher
 - confirm `abora config` shows the installed GPU driver and `abora config set gpu <value>` updates it
-- confirm the installer can enable Desktop Gaming + Big Picture, then the installed config contains `abora.gaming.enable = true` and `abora.gaming.vulkanTools = true`
+- confirm the installer can enable Desktop Gaming + Big Picture, then the installed config contains `abora.gaming.enable = true`, `abora.gaming.steam = true`, `abora.gaming.controllerSupport = true`, `abora.gaming.mangohud = true`, `abora.gaming.gamemode = true`, `abora.gaming.vulkanTools = true`, and `abora.gaming.launchers = true`
 - confirm `abora gaming status`, `abora gaming doctor`, and `abora gaming big-picture on` run on the installed system
 - capture the required docs/release screenshots from `docs/screenshots.md`
 

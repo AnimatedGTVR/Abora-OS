@@ -192,6 +192,348 @@ for file in "${bash_scripts[@]}"; do
   fi
 done
 
+tmp_gnome_wallpaper_test="$(mktemp -d)"
+tmp_gnome_home="$tmp_gnome_wallpaper_test/home"
+tmp_gnome_state="$tmp_gnome_wallpaper_test/state"
+tmp_gnome_log="$tmp_gnome_wallpaper_test/gsettings.log"
+tmp_gnome_wallpaper="$tmp_gnome_wallpaper_test/titlis-alps.jpg"
+tmp_gnome_gsettings="$tmp_gnome_wallpaper_test/gsettings"
+mkdir -p "$tmp_gnome_home" "$tmp_gnome_state/abora"
+printf 'jpg\n' > "$tmp_gnome_wallpaper"
+printf 'titlis-alps.jpg|titlis-alps.jpg\n' > "$tmp_gnome_state/abora/wallpaper-seed"
+cat > "$tmp_gnome_gsettings" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "get" ]]; then
+  case "\${2:-}:\${3:-}" in
+    org.gnome.desktop.interface:color-scheme) printf "'prefer-light'\\n" ;;
+    org.gnome.desktop.background:picture-uri) printf "'file:///missing/abora-gaming-orange.jpg'\\n" ;;
+    org.gnome.desktop.background:picture-uri-dark) printf "'file:///missing/abora-gaming-orange.jpg'\\n" ;;
+    org.gnome.desktop.screensaver:picture-uri) printf "'file:///missing/abora-gaming-orange.jpg'\\n" ;;
+    org.gnome.desktop.screensaver:picture-uri-dark) printf "'file:///missing/abora-gaming-orange.jpg'\\n" ;;
+    *) printf "''\\n" ;;
+  esac
+  exit 0
+fi
+if [[ "\${1:-}" == "set" ]]; then
+  printf '%s\\n' "\$*" >> "$tmp_gnome_log"
+  exit 0
+fi
+exit 1
+EOF
+chmod +x "$tmp_gnome_gsettings"
+HOME="$tmp_gnome_home" \
+XDG_STATE_HOME="$tmp_gnome_state" \
+XDG_CURRENT_DESKTOP="GNOME" \
+WAYLAND_DISPLAY="wayland-1" \
+ABORA_DEFAULT_WALLPAPER="$tmp_gnome_wallpaper" \
+ABORA_DEFAULT_DARK_WALLPAPER="$tmp_gnome_wallpaper" \
+ABORA_GSETTINGS_BIN="$tmp_gnome_gsettings" \
+ABORA_THEME_SYNC_SCRIPT="/no/theme-sync" \
+  bash scripts/abora-session-setup.sh >/dev/null 2>&1 || true
+if grep -q "org.gnome.desktop.background picture-uri 'file://${tmp_gnome_wallpaper}'" "$tmp_gnome_log" 2>/dev/null \
+  && grep -q "org.gnome.desktop.background picture-uri-dark 'file://${tmp_gnome_wallpaper}'" "$tmp_gnome_log" 2>/dev/null; then
+  pass "runtime: GNOME wallpaper repair replaces missing image URIs"
+else
+  fail "runtime: GNOME wallpaper repair replaces missing image URIs"
+fi
+
+: > "$tmp_gnome_log"
+cat > "$tmp_gnome_gsettings" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "get" ]]; then
+  case "\${2:-}:\${3:-}" in
+    org.gnome.desktop.interface:color-scheme) printf "'prefer-light'\\n" ;;
+    org.gnome.desktop.background:picture-uri) printf "''\\n" ;;
+    org.gnome.desktop.background:picture-uri-dark) printf "'file://${tmp_gnome_wallpaper}'\\n" ;;
+    org.gnome.desktop.screensaver:picture-uri) printf "''\\n" ;;
+    org.gnome.desktop.screensaver:picture-uri-dark) printf "'file://${tmp_gnome_wallpaper}'\\n" ;;
+    *) printf "''\\n" ;;
+  esac
+  exit 0
+fi
+if [[ "\${1:-}" == "set" ]]; then
+  printf '%s\\n' "\$*" >> "$tmp_gnome_log"
+  exit 0
+fi
+exit 1
+EOF
+chmod +x "$tmp_gnome_gsettings"
+HOME="$tmp_gnome_home" \
+XDG_STATE_HOME="$tmp_gnome_state" \
+XDG_CURRENT_DESKTOP="GNOME" \
+WAYLAND_DISPLAY="wayland-1" \
+ABORA_DEFAULT_WALLPAPER="$tmp_gnome_wallpaper" \
+ABORA_DEFAULT_DARK_WALLPAPER="$tmp_gnome_wallpaper" \
+ABORA_GSETTINGS_BIN="$tmp_gnome_gsettings" \
+ABORA_THEME_SYNC_SCRIPT="/no/theme-sync" \
+  bash scripts/abora-session-setup.sh >/dev/null 2>&1 || true
+if grep -q "org.gnome.desktop.background picture-uri 'file://${tmp_gnome_wallpaper}'" "$tmp_gnome_log" 2>/dev/null; then
+  pass "runtime: GNOME wallpaper repair replaces empty active image URI"
+else
+  fail "runtime: GNOME wallpaper repair replaces empty active image URI"
+fi
+
+: > "$tmp_gnome_log"
+cat > "$tmp_gnome_gsettings" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "get" ]]; then
+  case "\${2:-}:\${3:-}" in
+    org.gnome.desktop.interface:color-scheme) printf "'prefer-light'\\n" ;;
+    org.gnome.desktop.background:picture-uri) printf "'file://${tmp_gnome_wallpaper}'\\n" ;;
+    org.gnome.desktop.background:picture-uri-dark) printf "'file://${tmp_gnome_wallpaper}'\\n" ;;
+    org.gnome.desktop.background:picture-options) printf "'none'\\n" ;;
+    org.gnome.desktop.screensaver:picture-uri) printf "'file://${tmp_gnome_wallpaper}'\\n" ;;
+    org.gnome.desktop.screensaver:picture-uri-dark) printf "'file://${tmp_gnome_wallpaper}'\\n" ;;
+    org.gnome.desktop.screensaver:picture-options) printf "'none'\\n" ;;
+    *) printf "''\\n" ;;
+  esac
+  exit 0
+fi
+if [[ "\${1:-}" == "set" ]]; then
+  printf '%s\\n' "\$*" >> "$tmp_gnome_log"
+  exit 0
+fi
+exit 1
+EOF
+chmod +x "$tmp_gnome_gsettings"
+HOME="$tmp_gnome_home" \
+XDG_STATE_HOME="$tmp_gnome_state" \
+XDG_CURRENT_DESKTOP="GNOME" \
+WAYLAND_DISPLAY="wayland-1" \
+ABORA_DEFAULT_WALLPAPER="$tmp_gnome_wallpaper" \
+ABORA_DEFAULT_DARK_WALLPAPER="$tmp_gnome_wallpaper" \
+ABORA_GSETTINGS_BIN="$tmp_gnome_gsettings" \
+ABORA_THEME_SYNC_SCRIPT="/no/theme-sync" \
+  bash scripts/abora-session-setup.sh >/dev/null 2>&1 || true
+if grep -q "org.gnome.desktop.background picture-options 'zoom'" "$tmp_gnome_log" 2>/dev/null \
+  && grep -q "org.gnome.desktop.screensaver picture-options 'zoom'" "$tmp_gnome_log" 2>/dev/null; then
+  pass "runtime: GNOME wallpaper repair replaces solid-color image mode"
+else
+  fail "runtime: GNOME wallpaper repair replaces solid-color image mode"
+fi
+
+: > "$tmp_gnome_log"
+tmp_gnome_empty_wallpaper="$tmp_gnome_wallpaper_test/empty-wallpaper.jpg"
+: > "$tmp_gnome_empty_wallpaper"
+cat > "$tmp_gnome_gsettings" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "get" ]]; then
+  case "\${2:-}:\${3:-}" in
+    org.gnome.desktop.interface:color-scheme) printf "'prefer-light'\\n" ;;
+    org.gnome.desktop.background:picture-uri) printf "'file://${tmp_gnome_empty_wallpaper}'\\n" ;;
+    org.gnome.desktop.background:picture-uri-dark) printf "'file://${tmp_gnome_empty_wallpaper}'\\n" ;;
+    org.gnome.desktop.background:picture-options) printf "'zoom'\\n" ;;
+    org.gnome.desktop.screensaver:picture-uri) printf "'file://${tmp_gnome_empty_wallpaper}'\\n" ;;
+    org.gnome.desktop.screensaver:picture-uri-dark) printf "'file://${tmp_gnome_empty_wallpaper}'\\n" ;;
+    org.gnome.desktop.screensaver:picture-options) printf "'zoom'\\n" ;;
+    *) printf "''\\n" ;;
+  esac
+  exit 0
+fi
+if [[ "\${1:-}" == "set" ]]; then
+  printf '%s\\n' "\$*" >> "$tmp_gnome_log"
+  exit 0
+fi
+exit 1
+EOF
+chmod +x "$tmp_gnome_gsettings"
+HOME="$tmp_gnome_home" \
+XDG_STATE_HOME="$tmp_gnome_state" \
+XDG_CURRENT_DESKTOP="GNOME" \
+WAYLAND_DISPLAY="wayland-1" \
+ABORA_DEFAULT_WALLPAPER="$tmp_gnome_wallpaper" \
+ABORA_DEFAULT_DARK_WALLPAPER="$tmp_gnome_wallpaper" \
+ABORA_GSETTINGS_BIN="$tmp_gnome_gsettings" \
+ABORA_THEME_SYNC_SCRIPT="/no/theme-sync" \
+  bash scripts/abora-session-setup.sh >/dev/null 2>&1 || true
+if grep -q "org.gnome.desktop.background picture-uri 'file://${tmp_gnome_wallpaper}'" "$tmp_gnome_log" 2>/dev/null \
+  && grep -q "org.gnome.desktop.screensaver picture-uri 'file://${tmp_gnome_wallpaper}'" "$tmp_gnome_log" 2>/dev/null; then
+  pass "runtime: GNOME wallpaper repair replaces empty image files"
+else
+  fail "runtime: GNOME wallpaper repair replaces empty image files"
+fi
+
+: > "$tmp_gnome_log"
+tmp_gnome_old_abora_dir="$tmp_gnome_wallpaper_test/run/current-system/sw/share/backgrounds/abora"
+tmp_gnome_old_abora_wallpaper="$tmp_gnome_old_abora_dir/abora-gaming-orange.jpg"
+mkdir -p "$tmp_gnome_old_abora_dir"
+printf 'old image\n' > "$tmp_gnome_old_abora_wallpaper"
+cat > "$tmp_gnome_gsettings" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "get" ]]; then
+  case "\${2:-}:\${3:-}" in
+    org.gnome.desktop.interface:color-scheme) printf "'prefer-light'\\n" ;;
+    org.gnome.desktop.background:picture-uri) printf "'file://${tmp_gnome_old_abora_wallpaper}'\\n" ;;
+    org.gnome.desktop.background:picture-uri-dark) printf "'file://${tmp_gnome_old_abora_wallpaper}'\\n" ;;
+    org.gnome.desktop.background:picture-options) printf "'zoom'\\n" ;;
+    org.gnome.desktop.screensaver:picture-uri) printf "'file://${tmp_gnome_old_abora_wallpaper}'\\n" ;;
+    org.gnome.desktop.screensaver:picture-uri-dark) printf "'file://${tmp_gnome_old_abora_wallpaper}'\\n" ;;
+    org.gnome.desktop.screensaver:picture-options) printf "'zoom'\\n" ;;
+    *) printf "''\\n" ;;
+  esac
+  exit 0
+fi
+if [[ "\${1:-}" == "set" ]]; then
+  printf '%s\\n' "\$*" >> "$tmp_gnome_log"
+  exit 0
+fi
+exit 1
+EOF
+chmod +x "$tmp_gnome_gsettings"
+HOME="$tmp_gnome_home" \
+XDG_STATE_HOME="$tmp_gnome_state" \
+XDG_CURRENT_DESKTOP="GNOME" \
+WAYLAND_DISPLAY="wayland-1" \
+ABORA_DEFAULT_WALLPAPER="$tmp_gnome_wallpaper" \
+ABORA_DEFAULT_DARK_WALLPAPER="$tmp_gnome_wallpaper" \
+ABORA_GSETTINGS_BIN="$tmp_gnome_gsettings" \
+ABORA_THEME_SYNC_SCRIPT="/no/theme-sync" \
+  bash scripts/abora-session-setup.sh >/dev/null 2>&1 || true
+if grep -q "org.gnome.desktop.background picture-uri 'file://${tmp_gnome_wallpaper}'" "$tmp_gnome_log" 2>/dev/null \
+  && grep -q "org.gnome.desktop.screensaver picture-uri 'file://${tmp_gnome_wallpaper}'" "$tmp_gnome_log" 2>/dev/null; then
+  pass "runtime: GNOME wallpaper repair replaces stale Abora wallpaper URIs"
+else
+  fail "runtime: GNOME wallpaper repair replaces stale Abora wallpaper URIs"
+fi
+rm -rf "$tmp_gnome_wallpaper_test"
+
+tmp_desktop_wallpaper_test="$(mktemp -d)"
+tmp_desktop_home="$tmp_desktop_wallpaper_test/home"
+tmp_desktop_state="$tmp_desktop_wallpaper_test/state"
+tmp_desktop_bin="$tmp_desktop_wallpaper_test/bin"
+tmp_desktop_log="$tmp_desktop_wallpaper_test/tools.log"
+tmp_desktop_wallpaper="$tmp_desktop_wallpaper_test/titlis-alps.jpg"
+mkdir -p "$tmp_desktop_home" "$tmp_desktop_state" "$tmp_desktop_bin"
+printf 'jpg\n' > "$tmp_desktop_wallpaper"
+cat > "$tmp_desktop_bin/plasma-apply-wallpaperimage" <<EOF
+#!/usr/bin/env bash
+printf 'plasma %s\\n' "\$*" >> "$tmp_desktop_log"
+EOF
+cat > "$tmp_desktop_bin/pcmanfm-qt" <<EOF
+#!/usr/bin/env bash
+printf 'pcmanfm-qt %s\\n' "\$*" >> "$tmp_desktop_log"
+EOF
+cat > "$tmp_desktop_bin/feh" <<EOF
+#!/usr/bin/env bash
+printf 'feh %s\\n' "\$*" >> "$tmp_desktop_log"
+EOF
+cat > "$tmp_desktop_bin/swaybg" <<EOF
+#!/usr/bin/env bash
+printf 'swaybg %s\\n' "\$*" >> "$tmp_desktop_log"
+sleep 0.1
+EOF
+cat > "$tmp_desktop_bin/xfconf-query" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "-c" && "\${3:-}" == "-l" ]]; then
+  printf '/backdrop/screen0/monitor0/workspace0/last-image\\n'
+  exit 0
+fi
+printf 'xfconf %s\\n' "\$*" >> "$tmp_desktop_log"
+EOF
+chmod +x "$tmp_desktop_bin"/*
+run_desktop_wallpaper_seed() {
+  local current="$1"
+  local session="$2"
+  HOME="$tmp_desktop_home" \
+  XDG_STATE_HOME="$tmp_desktop_state/$current-$session" \
+  XDG_RUNTIME_DIR="$tmp_desktop_wallpaper_test/runtime-$current-$session" \
+  XDG_CURRENT_DESKTOP="$current" \
+  DESKTOP_SESSION="$session" \
+  DISPLAY=":99" \
+  WAYLAND_DISPLAY="wayland-test" \
+  PATH="$tmp_desktop_bin:/usr/bin:/bin" \
+  ABORA_DEFAULT_WALLPAPER="$tmp_desktop_wallpaper" \
+  ABORA_DEFAULT_DARK_WALLPAPER="$tmp_desktop_wallpaper" \
+  ABORA_THEME_SYNC_SCRIPT="/no/theme-sync" \
+    bash scripts/abora-session-setup.sh >/dev/null 2>&1 || true
+}
+run_desktop_wallpaper_seed "KDE" "plasma"
+run_desktop_wallpaper_seed "XFCE" "xfce"
+run_desktop_wallpaper_seed "LXQt" "lxqt"
+run_desktop_wallpaper_seed "sway" "sway"
+run_desktop_wallpaper_seed "i3" "i3"
+if grep -q "plasma ${tmp_desktop_wallpaper}" "$tmp_desktop_log" \
+	  && grep -q "xfconf .*${tmp_desktop_wallpaper}" "$tmp_desktop_log" \
+	  && grep -q "pcmanfm-qt --set-wallpaper=${tmp_desktop_wallpaper}" "$tmp_desktop_log" \
+	  && grep -q "swaybg -i ${tmp_desktop_wallpaper} -m fill" "$tmp_desktop_log" \
+	  && grep -q "feh --no-fehbg --bg-fill ${tmp_desktop_wallpaper}" "$tmp_desktop_log" \
+	  && [[ -f "$tmp_desktop_state/sway-sway/abora/wallpaper-seed" ]] \
+	  && [[ -f "$tmp_desktop_state/i3-i3/abora/wallpaper-seed" ]]; then
+	  pass "runtime: non-GNOME desktop wallpaper seeders call the right tools"
+	else
+	  fail "runtime: non-GNOME desktop wallpaper seeders call the right tools"
+fi
+rm -rf "$tmp_desktop_wallpaper_test"
+
+if grep -q 'systemd.user.services.abora-session-setup' nix/modules/installed-base.nix \
+  && grep -q 'systemd.user.services.abora-session-setup' nix/profiles/live.nix \
+  && grep -q 'graphical-session.target' nix/modules/installed-base.nix \
+  && grep -q 'graphical-session.target' nix/profiles/live.nix \
+  && grep -q 'ABORA_SESSION_SETUP_WAIT' scripts/abora-session-setup.sh; then
+  pass "runtime: desktop session setup has a systemd fallback for non-XDG-autostart sessions"
+else
+  fail "runtime: desktop session setup has a systemd fallback for non-XDG-autostart sessions"
+fi
+
+if grep -q 'feh' nix/modules/installed-base.nix \
+  && grep -q 'swaybg' nix/modules/installed-base.nix \
+  && grep -q 'libsForQt5.qt5ct' nix/modules/installed-base.nix \
+  && grep -q 'qt6Packages.qt6ct' nix/modules/installed-base.nix \
+  && grep -q 'feh' nix/profiles/live.nix \
+  && grep -q 'swaybg' nix/profiles/live.nix \
+  && grep -q 'libsForQt5.qt5ct' nix/profiles/live.nix \
+  && grep -q 'qt6Packages.qt6ct' nix/profiles/live.nix; then
+  pass "static: live and installed systems ship wallpaper/theme helper tools"
+else
+  fail "static: live and installed systems ship wallpaper/theme helper tools"
+fi
+
+tmp_missing_wallpaper_session="$(mktemp -d)"
+tmp_missing_wallpaper_home="$tmp_missing_wallpaper_session/home"
+tmp_missing_wallpaper_state="$tmp_missing_wallpaper_session/state"
+tmp_missing_wallpaper_log="$tmp_missing_wallpaper_session/gsettings.log"
+tmp_missing_wallpaper_gsettings="$tmp_missing_wallpaper_session/gsettings"
+mkdir -p "$tmp_missing_wallpaper_home" "$tmp_missing_wallpaper_state"
+cat > "$tmp_missing_wallpaper_gsettings" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "get" ]]; then
+  case "\${2:-}:\${3:-}" in
+    org.gnome.desktop.interface:color-scheme) printf "'default'\\n" ;;
+    *) printf "''\\n" ;;
+  esac
+  exit 0
+fi
+if [[ "\${1:-}" == "set" ]]; then
+  printf '%s\\n' "\$*" >> "$tmp_missing_wallpaper_log"
+  exit 0
+fi
+exit 1
+EOF
+chmod +x "$tmp_missing_wallpaper_gsettings"
+HOME="$tmp_missing_wallpaper_home" \
+XDG_STATE_HOME="$tmp_missing_wallpaper_state" \
+XDG_CURRENT_DESKTOP="GNOME" \
+WAYLAND_DISPLAY="wayland-1" \
+ABORA_DEFAULT_WALLPAPER="$tmp_missing_wallpaper_session/missing-wallpaper.jpg" \
+ABORA_DEFAULT_DARK_WALLPAPER="$tmp_missing_wallpaper_session/missing-wallpaper.jpg" \
+ABORA_GSETTINGS_BIN="$tmp_missing_wallpaper_gsettings" \
+ABORA_THEME_SYNC_SCRIPT="/no/theme-sync" \
+  bash scripts/abora-session-setup.sh >/dev/null 2>&1 || true
+if [[ -f "$tmp_missing_wallpaper_home/.zshrc" ]] \
+  && grep -q "org.gnome.desktop.interface color-scheme 'prefer-light'" "$tmp_missing_wallpaper_log" 2>/dev/null \
+  && ! grep -q "org.gnome.desktop.background picture-uri" "$tmp_missing_wallpaper_log" 2>/dev/null; then
+  pass "runtime: session setup keeps non-wallpaper first-login work when wallpaper is missing"
+else
+  fail "runtime: session setup keeps non-wallpaper first-login work when wallpaper is missing"
+fi
+rm -rf "$tmp_missing_wallpaper_session"
+
 if command -v python3 >/dev/null 2>&1; then
   for file in "${python_scripts[@]}"; do
     if [[ ! -f "$file" ]]; then
@@ -594,6 +936,38 @@ else
   fail "runtime: updater flake writer self-test"
 fi
 
+# path:/etc/abora/nixpkgs looks tempting because it points at the running
+# system's nixpkgs tree, but on NixOS /etc entries resolve through
+# /etc/static. Pure flake evaluation rejects that absolute path, breaking
+# both `sudo abora update` and `sudo abora config apply`.
+if grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";' "$tmp_update_flake/flake.nix" \
+  && grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";' scripts/abora-installer.sh \
+  && ! grep -q 'path:/etc/abora/nixpkgs' "$tmp_update_flake/flake.nix" \
+  && ! grep -q 'path:/etc/abora/nixpkgs' scripts/abora-installer.sh; then
+  pass "runtime: installed flake uses a pure nixos-unstable input"
+else
+  fail "runtime: installed flake uses a pure nixos-unstable input"
+fi
+
+# nixos-install must actually build through that flake (not the legacy
+# NIX_PATH+configuration.nix path this used to take) for the input above to
+# matter at all -- otherwise the very first install still evaluates
+# through a different path than what built the live ISO, defeating the
+# fix above on exactly the run where it counts most.
+if grep -q 'nixos-install --root /mnt --no-root-passwd --flake "/mnt/etc/nixos#abora"' scripts/abora-installer.sh \
+  && ! grep -q 'NIX_PATH=nixpkgs=\${nixpkgs}:nixos-config=/mnt/etc/nixos/configuration.nix' scripts/abora-installer.sh; then
+  pass "runtime: nixos-install runs through the flake, not legacy NIX_PATH"
+else
+  fail "runtime: nixos-install runs through the flake, not legacy NIX_PATH"
+fi
+
+if grep -Fq 'type = lib.types.enum [ "auto" "nouveau" "nvidia" "nvidia-open" "amdgpu" "intel" "none" ];' nix/modules/abora-options.nix \
+  && grep -Fq 'accepts "auto" as a compatibility-safe no-op' nix/modules/abora-options.nix; then
+  pass "runtime: abora.gpu accepts legacy/batch auto values as a no-op"
+else
+  fail "runtime: abora.gpu accepts legacy/batch auto values as a no-op"
+fi
+
 if scripts/check-release-files.sh >/dev/null; then
   pass "runtime: release file manifest"
 else
@@ -756,6 +1130,7 @@ if grep -q '^[[:space:]]*rollback)' scripts/abora.sh \
   && grep -q 'exec "$script_dir/abora-adopt-nixos.sh"' scripts/abora.sh \
   && grep -q '^[[:space:]]*gaming)' scripts/abora.sh \
   && grep -q 'exec abora-gaming' scripts/abora.sh \
+  && grep -q 'exec "$script_dir/abora-gaming.sh"' scripts/abora.sh \
   && grep -q 'exec abora-update channel "$@"' scripts/abora.sh \
   && ! grep -q 'ABORA_UPDATE_COMMAND=nixos abora-update channel' scripts/abora.sh \
   && grep -q 'abora channel set <stable|demo|unstable>' scripts/abora-update.sh; then
@@ -1120,6 +1495,11 @@ if printf '%s' "$adopt_wizard_out" | grep -q 'Abora NixOS Adoption Wizard' \
   && printf '%s' "$adopt_wizard_out" | grep -q 'No changes made' \
   && grep -q 'run_interactive_wizard' scripts/abora-adopt-nixos.sh \
   && grep -q 'abora.gaming.enable = \$(' scripts/abora-adopt-nixos.sh \
+  && grep -q 'abora.gaming.steam = \$(' scripts/abora-adopt-nixos.sh \
+  && grep -q 'abora.gaming.controllerSupport = \$(' scripts/abora-adopt-nixos.sh \
+  && grep -q 'abora.gaming.mangohud = \$(' scripts/abora-adopt-nixos.sh \
+  && grep -q 'abora.gaming.gamemode = \$(' scripts/abora-adopt-nixos.sh \
+  && grep -q 'abora.gaming.launchers = \$(' scripts/abora-adopt-nixos.sh \
   && grep -q 'exec sudo "\$0" --apply' scripts/abora-adopt-nixos.sh \
   && grep -q 'exec "\$clone_dir/abora" adopt-nixos' scripts/abora-adopt-bootstrap.sh; then
   pass "runtime: adopt-nixos interactive wizard asks desktop/gaming and confirms before applying"
@@ -1167,6 +1547,8 @@ if scripts/check-release-files.sh >/dev/null \
   && grep -q '^scripts/abora-adopt-nixos.sh$' scripts/check-release-files.sh \
   && grep -q '^scripts/abora-gaming.sh$' scripts/check-release-files.sh \
   && grep -q '^scripts/abora-custom-packages.sh$' scripts/check-release-files.sh \
+  && grep -q '^assets/Abora-LOGO.png$' scripts/check-release-files.sh \
+  && grep -q '^assets/Abora-Text.png$' scripts/check-release-files.sh \
   && grep -q '^docs/wiki/Abora-Gaming.md$' scripts/check-release-files.sh \
   && grep -q '^docs/wiki/ANIX-V2-Languages.md$' scripts/check-release-files.sh \
   && grep -q '^docs/wiki/Updating-Abora.md$' scripts/check-release-files.sh \
@@ -1176,6 +1558,8 @@ if scripts/check-release-files.sh >/dev/null \
   && [[ -f nix/pkgs/moducpp-anix.nix ]] \
   && [[ -f tools/moducpp-anix ]] \
   && [[ -f vendor/modularity/README.md ]] \
+  && [[ -f assets/Abora-LOGO.png ]] \
+  && [[ -f assets/Abora-Text.png ]] \
   && [[ -f scripts/abora-gaming.sh ]] \
   && [[ -f docs/wiki/Abora-Gaming.md ]]; then
   pass "runtime: release manifest includes ANIX adapters, Modularity skeleton, and gaming layer"
@@ -1196,7 +1580,13 @@ if grep -q 'release_has_gaming_layer' scripts/abora-update.sh \
   && grep -q 'scripts/abora-gaming.sh' scripts/abora-update.sh \
   && grep -q 'scripts/abora-custom-packages.sh' scripts/abora-update.sh \
   && grep -q 'scripts/abora-dotfiles-import.sh' scripts/abora-update.sh \
-  && grep -q 'vendor/modularity' scripts/abora-update.sh \
+  && grep -q 'assets/Abora-LOGO.png' scripts/abora-update.sh \
+	  && grep -q 'assets/Abora-Text.png' scripts/abora-update.sh \
+	  && grep -q 'cp /etc/abora/Abora-LOGO.png "${root}/etc/nixos/abora/Abora-LOGO.png"' scripts/abora-installer.sh \
+	  && grep -q 'cp /etc/abora/Abora-Text.png "${root}/etc/nixos/abora/Abora-Text.png"' scripts/abora-installer.sh \
+	  && grep -q '"abora/Abora-LOGO.png".source = ../../assets/Abora-LOGO.png' nix/profiles/live.nix \
+	  && grep -q '"abora/Abora-Text.png".source = ../../assets/Abora-Text.png' nix/profiles/live.nix \
+	  && grep -q 'vendor/modularity' scripts/abora-update.sh \
   && grep -q 'cp -R "$upstream_dir/vendor/modularity" "$abora_dir/vendor/modularity"' scripts/abora-update.sh \
   && grep -q 'docs/wiki/ANIX-V2-Languages.md' scripts/abora-update.sh \
   && grep -q 'docs/wiki/Updating-Abora.md' scripts/abora-update.sh \
@@ -1205,10 +1595,80 @@ if grep -q 'release_has_gaming_layer' scripts/abora-update.sh \
   && grep -q 'copy_upstream_file "$upstream_dir/scripts/abora-gaming.sh" "$abora_dir/gaming.sh"' scripts/abora-update.sh \
   && grep -q 'copy_upstream_file "$upstream_dir/scripts/abora-custom-packages.sh" "$abora_dir/custom-packages.sh"' scripts/abora-update.sh \
   && grep -q 'copy_upstream_file "$upstream_dir/scripts/abora-dotfiles-import.sh" "$abora_dir/dotfiles-import.sh"' scripts/abora-update.sh \
+  && grep -q 'copy_upstream_file "$upstream_dir/assets/Abora-LOGO.png" "$abora_dir/Abora-LOGO.png"' scripts/abora-update.sh \
+  && grep -q 'copy_upstream_file "$upstream_dir/assets/Abora-Text.png" "$abora_dir/Abora-Text.png"' scripts/abora-update.sh \
   && grep -q 'cp -R "$upstream_dir/docs" "$abora_dir/docs"' scripts/abora-update.sh; then
   pass "runtime: updater syncs Abora Gaming command"
 else
   fail "runtime: updater syncs Abora Gaming command"
+fi
+
+tmp_update_store_fail="$(mktemp -d)"
+tmp_update_store_log="$tmp_update_store_fail/rebuild.log"
+tmp_update_store_funcs="$tmp_update_store_fail/funcs.sh"
+cat > "$tmp_update_store_log" <<'EOF'
+error: Cannot build '/nix/store/1xp6ll0yg3f325f3vnfnqwbq2z70kr10-etc.drv'.
+       Reason: 1 dependency failed.
+error: cannot create '/nix/store/irbl4jlxqfv7ylq2cmlk2424xf885aa7-unit-path'
+EOF
+sed -n '/^explain_update_failure() {/,/^}$/p' scripts/abora-update.sh > "$tmp_update_store_funcs"
+set +e
+update_store_diag_out="$(
+  bash -c '
+    set -euo pipefail
+    source "$1"
+    ABORA_NC=""; ABORA_CYAN=""; ABORA_DIM=""; ABORA_WHITE=""; ABORA_BLUE=""
+    abora_warn() { printf "WARN %s\n" "$1"; }
+    abora_dim_line() { printf "%s\n" "$1"; }
+    explain_update_failure "$2"
+  ' bash "$tmp_update_store_funcs" "$tmp_update_store_log" 2>&1
+)"
+update_store_diag_status=$?
+set -e
+rm -rf "$tmp_update_store_fail"
+if [[ "$update_store_diag_status" -eq 0 ]] \
+  && grep -q 'Nix could not create or finish a store path' <<<"$update_store_diag_out" \
+  && grep -q 'df -h /nix/store / /tmp' <<<"$update_store_diag_out" \
+  && grep -q 'sudo nix-collect-garbage -d' <<<"$update_store_diag_out" \
+  && grep -q 'show_update_space_status /nix/store' scripts/abora-update.sh; then
+  pass "runtime: updater explains Nix store create failures"
+else
+  fail "runtime: updater explains Nix store create failures"
+fi
+
+tmp_update_disk_full_fail="$(mktemp -d)"
+tmp_update_disk_full_log="$tmp_update_disk_full_fail/sync.log"
+tmp_update_disk_full_funcs="$tmp_update_disk_full_fail/funcs.sh"
+cat > "$tmp_update_disk_full_log" <<'EOF'
+error: copy-fd: write returned: No space left on device
+fatal: cannot copy '/nix/store/bcnisk3ydfgv26v2gw321ky24g00yww2-git-2.49.0'
+error: committing transaction: database or disk is full, database or disk is full (in '/nix/var/nix/db/db.sqlite')
+EOF
+sed -n '/^explain_update_failure() {/,/^}$/p' scripts/abora-update.sh > "$tmp_update_disk_full_funcs"
+set +e
+update_disk_full_diag_out="$(
+  bash -c '
+    set -euo pipefail
+    source "$1"
+    ABORA_NC=""; ABORA_CYAN=""; ABORA_DIM=""; ABORA_WHITE=""; ABORA_BLUE=""
+    abora_warn() { printf "WARN %s\n" "$1"; }
+    abora_dim_line() { printf "%s\n" "$1"; }
+    explain_update_failure "$2"
+  ' bash "$tmp_update_disk_full_funcs" "$tmp_update_disk_full_log" 2>&1
+)"
+update_disk_full_diag_status=$?
+set -e
+rm -rf "$tmp_update_disk_full_fail"
+if [[ "$update_disk_full_diag_status" -eq 0 ]] \
+  && grep -q 'Disk space or the Nix database appears full' <<<"$update_disk_full_diag_out" \
+  && grep -q 'df -h /nix/store / /tmp' <<<"$update_disk_full_diag_out" \
+  && grep -q 'Free non-Nix space first' <<<"$update_disk_full_diag_out" \
+  && grep -q 'sudo nix-collect-garbage -d' <<<"$update_disk_full_diag_out" \
+  && grep -q 'explain_update_failure "/tmp/abora-update-sync.log"' scripts/abora-update.sh \
+  && grep -q 'explain_update_failure "/tmp/abora-update-flake.log"' scripts/abora-update.sh; then
+  pass "runtime: updater explains disk-full sync and flake failures"
+else
+  fail "runtime: updater explains disk-full sync and flake failures"
 fi
 
 update_help_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-update.sh --help 2>&1)"
@@ -1282,11 +1742,30 @@ if printf '%s' "$config_help_out" | grep -q 'abora config set timezone' \
   && printf '%s' "$apps_help_out" | grep -q 'abora apps bundle <name>' \
   && ! printf '%s' "$apps_help_out" | grep -q 'abora-apps catalog' \
   && grep -q "run 'abora apps add <id>'" scripts/abora-apps.sh \
+  && grep -q 'sudo abora apps bundle gaming' scripts/abora.sh \
+  && ! grep -q 'sudo abora apps add gaming' scripts/abora.sh \
   && grep -q "Run 'abora apps catalog'" scripts/abora-apps.sh \
   && ! grep -q "abora-apps add" scripts/abora-apps.sh; then
   pass "runtime: config and apps help use public commands"
 else
   fail "runtime: config and apps help use public commands"
+fi
+
+gaming_bundle_out="$(
+  bash -c 'source scripts/abora-app-catalog.sh; abora_catalog_bundle_ids gaming' 2>/dev/null
+)"
+if grep -qx 'steam' <<<"$gaming_bundle_out" \
+  && grep -qx 'lutris' <<<"$gaming_bundle_out" \
+  && grep -qx 'heroic' <<<"$gaming_bundle_out" \
+  && grep -qx 'bottles' <<<"$gaming_bundle_out" \
+  && grep -qx 'wine' <<<"$gaming_bundle_out" \
+  && grep -qx 'winetricks' <<<"$gaming_bundle_out" \
+  && grep -qx 'mangohud' <<<"$gaming_bundle_out" \
+  && grep -qx 'gamemode' <<<"$gaming_bundle_out"; then
+  pass "runtime: gaming app bundle contains the expected platform/tools"
+else
+  fail "runtime: gaming app bundle contains the expected platform/tools"
+  printf '              bundle output: %s\n' "$gaming_bundle_out"
 fi
 
 if grep -q '"id": "mako"' assets/anix-languages/mako.json \
@@ -1315,6 +1794,22 @@ if grep -q 'sudo abora update' docs/wiki/FAQ.md \
   && grep -q 'Abora Gaming' RELEASE_NOTES.md \
   && grep -q 'abora hardware-test' RELEASE_NOTES.md \
   && grep -q 'abora gaming status' README.md \
+  && grep -q 'abora gaming install steam' README.md \
+  && grep -q 'abora gaming doctor' scripts/abora.sh \
+  && grep -q 'abora gaming repair-cache' scripts/abora.sh \
+  && grep -q 'abora gaming doctor' nix/modules/installed-base.nix \
+  && grep -q 'abora gaming repair-cache' nix/modules/installed-base.nix \
+  && grep -q 'abora gaming steam on' RELEASE_NOTES.md \
+  && grep -q 'abora gaming install wine winetricks' RELEASE_NOTES.md \
+  && grep -q 'Wine and Winetricks' RELEASE_NOTES.md \
+  && grep -q 'Steam, Wine, launchers' docs/wiki/Abora-Tools.md \
+  && grep -q 'abora gaming install steam' docs/wiki/Abora-Gaming.md \
+  && grep -q 'abora gaming controllers on' docs/wiki/Abora-Gaming.md \
+  && grep -q 'abora gaming mangohud on' docs/wiki/Abora-Gaming.md \
+  && grep -q 'abora gaming gamemode on' docs/wiki/Abora-Gaming.md \
+  && grep -q 'abora gaming launchers on' docs/wiki/Abora-Gaming.md \
+  && grep -q 'abora.gaming.controllerSupport = true' docs/release-checklist.md \
+  && grep -q 'anix enable gaming.launchers' RELEASE_NOTES.md \
   && grep -q 'current alpha release line' docs/wiki/FAQ.md \
   && grep -q 'current alpha release line' docs/wiki/Home.md \
   && grep -q 'ANIX v2 Languages](ANIX-V2-Languages.md)' docs/wiki/_Sidebar.md \
@@ -1401,6 +1896,16 @@ else
   fail "runtime: installer and updater ship nugetDeps json alongside the C# tool .nix files"
 fi
 
+if grep -q 'effectsAudioFile' nix/modules/installed-base.nix \
+  && grep -q 'builtins.pathExists ./effects/v3StartingAbora.mp3' nix/modules/installed-base.nix \
+  && grep -q 'builtins.pathExists ./effects/LaunchingAbora.mp3' nix/modules/installed-base.nix \
+  && grep -q '/etc/abora/effects/LaunchingAbora.mp3' scripts/abora-installer.sh \
+  && grep -q 'assets/Effects/LaunchingAbora.mp3' scripts/abora-update.sh; then
+  pass "runtime: installed systems tolerate either Abora startup sound filename"
+else
+  fail "runtime: installed systems tolerate either Abora startup sound filename"
+fi
+
 if grep -q 'dotfilesImportScript[[:space:]]*= ./dotfiles-import.sh;' nix/modules/installed-base.nix \
   && grep -q 'aboraDotfilesImport = pkgs.writeShellScriptBin "abora-dotfiles-import"' nix/modules/installed-base.nix \
   && grep -q 'aboraDotfilesImport' nix/modules/installed-base.nix \
@@ -1421,6 +1926,9 @@ if grep -q 'dotfilesImportScript[[:space:]]*= ./dotfiles-import.sh;' nix/modules
   && grep -q 'etc/nixos/abora/vendor/modularity' scripts/abora-installer.sh \
   && grep -q 'cp -a /etc/abora/wallpapers/.' scripts/abora-installer.sh \
   && grep -q 'cp -a /etc/abora/themes/.' scripts/abora-installer.sh \
+  && grep -q '../../assets/wallpapers/collection' nix/modules/abora-options.nix \
+  && grep -q '../../assets/wallpapers/collection' nix/modules/installed-base.nix \
+  && grep -q '../../assets/wallpaper-themes' nix/modules/installed-base.nix \
   && grep -q 'build.sh adopt-nixos.sh' scripts/abora-installer.sh \
   && grep -q 'dotfiles-import.sh' scripts/abora-installer.sh; then
   pass "runtime: installed systems expose dotfiles import and source build helper"
@@ -1543,13 +2051,16 @@ else
   fail "runtime: check-full and docs describe redacted diagnostics"
 fi
 
-if grep -q 'gaming_vulkan=' scripts/abora-installer.sh \
+if grep -q 'gaming_steam=' scripts/abora-installer.sh \
+  && grep -q 'gaming_vulkan=' scripts/abora-installer.sh \
   && grep -q 'Vulkan tools' scripts/abora-installer.sh \
+  && grep -q 'abora.gaming.steam = ${gaming_steam_nix};' scripts/abora-installer.sh \
   && grep -q 'abora.gaming.vulkanTools = ${gaming_vulkan_nix};' scripts/abora-installer.sh \
+  && grep -q 'set_nix_bool_assignment "$abora_local" "abora.gaming.steam"' scripts/abora-installer.sh \
   && grep -q 'set_nix_bool_assignment "$abora_local" "abora.gaming.vulkanTools"' scripts/abora-installer.sh; then
-  pass "runtime: installer persists Abora Gaming Vulkan tools"
+  pass "runtime: installer persists Abora Gaming Steam and Vulkan options"
 else
-  fail "runtime: installer persists Abora Gaming Vulkan tools"
+  fail "runtime: installer persists Abora Gaming Steam and Vulkan options"
 fi
 
 if grep -q 'jq' nix/pkgs/anix.nix \
@@ -1609,6 +2120,27 @@ if ABORA_OUT_DIR="$tmp_ok" ABORA_RELEASE_STAMP=test scripts/release-metadata.sh 
   fi
 else
   fail "runtime: release-metadata checksum generation includes every edition"
+fi
+
+tmp_release_fallback="$(mktemp -d)"
+mkdir -p "$tmp_release_fallback/iso" "$tmp_release_fallback/packages" "$tmp_release_fallback/release"
+for edition in cosmic gnome; do
+  touch "$tmp_release_fallback/iso/abora-${edition}-2026.01.01-x86_64-${release_tag}.iso"
+done
+for edition in cosmic hyprland gnome kde other; do
+  touch "$tmp_release_fallback/iso/abora-${edition}-2026.07.27-x86_64-${release_tag}.iso"
+done
+if ABORA_OUT_DIR="$tmp_release_fallback" scripts/release-metadata.sh >/dev/null; then
+  if [[ -f "$tmp_release_fallback/release/SHA256SUMS-${release_tag}.txt" ]] \
+    && grep -q "abora-cosmic-2026.07.27-x86_64-${release_tag}.iso" "$tmp_release_fallback/release/SHA256SUMS-${release_tag}.txt" \
+    && grep -q "abora-other-2026.07.27-x86_64-${release_tag}.iso" "$tmp_release_fallback/release/SHA256SUMS-${release_tag}.txt" \
+    && ! grep -q "2026.01.01" "$tmp_release_fallback/release/SHA256SUMS-${release_tag}.txt"; then
+    pass "runtime: release-metadata falls back to newest local ISO stamp"
+  else
+    fail "runtime: release-metadata falls back to newest local ISO stamp"
+  fi
+else
+  fail "runtime: release-metadata falls back to newest local ISO stamp"
 fi
 
 if grep -q 'out/iso/.*iso' .github/workflows/build-iso.yml \
@@ -1928,7 +2460,7 @@ export ABORA_PLAN_TOOL_BIN="$plan_tool_bin"
 tmp_anix_plan_dir="$tmp_ok/anix-plan"
 mkdir -p "$tmp_anix_plan_dir"
 
-anix_plan_json='{"planVersion":1,"language":"test","operations":[{"op":"set","key":"hostname","value":"planhost"},{"op":"enable","feature":"bluetooth"},{"op":"enable","feature":"gaming"},{"op":"enable","feature":"gaming.big-picture"},{"op":"enable","feature":"gaming.vulkan"},{"op":"package.add","name":"firefox"}]}'
+anix_plan_json='{"planVersion":1,"language":"test","operations":[{"op":"set","key":"hostname","value":"planhost"},{"op":"enable","feature":"bluetooth"},{"op":"enable","feature":"gaming"},{"op":"enable","feature":"gaming.steam"},{"op":"enable","feature":"gaming.big-picture"},{"op":"enable","feature":"gaming.controllers"},{"op":"enable","feature":"gaming.mangohud"},{"op":"enable","feature":"gaming.gamemode"},{"op":"enable","feature":"gaming.vulkan"},{"op":"enable","feature":"gaming.launchers"},{"op":"package.add","name":"firefox"}]}'
 printf '%s' "$anix_plan_json" > "$tmp_anix_plan_dir/plan.json"
 if ANIX_SYSTEM_CONFIG="$tmp_anix_plan_dir" \
   ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
@@ -1960,11 +2492,50 @@ fi
 if grep -Eq 'anix\.hostname[[:space:]]*=[[:space:]]*"planhost"' "$tmp_anix_apply_plan_dir/anix.nix" 2>/dev/null \
   && grep -Eq 'anix\.services\.bluetooth[[:space:]]*=[[:space:]]*true' "$tmp_anix_apply_plan_dir/anix.nix" 2>/dev/null \
   && grep -Eq 'anix\.gaming\.enable[[:space:]]*=[[:space:]]*true' "$tmp_anix_apply_plan_dir/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.gaming\.steam[[:space:]]*=[[:space:]]*true' "$tmp_anix_apply_plan_dir/anix.nix" 2>/dev/null \
   && grep -Eq 'anix\.gaming\.bigPictureShortcut[[:space:]]*=[[:space:]]*true' "$tmp_anix_apply_plan_dir/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.gaming\.controllerSupport[[:space:]]*=[[:space:]]*true' "$tmp_anix_apply_plan_dir/anix.nix" 2>/dev/null \
   && grep -Eq 'anix\.gaming\.vulkanTools[[:space:]]*=[[:space:]]*true' "$tmp_anix_apply_plan_dir/anix.nix" 2>/dev/null; then
   pass "runtime: anix apply-plan writes every operation as one transaction"
 else
   fail "runtime: anix apply-plan writes every operation as one transaction"
+fi
+
+tmp_anix_gaming_deps_dir="$tmp_ok/anix-gaming-deps"
+mkdir -p "$tmp_anix_gaming_deps_dir"
+if ANIX_NO_SUDO=1 \
+  ANIX_ASSUME_YES=1 \
+  ANIX_SYSTEM_CONFIG="$tmp_anix_gaming_deps_dir" \
+  ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+  scripts/anix.sh enable gaming.big-picture >/dev/null 2>&1 \
+  && grep -Eq 'anix\.gaming\.enable[[:space:]]*=[[:space:]]*true' "$tmp_anix_gaming_deps_dir/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.gaming\.steam[[:space:]]*=[[:space:]]*true' "$tmp_anix_gaming_deps_dir/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.gaming\.bigPictureShortcut[[:space:]]*=[[:space:]]*true' "$tmp_anix_gaming_deps_dir/anix.nix" 2>/dev/null \
+  && ANIX_NO_SUDO=1 \
+    ANIX_ASSUME_YES=1 \
+    ANIX_SYSTEM_CONFIG="$tmp_anix_gaming_deps_dir" \
+    ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+    scripts/anix.sh enable gaming.autostart >/dev/null 2>&1 \
+  && grep -Eq 'anix\.gaming\.bigPictureAutostart[[:space:]]*=[[:space:]]*true' "$tmp_anix_gaming_deps_dir/anix.nix" 2>/dev/null \
+  && ANIX_NO_SUDO=1 \
+    ANIX_ASSUME_YES=1 \
+    ANIX_SYSTEM_CONFIG="$tmp_anix_gaming_deps_dir" \
+    ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+    scripts/anix.sh enable gaming.gamescope >/dev/null 2>&1 \
+  && grep -Eq 'anix\.gaming\.gamescopeSession[[:space:]]*=[[:space:]]*true' "$tmp_anix_gaming_deps_dir/anix.nix" 2>/dev/null \
+  && ANIX_NO_SUDO=1 \
+    ANIX_ASSUME_YES=1 \
+    ANIX_SYSTEM_CONFIG="$tmp_anix_gaming_deps_dir" \
+    ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+    scripts/anix.sh disable gaming.steam >/dev/null 2>&1 \
+  && grep -Eq 'anix\.gaming\.steam[[:space:]]*=[[:space:]]*false' "$tmp_anix_gaming_deps_dir/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.gaming\.bigPictureShortcut[[:space:]]*=[[:space:]]*false' "$tmp_anix_gaming_deps_dir/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.gaming\.bigPictureAutostart[[:space:]]*=[[:space:]]*false' "$tmp_anix_gaming_deps_dir/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.gaming\.gamescopeSession[[:space:]]*=[[:space:]]*false' "$tmp_anix_gaming_deps_dir/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.gaming\.controllerSupport[[:space:]]*=[[:space:]]*false' "$tmp_anix_gaming_deps_dir/anix.nix" 2>/dev/null; then
+  pass "runtime: anix gaming toggles enable and disable required parent options"
+else
+  fail "runtime: anix gaming toggles enable and disable required parent options"
 fi
 
 tmp_anix_native_dir="$tmp_ok/anix-native-plan"
@@ -2012,7 +2583,11 @@ anix_diff_plan_output="$(
 )"
 if printf '%s' "$anix_diff_plan_output" | grep -q "ADD.*set hostname" \
   && printf '%s' "$anix_diff_plan_output" | grep -q "ADD.*enable bluetooth" \
-  && printf '%s' "$anix_diff_plan_output" | grep -q "ADD.*enable gaming.big-picture"; then
+  && printf '%s' "$anix_diff_plan_output" | grep -q "ADD.*enable gaming.steam" \
+  && printf '%s' "$anix_diff_plan_output" | grep -q "ADD.*enable gaming.big-picture" \
+  && printf '%s' "$anix_diff_plan_output" | grep -q "also ADD enable gaming.enable" \
+  && printf '%s' "$anix_diff_plan_output" | grep -q "ADD.*enable gaming.controllers" \
+  && printf '%s' "$anix_diff_plan_output" | grep -q "ADD.*enable gaming.launchers"; then
   pass "runtime: anix diff-plan labels new settings as ADD"
 else
   fail "runtime: anix diff-plan labels new settings as ADD"
@@ -2053,6 +2628,35 @@ if printf '%s' "$anix_diff_plan_change_output" | grep -q "CHANGE.*disable blueto
   pass "runtime: anix diff-plan labels a real flip as CHANGE"
 else
   fail "runtime: anix diff-plan labels a real flip as CHANGE"
+fi
+
+tmp_anix_diff_deps_dir="$tmp_ok/anix-diff-deps"
+mkdir -p "$tmp_anix_diff_deps_dir"
+cat > "$tmp_anix_diff_deps_dir/anix.nix" <<'EOF'
+{ pkgs, ... }:
+{
+  anix.gaming.enable = true;
+  anix.gaming.steam = true;
+  anix.gaming.bigPictureShortcut = true;
+  anix.gaming.bigPictureAutostart = true;
+  anix.gaming.gamescopeSession = true;
+  anix.gaming.controllerSupport = true;
+}
+EOF
+printf '%s\n' 'disable gaming.steam' > "$tmp_anix_diff_deps_dir/disable-steam.anix"
+anix_diff_deps_output="$(
+  ANIX_SYSTEM_CONFIG="$tmp_anix_diff_deps_dir" \
+    ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+    scripts/anix.sh diff-plan "$tmp_anix_diff_deps_dir/disable-steam.anix" 2>&1
+)"
+if printf '%s' "$anix_diff_deps_output" | grep -q "CHANGE.*disable gaming.steam" \
+  && printf '%s' "$anix_diff_deps_output" | grep -q "also CHANGE disable gaming.bigPictureShortcut" \
+  && printf '%s' "$anix_diff_deps_output" | grep -q "also CHANGE disable gaming.bigPictureAutostart" \
+  && printf '%s' "$anix_diff_deps_output" | grep -q "also CHANGE disable gaming.gamescopeSession" \
+  && printf '%s' "$anix_diff_deps_output" | grep -q "also CHANGE disable gaming.controllerSupport"; then
+  pass "runtime: anix diff-plan previews implied gaming dependency changes"
+else
+  fail "runtime: anix diff-plan previews implied gaming dependency changes"
 fi
 unset ABORA_PLAN_TOOL_BIN
 else
@@ -2417,16 +3021,55 @@ if ABORA_NO_SUDO=1 \
   scripts/abora-config.sh set gaming yes >/dev/null 2>&1 \
   && ABORA_NO_SUDO=1 \
     ABORA_SYSTEM_CONFIG="$tmp_config" \
+    scripts/abora-config.sh set gaming.steam off >/dev/null 2>&1 \
+  && ABORA_NO_SUDO=1 \
+    ABORA_SYSTEM_CONFIG="$tmp_config" \
     scripts/abora-config.sh set gaming.big-picture off >/dev/null 2>&1 \
   && ABORA_NO_SUDO=1 \
     ABORA_SYSTEM_CONFIG="$tmp_config" \
+    scripts/abora-config.sh set gaming.controllers off >/dev/null 2>&1 \
+  && ABORA_NO_SUDO=1 \
+    ABORA_SYSTEM_CONFIG="$tmp_config" \
+    scripts/abora-config.sh set gaming.mangohud off >/dev/null 2>&1 \
+  && ABORA_NO_SUDO=1 \
+    ABORA_SYSTEM_CONFIG="$tmp_config" \
+    scripts/abora-config.sh set gaming.gamemode off >/dev/null 2>&1 \
+  && ABORA_NO_SUDO=1 \
+    ABORA_SYSTEM_CONFIG="$tmp_config" \
     scripts/abora-config.sh set gaming.vulkan false >/dev/null 2>&1 \
+  && ABORA_NO_SUDO=1 \
+    ABORA_SYSTEM_CONFIG="$tmp_config" \
+    scripts/abora-config.sh set gaming.launchers false >/dev/null 2>&1 \
   && grep -q 'abora.gaming.enable = true;' "$tmp_config_module" \
+  && grep -q 'abora.gaming.steam = false;' "$tmp_config_module" \
   && grep -q 'abora.gaming.bigPictureShortcut = false;' "$tmp_config_module" \
-  && grep -q 'abora.gaming.vulkanTools = false;' "$tmp_config_module"; then
+  && grep -q 'abora.gaming.controllerSupport = false;' "$tmp_config_module" \
+  && grep -q 'abora.gaming.mangohud = false;' "$tmp_config_module" \
+  && grep -q 'abora.gaming.gamemode = false;' "$tmp_config_module" \
+  && grep -q 'abora.gaming.vulkanTools = false;' "$tmp_config_module" \
+  && grep -q 'abora.gaming.launchers = false;' "$tmp_config_module"; then
   pass "runtime: abora config set writes gaming booleans"
 else
   fail "runtime: abora config set writes gaming booleans"
+fi
+
+if ABORA_NO_SUDO=1 \
+  ABORA_SYSTEM_CONFIG="$tmp_config" \
+  scripts/abora-config.sh set gaming.big-picture true >/dev/null 2>&1 \
+  && grep -q 'abora.gaming.enable = true;' "$tmp_config_module" \
+  && grep -q 'abora.gaming.steam = true;' "$tmp_config_module" \
+  && grep -q 'abora.gaming.bigPictureShortcut = true;' "$tmp_config_module" \
+  && ABORA_NO_SUDO=1 \
+    ABORA_SYSTEM_CONFIG="$tmp_config" \
+    scripts/abora-config.sh set gaming.autostart true >/dev/null 2>&1 \
+  && grep -q 'abora.gaming.bigPictureAutostart = true;' "$tmp_config_module" \
+  && ABORA_NO_SUDO=1 \
+    ABORA_SYSTEM_CONFIG="$tmp_config" \
+    scripts/abora-config.sh set gaming.gamescope true >/dev/null 2>&1 \
+  && grep -q 'abora.gaming.gamescopeSession = true;' "$tmp_config_module"; then
+  pass "runtime: abora config gaming launcher keys enable required parent options"
+else
+  fail "runtime: abora config gaming launcher keys enable required parent options"
 fi
 
 if ABORA_NO_SUDO=1 \
@@ -2460,9 +3103,15 @@ fi
 
 if grep -q "Adw.SwitchRow(title='Abora Gaming')" scripts/abora-config-gui.py \
   && grep -q "read_bool_setting('gaming.enable'" scripts/abora-config-gui.py \
+  && grep -q "read_bool_setting('gaming.steam'" scripts/abora-config-gui.py \
+  && grep -q "'gaming.steam'" scripts/abora-config-gui.py \
   && grep -q "'gaming.big-picture'" scripts/abora-config-gui.py \
   && grep -q "'gaming.gamescope'" scripts/abora-config-gui.py \
+  && grep -q "'gaming.controllers'" scripts/abora-config-gui.py \
+  && grep -q "'gaming.mangohud'" scripts/abora-config-gui.py \
+  && grep -q "'gaming.gamemode'" scripts/abora-config-gui.py \
   && grep -q "'gaming.vulkan'" scripts/abora-config-gui.py \
+  && grep -q "'gaming.launchers'" scripts/abora-config-gui.py \
   && grep -q "'gaming.autostart'" scripts/abora-config-gui.py; then
   pass "runtime: abora config GUI exposes gaming toggles"
 else
@@ -2491,12 +3140,18 @@ fi
 if grep -q "class GamingWelcomeWindow" scripts/abora-gaming-welcome-gui.py \
   && grep -q "def read_gaming_catalog" scripts/abora-gaming-welcome-gui.py \
   && grep -q "category != 'Gaming'" scripts/abora-gaming-welcome-gui.py \
+  && grep -q "'bottles', 'wine', 'winetricks', 'gamemode'" scripts/abora-gaming-welcome-gui.py \
   && grep -q "def _steam_installed" scripts/abora-gaming-welcome-gui.py \
   && grep -q "'Open Steam'" scripts/abora-gaming-welcome-gui.py \
   && grep -q "'Install Steam'" scripts/abora-gaming-welcome-gui.py \
-  && grep -q "APPS_SCRIPT, 'add', app_id" scripts/abora-gaming-welcome-gui.py \
-  && grep -q "abora gaming enable && exec abora-update" scripts/abora-gaming-welcome-gui.py \
-  && grep -q "GAMING_WELCOME_SCRIPT" scripts/abora-welcome-gui.py \
+  && grep -q "command_path('abora'), 'gaming', 'install', app_id" scripts/abora-gaming-welcome-gui.py \
+	  && grep -q 'gaming enable && exec' scripts/abora-gaming-welcome-gui.py \
+	  && grep -q 'command_path("abora-update")' scripts/abora-gaming-welcome-gui.py \
+	  && grep -q 'lib.optional (gamingWelcomeGuiScript != null) aboraGamingWelcomeGui' nix/modules/installed-base.nix \
+	  && grep -q 'lib.optional config.abora.gaming.enable aboraGamingWelcomeDesktopPkg' nix/modules/installed-base.nix \
+	  && grep -q "GAMING_WELCOME_COMMAND" scripts/abora-welcome-gui.py \
+	  && grep -q "'abora-gaming-welcome-gui'" scripts/abora-welcome-gui.py \
+	  && grep -q "python3', fallback" scripts/abora-welcome-gui.py \
   && grep -q "_open_gaming_welcome" scripts/abora-welcome-gui.py \
   && grep -q "welcome)" scripts/abora-gaming.sh \
   && grep -q "launch_welcome" scripts/abora-gaming.sh \
@@ -2504,6 +3159,32 @@ if grep -q "class GamingWelcomeWindow" scripts/abora-gaming-welcome-gui.py \
   pass "runtime: Abora Gaming Welcome is a separate app with a hand-off from Abora Welcome"
 else
   fail "runtime: Abora Gaming Welcome is a separate app with a hand-off from Abora Welcome"
+fi
+
+if grep -q 'export GSK_RENDERER=' nix/modules/installed-base.nix \
+  && grep -q 'export GDK_BACKEND=' nix/modules/installed-base.nix \
+  && grep -q 'export GSK_RENDERER=' nix/profiles/live.nix \
+  && grep -q 'export GDK_BACKEND=' nix/profiles/live.nix; then
+  pass "runtime: installed GUI wrappers match live renderer/backend fallbacks"
+else
+  fail "runtime: installed GUI wrappers match live renderer/backend fallbacks"
+fi
+
+if grep -q 'writeShellScriptBin "abora-gaming-welcome-gui"' nix/modules/installed-base.nix \
+  && grep -q 'writeShellScriptBin "abora-gaming-welcome-gui"' nix/profiles/live.nix \
+  && grep -q 'export ABORA_APPS_SCRIPT=' nix/modules/installed-base.nix \
+  && grep -q 'export ABORA_APPS_SCRIPT=' nix/profiles/live.nix \
+  && grep -q 'export ABORA_APP_CATALOG=' nix/modules/installed-base.nix \
+  && grep -q 'export ABORA_APP_CATALOG=' nix/profiles/live.nix \
+  && grep -q 'exec .*gaming-welcome-gui.py' nix/modules/installed-base.nix \
+  && grep -q 'exec .*gaming-welcome-gui.py' nix/profiles/live.nix \
+  && grep -q 'abora/gaming-welcome-gui.py".source' nix/modules/installed-base.nix \
+  && grep -q 'abora/gaming-welcome-gui.py".source' nix/profiles/live.nix \
+  && grep -q 'aboraGaming' nix/profiles/live.nix \
+  && grep -q 'aboraGamingWelcomeGui' nix/modules/installed-base.nix; then
+  pass "runtime: live and installed systems both ship Gaming Welcome wrapper"
+else
+  fail "runtime: live and installed systems both ship Gaming Welcome wrapper"
 fi
 
 # Found by actually clicking through the gaming welcome GUI: the "Sign In"
@@ -2527,6 +3208,70 @@ sys.exit(0 if m and '_steam_installed()' in m.group(0) else 1)
   fi
 fi
 
+if python3 - <<'PY'
+import re
+from pathlib import Path
+text = Path('scripts/abora-gaming-welcome-gui.py').read_text()
+sudo = re.search(r'def sudo_prefix\(\).*?(?=\n\ndef )', text, re.S)
+enable = re.search(r'def _enable_gaming\(self\).*?(?=\n    def )', text, re.S)
+install = re.search(r'def _install\(self, app_id: str\).*?(?=\n    def )', text, re.S)
+cmd = re.search(r'def command_path\(tool: str\).*?(?=\n\ndef )', text, re.S)
+ok = (
+    sudo and 'SUDO_ASKPASS' in sudo.group(0)
+    and 'No graphical privilege helper found' in sudo.group(0)
+    and enable and 'sudo_prefix_or_status(self)' in enable.group(0)
+    and install and 'sudo_prefix_or_status(self)' in install.group(0)
+    and cmd and "'abora': '/etc/abora/abora.sh'" in cmd.group(0)
+    and cmd and "'abora-update': '/etc/abora/update.sh'" in cmd.group(0)
+)
+raise SystemExit(0 if ok else 1)
+PY
+then
+  pass "runtime: gaming welcome handles missing GUI privilege helper cleanly"
+else
+  fail "runtime: gaming welcome handles missing GUI privilege helper cleanly"
+fi
+
+if python3 - <<'PY'
+import re
+from pathlib import Path
+text = Path('scripts/abora-gaming-welcome-gui.py').read_text()
+formatter = re.search(r'def command_failure_message\(proc: subprocess.CompletedProcess\).*?(?=\n\ndef )', text, re.S)
+runner = re.search(r'def _run_background\(self, label: str, command: list\[str\], on_done\).*?(?=\n    def )', text, re.S)
+done = re.search(r'def _on_background_done\(self, ok: bool, message: str, on_done\).*?(?=\n    def )', text, re.S)
+ok = (
+    'ABORA_GAMING_WELCOME_TIMEOUT' in text
+    and formatter
+    and 'proc.stdout' in formatter.group(0)
+    and 'proc.stderr' in formatter.group(0)
+    and 'Failed — run abora gaming doctor or abora logs' in formatter.group(0)
+    and 'fetcher-cache.*sqlite' in formatter.group(0)
+    and 'local fetch-cache disk I/O error' in formatter.group(0)
+    and 'abora gaming repair-cache' in formatter.group(0)
+    and 'nix-collect-garbage -d' in formatter.group(0)
+    and runner
+    and 'command_failure_message(proc)' in runner.group(0)
+    and 'COMMAND_TIMEOUT_SECONDS' in runner.group(0)
+    and 'subprocess.TimeoutExpired' in runner.group(0)
+    and 'slow connection or cold cache' in runner.group(0)
+    and '_set_busy(True)' in runner.group(0)
+    and done
+    and '_refresh_buttons()' in done.group(0)
+    and '_set_busy(False)' in done.group(0)
+    and 'Gaming Doctor' in text
+    and "['doctor']" in text
+    and 'Repair Nix Cache' in text
+    and "['repair-cache']" in text
+    and 'def _run_local_tool' in text
+)
+raise SystemExit(0 if ok else 1)
+PY
+then
+  pass "runtime: gaming welcome shows app-manager failures, repair tools, and locks duplicate actions"
+else
+  fail "runtime: gaming welcome shows app-manager failures, repair tools, and locks duplicate actions"
+fi
+
 tmp_gaming_config="$(mktemp -d)"
 tmp_gaming_module="$tmp_gaming_config/abora-local.nix"
 cat > "$tmp_gaming_module" <<'EOF'
@@ -2542,10 +3287,15 @@ cat > "$tmp_gaming_module" <<'EOF'
   abora.gpu = "none";
   abora.stateVersion = "26.05";
   abora.gaming.enable = false;
-  abora.gaming.bigPictureShortcut = true;
+  abora.gaming.steam = false;
+  abora.gaming.bigPictureShortcut = false;
   abora.gaming.bigPictureAutostart = false;
   abora.gaming.gamescopeSession = false;
-  abora.gaming.vulkanTools = true;
+  abora.gaming.controllerSupport = false;
+  abora.gaming.mangohud = false;
+  abora.gaming.gamemode = false;
+  abora.gaming.vulkanTools = false;
+  abora.gaming.launchers = false;
   abora.user.name = "abora";
   abora.user.hashedPassword = "";
   abora.disk = null;
@@ -2555,6 +3305,14 @@ if PATH="/usr/bin:/bin" \
   ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
   ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
   bash scripts/abora-gaming.sh enable >/dev/null 2>&1 \
+  && grep -q 'abora.gaming.enable = true;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.steam = true;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.bigPictureShortcut = true;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.controllerSupport = true;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.mangohud = true;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.gamemode = true;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.vulkanTools = true;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.launchers = true;' "$tmp_gaming_module" \
   && PATH="/usr/bin:/bin" \
     ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
     ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
@@ -2566,12 +3324,48 @@ if PATH="/usr/bin:/bin" \
   && PATH="/usr/bin:/bin" \
     ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
     ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+    bash scripts/abora-gaming.sh autostart on >/dev/null 2>&1 \
+  && grep -q 'abora.gaming.bigPictureAutostart = true;' "$tmp_gaming_module" \
+  && PATH="/usr/bin:/bin" \
+    ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+    bash scripts/abora-gaming.sh controllers off >/dev/null 2>&1 \
+  && PATH="/usr/bin:/bin" \
+    ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+    bash scripts/abora-gaming.sh mangohud off >/dev/null 2>&1 \
+  && PATH="/usr/bin:/bin" \
+    ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+    bash scripts/abora-gaming.sh gamemode off >/dev/null 2>&1 \
+  && PATH="/usr/bin:/bin" \
+    ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
     bash scripts/abora-gaming.sh vulkan off >/dev/null 2>&1 \
-  && grep -q 'abora.gaming.enable = true;' "$tmp_gaming_module" \
-  && grep -q 'abora.gaming.bigPictureShortcut = true;' "$tmp_gaming_module" \
-  && grep -q 'abora.gaming.gamescopeSession = true;' "$tmp_gaming_module" \
-  && grep -q 'abora.gaming.bigPictureAutostart = false;' "$tmp_gaming_module" \
-  && grep -q 'abora.gaming.vulkanTools = false;' "$tmp_gaming_module"; then
+	  && PATH="/usr/bin:/bin" \
+	    ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+	    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+	    bash scripts/abora-gaming.sh launchers off >/dev/null 2>&1 \
+	  && PATH="/usr/bin:/bin" \
+	    ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+	    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+	    bash scripts/abora-gaming.sh disable >/dev/null 2>&1 \
+	  && grep -q 'abora.gaming.enable = false;' "$tmp_gaming_module" \
+	  && grep -q 'abora.gaming.steam = false;' "$tmp_gaming_module" \
+	  && PATH="/usr/bin:/bin" \
+	    ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+	    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+	    bash scripts/abora-gaming.sh enable >/dev/null 2>&1 \
+	  && grep -q 'abora.gaming.enable = true;' "$tmp_gaming_module" \
+	  && grep -q 'abora.gaming.steam = true;' "$tmp_gaming_module" \
+	  && grep -q 'abora.gaming.bigPictureShortcut = true;' "$tmp_gaming_module" \
+	  && grep -q 'abora.gaming.gamescopeSession = false;' "$tmp_gaming_module" \
+	  && grep -q 'abora.gaming.bigPictureAutostart = false;' "$tmp_gaming_module" \
+	  && grep -q 'abora.gaming.controllerSupport = true;' "$tmp_gaming_module" \
+	  && grep -q 'abora.gaming.mangohud = true;' "$tmp_gaming_module" \
+	  && grep -q 'abora.gaming.gamemode = true;' "$tmp_gaming_module" \
+	  && grep -q 'abora.gaming.vulkanTools = true;' "$tmp_gaming_module" \
+	  && grep -q 'abora.gaming.launchers = true;' "$tmp_gaming_module"; then
   pass "runtime: abora gaming toggles write config"
 else
   fail "runtime: abora gaming toggles write config"
@@ -2582,22 +3376,520 @@ if PATH="/usr/bin:/bin" \
   ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
   bash scripts/abora-gaming.sh bigpicture off >/dev/null 2>&1 \
   && grep -q 'abora.gaming.bigPictureShortcut = false;' "$tmp_gaming_module" \
-  && bash scripts/abora-gaming.sh help 2>&1 | grep -q 'abora gaming big-picture'; then
+  && bash scripts/abora-gaming.sh help 2>&1 | grep -q 'abora gaming big-picture' \
+  && bash scripts/abora-gaming.sh help 2>&1 | grep -q 'abora gaming steam on|off'; then
   pass "runtime: abora gaming exposes friendly Big Picture commands"
 else
   fail "runtime: abora gaming exposes friendly Big Picture commands"
 fi
 
+tmp_gaming_parent_config="$(mktemp -d)"
+tmp_gaming_parent_module="$tmp_gaming_parent_config/abora-local.nix"
+cp "$tmp_gaming_module" "$tmp_gaming_parent_module"
+if PATH="/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_parent_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  bash scripts/abora-gaming.sh big-picture on >/dev/null 2>&1 \
+  && grep -q 'abora.gaming.enable = true;' "$tmp_gaming_parent_module" \
+  && grep -q 'abora.gaming.steam = true;' "$tmp_gaming_parent_module" \
+  && grep -q 'abora.gaming.bigPictureShortcut = true;' "$tmp_gaming_parent_module" \
+  && PATH="/usr/bin:/bin" \
+    ABORA_SYSTEM_CONFIG="$tmp_gaming_parent_config" \
+    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+    bash scripts/abora-gaming.sh autostart on >/dev/null 2>&1 \
+  && grep -q 'abora.gaming.bigPictureAutostart = true;' "$tmp_gaming_parent_module" \
+  && PATH="/usr/bin:/bin" \
+    ABORA_SYSTEM_CONFIG="$tmp_gaming_parent_config" \
+    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+    bash scripts/abora-gaming.sh gamescope on >/dev/null 2>&1 \
+  && grep -q 'abora.gaming.gamescopeSession = true;' "$tmp_gaming_parent_module" \
+  && PATH="/usr/bin:/bin" \
+    ABORA_SYSTEM_CONFIG="$tmp_gaming_parent_config" \
+    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+    bash scripts/abora-gaming.sh steam off >/dev/null 2>&1 \
+  && grep -q 'abora.gaming.steam = false;' "$tmp_gaming_parent_module" \
+  && grep -q 'abora.gaming.bigPictureShortcut = false;' "$tmp_gaming_parent_module" \
+  && grep -q 'abora.gaming.bigPictureAutostart = false;' "$tmp_gaming_parent_module" \
+  && grep -q 'abora.gaming.gamescopeSession = false;' "$tmp_gaming_parent_module" \
+  && grep -q 'abora.gaming.controllerSupport = false;' "$tmp_gaming_parent_module" \
+  && PATH="/usr/bin:/bin" \
+    ABORA_SYSTEM_CONFIG="$tmp_gaming_parent_config" \
+    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+    bash scripts/abora-gaming.sh steam on >/dev/null 2>&1 \
+  && grep -q 'abora.gaming.steam = true;' "$tmp_gaming_parent_module" \
+  && grep -q 'abora.gaming.controllerSupport = true;' "$tmp_gaming_parent_module"; then
+  pass "runtime: abora gaming launcher commands enable required parent options"
+else
+  fail "runtime: abora gaming launcher commands enable required parent options"
+fi
+
+tmp_gaming_status_path="$(mktemp -d)"
+touch "$tmp_gaming_status_path/gamemoderun" "$tmp_gaming_status_path/heroic-games-launcher"
+chmod +x "$tmp_gaming_status_path/gamemoderun" "$tmp_gaming_status_path/heroic-games-launcher"
+cat > "$tmp_gaming_status_path/df" <<'EOF'
+#!/usr/bin/env bash
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\n'
+printf '/dev/test 10000000 3000000 7000000 30%% /nix/store\n'
+EOF
+chmod +x "$tmp_gaming_status_path/df"
+tmp_gaming_status_out="$tmp_ok/gaming-status.out"
+if PATH="$tmp_gaming_status_path:/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  bash scripts/abora-gaming.sh status >"$tmp_gaming_status_out" 2>&1 \
+  && grep -q 'GameMode: installed' "$tmp_gaming_status_out" \
+  && grep -q 'Heroic: installed' "$tmp_gaming_status_out" \
+  && ! grep -q 'GameMode: missing' "$tmp_gaming_status_out" \
+  && grep -q 'print_status_any "GameMode" gamemoderun gamemoded' scripts/abora-gaming.sh; then
+  pass "runtime: abora gaming status accepts common command aliases"
+else
+  fail "runtime: abora gaming status accepts common command aliases"
+fi
+
+tmp_gaming_doctor_out="$tmp_ok/gaming-doctor.out"
+if PATH="$tmp_gaming_status_path:/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  bash scripts/abora-gaming.sh doctor >"$tmp_gaming_doctor_out" 2>&1 \
+  && grep -q 'Gaming layer:' "$tmp_gaming_doctor_out" \
+  && grep -q 'Big Picture autostart:' "$tmp_gaming_doctor_out" \
+  && grep -q 'Controller support:' "$tmp_gaming_doctor_out" \
+  && grep -q 'MangoHud option:' "$tmp_gaming_doctor_out" \
+  && grep -q 'GameMode option:' "$tmp_gaming_doctor_out" \
+  && grep -q 'Vulkan tools option:' "$tmp_gaming_doctor_out" \
+  && grep -q 'Launcher bundle:' "$tmp_gaming_doctor_out" \
+  && grep -q 'Low free space near' "$tmp_gaming_doctor_out" \
+  && grep -q 'nix-collect-garbage -d' "$tmp_gaming_doctor_out" \
+  && grep -Eq 'abora gaming (install steam|big-picture)' "$tmp_gaming_doctor_out"; then
+  pass "runtime: abora gaming doctor reports all gaming config toggles"
+else
+  fail "runtime: abora gaming doctor reports all gaming config toggles"
+fi
+
+tmp_gaming_cache_home="$(mktemp -d)"
+mkdir -p "$tmp_gaming_cache_home/.cache/nix"
+touch "$tmp_gaming_cache_home/.cache/nix/fetcher-cache-v4.sqlite" \
+  "$tmp_gaming_cache_home/.cache/nix/fetcher-cache-v4.sqlite-wal"
+tmp_gaming_cache_out="$tmp_ok/gaming-repair-cache.out"
+if HOME="$tmp_gaming_cache_home" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  bash scripts/abora-gaming.sh repair-cache >"$tmp_gaming_cache_out" 2>&1 \
+  && grep -q 'Cleared local Nix fetch cache files' "$tmp_gaming_cache_out" \
+  && [[ ! -e "$tmp_gaming_cache_home/.cache/nix/fetcher-cache-v4.sqlite" ]] \
+  && [[ ! -e "$tmp_gaming_cache_home/.cache/nix/fetcher-cache-v4.sqlite-wal" ]]; then
+  pass "runtime: abora gaming repair-cache clears stale Nix fetch cache files"
+else
+  fail "runtime: abora gaming repair-cache clears stale Nix fetch cache files"
+fi
+
+tmp_gaming_logs_path="$(mktemp -d)"
+tmp_gaming_logs_out="$tmp_ok/gaming-logs.out"
+cat > "$tmp_gaming_logs_path/abora" <<EOF
+#!/usr/bin/env bash
+printf '%s\\n' "\$*"
+EOF
+chmod +x "$tmp_gaming_logs_path/abora"
+if PATH="$tmp_gaming_logs_path:/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  bash scripts/abora-gaming.sh logs 77 >"$tmp_gaming_logs_out" 2>&1 \
+  && grep -qx 'logs --lines 77' "$tmp_gaming_logs_out" \
+  && grep -q 'abora gaming logs' scripts/abora-gaming.sh; then
+  pass "runtime: abora gaming logs delegates to abora logs"
+else
+  fail "runtime: abora gaming logs delegates to abora logs"
+fi
+
+tmp_gaming_path="$(mktemp -d)"
+cat > "$tmp_gaming_path/abora-apps" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "info" ]]; then
+  case "${2:-}" in
+    steam|lutris|heroic|bottles|wine|winetricks|gamemode|mangohud) exit 0 ;;
+    *) exit 1 ;;
+  esac
+fi
+printf '%s\n' "$*" > "$ABORA_GAMING_APPS_LOG"
+EOF
+chmod +x "$tmp_gaming_path/abora-apps"
+tmp_gaming_apps_log="$tmp_ok/gaming-apps.log"
+if PATH="$tmp_gaming_path:/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  ABORA_GAMING_APPS_LOG="$tmp_gaming_apps_log" \
+  bash scripts/abora-gaming.sh install steam >/dev/null 2>&1 \
+  && grep -q '^add steam$' "$tmp_gaming_apps_log" \
+  && grep -q 'abora.gaming.steam = true;' "$tmp_gaming_module" \
+  && PATH="$tmp_gaming_path:/usr/bin:/bin" \
+    ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+    ABORA_GAMING_APPS_LOG="$tmp_gaming_apps_log" \
+    bash scripts/abora-gaming.sh uninstall steam >/dev/null 2>&1 \
+  && grep -q '^remove steam$' "$tmp_gaming_apps_log" \
+  && grep -q 'abora.gaming.steam = false;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.bigPictureShortcut = false;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.bigPictureAutostart = false;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.gamescopeSession = false;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.controllerSupport = false;' "$tmp_gaming_module"; then
+  pass "runtime: abora gaming install/remove delegates to app manager"
+else
+  fail "runtime: abora gaming install/remove delegates to app manager"
+fi
+
+tmp_gaming_fail_path="$(mktemp -d)"
+cat > "$tmp_gaming_fail_path/abora-apps" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "info" ]]; then
+  [[ "${2:-}" == "steam" ]] && exit 0
+  exit 1
+fi
+printf '%s\n' "$*" > "$ABORA_GAMING_APPS_LOG"
+exit 1
+EOF
+chmod +x "$tmp_gaming_fail_path/abora-apps"
+tmp_gaming_fail_config="$(mktemp -d)"
+tmp_gaming_fail_module="$tmp_gaming_fail_config/abora-local.nix"
+cat > "$tmp_gaming_fail_module" <<'EOF'
+{ config, ... }:
+{
+  abora.gaming.enable = false;
+  abora.gaming.steam = false;
+  abora.gaming.bigPictureShortcut = false;
+  abora.gaming.bigPictureAutostart = false;
+  abora.gaming.gamescopeSession = false;
+  abora.gaming.controllerSupport = false;
+  abora.gaming.mangohud = false;
+  abora.gaming.gamemode = false;
+  abora.gaming.vulkanTools = false;
+  abora.gaming.launchers = false;
+}
+EOF
+cp "$tmp_gaming_fail_module" "$tmp_ok/gaming-failed-install.before"
+if PATH="$tmp_gaming_fail_path:/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_fail_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  ABORA_GAMING_APPS_LOG="$tmp_ok/gaming-failed-apps.log" \
+  bash scripts/abora-gaming.sh install steam >/tmp/abora-gaming-failed-install.out 2>&1; then
+  fail "runtime: abora gaming restores toggles when app install fails"
+elif cmp -s "$tmp_gaming_fail_module" "$tmp_ok/gaming-failed-install.before" \
+  && grep -q 'Restored previous gaming settings because the app install failed' /tmp/abora-gaming-failed-install.out; then
+  pass "runtime: abora gaming restores toggles when app install fails"
+else
+  fail "runtime: abora gaming restores toggles when app install fails"
+  sed 's/^/              /' /tmp/abora-gaming-failed-install.out
+fi
+rm -rf "$tmp_gaming_fail_path" "$tmp_gaming_fail_config"
+
+tmp_gaming_remove_fail_path="$(mktemp -d)"
+cat > "$tmp_gaming_remove_fail_path/abora-apps" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "info" ]]; then
+  [[ "${2:-}" == "steam" ]] && exit 0
+  exit 1
+fi
+printf '%s\n' "$*" > "$ABORA_GAMING_APPS_LOG"
+exit 1
+EOF
+chmod +x "$tmp_gaming_remove_fail_path/abora-apps"
+tmp_gaming_remove_fail_config="$(mktemp -d)"
+tmp_gaming_remove_fail_module="$tmp_gaming_remove_fail_config/abora-local.nix"
+cat > "$tmp_gaming_remove_fail_module" <<'EOF'
+{ config, ... }:
+{
+  abora.gaming.enable = true;
+  abora.gaming.steam = true;
+  abora.gaming.bigPictureShortcut = true;
+  abora.gaming.bigPictureAutostart = true;
+  abora.gaming.gamescopeSession = true;
+  abora.gaming.controllerSupport = true;
+  abora.gaming.mangohud = true;
+  abora.gaming.gamemode = true;
+  abora.gaming.vulkanTools = true;
+  abora.gaming.launchers = true;
+}
+EOF
+cp "$tmp_gaming_remove_fail_module" "$tmp_ok/gaming-failed-remove.before"
+if PATH="$tmp_gaming_remove_fail_path:/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_remove_fail_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  ABORA_GAMING_APPS_LOG="$tmp_ok/gaming-failed-remove-apps.log" \
+  bash scripts/abora-gaming.sh remove steam >/tmp/abora-gaming-failed-remove.out 2>&1; then
+  fail "runtime: abora gaming restores toggles when app removal fails"
+elif cmp -s "$tmp_gaming_remove_fail_module" "$tmp_ok/gaming-failed-remove.before" \
+  && grep -q 'Restored previous gaming settings because the app removal failed' /tmp/abora-gaming-failed-remove.out; then
+  pass "runtime: abora gaming restores toggles when app removal fails"
+else
+  fail "runtime: abora gaming restores toggles when app removal fails"
+  sed 's/^/              /' /tmp/abora-gaming-failed-remove.out
+fi
+rm -rf "$tmp_gaming_remove_fail_path" "$tmp_gaming_remove_fail_config"
+
+if PATH="$tmp_gaming_path:/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  ABORA_GAMING_APPS_LOG="$tmp_gaming_apps_log" \
+  bash scripts/abora-gaming.sh install wine winetricks --dry-run >/dev/null 2>&1 \
+  && grep -q '^add wine winetricks --dry-run$' "$tmp_gaming_apps_log"; then
+  pass "runtime: abora gaming install accepts Wine tooling"
+else
+  fail "runtime: abora gaming install accepts Wine tooling"
+fi
+
+tmp_gaming_lean_config="$(mktemp -d)"
+tmp_gaming_lean_module="$tmp_gaming_lean_config/abora-local.nix"
+cat > "$tmp_gaming_lean_module" <<'EOF'
+{ config, ... }:
+{
+  abora.gaming.enable = false;
+  abora.gaming.steam = false;
+  abora.gaming.bigPictureShortcut = false;
+  abora.gaming.bigPictureAutostart = false;
+  abora.gaming.gamescopeSession = false;
+  abora.gaming.controllerSupport = false;
+  abora.gaming.mangohud = false;
+  abora.gaming.gamemode = false;
+  abora.gaming.vulkanTools = false;
+  abora.gaming.launchers = false;
+}
+EOF
+if PATH="$tmp_gaming_path:/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_lean_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  ABORA_GAMING_APPS_LOG="$tmp_gaming_apps_log" \
+  bash scripts/abora-gaming.sh install wine >/dev/null 2>&1 \
+  && grep -q '^add wine$' "$tmp_gaming_apps_log" \
+  && grep -q 'abora.gaming.enable = true;' "$tmp_gaming_lean_module" \
+  && grep -q 'abora.gaming.launchers = true;' "$tmp_gaming_lean_module" \
+  && grep -q 'abora.gaming.steam = false;' "$tmp_gaming_lean_module" \
+  && grep -q 'abora.gaming.bigPictureShortcut = false;' "$tmp_gaming_lean_module" \
+  && grep -q 'abora.gaming.mangohud = false;' "$tmp_gaming_lean_module" \
+  && grep -q 'abora.gaming.gamemode = false;' "$tmp_gaming_lean_module"; then
+  pass "runtime: abora gaming install enables only the needed feature family"
+else
+  fail "runtime: abora gaming install enables only the needed feature family"
+fi
+
+if PATH="$tmp_gaming_path:/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_lean_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  ABORA_GAMING_APPS_LOG="$tmp_gaming_apps_log" \
+  bash scripts/abora-gaming.sh install mangohud gamemode >/dev/null 2>&1 \
+  && grep -q 'abora.gaming.mangohud = true;' "$tmp_gaming_lean_module" \
+  && grep -q 'abora.gaming.gamemode = true;' "$tmp_gaming_lean_module" \
+  && PATH="$tmp_gaming_path:/usr/bin:/bin" \
+    ABORA_SYSTEM_CONFIG="$tmp_gaming_lean_config" \
+    ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+    ABORA_GAMING_APPS_LOG="$tmp_gaming_apps_log" \
+    bash scripts/abora-gaming.sh remove wine mangohud gamemode >/dev/null 2>&1 \
+  && grep -q '^remove wine mangohud gamemode$' "$tmp_gaming_apps_log" \
+  && grep -q 'abora.gaming.launchers = false;' "$tmp_gaming_lean_module" \
+  && grep -q 'abora.gaming.mangohud = false;' "$tmp_gaming_lean_module" \
+  && grep -q 'abora.gaming.gamemode = false;' "$tmp_gaming_lean_module"; then
+  pass "runtime: abora gaming remove disables reinstalling feature families"
+else
+  fail "runtime: abora gaming remove disables reinstalling feature families"
+fi
+
+tmp_gaming_before_stale_remove="$tmp_ok/gaming-before-stale-remove.nix"
+cp "$tmp_gaming_module" "$tmp_gaming_before_stale_remove"
+if PATH="$tmp_gaming_path:/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  ABORA_GAMING_APPS_LOG="$tmp_gaming_apps_log" \
+  bash scripts/abora-gaming.sh remove stale-removed-app >/dev/null 2>&1 \
+  && grep -q '^remove stale-removed-app$' "$tmp_gaming_apps_log" \
+  && cmp -s "$tmp_gaming_module" "$tmp_gaming_before_stale_remove"; then
+  pass "runtime: abora gaming remove lets app manager clean stale ids"
+else
+  fail "runtime: abora gaming remove lets app manager clean stale ids"
+fi
+
+tmp_gaming_before_bad="$tmp_ok/gaming-before-bad.nix"
+cp "$tmp_gaming_module" "$tmp_gaming_before_bad"
+if PATH="$tmp_gaming_path:/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  ABORA_GAMING_APPS_LOG="$tmp_gaming_apps_log" \
+  bash scripts/abora-gaming.sh install steem >/tmp/abora-gaming-bad-app.out 2>&1; then
+  fail "runtime: abora gaming rejects unknown apps before writing config"
+elif cmp -s "$tmp_gaming_module" "$tmp_gaming_before_bad"; then
+  pass "runtime: abora gaming rejects unknown apps before writing config"
+else
+  fail "runtime: abora gaming rejects unknown apps before writing config"
+fi
+
+tmp_gaming_before_dry="$tmp_ok/gaming-before-dry.nix"
+cp "$tmp_gaming_module" "$tmp_gaming_before_dry"
+if PATH="$tmp_gaming_path:/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  ABORA_GAMING_APPS_LOG="$tmp_gaming_apps_log" \
+  bash scripts/abora-gaming.sh install steam --dry-run >/dev/null 2>&1 \
+  && cmp -s "$tmp_gaming_module" "$tmp_gaming_before_dry"; then
+  pass "runtime: abora gaming install --dry-run is read-only"
+else
+  fail "runtime: abora gaming install --dry-run is read-only"
+fi
+
+tmp_gaming_before_flag="$tmp_ok/gaming-before-flag.nix"
+cp "$tmp_gaming_module" "$tmp_gaming_before_flag"
+if PATH="$tmp_gaming_path:/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  ABORA_GAMING_APPS_LOG="$tmp_gaming_apps_log" \
+  bash scripts/abora-gaming.sh install steam --not-a-real-option >/tmp/abora-gaming-bad-flag.out 2>&1; then
+  fail "runtime: abora gaming rejects unknown install flags before writing config"
+elif cmp -s "$tmp_gaming_module" "$tmp_gaming_before_flag"; then
+  pass "runtime: abora gaming rejects unknown install flags before writing config"
+else
+  fail "runtime: abora gaming rejects unknown install flags before writing config"
+fi
+
+tmp_gaming_before="$tmp_ok/gaming-before.nix"
+cp "$tmp_gaming_module" "$tmp_gaming_before"
+if PATH="$tmp_gaming_path:/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  ABORA_GAMING_APPS_LOG="$tmp_gaming_apps_log" \
+  bash scripts/abora-gaming.sh install >/tmp/abora-gaming-noarg.out 2>&1; then
+  fail "runtime: abora gaming install without an app is read-only"
+elif cmp -s "$tmp_gaming_module" "$tmp_gaming_before"; then
+  pass "runtime: abora gaming install without an app is read-only"
+else
+  fail "runtime: abora gaming install without an app is read-only"
+fi
+
 if grep -q 'writeShellScriptBin "abora-steam-big-picture"' nix/modules/abora-options.nix \
+  && grep -q 'steam steam://open/bigpicture' nix/modules/abora-options.nix \
   && grep -q 'steam -gamepadui' nix/modules/abora-options.nix \
   && grep -q 'exec steam -bigpicture' nix/modules/abora-options.nix \
+  && grep -q 'Steam Gamepad UI failed; trying legacy Big Picture mode' nix/modules/abora-options.nix \
   && grep -q 'Exec=abora-steam-big-picture' nix/modules/abora-options.nix \
-  && grep -q 'gamescope -e -- abora-steam-big-picture' nix/modules/abora-options.nix \
+  && grep -q 'writeShellScriptBin "abora-steam-gamescope-session"' nix/modules/abora-options.nix \
+  && grep -q 'gamescope -e -f -- abora-steam-big-picture --session' nix/modules/abora-options.nix \
+  && grep -q 'Exec=abora-steam-gamescope-session' nix/modules/abora-options.nix \
+  && grep -q 'abora-steam-gamescope-session' docs/wiki/Abora-Gaming.md \
+  && grep -q 'cfg.gaming.steam && cfg.gaming.bigPictureShortcut' nix/modules/abora-options.nix \
+  && grep -q 'cfg.gaming.steam && cfg.gaming.gamescopeSession' nix/modules/abora-options.nix \
+  && grep -q 'cfg.gaming.steam && cfg.gaming.bigPictureAutostart' nix/modules/abora-options.nix \
+  && ! grep -q '^[[:space:]]\+\[Desktop Entry\]' nix/modules/abora-options.nix \
+  && grep -q 'programs.steam.enable = lib.mkDefault true' nix/modules/abora-options.nix \
+  && grep -q 'gaming.steam' scripts/abora-config.sh \
+  && grep -q 'gaming.controllers' scripts/abora-config.sh \
+  && grep -q 'gaming.launchers' scripts/abora-gaming.sh \
+  && grep -q 'session|gamescope-session' scripts/abora-gaming.sh \
   && grep -q 'pkgIf cfg.gaming.vulkanTools "vulkan-tools"' nix/modules/abora-options.nix \
-  && grep -q 'steam -gamepadui' scripts/abora-gaming.sh; then
+  && grep -q 'pkgIf cfg.gaming.launchers "winetricks"' nix/modules/abora-options.nix \
+  && grep -q 'wineIf cfg.gaming.launchers' nix/modules/abora-options.nix \
+  && grep -q 'Run: abora gaming install steam' nix/modules/abora-options.nix \
+  && grep -q 'steam steam://open/bigpicture' scripts/abora-gaming.sh \
+  && grep -q 'steam -gamepadui' scripts/abora-gaming.sh \
+  && grep -q 'Steam Gamepad UI failed; trying legacy Big Picture mode' scripts/abora-gaming.sh \
+  && grep -q 'gamescope -e -f --' scripts/abora-gaming.sh \
+  && grep -q 'Run: abora gaming install steam' scripts/abora-gaming.sh; then
   pass "runtime: Abora Gaming Big Picture launcher has Steam flag fallback"
 else
   fail "runtime: Abora Gaming Big Picture launcher has Steam flag fallback"
+fi
+
+if python3 - <<'PY'
+import re
+from pathlib import Path
+text = Path('nix/modules/abora-options.nix').read_text()
+
+def desktop_text(var):
+    m = re.search(rf'{var}\s*=\s*pkgs\.writeTextFile\s*\{{.*?text\s*=\s*\'\'\n(.*?)\n\s*\'\';\n\s*\}};', text, re.S)
+    return m.group(1) if m else ''
+
+launcher = desktop_text('steamBigPictureDesktop')
+session = desktop_text('gamescopeSessionDesktop')
+autostart = re.search(r'environment\.etc\."xdg/autostart/abora-steam-big-picture\.desktop"\.text\s*=\s*\'\'\n(.*?)\n\s*\'\';', text, re.S)
+autostart_text = autostart.group(1) if autostart else ''
+
+def has_lines(block, *lines):
+    return all(line in block for line in lines)
+
+ok = (
+    has_lines(
+        launcher,
+        '[Desktop Entry]',
+        'Type=Application',
+        'Name=Steam Big Picture',
+        'Exec=abora-steam-big-picture',
+        'Icon=steam',
+        'Categories=Game;',
+        'Terminal=false',
+    )
+    and has_lines(
+        session,
+        '[Desktop Entry]',
+        'Type=Application',
+        'Name=Abora Gaming',
+        'Exec=abora-steam-gamescope-session',
+    )
+    and has_lines(
+        autostart_text,
+        '[Desktop Entry]',
+        'Type=Application',
+        'Exec=abora-steam-big-picture',
+        'X-GNOME-Autostart-enabled=true',
+    )
+)
+raise SystemExit(0 if ok else 1)
+PY
+then
+  pass "runtime: Abora Gaming desktop/session entries keep required fields"
+else
+  fail "runtime: Abora Gaming desktop/session entries keep required fields"
+fi
+
+tmp_steam_path="$(mktemp -d)"
+tmp_steam_log="$tmp_ok/steam-big-picture.log"
+cat > "$tmp_steam_path/steam" <<EOF
+#!/usr/bin/env bash
+printf '%s\\n' "\$*" >> "$tmp_steam_log"
+case "\$*" in
+  steam://open/bigpicture|-gamepadui*) exit 0 ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$tmp_steam_path/steam"
+: > "$tmp_steam_log"
+if PATH="$tmp_steam_path:/usr/bin:/bin" bash scripts/abora-gaming.sh big-picture >/dev/null 2>&1 \
+  && grep -qx 'steam://open/bigpicture' "$tmp_steam_log" \
+  && : > "$tmp_steam_log" \
+  && PATH="$tmp_steam_path:/usr/bin:/bin" bash scripts/abora-gaming.sh big-picture --session >/dev/null 2>&1 \
+  && grep -qx -- '-gamepadui' "$tmp_steam_log" \
+  && [[ "$(wc -l < "$tmp_steam_log" | tr -d ' ')" == "1" ]] \
+  && : > "$tmp_steam_log" \
+  && PATH="$tmp_steam_path:/usr/bin:/bin" bash scripts/abora-gaming.sh session >/dev/null 2>&1 \
+  && grep -qx -- '-gamepadui' "$tmp_steam_log" \
+  && [[ "$(wc -l < "$tmp_steam_log" | tr -d ' ')" == "1" ]]; then
+  pass "runtime: Abora Gaming Big Picture uses desktop URI and session-safe Steam mode"
+else
+  fail "runtime: Abora Gaming Big Picture uses desktop URI and session-safe Steam mode"
+fi
+
+tmp_steam_fallback_path="$(mktemp -d)"
+tmp_steam_fallback_log="$tmp_ok/steam-big-picture-fallback.log"
+cat > "$tmp_steam_fallback_path/steam" <<EOF
+#!/usr/bin/env bash
+printf '%s\\n' "\$*" >> "$tmp_steam_fallback_log"
+case "\$*" in
+  -bigpicture*) exit 0 ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$tmp_steam_fallback_path/steam"
+: > "$tmp_steam_fallback_log"
+if PATH="$tmp_steam_fallback_path:/usr/bin:/bin" bash scripts/abora-gaming.sh big-picture --session >/tmp/steam-big-picture-fallback.out 2>&1 \
+  && grep -qx -- '-gamepadui' "$tmp_steam_fallback_log" \
+  && grep -qx -- '-bigpicture' "$tmp_steam_fallback_log" \
+  && grep -q 'trying legacy Big Picture mode' /tmp/steam-big-picture-fallback.out; then
+  pass "runtime: Abora Gaming Big Picture explains legacy fallback"
+else
+  fail "runtime: Abora Gaming Big Picture explains legacy fallback"
 fi
 
 tmp_dotfiles_src="$(mktemp -d)"
@@ -2718,13 +4010,85 @@ EOF
 if ABORA_NO_SUDO=1 \
   ABORA_SYSTEM_CONFIG="$tmp_legacy_config" \
   scripts/abora-config.sh set hostname migrated-host >/dev/null 2>&1 \
-  && grep -q 'abora.hostname = "migrated-host";' "$tmp_legacy_module" \
-  && grep -q 'abora.desktop = "gnome";' "$tmp_legacy_module" \
-  && grep -q 'abora.user.name = "quinn";' "$tmp_legacy_module" \
-  && compgen -G "${tmp_legacy_module}.legacy.*" >/dev/null; then
+	  && grep -q 'abora.hostname = "migrated-host";' "$tmp_legacy_module" \
+	  && grep -q 'abora.desktop = "gnome";' "$tmp_legacy_module" \
+	  && grep -q 'abora.user.name = "quinn";' "$tmp_legacy_module" \
+	  && grep -q 'abora.gaming.controllerSupport = true;' "$tmp_legacy_module" \
+	  && grep -q 'abora.gaming.mangohud = true;' "$tmp_legacy_module" \
+	  && grep -q 'abora.gaming.gamemode = true;' "$tmp_legacy_module" \
+	  && grep -q 'abora.gaming.launchers = true;' "$tmp_legacy_module" \
+	  && compgen -G "${tmp_legacy_module}.legacy.*" >/dev/null; then
   pass "runtime: abora config migrates a legacy abora-local.nix on write"
 else
   fail "runtime: abora config migrates a legacy abora-local.nix on write"
+fi
+
+# Security regression test: abora-local.nix carries a hashedPassword field
+# (see the fixture above and abora-installer.sh's own generation of this
+# file) -- it must never be world-readable, or any local user on the
+# machine could read the hash straight out of /etc/nixos and run an
+# offline attack against it, exactly what /etc/shadow's own restrictive
+# permissions exist to prevent. The migration path above used to leave it
+# 0644 (and its .legacy.* backup, via a plain `cp` that doesn't preserve
+# source permissions on a new destination, at whatever the umask gives).
+# Checks both the migrated file and its backup are 0600.
+_migrated_mode="$(stat -c '%a' "$tmp_legacy_module" 2>/dev/null || echo unknown)"
+_backup_path="$(compgen -G "${tmp_legacy_module}.legacy.*" | head -n1)"
+_backup_mode="$(stat -c '%a' "$_backup_path" 2>/dev/null || echo unknown)"
+if [[ "$_migrated_mode" == "600" && "$_backup_mode" == "600" ]]; then
+  pass "runtime: migrated abora-local.nix and its legacy backup are 0600, not world-readable"
+else
+  fail "runtime: migrated abora-local.nix and its legacy backup are 0600, not world-readable"
+  printf '              migrated=%s backup=%s\n' "$_migrated_mode" "$_backup_mode"
+fi
+
+# Same fixed-file guarantee for the installer's own first-time creation
+# path (abora-installer.sh, not the config-migration path above).
+if grep -q 'chmod 0600 "\${cfgdir}/abora-local.nix"' scripts/abora-installer.sh; then
+  pass "runtime: installer chmods a freshly-created abora-local.nix to 0600"
+else
+  fail "runtime: installer chmods a freshly-created abora-local.nix to 0600"
+fi
+
+# Static check for the self-elevation guard itself (abora-config.sh, right
+# after local_module is defined): a non-owning, non-root user reading a
+# now-0600 abora-local.nix needs this to `exec sudo "$0" "$@"` rather than
+# every scattered read call site (read_option, desktop/GPU detection, the
+# legacy migration, ...) failing or silently reading nothing. Not
+# exercised dynamically below -- doing that safely would mean either a
+# real interactive sudo prompt (hangs this suite) or mocking sudo, neither
+# worth it for one guard clause; this at least catches the guard being
+# deleted or its condition broken.
+if grep -q 'ABORA_NO_SUDO:-0.*!= "1".*&&.*-f "\$local_module".*&&.*! -r "\$local_module"' scripts/abora-config.sh \
+  && grep -q 'exec sudo "\$0" "\$@"' scripts/abora-config.sh; then
+  pass "runtime: abora-config.sh self-elevates via sudo when abora-local.nix isn't readable"
+else
+  fail "runtime: abora-config.sh self-elevates via sudo when abora-local.nix isn't readable"
+fi
+
+# Security regression test: separately from whether elevation happens,
+# abora-config.sh must never silently succeed with empty/wrong data when
+# abora-local.nix can't be read at all (e.g. elevation is unavailable, or
+# -- as simulated here via ABORA_NO_SUDO=1, the same switch every other
+# test in this suite already relies on to avoid a real sudo prompt -- it's
+# deliberately skipped). A genuinely unreadable file (chmod 000, unreadable
+# even to its own owner) must make abora-config.sh fail closed.
+tmp_unreadable_config="$(mktemp -d)"
+tmp_unreadable_module="$tmp_unreadable_config/abora-local.nix"
+printf '{ abora.hostname = "x"; }\n' > "$tmp_unreadable_module"
+chmod 000 "$tmp_unreadable_module"
+set +e
+_unreadable_out="$(ABORA_NO_SUDO=1 ABORA_SYSTEM_CONFIG="$tmp_unreadable_config" \
+  scripts/abora-config.sh show 2>&1)"
+_unreadable_status=$?
+set -e
+chmod 600 "$tmp_unreadable_module"
+rm -rf "$tmp_unreadable_config"
+if [[ "$_unreadable_status" -ne 0 ]]; then
+  pass "runtime: abora config fails closed (not silently) against an unreadable abora-local.nix"
+else
+  fail "runtime: abora config fails closed (not silently) against an unreadable abora-local.nix"
+  printf '              output: %s\n' "$_unreadable_out"
 fi
 
 # Static guard for a real fix that isn't cheap to verify behaviorally in
@@ -2737,7 +4101,19 @@ fi
 # gaming.vulkan` only touches anix.gaming.vulkanTools) -- a false-positive
 # warning on every single rebuild of an entirely normal, working config.
 # This just guards against the fix's condition being silently deleted.
-if grep -q 'config.abora.gaming.enable != true' nix/modules/anix.nix; then
+if grep -q 'config.abora.gaming.enable != true' nix/modules/anix.nix \
+  && grep -q 'abora.gaming.steam = lib.mkForce cfg.gaming.steam;' nix/modules/anix.nix \
+  && grep -q 'abora.gaming.controllerSupport = lib.mkForce cfg.gaming.controllerSupport;' nix/modules/anix.nix \
+  && grep -q 'abora.gaming.mangohud = lib.mkForce cfg.gaming.mangohud;' nix/modules/anix.nix \
+  && grep -q 'abora.gaming.gamemode = lib.mkForce cfg.gaming.gamemode;' nix/modules/anix.nix \
+  && grep -q 'abora.gaming.launchers = lib.mkForce cfg.gaming.launchers;' nix/modules/anix.nix \
+  && grep -q 'gaming.steam|steam' scripts/anix.sh \
+  && grep -q 'gaming.controllers|gaming.controller|gaming.controllerSupport' scripts/anix.sh \
+  && grep -q 'gaming.launchers|launchers' scripts/anix.sh \
+  && grep -q 'anix.gaming.steam = true;' scripts/anix.sh \
+  && grep -q 'anix.gaming.launchers = true;' scripts/anix.sh \
+  && grep -q 'write_anix_gaming_dependencies' scripts/anix.sh \
+  && grep -q 'gaming.bigPictureAutostart' scripts/anix.sh; then
   pass "runtime: anix.nix gaming warning checks abora.gaming.enable, not just anix.gaming.enable"
 else
   fail "runtime: anix.nix gaming warning checks abora.gaming.enable, not just anix.gaming.enable"
@@ -3012,6 +4388,162 @@ else
 fi
 rm -f "$_apps_render_stdout" "$_apps_render_stderr"
 rm -rf "$tmp_apps_render"
+
+tmp_apps_remove_stale="$(mktemp -d)"
+mkdir -p "$tmp_apps_remove_stale/abora"
+printf 'firefox\nstale-removed-app\n' > "$tmp_apps_remove_stale/abora/apps.list"
+(
+  # shellcheck source=/dev/null
+  source scripts/abora-ui.sh
+  # shellcheck source=/dev/null
+  source scripts/abora-app-catalog.sh
+  config_dir="$tmp_apps_remove_stale"
+  abora_dir="$config_dir/abora"
+  apps_list="$abora_dir/apps.list"
+  apps_module="$abora_dir/apps.nix"
+  run_as_root() { "$@"; }
+  eval "$(sed -n '/^read_selected_ids() {/,/^}$/p' scripts/abora-apps.sh)"
+  eval "$(sed -n '/^write_selected_ids() {/,/^}$/p' scripts/abora-apps.sh)"
+  eval "$(sed -n '/^render_apps_module() {/,/^}$/p' scripts/abora-apps.sh)"
+  eval "$(sed -n '/^selected_has_id() {/,/^}$/p' scripts/abora-apps.sh)"
+  eval "$(sed -n '/^validate_remove_ids() {/,/^}$/p' scripts/abora-apps.sh)"
+  validate_remove_ids stale-removed-app
+  keeping=()
+  while IFS= read -r app_id; do
+    [[ -n "$app_id" ]] || continue
+    case " stale-removed-app " in
+      *" $app_id "*) ;;
+      *) keeping+=("$app_id") ;;
+    esac
+  done < <(read_selected_ids)
+  write_selected_ids "${keeping[@]+"${keeping[@]}"}"
+  render_apps_module
+) >/dev/null 2>&1
+_apps_remove_stale_status=$?
+if [[ "$_apps_remove_stale_status" -eq 0 ]] \
+  && grep -qx 'firefox' "$tmp_apps_remove_stale/abora/apps.list" \
+  && ! grep -q 'stale-removed-app' "$tmp_apps_remove_stale/abora/apps.list" \
+  && ! grep -q 'stale-removed-app' "$tmp_apps_remove_stale/abora/apps.nix"; then
+  pass "runtime: abora apps remove can clean stale catalog entries"
+else
+  fail "runtime: abora apps remove can clean stale catalog entries"
+fi
+rm -rf "$tmp_apps_remove_stale"
+
+# Regression test from a real Abora Gaming ISO app-install failure: Nix can
+# fail before Steam/Heroic/etc. are even evaluated if the user's local
+# fetcher-cache SQLite DB is damaged ("pragma synchronous = off": disk I/O
+# error in ~/.cache/nix/fetcher-cache-v*.sqlite). The old app manager just
+# let nixos-rebuild's wall of text fall through, so it looked like the app
+# entry was bad. Extract the real rebuild/error-explainer functions and
+# feed them a fake failing nixos-rebuild that emits the same class of error,
+# then confirm the output points at the local cache and disk-space checks.
+tmp_apps_rebuild_diag="$(mktemp -d)"
+tmp_apps_rebuild_funcs="$tmp_apps_rebuild_diag/funcs.sh"
+tmp_apps_rebuild_bin="$tmp_apps_rebuild_diag/bin"
+mkdir -p "$tmp_apps_rebuild_bin"
+{
+  sed -n '/^run_as_root() {/,/^}$/p' scripts/abora-apps.sh
+  sed -n '/^stage_config_for_flake() {/,/^}$/p' scripts/abora-apps.sh
+  sed -n '/^explain_nix_failure() {/,/^}$/p' scripts/abora-apps.sh
+  sed -n '/^rebuild_system() {/,/^}$/p' scripts/abora-apps.sh
+} > "$tmp_apps_rebuild_funcs"
+cat > "$tmp_apps_rebuild_bin/nixos-rebuild" <<'NIXREBUILDEOF'
+#!/usr/bin/env bash
+printf '%s\n' "error: executing SQLite statement 'pragma synchronous = off': disk I/O error, disk I/O error (in '/home/abora/.cache/nix/fetcher-cache-v4.sqlite')"
+exit 1
+NIXREBUILDEOF
+chmod +x "$tmp_apps_rebuild_bin/nixos-rebuild"
+set +e
+_apps_rebuild_diag_out="$(
+  PATH="$tmp_apps_rebuild_bin:/usr/bin:/bin" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  bash -c '
+    set -euo pipefail
+    source "$1"
+    ABORA_NC=""; ABORA_CYAN=""; ABORA_DIM=""; ABORA_WHITE=""; ABORA_BLUE=""
+    abora_step() { printf "STEP %s\n" "$1"; }
+    abora_warn() { printf "WARN %s\n" "$1"; }
+    abora_dim_line() { printf "%s\n" "$1"; }
+    config_dir=/tmp/abora-test-config
+    flake_target=abora
+    ABORA_NO_SUDO=1
+    rebuild_system
+  ' bash "$tmp_apps_rebuild_funcs" 2>&1
+)"
+_apps_rebuild_diag_status=$?
+set -e
+rm -rf "$tmp_apps_rebuild_diag"
+if [[ "$_apps_rebuild_diag_status" -ne 0 ]] \
+  && grep -q 'local fetch-cache disk I/O error' <<<"$_apps_rebuild_diag_out" \
+  && grep -q 'abora gaming repair-cache' <<<"$_apps_rebuild_diag_out" \
+  && grep -q 'rm -f ~/.cache/nix/fetcher-cache-v' <<<"$_apps_rebuild_diag_out" \
+  && grep -q 'df -h' <<<"$_apps_rebuild_diag_out"; then
+  pass "runtime: abora apps explains Nix fetch-cache disk I/O failures"
+else
+  fail "runtime: abora apps explains Nix fetch-cache disk I/O failures"
+  printf '              exit status: %s\n' "$_apps_rebuild_diag_status"
+  printf '              output: %s\n' "$_apps_rebuild_diag_out"
+fi
+
+tmp_apps_rebuild_rollback="$(mktemp -d)"
+mkdir -p "$tmp_apps_rebuild_rollback/config/abora" "$tmp_apps_rebuild_rollback/bin"
+printf '{ }\n' > "$tmp_apps_rebuild_rollback/config/flake.nix"
+printf 'firefox\n' > "$tmp_apps_rebuild_rollback/config/abora/apps.list"
+cat > "$tmp_apps_rebuild_rollback/config/abora/apps.nix" <<'EOF'
+{ pkgs, ... }:
+{
+  environment.systemPackages = with pkgs; [
+    firefox
+  ];
+}
+EOF
+cp "$tmp_apps_rebuild_rollback/config/abora/apps.list" "$tmp_apps_rebuild_rollback/apps.list.before"
+cp "$tmp_apps_rebuild_rollback/config/abora/apps.nix" "$tmp_apps_rebuild_rollback/apps.nix.before"
+cat > "$tmp_apps_rebuild_rollback/bin/nixos-rebuild" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' 'simulated rebuild failure'
+exit 1
+EOF
+chmod +x "$tmp_apps_rebuild_rollback/bin/nixos-rebuild"
+if PATH="$tmp_apps_rebuild_rollback/bin:/usr/bin:/bin" \
+  ABORA_NO_SUDO=1 \
+  ABORA_SYSTEM_CONFIG="$tmp_apps_rebuild_rollback/config" \
+  ABORA_APP_CATALOG_LIB="$repo_dir/scripts/abora-app-catalog.sh" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  bash scripts/abora-apps.sh add steam >/tmp/abora-apps-rollback.out 2>&1; then
+  fail "runtime: abora apps restores app state when rebuild fails"
+elif cmp -s "$tmp_apps_rebuild_rollback/config/abora/apps.list" "$tmp_apps_rebuild_rollback/apps.list.before" \
+  && cmp -s "$tmp_apps_rebuild_rollback/config/abora/apps.nix" "$tmp_apps_rebuild_rollback/apps.nix.before" \
+  && grep -q 'Restored the previous app selection because the rebuild failed' /tmp/abora-apps-rollback.out; then
+  pass "runtime: abora apps restores app state when rebuild fails"
+else
+  fail "runtime: abora apps restores app state when rebuild fails"
+  sed 's/^/              /' /tmp/abora-apps-rollback.out
+fi
+rm -rf "$tmp_apps_rebuild_rollback"
+
+# Regression test: root helpers must preserve command failures. A bad sudo
+# password, failed cp, failed nixos-rebuild, or failed standalone-package
+# install should never be turned into "success" just because run_as_root()
+# returned 0 unconditionally after running the command.
+tmp_root_helpers="$(mktemp -d)"
+sed -n '/^run_as_root() {/,/^}$/p' scripts/abora-apps.sh > "$tmp_root_helpers/apps.sh"
+sed -n '/^run_as_root() {/,/^}$/p' scripts/abora-custom-packages.sh > "$tmp_root_helpers/custom.sh"
+set +e
+bash -c 'source "$1"; ABORA_NO_SUDO=1; run_as_root false' bash "$tmp_root_helpers/apps.sh"
+_apps_root_helper_status=$?
+bash -c 'source "$1"; ABORA_NO_SUDO=1; run_as_root false' bash "$tmp_root_helpers/custom.sh"
+_custom_root_helper_status=$?
+set -e
+rm -rf "$tmp_root_helpers"
+if [[ "$_apps_root_helper_status" -ne 0 && "$_custom_root_helper_status" -ne 0 ]]; then
+  pass "runtime: app root helpers preserve command failures"
+else
+  fail "runtime: app root helpers preserve command failures"
+  printf '              abora-apps rc: %s, custom-packages rc: %s\n' \
+    "$_apps_root_helper_status" "$_custom_root_helper_status"
+fi
 
 # Regression test: abora-custom-packages.sh used to rely on two separate
 # `trap ... RETURN` calls (one per function) to clean up its temp
@@ -3374,6 +4906,146 @@ if grep -qx 'Name=Start Abora' scripts/abora-setup.desktop \
   pass "runtime: abora-setup.desktop label is context-neutral (not install-only wording)"
 else
   fail "runtime: abora-setup.desktop label is context-neutral (not install-only wording)"
+fi
+
+# Security regression test: abora_wu_run (abora-ui.sh, the shared helper
+# behind `abora update`'s real progress UI, and mirrored in
+# abora-update.sh's own fallback copy) and abora-doctor.sh's ANIX-doctor
+# check all log to fixed, predictable /tmp paths by design -- so a failed
+# `abora update` can tell the user exactly where to look. A plain `>`
+# redirect to a predictable path in a world-writable directory is a
+# classic local symlink race: an attacker who pre-plants a symlink there
+# before this root-privileged flow runs gets root to truncate/overwrite
+# whatever the symlink points at. Reproduced directly before the fix
+# (a plain `>` through a symlinked path really did clobber the target's
+# real content); abora_safe_create_file (abora-ui.sh) closes it by
+# rm -f'ing the name (never follows a symlink) then creating the real
+# file with noclobber (fails closed if a symlink races back into place).
+# This test proves the fix, not just that the helper exists: it plants an
+# actual symlink pointing at a "sensitive" file with real content and
+# checks that content survives untouched.
+_symlink_race_dir="$(mktemp -d)"
+_symlink_race_sensitive="$_symlink_race_dir/sensitive"
+_symlink_race_target="$_symlink_race_dir/predictable.log"
+printf 'SENSITIVE CONTENT MUST SURVIVE\n' > "$_symlink_race_sensitive"
+ln -s "$_symlink_race_sensitive" "$_symlink_race_target"
+if (source "$repo_dir/scripts/abora-ui.sh"; abora_safe_create_file "$_symlink_race_target") \
+  && [[ ! -L "$_symlink_race_target" ]] \
+  && grep -qx 'SENSITIVE CONTENT MUST SURVIVE' "$_symlink_race_sensitive"; then
+  pass "runtime: abora_safe_create_file survives a symlink race, sensitive target untouched"
+else
+  fail "runtime: abora_safe_create_file survives a symlink race, sensitive target untouched"
+fi
+rm -rf "$_symlink_race_dir"
+
+_log_summary_dir="$(mktemp -d)"
+_log_summary_file="$_log_summary_dir/rebuild.log"
+cat > "$_log_summary_file" <<'EOF'
+building '/nix/store/root-problem.drv'...
+error: undefined variable 'missingWallpaperAsset'
+       at /etc/nixos/abora/installed-base.nix:42:17:
+building '/nix/store/fontconfig-conf.drv'...
+error: Cannot build '/nix/store/fontconfig-conf.drv'.
+       Reason: 1 dependency failed.
+       Output paths:
+         /nix/store/fontconfig-conf
+error: Cannot build '/nix/store/system-path.drv'.
+       Reason: 1 dependency failed.
+       Output paths:
+         /nix/store/system-path
+error: Cannot build '/nix/store/noisy-01.drv'.
+       Reason: 1 dependency failed.
+error: Cannot build '/nix/store/noisy-02.drv'.
+       Reason: 1 dependency failed.
+error: Cannot build '/nix/store/noisy-03.drv'.
+       Reason: 1 dependency failed.
+error: Cannot build '/nix/store/noisy-04.drv'.
+       Reason: 1 dependency failed.
+error: Cannot build '/nix/store/noisy-05.drv'.
+       Reason: 1 dependency failed.
+error: Cannot build '/nix/store/noisy-06.drv'.
+       Reason: 1 dependency failed.
+error: Cannot build '/nix/store/noisy-07.drv'.
+       Reason: 1 dependency failed.
+error: Cannot build '/nix/store/noisy-08.drv'.
+       Reason: 1 dependency failed.
+fatal: activation helper disappeared after build
+EOF
+_log_summary_out="$(
+  COLUMNS=100 bash -c '
+    source "$1"
+    ABORA_NC=""; ABORA_YELLOW=""; ABORA_FAINT=""
+    abora_log_tail "$2"
+  ' bash "$repo_dir/scripts/abora-ui.sh" "$_log_summary_file"
+)"
+if grep -q "Important log lines" <<<"$_log_summary_out" \
+  && grep -q "undefined variable 'missingWallpaperAsset'" <<<"$_log_summary_out" \
+  && grep -q "activation helper disappeared after build" <<<"$_log_summary_out" \
+  && grep -q "Last log lines" <<<"$_log_summary_out"; then
+  pass "runtime: abora_log_tail highlights root errors before dependency-noise tails"
+else
+  fail "runtime: abora_log_tail highlights root errors before dependency-noise tails"
+fi
+rm -rf "$_log_summary_dir"
+
+if grep -q 'local synced_ui="\$config_dir/abora/ui.sh"' scripts/abora-update.sh \
+  && grep -q 'ABORA_UI_LIB="\${synced_ui}"' scripts/abora-update.sh \
+  && grep -q 'resolve_resolver_bin()' scripts/abora-update.sh \
+  && grep -q 'tools/abora-update-resolver/bin/Debug/net10.0/abora-update-resolver' scripts/abora-update.sh \
+  && grep -q 'resolver_bin="$(resolve_resolver_bin)"' scripts/abora-update.sh \
+  && grep -q 'abora-update-build.log' scripts/abora-update.sh \
+  && grep -q 'Checking the new Abora system' scripts/abora-update.sh \
+  && grep -q -- '--no-link' scripts/abora-update.sh \
+  && grep -q -- '--show-trace' scripts/abora-update.sh \
+  && grep -q 'Switching to the new Abora system' scripts/abora-update.sh \
+  && grep -q 'Continuing with the synced updater' scripts/abora-update.sh \
+  && grep -q 'ABORA_UPDATE_REEXECED:-0.*!= 1.*config_dir/abora/anix.sh' scripts/abora-update.sh \
+  && grep -q 'ABORA_UPDATE_REEXECED:-0.*== 1' scripts/abora-update.sh; then
+  pass "runtime: updater re-execs with synced UI and builds before switching"
+else
+  fail "runtime: updater re-execs with synced UI and builds before switching"
+fi
+
+# Real-world case: an already-full /nix/store meant the build and rebuild
+# steps each ran for hours -- retrying copies into a store with no room --
+# before finally failing with a cascade of confusing "1 dependency failed"
+# noise. show_update_space_status only ever warned, never stopped; nothing
+# bounded how long the two longest-running steps could run. This is a
+# grep-based structural check rather than sourcing abora-update.sh directly,
+# because the file executes its update flow top-to-bottom when run/sourced
+# (matching the "updater re-execs..." test above it) rather than being a
+# safe-to-source function library like abora-ui.sh.
+if grep -q '^require_minimum_free_space()' scripts/abora-update.sh \
+  && grep -q 'ABORA_UPDATE_CRITICAL_FREE_GIB:-3' scripts/abora-update.sh \
+  && grep -q 'too low to safely build' scripts/abora-update.sh \
+  && [[ "$(grep -c 'require_minimum_free_space /nix/store || exit 1' scripts/abora-update.sh)" -ge 2 ]]; then
+  pass "runtime: updater hard-stops on critically low free space instead of just warning"
+else
+  fail "runtime: updater hard-stops on critically low free space instead of just warning"
+fi
+
+if grep -q 'build_timeout="\${ABORA_BUILD_TIMEOUT:-3600}"' scripts/abora-update.sh \
+  && grep -q 'switch_timeout="\${ABORA_SWITCH_TIMEOUT:-1800}"' scripts/abora-update.sh \
+  && grep -q 'timeout "\$build_timeout"' scripts/abora-update.sh \
+  && grep -q 'timeout "\$switch_timeout"' scripts/abora-update.sh \
+  && grep -q '^explain_step_failure()' scripts/abora-update.sh \
+  && grep -q 'status" -eq 124' scripts/abora-update.sh \
+  && grep -q 'was still running after' scripts/abora-update.sh; then
+  pass "runtime: updater bounds the build and switch steps with a timeout"
+else
+  fail "runtime: updater bounds the build and switch steps with a timeout"
+fi
+
+# The build/switch exit status has to be captured via `cmd || status=$?` on
+# its own line, not `cmd; status=$?` on the next -- this file has `set -e`
+# at the top, so a failing standalone command exits the whole script right
+# there and the status-capture line (and the timeout-aware explanation)
+# would simply never run. Guards against silently reintroducing that.
+if grep -q 'toplevel" || build_status=\$?' scripts/abora-update.sh \
+  && grep -q 'flake_config_name}" || switch_status=\$?' scripts/abora-update.sh; then
+  pass "runtime: updater captures build/switch exit status without tripping set -e"
+else
+  fail "runtime: updater captures build/switch exit status without tripping set -e"
 fi
 
 if [[ "$failed" -ne 0 ]]; then

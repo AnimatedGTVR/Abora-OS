@@ -83,14 +83,19 @@ usage() {
 }
 
 run_as_root() {
+    if [[ "${ABORA_NO_SUDO:-0}" == "1" ]]; then
+        "$@"
+        return $?
+    fi
+
     if [[ "$(id -u)" -eq 0 ]]; then
         "$@"
-        return 0
+        return $?
     fi
 
     if command -v sudo >/dev/null 2>&1; then
         sudo "$@"
-        return 0
+        return $?
     fi
 
     abora_error "This command needs root privileges."

@@ -43,15 +43,34 @@ def _resolve_catalog_path() -> str:
 
 
 LOGO_FILE      = _resolve_logo_path()
-APPS_SCRIPT    = os.environ.get('ABORA_APPS_SCRIPT', '/etc/abora/apps.sh')
 CATALOG_FILE   = _resolve_catalog_path()
 CONFIG_PATH    = Path(os.environ.get('ABORA_SYSTEM_CONFIG', '/etc/nixos')) / 'abora-local.nix'
 APPS_LIST_FILE = Path(os.environ.get('ABORA_SYSTEM_CONFIG', '/etc/nixos')) / 'abora' / 'apps.list'
+COMMAND_TIMEOUT_SECONDS = int(os.environ.get('ABORA_GAMING_WELCOME_TIMEOUT', '7200'))
 
 # Catalog rows this app cares about, in the friendly order they should show
 # up in -- Steam first since it's the sign-in-required launcher most people
 # are here for. id must match abora-app-catalog.sh's id field exactly.
-GAMING_PLATFORM_ORDER = ['steam', 'lutris', 'heroic', 'bottles', 'gamemode', 'mangohud']
+GAMING_PLATFORM_ORDER = ['steam', 'lutris', 'heroic', 'bottles', 'wine', 'winetricks', 'gamemode', 'mangohud']
+
+
+def command_failure_message(proc: subprocess.CompletedProcess) -> str:
+    output = '\n'.join(part for part in (proc.stdout, proc.stderr) if part)
+    output = output.strip()
+    if not output:
+        return 'Failed — run abora gaming doctor or abora logs from a terminal for details.'
+    if re.search(r'fetcher-cache.*sqlite|sqlite.*disk I/O|disk I/O error', output, re.IGNORECASE):
+        return (
+            'Nix reported a local fetch-cache disk I/O error. '
+            'This is usually a damaged user Nix cache or low disk space, not a bad gaming app. '
+            'Try: abora gaming repair-cache, then run abora gaming doctor.'
+        )
+    if re.search(r'no space left on device|ENOSPC', output, re.IGNORECASE):
+        return (
+            'The rebuild appears to have run out of disk space. '
+            'Free space or run: sudo nix-collect-garbage -d'
+        )
+    return output[-700:]
 
 
 def read_local_bool(key: str, default: bool = False) -> bool:
@@ -99,12 +118,55 @@ def read_installed_apps() -> set[str]:
 
 
 def sudo_prefix() -> list[str]:
+    """Return a GUI-safe privilege command.
+
+    Gaming Welcome is usually launched from a desktop session, not a
+    terminal with a real tty. pkexec gives its own password dialog; sudo -A
+    only works when an askpass helper is configured. If neither exists,
+    surface a clear in-app error instead of launching sudo in a way that can
+    only fail.
+    """
     if shutil.which('pkexec'):
         return ['pkexec']
-    for sudo in ('/run/wrappers/bin/sudo', 'sudo'):
-        if shutil.which(sudo):
-            return [sudo, '-A', '--']
-    return ['pkexec']
+    if os.environ.get('SUDO_ASKPASS'):
+        for sudo in ('/run/wrappers/bin/sudo', 'sudo'):
+            if shutil.which(sudo):
+                return [sudo, '-A', '--']
+    raise RuntimeError(
+        'No graphical privilege helper found. Install pkexec/polkit or set SUDO_ASKPASS, '
+        'then run abora gaming install from a terminal.'
+    )
+
+
+def sudo_prefix_or_status(window: 'GamingWelcomeWindow') -> list[str] | None:
+    try:
+        return sudo_prefix()
+    except RuntimeError as exc:
+        window._show_status(str(exc), error=True)
+        return None
+
+
+def command_env() -> list[str]:
+    return ['env', f'ABORA_SYSTEM_CONFIG={os.environ.get("ABORA_SYSTEM_CONFIG", "/etc/nixos")}']
+
+
+def command_path(tool: str) -> str:
+    override = os.environ.get(f'ABORA_{tool.upper().replace("-", "_")}_SCRIPT')
+    if override:
+        return override
+    resolved = shutil.which(tool)
+    if resolved:
+        return resolved
+    installed_scripts = {
+        'abora': '/etc/abora/abora.sh',
+        'abora-update': '/etc/abora/update.sh',
+    }
+    for candidate in (f'/run/current-system/sw/bin/{tool}', installed_scripts.get(tool, '')):
+        if not candidate:
+            continue
+        if Path(candidate).exists():
+            return candidate
+    return tool
 
 
 def logo_widget(size: int = 64) -> Gtk.Widget:
@@ -127,6 +189,7 @@ class GamingWelcomeWindow(Adw.ApplicationWindow):
         Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_LIGHT)
         self._platform_rows: dict[str, Adw.ActionRow] = {}
         self._platform_buttons: dict[str, Gtk.Button] = {}
+        self._action_buttons: list[Gtk.Button] = []
         self._build_ui()
 
     def _build_ui(self):
@@ -170,6 +233,7 @@ class GamingWelcomeWindow(Adw.ApplicationWindow):
             enable_btn.connect('clicked', lambda *_: self._enable_gaming())
             notice.add_suffix(enable_btn)
             notice_group.add(notice)
+            self._action_buttons.append(enable_btn)
 
         # Sign-in card — Steam is the one platform that gates everything
         # else behind an account, so it gets its own prominent action
@@ -181,6 +245,7 @@ class GamingWelcomeWindow(Adw.ApplicationWindow):
         self._signin_button.add_css_class('suggested-action')
         self._signin_row.add_suffix(self._signin_button)
         signin_group.add(self._signin_row)
+        self._action_buttons.append(self._signin_button)
         self._refresh_signin_row()
 
         # Platforms card
@@ -196,7 +261,30 @@ class GamingWelcomeWindow(Adw.ApplicationWindow):
             platforms_group.add(row)
             self._platform_rows[entry['id']] = row
             self._platform_buttons[entry['id']] = button
+            self._action_buttons.append(button)
             self._set_platform_button_state(entry['id'], button)
+
+        tools_group = Adw.PreferencesGroup(
+            title='Troubleshooting',
+            description='Quick checks for Steam, Vulkan, disk space, and local Nix cache problems.')
+        box.append(tools_group)
+        doctor_row = Adw.ActionRow(
+            title='Gaming Doctor',
+            subtitle='Check installed tools, enabled options, GPU access, Vulkan tools, and free space.')
+        doctor_btn = Gtk.Button(label='Run', valign=Gtk.Align.CENTER)
+        doctor_btn.connect('clicked', lambda *_: self._run_local_tool('Running Gaming Doctor…', ['doctor']))
+        doctor_row.add_suffix(doctor_btn)
+        tools_group.add(doctor_row)
+        self._action_buttons.append(doctor_btn)
+
+        cache_row = Adw.ActionRow(
+            title='Repair Nix Cache',
+            subtitle='Fix local fetch-cache SQLite errors that can break Steam or launcher installs.')
+        cache_btn = Gtk.Button(label='Repair', valign=Gtk.Align.CENTER)
+        cache_btn.connect('clicked', lambda *_: self._run_local_tool('Repairing local Nix cache…', ['repair-cache']))
+        cache_row.add_suffix(cache_btn)
+        tools_group.add(cache_row)
+        self._action_buttons.append(cache_btn)
 
         self._status_group = Adw.PreferencesGroup()
         box.append(self._status_group)
@@ -241,20 +329,33 @@ class GamingWelcomeWindow(Adw.ApplicationWindow):
         # rebuild (see its own --help: "After changing settings, run: sudo
         # abora update"). Chaining the update here makes "Turn On" a single
         # action instead of leaving the user to run a second command.
-        config_dir = os.environ.get('ABORA_SYSTEM_CONFIG', '/etc/nixos')
+        prefix = sudo_prefix_or_status(self)
+        if prefix is None:
+            return
         self._run_background(
             'Turning on Abora Gaming (this can take a few minutes)…',
-            sudo_prefix() + ['env', f'ABORA_SYSTEM_CONFIG={config_dir}',
-                              'bash', '-c', 'abora gaming enable && exec abora-update'],
+            prefix + command_env() + [
+                'bash', '-c',
+                f'{command_path("abora")} gaming enable && exec {command_path("abora-update")}'
+            ],
             on_done=None,
         )
 
     def _install(self, app_id: str):
+        prefix = sudo_prefix_or_status(self)
+        if prefix is None:
+            return
         self._run_background(
             f'Installing {app_id}…',
-            sudo_prefix() + ['env', f'ABORA_SYSTEM_CONFIG={os.environ.get("ABORA_SYSTEM_CONFIG", "/etc/nixos")}',
-                              APPS_SCRIPT, 'add', app_id],
+            prefix + command_env() + [command_path('abora'), 'gaming', 'install', app_id],
             on_done=lambda ok: self._on_install_done(app_id, ok),
+        )
+
+    def _run_local_tool(self, label: str, args: list[str]):
+        self._run_background(
+            label,
+            command_env() + [command_path('abora'), 'gaming'] + args,
+            on_done=None,
         )
 
     def _on_install_done(self, app_id: str, ok: bool):
@@ -283,8 +384,18 @@ class GamingWelcomeWindow(Adw.ApplicationWindow):
             button.set_label('Install')
             button.set_sensitive(True)
 
+    def _refresh_buttons(self):
+        self._refresh_signin_row()
+        for app_id, button in self._platform_buttons.items():
+            self._set_platform_button_state(app_id, button)
+
+    def _set_busy(self, busy: bool):
+        for button in self._action_buttons:
+            button.set_sensitive(not busy)
+
     # ── Background command runner with a shared status row ─────────────
     def _run_background(self, label: str, command: list[str], on_done):
+        self._set_busy(True)
         self._status_group.set_visible(True)
         self._status_row.set_title(label)
         self._status_spinner.set_visible(True)
@@ -292,9 +403,16 @@ class GamingWelcomeWindow(Adw.ApplicationWindow):
 
         def worker():
             try:
-                proc = subprocess.run(command, capture_output=True, text=True, timeout=1800)
+                proc = subprocess.run(command, capture_output=True, text=True, timeout=COMMAND_TIMEOUT_SECONDS)
                 ok = proc.returncode == 0
-                message = '' if ok else (proc.stderr[-400:] or 'Failed — see the terminal for details.')
+                message = '' if ok else command_failure_message(proc)
+            except subprocess.TimeoutExpired:
+                ok = False
+                message = (
+                    f'This action did not finish after {COMMAND_TIMEOUT_SECONDS // 60} minutes. '
+                    'The rebuild may still need more time on a slow connection or cold cache. '
+                    'Try again from a terminal so you can watch progress: abora gaming doctor'
+                )
             except Exception as exc:
                 ok, message = False, str(exc)
             GLib.idle_add(self._on_background_done, ok, message, on_done)
@@ -312,6 +430,8 @@ class GamingWelcomeWindow(Adw.ApplicationWindow):
             self._status_row.set_subtitle(message)
         if on_done:
             on_done(ok)
+        self._refresh_buttons()
+        self._set_busy(False)
         return False
 
     def _show_status(self, message: str, error: bool = False):

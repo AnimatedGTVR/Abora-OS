@@ -69,8 +69,13 @@ ANIX can enable Abora Gaming on installed Abora systems:
 
 ```sh
 anix enable gaming
+anix enable gaming.steam
 anix enable gaming.big-picture
 anix enable gaming.gamescope
+anix enable gaming.controllers
+anix enable gaming.mangohud
+anix enable gaming.gamemode
+anix enable gaming.launchers
 anix apply
 ```
 

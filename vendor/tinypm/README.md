@@ -86,7 +86,7 @@ Linux, Alpine, and openSUSE userspaces.
 
 ```console
 grab <PACKAGE>...
-grab install <PACKAGE>...
+grab add <PACKAGE>...
 tinypm search <QUERY>
 tinypm info <PACKAGE>
 tinypm check <PACKAGE> [--json]
@@ -106,7 +106,7 @@ tinypm completions <SHELL>
 Choose a provider with `--provider` and preview an operation with `--dry-run`:
 
 ```console
-grab --provider pacman --dry-run install gcc++
+grab --provider pacman --dry-run add gcc++
 tinypm --provider apk explain gcc++
 ```
 

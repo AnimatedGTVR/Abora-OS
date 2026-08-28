@@ -728,12 +728,17 @@ render_template() {
   anix.allowUnfree = true;
 
   ## Optional Abora Gaming layer.
-  ## Commands: anix enable gaming ; anix enable gaming.big-picture ; anix enable gaming.vulkan
+  ## Commands: anix enable gaming ; anix enable gaming.steam ; anix enable gaming.big-picture ; anix enable gaming.vulkan
   anix.gaming.enable = false;
+  anix.gaming.steam = true;
   anix.gaming.bigPictureShortcut = true;
   anix.gaming.bigPictureAutostart = false;
   anix.gaming.gamescopeSession = true;
+  anix.gaming.controllerSupport = true;
+  anix.gaming.mangohud = true;
+  anix.gaming.gamemode = true;
   anix.gaming.vulkanTools = true;
+  anix.gaming.launchers = true;
 
   ## Modern Nix CLI and flakes.
   ## Command: anix enable experimentalNix
@@ -820,7 +825,7 @@ show_config() {
 
     local hostname timezone kb_console kb_xkb desktop wallpaper
     local allow_unfree bluetooth flatpak audio openssh gc shell
-    local gaming gaming_big_picture gaming_autostart gaming_gamescope gaming_vulkan
+    local gaming gaming_steam gaming_big_picture gaming_autostart gaming_gamescope gaming_controller gaming_mangohud gaming_gamemode gaming_vulkan gaming_launchers
     hostname="$(read_anix_option "hostname")"
     timezone="$(read_anix_option "timezone")"
     kb_console="$(read_anix_option "keyboard.console")"
@@ -835,10 +840,15 @@ show_config() {
     openssh="$(sed -nE 's|^[[:space:]]*anix\.services\.openssh[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
     gc="$(sed -nE 's|^[[:space:]]*anix\.garbageCollect\.enable[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
     gaming="$(read_anix_bool_option "gaming.enable")"
+    gaming_steam="$(read_anix_bool_option "gaming.steam")"
     gaming_big_picture="$(read_anix_bool_option "gaming.bigPictureShortcut")"
     gaming_autostart="$(read_anix_bool_option "gaming.bigPictureAutostart")"
     gaming_gamescope="$(read_anix_bool_option "gaming.gamescopeSession")"
+    gaming_controller="$(read_anix_bool_option "gaming.controllerSupport")"
+    gaming_mangohud="$(read_anix_bool_option "gaming.mangohud")"
+    gaming_gamemode="$(read_anix_bool_option "gaming.gamemode")"
     gaming_vulkan="$(read_anix_bool_option "gaming.vulkanTools")"
+    gaming_launchers="$(read_anix_bool_option "gaming.launchers")"
 
     abora_banner "ANIX" "${anix_file}"
 
@@ -856,9 +866,14 @@ show_config() {
     abora_kv "shell"       "${shell:-—}"
     abora_kv "allowUnfree" "${allow_unfree:-—}"
     abora_kv "gaming"      "${gaming:-—}"
+    abora_kv "steam"       "${gaming_steam:-—}"
     abora_kv "big picture" "${gaming_big_picture:-—}"
     abora_kv "gamescope"   "${gaming_gamescope:-—}"
+    abora_kv "controllers" "${gaming_controller:-—}"
+    abora_kv "MangoHud"    "${gaming_mangohud:-—}"
+    abora_kv "GameMode"    "${gaming_gamemode:-—}"
     abora_kv "vulkan tools" "${gaming_vulkan:-—}"
+    abora_kv "launchers"   "${gaming_launchers:-—}"
     abora_kv "gaming autostart" "${gaming_autostart:-—}"
 
     abora_card_end
@@ -1016,10 +1031,15 @@ feature_to_anix_key() {
         thermald) printf 'power.thermald' ;;
         tlp) printf 'power.tlp' ;;
         gaming) printf 'gaming.enable' ;;
+        gaming.steam|steam) printf 'gaming.steam' ;;
         gaming.big-picture|gaming.bigPictureShortcut|bigPicture|big-picture) printf 'gaming.bigPictureShortcut' ;;
         gaming.autostart|gaming.bigPictureAutostart) printf 'gaming.bigPictureAutostart' ;;
         gaming.gamescope|gaming.gamescopeSession|gamescope) printf 'gaming.gamescopeSession' ;;
+        gaming.controllers|gaming.controller|gaming.controllerSupport|controllers|controller) printf 'gaming.controllerSupport' ;;
+        gaming.mangohud|mangohud) printf 'gaming.mangohud' ;;
+        gaming.gamemode|gamemode) printf 'gaming.gamemode' ;;
         gaming.vulkan|gaming.vulkanTools|vulkan|vulkanTools) printf 'gaming.vulkanTools' ;;
+        gaming.launchers|launchers) printf 'gaming.launchers' ;;
         garbageCollect|gc) printf 'garbageCollect.enable' ;;
         *) return 1 ;;
     esac
@@ -1035,6 +1055,76 @@ read_anix_bool_option() {
     sed -nE "s@^[[:space:]]*anix\\.${escaped_key}[[:space:]]*=[[:space:]]*(true|false);.*@\1@p" "$anix_file" | head -n1
 }
 
+write_anix_gaming_dependencies() {
+    local wanted="$1"
+    local key="$2"
+
+    if [[ "$wanted" == "true" ]]; then
+        case "$key" in
+            gaming.steam)
+                write_anix_raw_option "gaming.enable" "true"
+                write_anix_raw_option "gaming.controllerSupport" "true"
+                ;;
+            gaming.bigPictureShortcut)
+                write_anix_raw_option "gaming.enable" "true"
+                write_anix_raw_option "gaming.steam" "true"
+                ;;
+            gaming.bigPictureAutostart)
+                write_anix_raw_option "gaming.enable" "true"
+                write_anix_raw_option "gaming.steam" "true"
+                write_anix_raw_option "gaming.bigPictureShortcut" "true"
+                ;;
+            gaming.gamescopeSession)
+                write_anix_raw_option "gaming.enable" "true"
+                write_anix_raw_option "gaming.steam" "true"
+                ;;
+            gaming.controllerSupport|gaming.mangohud|gaming.gamemode|gaming.vulkanTools|gaming.launchers)
+                write_anix_raw_option "gaming.enable" "true"
+                ;;
+        esac
+    else
+        case "$key" in
+            gaming.steam)
+                write_anix_raw_option "gaming.bigPictureShortcut" "false"
+                write_anix_raw_option "gaming.bigPictureAutostart" "false"
+                write_anix_raw_option "gaming.gamescopeSession" "false"
+                write_anix_raw_option "gaming.controllerSupport" "false"
+                ;;
+        esac
+    fi
+}
+
+anix_gaming_dependency_keys() {
+    local wanted="$1"
+    local key="$2"
+
+    if [[ "$wanted" == "true" ]]; then
+        case "$key" in
+            gaming.steam)
+                printf '%s\n' gaming.enable gaming.controllerSupport
+                ;;
+            gaming.bigPictureShortcut)
+                printf '%s\n' gaming.enable gaming.steam
+                ;;
+            gaming.bigPictureAutostart)
+                printf '%s\n' gaming.enable gaming.steam gaming.bigPictureShortcut
+                ;;
+            gaming.gamescopeSession)
+                printf '%s\n' gaming.enable gaming.steam
+                ;;
+            gaming.controllerSupport|gaming.mangohud|gaming.gamemode|gaming.vulkanTools|gaming.launchers)
+                printf '%s\n' gaming.enable
+                ;;
+        esac
+    else
+        case "$key" in
+            gaming.steam)
+                printf '%s\n' gaming.bigPictureShortcut gaming.bigPictureAutostart gaming.gamescopeSession gaming.controllerSupport
+                ;;
+        esac
+    fi
+}
+
 do_toggle() {
     local wanted="$1"
     local name="${2:-}"
@@ -1047,10 +1137,11 @@ do_toggle() {
 
     if ! key="$(feature_to_anix_key "$name")"; then
         abora_error "Unknown feature: ${name}"
-        abora_dim_line "Known: allowUnfree experimentalNix bluetooth printing flatpak audio openssh thermald tlp gaming gaming.big-picture gaming.autostart gaming.gamescope gaming.vulkan garbageCollect"
+        abora_dim_line "Known: allowUnfree experimentalNix bluetooth printing flatpak audio openssh thermald tlp gaming gaming.steam gaming.big-picture gaming.autostart gaming.gamescope gaming.controllers gaming.mangohud gaming.gamemode gaming.vulkan gaming.launchers garbageCollect"
         exit 1
     fi
 
+    write_anix_gaming_dependencies "$wanted" "$key"
     write_anix_raw_option "$key" "$wanted"
     abora_success "'anix.${key}' set to '${wanted}'"
     abora_dim_line "Run 'anix apply' to rebuild."
@@ -2617,6 +2708,22 @@ do_diff_plan() {
                     label="CHANGE"
                 fi
                 printf '  %-7s %s %s\n' "$label" "$op" "$field1"
+                local dep_key dep_current dep_label dep_op
+                while IFS= read -r dep_key; do
+                    [[ -n "$dep_key" ]] || continue
+                    [[ "$dep_key" == "$anix_key" ]] && continue
+                    dep_current="$(read_anix_bool_option "$dep_key")"
+                    if [[ -z "$dep_current" ]]; then
+                        dep_label="$([[ "$wanted" == "true" ]] && printf 'ADD' || printf 'REMOVE')"
+                    elif [[ "$dep_current" == "$wanted" ]]; then
+                        dep_label="SAME"
+                    else
+                        dep_label="CHANGE"
+                    fi
+                    [[ "$dep_label" == "SAME" ]] && continue
+                    dep_op="$([[ "$wanted" == "true" ]] && printf 'enable' || printf 'disable')"
+                    printf '          also %s %s %s\n' "$dep_label" "$dep_op" "$dep_key"
+                done < <(anix_gaming_dependency_keys "$wanted" "$anix_key")
                 ;;
             package.add)
                 if [[ -f "$anix_file" ]] && grep -Eq "anix\\.packages = with pkgs; \\[[^]]*([[:space:][])${field1}([[:space:]]|\\])" "$anix_file"; then
@@ -3121,7 +3228,8 @@ usage() {
     abora_dim_line "  Update a simple ANIX setting."
     printf '\n'
     printf '  %banix enable <feature>%b / %banix disable <feature>%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
-    abora_dim_line "  Toggle bluetooth, flatpak, audio, openssh, allowUnfree, gc, and power helpers."
+    abora_dim_line "  Toggle bluetooth, flatpak, audio, openssh, allowUnfree, gc, power, and gaming helpers."
+    abora_dim_line "  Gaming toggles add required parent options automatically."
     printf '\n'
     printf '  %banix package add <pkg>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     printf '  %banix package remove <pkg>%b\n' "$ABORA_CYAN" "$ABORA_NC"
@@ -3158,7 +3266,7 @@ usage() {
     abora_dim_line "  Apply a pre-built Plan JSON file as one transaction."
     printf '\n'
     printf '  %banix diff-plan <file>%b\n' "$ABORA_CYAN" "$ABORA_NC"
-    abora_dim_line "  Show ADD/CHANGE/REMOVE/SAME for a source or Plan JSON file against current state."
+    abora_dim_line "  Show ADD/CHANGE/REMOVE/SAME for a source or Plan JSON file, including implied gaming changes."
     printf '\n'
     printf '  %banix tinypm [status|install]%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Check TinyPM, the system-wide package manager frontend."
@@ -3181,6 +3289,8 @@ do_learn() {
     printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix set timezone America/New_York" "$ABORA_NC" "set timezone"
     printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix set wallpaper titlis-alps.jpg" "$ABORA_NC" "set wallpaper"
     printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix enable flatpak" "$ABORA_NC" "enable a feature"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix enable gaming.steam" "$ABORA_NC" "enable gaming, Steam, and controller support"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix enable gaming.big-picture" "$ABORA_NC" "enable the Steam Big Picture shortcut"
     printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix disable openssh" "$ABORA_NC" "disable a feature"
     abora_card_end
     printf '\n'

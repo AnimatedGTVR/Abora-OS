@@ -30,7 +30,7 @@ def _resolve_logo_path() -> str:
 
 LOGO_FILE      = _resolve_logo_path()
 UPDATE_SCRIPT  = os.environ.get('ABORA_UPDATE_SCRIPT', '/etc/abora/update.sh')
-GAMING_WELCOME_SCRIPT = os.environ.get('ABORA_GAMING_WELCOME_GUI', '/etc/abora/gaming-welcome-gui.py')
+GAMING_WELCOME_COMMAND = os.environ.get('ABORA_GAMING_WELCOME_GUI', 'abora-gaming-welcome-gui')
 CONFIG_PATH    = Path(os.environ.get('ABORA_SYSTEM_CONFIG', '/etc/nixos')) / 'abora-local.nix'
 CHANNEL_FILE   = Path(os.environ.get('ABORA_SYSTEM_CONFIG', '/etc/nixos')) / 'abora' / 'channel'
 SEEN_MARKER    = Path.home() / '.cache' / 'abora' / 'welcome-seen'
@@ -284,9 +284,19 @@ class WelcomeWindow(Adw.ApplicationWindow):
         return scroller
 
     def _open_gaming_welcome(self):
+        command = GAMING_WELCOME_COMMAND
+        if command == 'abora-gaming-welcome-gui':
+            command = shutil.which(command) or command
         try:
-            subprocess.Popen([GAMING_WELCOME_SCRIPT])
+            subprocess.Popen([command])
         except Exception:
+            fallback = '/etc/abora/gaming-welcome-gui.py'
+            try:
+                if Path(fallback).exists():
+                    subprocess.Popen(['python3', fallback])
+                    return
+            except Exception:
+                pass
             run_in_terminal(['abora', 'gaming', 'status'])
 
     def _add_action_rows(self, group: Adw.PreferencesGroup, actions: list[tuple[str, str, list[str]]]):

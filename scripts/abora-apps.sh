@@ -103,14 +103,19 @@ is_installed_system() {
 }
 
 run_as_root() {
+    if [[ "${ABORA_NO_SUDO:-0}" == "1" ]]; then
+        "$@"
+        return $?
+    fi
+
     if [[ "$(id -u)" -eq 0 ]]; then
         "$@"
-        return 0
+        return $?
     fi
 
     if command -v sudo >/dev/null 2>&1; then
         sudo "$@"
-        return 0
+        return $?
     fi
 
     abora_error "This command needs root privileges."
@@ -122,6 +127,27 @@ stage_config_for_flake() {
         && [[ -d "$config_dir" ]] \
         && run_as_root git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         run_as_root git -C "$config_dir" add -A >/dev/null 2>&1 || true
+    fi
+}
+
+explain_nix_failure() {
+    local log_file="$1"
+
+    [[ -f "$log_file" ]] || return 0
+
+    if grep -Eqi 'fetcher-cache.*sqlite|sqlite.*disk I/O|disk I/O error' "$log_file"; then
+        printf '\n'
+        abora_warn "Nix reported a local fetch-cache disk I/O error."
+        abora_dim_line "This is usually a damaged user Nix cache or a full/busy disk, not a bad app entry."
+        abora_dim_line "Try: abora gaming repair-cache"
+        abora_dim_line "Manual fallback: rm -f ~/.cache/nix/fetcher-cache-v*.sqlite*"
+        abora_dim_line "Then check free space with: df -h"
+        printf '\n'
+    elif grep -Eqi 'no space left on device|ENOSPC' "$log_file"; then
+        printf '\n'
+        abora_warn "The rebuild appears to have run out of disk space."
+        abora_dim_line "Free space or run garbage collection, then retry: sudo nix-collect-garbage -d"
+        printf '\n'
     fi
 }
 
@@ -156,6 +182,51 @@ write_selected_ids() {
     chmod 644 "$tmp"
     printf '%s\n' "$@" | awk 'NF && !seen[$0]++' > "$tmp"
     run_as_root mv "$tmp" "$apps_list"
+}
+
+backup_app_state() {
+    local backup_dir="$1"
+
+    mkdir -p "$backup_dir"
+    if [[ -f "$apps_list" ]]; then
+        cp "$apps_list" "$backup_dir/apps.list"
+    else
+        : > "$backup_dir/apps.list.missing"
+    fi
+    if [[ -f "$apps_module" ]]; then
+        cp "$apps_module" "$backup_dir/apps.nix"
+    else
+        : > "$backup_dir/apps.nix.missing"
+    fi
+}
+
+restore_app_state() {
+    local backup_dir="$1"
+
+    if [[ -f "$backup_dir/apps.list" ]]; then
+        run_as_root cp "$backup_dir/apps.list" "$apps_list"
+    else
+        run_as_root rm -f "$apps_list"
+    fi
+    if [[ -f "$backup_dir/apps.nix" ]]; then
+        run_as_root cp "$backup_dir/apps.nix" "$apps_module"
+    else
+        run_as_root rm -f "$apps_module"
+    fi
+}
+
+rebuild_or_restore_app_state() {
+    local backup_dir="$1"
+
+    if rebuild_system; then
+        rm -rf "$backup_dir"
+        return 0
+    fi
+
+    restore_app_state "$backup_dir"
+    rm -rf "$backup_dir"
+    abora_warn "Restored the previous app selection because the rebuild failed."
+    return 1
 }
 
 # app_expr is never user-supplied text -- it's whatever abora_catalog_expr()
@@ -200,10 +271,22 @@ render_apps_module() {
 }
 
 rebuild_system() {
+    local log_file status
+
     abora_step "Rebuilding Abora with the updated app selection"
     printf '\n'
     stage_config_for_flake
-    run_as_root nixos-rebuild switch --flake "${config_dir}#${flake_target}"
+    log_file="$(mktemp)"
+    set +e
+    run_as_root nixos-rebuild switch --flake "${config_dir}#${flake_target}" 2>&1 | tee "$log_file"
+    status="${PIPESTATUS[0]}"
+    set -e
+    if [[ "$status" -ne 0 ]]; then
+        explain_nix_failure "$log_file"
+        rm -f "$log_file"
+        return "$status"
+    fi
+    rm -f "$log_file"
 }
 
 validate_ids() {
@@ -213,6 +296,25 @@ validate_ids() {
             abora_error "Unknown app id: $app_id"
             exit 1
         fi
+    done
+}
+
+selected_has_id() {
+    local wanted="$1" app_id
+    while IFS= read -r app_id; do
+        [[ "$app_id" == "$wanted" ]] && return 0
+    done < <(read_selected_ids)
+    return 1
+}
+
+validate_remove_ids() {
+    local app_id
+    for app_id in "$@"; do
+        if abora_catalog_has_app "$app_id" || selected_has_id "$app_id"; then
+            continue
+        fi
+        abora_error "Unknown app id: $app_id"
+        exit 1
     done
 }
 
@@ -475,7 +577,7 @@ main() {
     done
     set -- "${args[@]+"${args[@]}"}"
 
-    local app_id total
+    local app_id total state_backup
     local -a current=() new_list=() bundle_ids=() keeping=()
 
     case "$command" in
@@ -523,10 +625,12 @@ main() {
             fi
             ensure_layout
             abora_banner "App Manager" "Replacing app selection."
+            state_backup=""
+            [[ "$no_rebuild" == "false" ]] && state_backup="$(mktemp -d)" && backup_app_state "$state_backup"
             write_selected_ids "$@"
             render_apps_module
             if [[ "$no_rebuild" == "false" ]]; then
-                rebuild_system
+                rebuild_or_restore_app_state "$state_backup"
             fi
             total="$(read_selected_ids | wc -l | tr -d ' ')"
             abora_success "Done. App selection replaced."
@@ -545,6 +649,8 @@ main() {
             fi
             ensure_layout
             abora_banner "App Manager" "Adding apps to your system."
+            state_backup=""
+            [[ "$no_rebuild" == "false" ]] && state_backup="$(mktemp -d)" && backup_app_state "$state_backup"
             while IFS= read -r app_id; do
                 [[ -n "$app_id" ]] || continue
                 current+=("$app_id")
@@ -553,7 +659,7 @@ main() {
             write_selected_ids "${new_list[@]}"
             render_apps_module
             if [[ "$no_rebuild" == "false" ]]; then
-                rebuild_system
+                rebuild_or_restore_app_state "$state_backup"
             fi
             total="$(read_selected_ids | wc -l | tr -d ' ')"
             print_changed_apps "Added" "$@"
@@ -565,13 +671,15 @@ main() {
                 abora_error "Usage: abora apps remove <app-id...>"
                 exit 1
             fi
-            validate_ids "$@"
+            validate_remove_ids "$@"
             if [[ "$dry_run" == "true" ]]; then
                 show_dry_run "remove" "$no_rebuild" "$@"
                 return 0
             fi
             ensure_layout
             abora_banner "App Manager" "Removing apps from your system."
+            state_backup=""
+            [[ "$no_rebuild" == "false" ]] && state_backup="$(mktemp -d)" && backup_app_state "$state_backup"
             local removing_set=" $* "
             while IFS= read -r app_id; do
                 [[ -n "$app_id" ]] || continue
@@ -583,7 +691,7 @@ main() {
             write_selected_ids "${keeping[@]+"${keeping[@]}"}"
             render_apps_module
             if [[ "$no_rebuild" == "false" ]]; then
-                rebuild_system
+                rebuild_or_restore_app_state "$state_backup"
             fi
             total="$(read_selected_ids | wc -l | tr -d ' ')"
             print_changed_apps "Removed" "$@"
@@ -606,6 +714,8 @@ main() {
             fi
             ensure_layout
             abora_banner "App Manager" "Installing the '${1}' bundle."
+            state_backup=""
+            [[ "$no_rebuild" == "false" ]] && state_backup="$(mktemp -d)" && backup_app_state "$state_backup"
             while IFS= read -r app_id; do
                 [[ -n "$app_id" ]] || continue
                 current+=("$app_id")
@@ -614,7 +724,7 @@ main() {
             write_selected_ids "${new_list[@]}"
             render_apps_module
             if [[ "$no_rebuild" == "false" ]]; then
-                rebuild_system
+                rebuild_or_restore_app_state "$state_backup"
             fi
             total="$(read_selected_ids | wc -l | tr -d ' ')"
             abora_success "Done. The '${1}' bundle has been applied."

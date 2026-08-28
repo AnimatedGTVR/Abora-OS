@@ -8,7 +8,10 @@
 let
   cfg = config.abora;
   active = cfg.user.name != null;
-  wallpaperDir = ./wallpapers;
+  wallpaperDir =
+    if builtins.pathExists ./wallpapers then ./wallpapers
+    else if builtins.pathExists ../../assets/wallpapers/collection then ../../assets/wallpapers/collection
+    else throw "Abora wallpaper assets are missing; expected ./wallpapers or ../../assets/wallpapers/collection";
   bundledWallpaperNames = [
     "alpine-glacier.jpg"
     "tannheimer-mountains.jpg"
@@ -142,15 +145,16 @@ in
     };
 
     gpu = lib.mkOption {
-      type = lib.types.enum [ "nouveau" "nvidia" "nvidia-open" "amdgpu" "intel" "none" ];
+      type = lib.types.enum [ "auto" "nouveau" "nvidia" "nvidia-open" "amdgpu" "intel" "none" ];
       default = "none";
       description = ''
-        GPU driver selection. This module only accepts a resolved, concrete
-        value — pure Nix evaluation cannot safely probe real hardware, so
-        detecting "auto" happens one layer up, in the installer or
-        `abora config set gpu auto`, both of which run lspci on the actual
-        target machine and write the resolved value here.
+        GPU driver selection. Pure Nix evaluation cannot safely probe real
+        hardware, so the installer and `abora config set gpu auto` normally
+        resolve auto on the target machine before writing this option. The
+        module still accepts "auto" as a compatibility-safe no-op so older
+        or batch installs do not fail evaluation.
 
+        - auto: let NixOS and the kernel choose.
         - nouveau: open-source NVIDIA driver (the safe default for NVIDIA
           hardware, since it needs no license acceptance).
         - nvidia: proprietary NVIDIA driver.
@@ -322,37 +326,65 @@ in
       (lib.mkIf cfg.gaming.enable (let
         pkgIf = enabled: name:
           lib.optionals (enabled && builtins.hasAttr name pkgs) [ pkgs.${name} ];
+        wineIf = enabled:
+          lib.optionals (enabled && builtins.hasAttr "wineWowPackages" pkgs) [ pkgs.wineWowPackages.stable ];
         steamBigPictureCommand = pkgs.writeShellScriptBin "abora-steam-big-picture" ''
           if command -v steam >/dev/null 2>&1; then
-            steam -gamepadui "$@" || exec steam -bigpicture "$@"
+            export STEAM_FORCE_DESKTOPUI_SCALING="''${STEAM_FORCE_DESKTOPUI_SCALING:-1}"
+            if [ "''${1:-}" = "--session" ]; then
+              shift
+              steam -gamepadui "$@" || {
+                echo "Steam Gamepad UI failed; trying legacy Big Picture mode." >&2
+                exec steam -bigpicture "$@"
+              }
+              exit 0
+            fi
+            if [ "$#" -eq 0 ]; then
+              steam steam://open/bigpicture || steam -gamepadui || {
+                echo "Steam URI/Gamepad UI failed; trying legacy Big Picture mode." >&2
+                exec steam -bigpicture
+              }
+            else
+              steam -gamepadui "$@" || {
+                echo "Steam Gamepad UI failed; trying legacy Big Picture mode." >&2
+                exec steam -bigpicture "$@"
+              }
+            fi
           else
-            echo "Steam is not installed. Enable abora.gaming.steam, then rebuild." >&2
+            echo "Steam is not installed. Run: abora gaming install steam" >&2
             exit 1
           fi
+        '';
+        steamGamescopeSessionCommand = pkgs.writeShellScriptBin "abora-steam-gamescope-session" ''
+          if command -v gamescope >/dev/null 2>&1; then
+            exec gamescope -e -f -- abora-steam-big-picture --session "$@"
+          fi
+          echo "Gamescope is not installed; starting Steam Big Picture directly." >&2
+          exec abora-steam-big-picture --session "$@"
         '';
         steamBigPictureDesktop = pkgs.writeTextFile {
           name = "abora-steam-big-picture-desktop";
           destination = "/share/applications/abora-steam-big-picture.desktop";
           text = ''
-            [Desktop Entry]
-            Type=Application
-            Name=Steam Big Picture
-            Comment=Open Steam in controller-friendly Big Picture mode
-            Exec=abora-steam-big-picture
-            Icon=steam
-            Categories=Game;
-            Terminal=false
+[Desktop Entry]
+Type=Application
+Name=Steam Big Picture
+Comment=Open Steam in controller-friendly Big Picture mode
+Exec=abora-steam-big-picture
+Icon=steam
+Categories=Game;
+Terminal=false
           '';
         };
         gamescopeSessionDesktop = pkgs.writeTextFile {
           name = "abora-steam-gamescope-session";
           destination = "/share/wayland-sessions/abora-steam-gamescope.desktop";
           text = ''
-            [Desktop Entry]
-            Name=Abora Gaming
-            Comment=Steam Big Picture through Gamescope
-            Exec=gamescope -e -- abora-steam-big-picture
-            Type=Application
+[Desktop Entry]
+Name=Abora Gaming
+Comment=Steam Big Picture through Gamescope
+Exec=abora-steam-gamescope-session
+Type=Application
           '';
         };
       in lib.mkMerge [
@@ -361,16 +393,18 @@ in
           hardware.graphics.enable32Bit = lib.mkDefault true;
 
           environment.systemPackages =
-            [ steamBigPictureCommand ]
-            ++ lib.optionals cfg.gaming.bigPictureShortcut [ steamBigPictureDesktop ]
-            ++ lib.optionals cfg.gaming.gamescopeSession [ gamescopeSessionDesktop ]
+            [ steamBigPictureCommand steamGamescopeSessionCommand ]
+            ++ lib.optionals (cfg.gaming.steam && cfg.gaming.bigPictureShortcut) [ steamBigPictureDesktop ]
+            ++ lib.optionals (cfg.gaming.steam && cfg.gaming.gamescopeSession) [ gamescopeSessionDesktop ]
             ++ pkgIf cfg.gaming.gamescopeSession "gamescope"
             ++ pkgIf cfg.gaming.mangohud "mangohud"
             ++ pkgIf cfg.gaming.vulkanTools "vulkan-tools"
             ++ pkgIf cfg.gaming.launchers "heroic"
             ++ pkgIf cfg.gaming.launchers "lutris"
             ++ pkgIf cfg.gaming.launchers "bottles"
-            ++ pkgIf cfg.gaming.launchers "protonup-qt";
+            ++ pkgIf cfg.gaming.launchers "protonup-qt"
+            ++ pkgIf cfg.gaming.launchers "winetricks"
+            ++ wineIf cfg.gaming.launchers;
         }
         (lib.mkIf cfg.gaming.steam {
           programs.steam.enable = lib.mkDefault true;
@@ -381,17 +415,17 @@ in
         (lib.mkIf cfg.gaming.controllerSupport {
           hardware.steam-hardware.enable = lib.mkDefault true;
         })
-        (lib.mkIf cfg.gaming.bigPictureAutostart {
+        (lib.mkIf (cfg.gaming.steam && cfg.gaming.bigPictureAutostart) {
           environment.etc."xdg/autostart/abora-steam-big-picture.desktop".text = ''
-            [Desktop Entry]
-            Type=Application
-            Name=Steam Big Picture
-            Comment=Open Steam in controller-friendly Big Picture mode
-            Exec=abora-steam-big-picture
-            Icon=steam
-            Categories=Game;
-            Terminal=false
-            X-GNOME-Autostart-enabled=true
+[Desktop Entry]
+Type=Application
+Name=Steam Big Picture
+Comment=Open Steam in controller-friendly Big Picture mode
+Exec=abora-steam-big-picture
+Icon=steam
+Categories=Game;
+Terminal=false
+X-GNOME-Autostart-enabled=true
           '';
         })
       ]))

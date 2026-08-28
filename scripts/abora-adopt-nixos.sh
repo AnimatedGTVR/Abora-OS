@@ -402,6 +402,15 @@ cat > "$target_import" <<EOF
   abora.user.name = null;
   abora.desktop = "$desktop";
   abora.gaming.enable = $([[ "$gaming_enable" == 1 ]] && printf 'true' || printf 'false');
+  abora.gaming.steam = $([[ "$gaming_enable" == 1 ]] && printf 'true' || printf 'false');
+  abora.gaming.bigPictureShortcut = $([[ "$gaming_enable" == 1 ]] && printf 'true' || printf 'false');
+  abora.gaming.bigPictureAutostart = false;
+  abora.gaming.gamescopeSession = false;
+  abora.gaming.controllerSupport = $([[ "$gaming_enable" == 1 ]] && printf 'true' || printf 'false');
+  abora.gaming.mangohud = $([[ "$gaming_enable" == 1 ]] && printf 'true' || printf 'false');
+  abora.gaming.gamemode = $([[ "$gaming_enable" == 1 ]] && printf 'true' || printf 'false');
+  abora.gaming.vulkanTools = $([[ "$gaming_enable" == 1 ]] && printf 'true' || printf 'false');
+  abora.gaming.launchers = $([[ "$gaming_enable" == 1 ]] && printf 'true' || printf 'false');
 }
 EOF
 

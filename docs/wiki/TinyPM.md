@@ -24,7 +24,7 @@ Abora commands are for distro-specific setup, recovery, and health checks.
 
 ```console
 grab <PACKAGE>...
-grab install <PACKAGE>...
+grab add <PACKAGE>...
 grab remove <PACKAGE>...
 grab update
 grab undo --yes
@@ -46,7 +46,7 @@ Choose a provider with `--provider` and preview an operation with
 `--dry-run`:
 
 ```console
-grab --provider pacman --dry-run install gcc++
+grab --provider pacman --dry-run add gcc++
 tinypm --provider apk explain gcc++
 ```
 

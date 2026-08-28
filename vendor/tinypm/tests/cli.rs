@@ -60,6 +60,20 @@ mod unix {
     }
 
     #[test]
+    fn grab_uninstall_is_not_treated_as_a_package_name() {
+        let bin = fake_provider("brew");
+        let output = Command::new(env!("CARGO_BIN_EXE_grab"))
+            .args(["--provider", "brew", "--dry-run", "uninstall", "steam"])
+            .env("PATH", bin.path())
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        assert!(stdout.contains("brew uninstall steam"));
+        assert!(!stdout.contains("brew install uninstall steam"));
+    }
+
+    #[test]
     fn history_is_empty_in_a_fresh_state_directory() {
         let state = tempfile::tempdir().unwrap();
         let output = Command::new(env!("CARGO_BIN_EXE_tinypm"))
@@ -228,7 +242,7 @@ mod unix {
             .unwrap();
         assert!(output.status.success());
         let completion = String::from_utf8(output.stdout).unwrap();
-        assert!(completion.contains("grab__subcmd__install"));
+        assert!(completion.contains("grab__subcmd__add"));
         assert!(completion.contains("grab__subcmd__remove"));
         assert!(completion.contains("grab__subcmd__update"));
     }

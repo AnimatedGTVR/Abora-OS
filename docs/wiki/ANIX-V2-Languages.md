@@ -70,7 +70,11 @@ Adapters write JSON to standard output and diagnostics to standard error:
     { "op": "set", "key": "hostname", "value": "everest" },
     { "op": "enable", "feature": "bluetooth" },
     { "op": "enable", "feature": "gaming" },
+    { "op": "enable", "feature": "gaming.steam" },
     { "op": "enable", "feature": "gaming.big-picture" },
+    { "op": "enable", "feature": "gaming.controllers" },
+    { "op": "enable", "feature": "gaming.mangohud" },
+    { "op": "enable", "feature": "gaming.gamemode" },
     { "op": "package.add", "name": "firefox" }
   ]
 }

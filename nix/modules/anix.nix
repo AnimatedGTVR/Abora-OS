@@ -123,6 +123,12 @@ in
         description = "Enable Abora's optional gaming layer when available.";
       };
 
+      steam = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Install Steam through Abora's optional gaming layer when available.";
+      };
+
       bigPictureShortcut = lib.mkOption {
         type = lib.types.nullOr lib.types.bool;
         default = null;
@@ -141,10 +147,34 @@ in
         description = "Enable the Abora Gaming Gamescope session when available.";
       };
 
+      controllerSupport = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Enable Steam/controller udev support when Abora gaming is available.";
+      };
+
+      mangohud = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Install MangoHud when Abora gaming is available.";
+      };
+
+      gamemode = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Enable GameMode when Abora gaming is available.";
+      };
+
       vulkanTools = lib.mkOption {
         type = lib.types.nullOr lib.types.bool;
         default = null;
         description = "Install Vulkan diagnostic tools when Abora gaming is available.";
+      };
+
+      launchers = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Install common game launchers when Abora gaming is available.";
       };
     };
 
@@ -260,6 +290,9 @@ in
     (lib.mkIf (cfg.gaming.enable != null && hasAboraGamingOptions) {
       abora.gaming.enable = lib.mkForce cfg.gaming.enable;
     })
+    (lib.mkIf (cfg.gaming.steam != null && hasAboraGamingOptions) {
+      abora.gaming.steam = lib.mkForce cfg.gaming.steam;
+    })
     (lib.mkIf (cfg.gaming.bigPictureShortcut != null && hasAboraGamingOptions) {
       abora.gaming.bigPictureShortcut = lib.mkForce cfg.gaming.bigPictureShortcut;
     })
@@ -269,8 +302,20 @@ in
     (lib.mkIf (cfg.gaming.gamescopeSession != null && hasAboraGamingOptions) {
       abora.gaming.gamescopeSession = lib.mkForce cfg.gaming.gamescopeSession;
     })
+    (lib.mkIf (cfg.gaming.controllerSupport != null && hasAboraGamingOptions) {
+      abora.gaming.controllerSupport = lib.mkForce cfg.gaming.controllerSupport;
+    })
+    (lib.mkIf (cfg.gaming.mangohud != null && hasAboraGamingOptions) {
+      abora.gaming.mangohud = lib.mkForce cfg.gaming.mangohud;
+    })
+    (lib.mkIf (cfg.gaming.gamemode != null && hasAboraGamingOptions) {
+      abora.gaming.gamemode = lib.mkForce cfg.gaming.gamemode;
+    })
     (lib.mkIf (cfg.gaming.vulkanTools != null && hasAboraGamingOptions) {
       abora.gaming.vulkanTools = lib.mkForce cfg.gaming.vulkanTools;
+    })
+    (lib.mkIf (cfg.gaming.launchers != null && hasAboraGamingOptions) {
+      abora.gaming.launchers = lib.mkForce cfg.gaming.launchers;
     })
     (lib.mkIf (cfg.desktop != null && !hasAboraOptions) {
       warnings = [
@@ -282,7 +327,7 @@ in
         "anix.wallpaper is set to \"${cfg.wallpaper}\" but has no effect here: it requires abora-options.nix (part of nixosModules.installed-base) to also be imported."
       ];
     })
-    (lib.mkIf ((cfg.gaming.enable != null || cfg.gaming.bigPictureShortcut != null || cfg.gaming.bigPictureAutostart != null || cfg.gaming.gamescopeSession != null || cfg.gaming.vulkanTools != null) && !hasAboraGamingOptions) {
+    (lib.mkIf ((cfg.gaming.enable != null || cfg.gaming.steam != null || cfg.gaming.bigPictureShortcut != null || cfg.gaming.bigPictureAutostart != null || cfg.gaming.gamescopeSession != null || cfg.gaming.controllerSupport != null || cfg.gaming.mangohud != null || cfg.gaming.gamemode != null || cfg.gaming.vulkanTools != null || cfg.gaming.launchers != null) && !hasAboraGamingOptions) {
       warnings = [
         "anix.gaming.* is set but has no effect here: it requires abora-options.nix (part of nixosModules.installed-base) to also be imported."
       ];
@@ -297,8 +342,9 @@ in
     # every rebuild in that entirely normal, working configuration.
     (lib.mkIf (hasAboraGamingOptions && cfg.gaming.enable != true &&
       config.abora.gaming.enable != true &&
-      (cfg.gaming.bigPictureShortcut != null || cfg.gaming.bigPictureAutostart != null ||
-       cfg.gaming.gamescopeSession != null || cfg.gaming.vulkanTools != null)) {
+      (cfg.gaming.steam != null || cfg.gaming.bigPictureShortcut != null || cfg.gaming.bigPictureAutostart != null ||
+       cfg.gaming.gamescopeSession != null || cfg.gaming.controllerSupport != null || cfg.gaming.mangohud != null ||
+       cfg.gaming.gamemode != null || cfg.gaming.vulkanTools != null || cfg.gaming.launchers != null)) {
       warnings = [
         "anix.gaming.* sub-options are set but anix.gaming.enable is not true, so abora.gaming.enable stays off (unless something else turns it on) -- every gaming package/service these sub-options would configure is gated behind abora.gaming.enable and won't be installed."
       ];

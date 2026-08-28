@@ -145,10 +145,15 @@ Abora Gaming is optional and works on top of the desktop you choose.
 ```bash
 abora gaming status
 abora gaming enable
+abora gaming steam on
+abora gaming install steam
+abora gaming install wine winetricks
 abora gaming big-picture
+abora gaming logs
+abora gaming repair-cache
 ```
 
-It can add Steam, GameMode, MangoHud, Vulkan tools, controller support, launchers, and an optional Gamescope Big Picture session.
+It can add Steam, Wine, Winetricks, GameMode, MangoHud, Vulkan tools, controller support, launchers, and an optional Gamescope Big Picture session. Steam-related commands enable the required parent options automatically, so `abora gaming big-picture on` also turns on the Steam support it needs. If Nix reports a local fetch-cache disk I/O error during a Gaming install, `abora gaming repair-cache` clears the stale per-user cache files.
 
 ---
 

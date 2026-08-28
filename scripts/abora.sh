@@ -29,9 +29,16 @@ Change the system:
 
 Apps and extras:
   abora apps catalog                  see app bundles
-  sudo abora apps add gaming          install a curated app bundle
+  sudo abora apps bundle gaming       install a curated app bundle
   abora apps custom list              list standalone custom packages
   sudo abora apps custom update modularity-stable --zip ~/Downloads/Modularity.zip
+
+Gaming:
+  abora gaming status                 show Steam, launchers, Wine, and helpers
+  abora gaming welcome                open the Gaming first-steps app
+  abora gaming doctor                 check Gaming config, GPU, Vulkan, disk space
+  abora gaming repair-cache           fix local Nix fetch-cache SQLite errors
+  abora gaming big-picture            open Steam Big Picture
 
 Install, build, or repair:
   abora adopt-nixos                   add Abora to existing NixOS without wiping
@@ -364,7 +371,10 @@ case "${1:-help}" in
         ;;
     gaming)
         shift
-        exec abora-gaming "$@"
+        if command -v abora-gaming >/dev/null 2>&1; then
+            exec abora-gaming "$@"
+        fi
+        exec "$script_dir/abora-gaming.sh" "$@"
         ;;
     doctor)
         shift

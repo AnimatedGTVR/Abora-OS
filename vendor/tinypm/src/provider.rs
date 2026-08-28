@@ -1,6 +1,7 @@
 use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::{env, fs};
 
 use anyhow::{Context, Result, bail};
 use clap::ValueEnum;
@@ -632,6 +633,7 @@ impl CommandSpec {
             (Command::new(self.program), self.program)
         };
         let status = command
+            .tap_nix_cache_fallback(self.program)
             .args(&self.args)
             .stdin(Stdio::inherit())
             .stdout(Stdio::inherit())
@@ -653,6 +655,23 @@ impl CommandSpec {
             .status()
             .with_context(|| format!("could not start {}", self.program))
             .map(|status| status.success())
+    }
+}
+
+trait NixCacheFallback {
+    fn tap_nix_cache_fallback(&mut self, program: &str) -> &mut Self;
+}
+
+impl NixCacheFallback for Command {
+    fn tap_nix_cache_fallback(&mut self, program: &str) -> &mut Self {
+        if program == "nix" && env::var_os("XDG_CACHE_HOME").is_none() {
+            let cache_home =
+                env::temp_dir().join(format!("tinypm-nix-cache-{}", unsafe { libc::geteuid() }));
+            if fs::create_dir_all(cache_home.join("nix")).is_ok() {
+                self.env("XDG_CACHE_HOME", cache_home);
+            }
+        }
+        self
     }
 }
 

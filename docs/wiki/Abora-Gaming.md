@@ -36,13 +36,13 @@ Starts Steam Big Picture after desktop login. This is useful for living-room sys
 
 ### Gamescope Console Session
 
-Adds a separate Gamescope/Steam session for a more console-like workflow:
+Adds a separate fullscreen Gamescope/Steam session for a more console-like workflow:
 
 ```sh
-gamescope -e -- abora-steam-big-picture
+abora-steam-gamescope-session
 ```
 
-This should be marked advanced because Gamescope behavior depends more heavily on GPU drivers, display manager behavior, and controller/display setup.
+This should be marked advanced because Gamescope behavior depends more heavily on GPU drivers, display manager behavior, and controller/display setup. The wrapper falls back to Steam Big Picture directly if Gamescope is missing, and the Steam launcher falls back to legacy Big Picture mode if Gamepad UI fails.
 
 ## Options
 
@@ -120,21 +120,39 @@ abora gaming status
 abora gaming welcome
 abora gaming doctor
 abora gaming enable
+abora gaming steam on
 abora gaming disable
+abora gaming install steam
+abora gaming install wine winetricks
+abora gaming remove steam
 abora gaming big-picture
 abora gaming big-picture on
+abora gaming session
 abora gaming gamescope on
+abora gaming controllers on
+abora gaming mangohud on
+abora gaming gamemode on
 abora gaming vulkan on
+abora gaming launchers on
 abora gaming autostart off
+abora gaming logs
+abora gaming repair-cache
 ```
+
+`abora gaming logs` is a shortcut to recent Abora installer/config logs when
+you are debugging a failed Gaming install.
+
+`abora gaming repair-cache` removes stale `~/.cache/nix/fetcher-cache-v*.sqlite*`
+files. Use it when a Steam or launcher install fails with a local Nix
+fetch-cache SQLite disk I/O error, then retry the install.
 
 ## Abora Gaming Welcome
 
 A separate GTK app (`abora-gaming-welcome-gui`, or `abora gaming welcome`)
 from Abora Welcome — Abora Welcome covers the system in general, this one
 is dedicated to games: turning the gaming layer on, signing into Steam,
-and installing a platform (Steam, Lutris, Heroic, Bottles, GameMode,
-MangoHud) to get a game running through. Abora Welcome links to it once
+and installing a platform (Steam, Lutris, Heroic, Bottles, Wine,
+Winetricks, GameMode, MangoHud) to get a game running through. Abora Welcome links to it once
 gaming is enabled.
 
 Enable the layer in `/etc/nixos/abora-local.nix`, then run `sudo abora update`:
@@ -147,9 +165,14 @@ Or use the config helper:
 
 ```sh
 abora config set gaming true
+abora config set gaming.steam true
 abora config set gaming.big-picture true
 abora config set gaming.gamescope true
+abora config set gaming.controllers true
+abora config set gaming.mangohud true
+abora config set gaming.gamemode true
 abora config set gaming.vulkan true
+abora config set gaming.launchers true
 abora config apply
 ```
 
@@ -157,19 +180,46 @@ Or use the gaming helper:
 
 ```sh
 abora gaming enable
+abora gaming steam on
+abora gaming install steam
 abora gaming gamescope on
+abora gaming controllers on
+abora gaming mangohud on
+abora gaming gamemode on
+abora gaming launchers on
 sudo abora update
 ```
+
+To remove a gaming app later:
+
+```sh
+abora gaming remove steam
+```
+
+For Steam, removal also writes `abora.gaming.steam = false`, so the Gaming
+module does not reinstall Steam on the next rebuild. It also clears Steam-only
+session helpers such as Big Picture autostart, the Gamescope session, and
+controller rules.
 
 Or use ANIX:
 
 ```sh
 anix enable gaming
+anix enable gaming.steam
 anix enable gaming.big-picture
 anix enable gaming.gamescope
+anix enable gaming.controllers
+anix enable gaming.mangohud
+anix enable gaming.gamemode
 anix enable gaming.vulkan
+anix enable gaming.launchers
 anix apply
 ```
+
+Gaming toggles are dependency-aware. For example, `anix enable gaming.big-picture`
+also enables the gaming layer and Steam, while `anix disable gaming.steam`
+turns off Steam-only helpers so the next rebuild does not bring Steam back
+through a shortcut or session option.
 
 Example status:
 
@@ -178,6 +228,8 @@ Steam                 installed
 GameMode              enabled
 MangoHud              ready
 Vulkan                ready
+Wine                  installed
+Winetricks            installed
 32-bit graphics       ready
 Controller rules      ready
 Big Picture shortcut  enabled
