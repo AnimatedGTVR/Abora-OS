@@ -1538,18 +1538,10 @@ write_installed_flake() {
     cat > "$flake_tmp" <<EOF
 {
   description = "Abora installed system";
-  # A local path, not a github: URL: this must resolve to the exact same
-  # nixpkgs tree the running system's own packages (including out-of-tree
-  # ones like abora-plan-tool/abora-update-resolver) were built from, or
-  # every one of those custom derivations gets a different hash and has to
-  # be rebuilt from source instead of reusing what's already in the local
-  # store -- which is expensive enough for the two dotnet/Native-AOT
-  # packages to crash a memory-constrained install VM outright. /etc/abora/
-  # nixpkgs is exactly that: written by both live.nix and installed-base.nix
-  # as pkgs.path, so it's always this system's own current nixpkgs, on the
-  # live ISO and after every later rebuild alike -- no network fetch needed
-  # either.
-  inputs.nixpkgs.url = "path:/etc/abora/nixpkgs";
+  # Keep installed systems on the rolling NixOS package set used by Abora
+  # v4 alpha. Avoid path:/etc/... here: on NixOS that path resolves through
+  # /etc/static, which pure flake evaluation rejects as an absolute path.
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   outputs = { nixpkgs, ... }: {
     nixosConfigurations = {
       "${flake_config_name}" = nixpkgs.lib.nixosSystem {
@@ -1602,7 +1594,7 @@ repair_flake_layout_if_needed() {
         return 0
     fi
 
-    if grep -Eq '(/nix/store|../../nix|../../../nix|nix/pkgs/mango\.nix|nix/pkgs/modularity\.nix|nixos-unstable)' "$flake_file"; then
+    if grep -Eq '(/nix/store|../../nix|../../../nix|nix/pkgs/mango\.nix|nix/pkgs/modularity\.nix|path:/etc/abora/nixpkgs|/etc/static/abora/nixpkgs)' "$flake_file"; then
         needs_repair=1
     elif [[ -d "$abora_dir" ]] && grep -RIEq '(/nix/store|(\.\./){2,}assets/mango/config\.conf|(\.\./){2,}nix/|nix/(pkgs|modules)/(mango|modularity)\.nix)' "$abora_dir"; then
         needs_repair=1

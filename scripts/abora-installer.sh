@@ -2480,17 +2480,10 @@ EOF
     cat > "${cfgdir}/flake.nix" <<EOF
 {
   description = "Abora installed system";
-  # A local path, not a github: URL: use the exact same NixOS base as the
-  # release ISO (this live system's own current nixpkgs, written to
-  # /etc/abora/nixpkgs by live.nix as pkgs.path) so installed systems reuse
-  # the desktop/app package set Abora already built and boot-tested,
-  # instead of a fresh nixos-unstable checkout that has almost certainly
-  # drifted since this ISO was built. That drift is what made
-  # nixos-install rebuild abora-plan-tool/abora-update-resolver (both
-  # Native AOT dotnet packages, not on any binary cache) from source
-  # instead of reusing the copies already sitting in this live system's
-  # own store -- expensive enough to crash a memory-constrained install VM.
-  inputs.nixpkgs.url = "path:/etc/abora/nixpkgs";
+  # Keep installed systems on the rolling NixOS package set used by Abora
+  # v4 alpha. Avoid path:/etc/... here: on NixOS that path resolves through
+  # /etc/static, which pure flake evaluation rejects as an absolute path.
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   outputs = { nixpkgs, ... }: {
     nixosConfigurations = {
       abora = nixpkgs.lib.nixosSystem {
@@ -3161,9 +3154,9 @@ run_install() {
     # nixos-install rebuilt them from source instead of reusing them. That
     # rebuild (dotnetBuildHook running a real AOT compile) is expensive
     # enough to crash outright in a memory-constrained install VM. Building
-    # through the same flake this ISO was built from (now pinned to
-    # path:/etc/abora/nixpkgs -- see write_installed_flake in
-    # abora-update.sh) means the derivations match and get reused instead.
+    # through the same flake shape this ISO was built from keeps install and
+    # update evaluation consistent enough for custom Abora packages to be
+    # reused whenever the Nixpkgs input still matches.
     if ! run_with_log_panel 70 "Installing system" \
         env "NIX_CONFIG=${nix_config}" \
         nixos-install --root /mnt --no-root-passwd --flake "/mnt/etc/nixos#abora"; then
