@@ -507,12 +507,16 @@ in
     gum         # upstream Charm gum picker/input UI used by installer.sh
     mintPackage # Abora helper commands; intentionally not linked as gum
     fastfetch   # shown in the live welcome banner
+    feh         # X11 wallpaper fallback for lightweight live desktops
     chafa       # terminal logo rendering fallback
     fbv         # real framebuffer PNG splash before the TTY installer
     htop
     jq          # ANIX v2 plan validation/execution (anix run/validate-plan/apply-plan)
     moducpp-anix # ANIX v2 ModuCPP frontend — standalone, no Modularity checkout needed; bundles its own C++ compiler
     newt        # provides nmtui for Wi-Fi setup
+    libsForQt5.qt5ct
+    qt6Packages.qt6ct
+    swaybg      # wlroots wallpaper fallback for Hyprland/Sway/MangoWM live sessions
     xterm       # tiny fallback so the Start Abora launcher can always open
     zenity      # graphical ANIX helper when launched from a desktop
 
@@ -563,6 +567,17 @@ in
     ABORA_VERSION = version;
     ABORA_NIXPKGS_PATH = pkgs.path;
     ABORA_ZONEINFO_PATH = "${pkgs.tzdata}/share/zoneinfo";
+  };
+
+  systemd.user.services.abora-session-setup = {
+    description = "Apply Abora desktop session defaults";
+    wantedBy = [ "graphical-session.target" ];
+    partOf = [ "graphical-session.target" ];
+    environment.ABORA_SESSION_SETUP_WAIT = "10";
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${aboraSessionSetup}/bin/abora-session-setup";
+    };
   };
 
   environment.etc =

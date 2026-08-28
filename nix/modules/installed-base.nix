@@ -49,11 +49,20 @@ let
   supportReportScript  = ./support-report.sh;
   hardwareTestScript   = ./hardware-test.sh;
   repairFlakePurityScript = ./repair-flake-purity.sh;
-  wallpaperFile        = ./default-wallpaper.png;
+  wallpaperFile =
+    if builtins.pathExists ./default-wallpaper.png then ./default-wallpaper.png
+    else if builtins.pathExists ../../assets/wallpapers/collection/titlis-alps.jpg then ../../assets/wallpapers/collection/titlis-alps.jpg
+    else throw "Abora default wallpaper asset is missing; expected ./default-wallpaper.png or ../../assets/wallpapers/collection/titlis-alps.jpg";
   aboraLogoFile =
     if builtins.pathExists ./Abora-LOGO.png then ./Abora-LOGO.png else null;
-  wallpaperDir         = ./wallpapers;
-  wallpaperThemeDir    = ./themes;
+  wallpaperDir =
+    if builtins.pathExists ./wallpapers then ./wallpapers
+    else if builtins.pathExists ../../assets/wallpapers/collection then ../../assets/wallpapers/collection
+    else throw "Abora wallpaper assets are missing; expected ./wallpapers or ../../assets/wallpapers/collection";
+  wallpaperThemeDir =
+    if builtins.pathExists ./themes then ./themes
+    else if builtins.pathExists ../../assets/wallpaper-themes then ../../assets/wallpaper-themes
+    else throw "Abora wallpaper theme assets are missing; expected ./themes or ../../assets/wallpaper-themes";
   updateScript         = ./update.sh;
   themeSyncScript      = ./theme-sync.sh;
   sessionSetupScript   = ./session-setup.sh;
@@ -67,8 +76,10 @@ let
   setupDesktopFile     = ./setup.desktop;
   plymouthDir          = ./plymouth;
   bootloaderDir        = ./bootloader;
-  effectsDir =
-    if builtins.pathExists ./effects then ./effects else null;
+  effectsAudioFile =
+    if builtins.pathExists ./effects/v3StartingAbora.mp3 then ./effects/v3StartingAbora.mp3
+    else if builtins.pathExists ./effects/LaunchingAbora.mp3 then ./effects/LaunchingAbora.mp3
+    else null;
   limineWallpaperFile =
     if builtins.pathExists (bootloaderDir + "/limine-background.png") then
       bootloaderDir + "/limine-background.png"
@@ -154,12 +165,16 @@ let
     export GI_TYPELIB_PATH="${aboraGuiGiPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
     export LD_LIBRARY_PATH="${aboraGuiLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     export ABORA_UPDATE_SCRIPT="''${ABORA_UPDATE_SCRIPT:-/etc/abora/update.sh}"
+    export GSK_RENDERER="''${GSK_RENDERER:-cairo}"
+    export GDK_BACKEND="''${GDK_BACKEND:-wayland,x11}"
     exec ${aboraGuiPython}/bin/python3 /etc/abora/welcome-gui.py "$@"
   '';
   aboraConfigGui = pkgs.writeShellScriptBin "abora-config-gui" ''
     export GI_TYPELIB_PATH="${aboraGuiGiPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
     export LD_LIBRARY_PATH="${aboraGuiLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     export ABORA_CONFIG_SCRIPT="''${ABORA_CONFIG_SCRIPT:-/etc/abora/config.sh}"
+    export GSK_RENDERER="''${GSK_RENDERER:-cairo}"
+    export GDK_BACKEND="''${GDK_BACKEND:-wayland,x11}"
     exec ${aboraGuiPython}/bin/python3 /etc/abora/config-gui.py "$@"
   '';
   # Abora Welcome (aboraWelcomeGui above) covers the system in general;
@@ -171,6 +186,8 @@ let
     export LD_LIBRARY_PATH="${aboraGuiLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     export ABORA_APPS_SCRIPT="''${ABORA_APPS_SCRIPT:-/etc/abora/apps.sh}"
     export ABORA_APP_CATALOG="''${ABORA_APP_CATALOG:-/etc/abora/app-catalog.sh}"
+    export GSK_RENDERER="''${GSK_RENDERER:-cairo}"
+    export GDK_BACKEND="''${GDK_BACKEND:-wayland,x11}"
     exec ${aboraGuiPython}/bin/python3 /etc/abora/gaming-welcome-gui.py "$@"
   '';
   anixCommand = pkgs.writeShellScriptBin "anix" ''
@@ -573,7 +590,7 @@ in
     ++ lib.optional (pkgs ? abora-plan-tool) pkgs.abora-plan-tool
     ++ lib.optional (welcomeGuiScript != null) aboraWelcomeGui
     ++ lib.optional (configGuiScript != null) aboraConfigGui
-    ++ lib.optional (gamingWelcomeGuiScript != null && config.abora.gaming.enable) aboraGamingWelcomeGui
+    ++ lib.optional (gamingWelcomeGuiScript != null) aboraGamingWelcomeGui
     ++ lib.optional config.abora.gaming.enable aboraGamingWelcomeDesktopPkg
   ++ lib.optionals config.abora.extras.diagnostics (with pkgs; [
     dmidecode
@@ -588,6 +605,17 @@ in
   # anything itself. Silently no-ops via `command -v` if TinyPM was never
   # installed for this user (anix tinypm install), so this timer is safe to
   # ship unconditionally on every desktop profile.
+  systemd.user.services.abora-session-setup = {
+    description = "Apply Abora desktop session defaults";
+    wantedBy = [ "graphical-session.target" ];
+    partOf = [ "graphical-session.target" ];
+    environment.ABORA_SESSION_SETUP_WAIT = "10";
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${aboraSessionSetup}/bin/abora-session-setup";
+    };
+  };
+
   systemd.user.services.tinypm-update-check = {
     description = "Check for TinyPM updates";
     serviceConfig = {
@@ -750,10 +778,7 @@ in
       "abora/mango/config.conf".source = mangoConfigFile;
       "mango/config.conf".text = lib.mkDefault mangoConfigText;
       "abora/vendor/modularity".source = modularitySrc;
-      # The generated /etc/nixos/flake.nix pins its nixpkgs input to
-      # "path:/etc/abora/nixpkgs". Expose the build-time nixpkgs source here so
-      # that path resolves on the installed system (the live ISO does the same).
-      # Without this, `anix apply` / nixos-rebuild fail to fetch the flake input.
+      # Keep the build-time nixpkgs source available for recovery/debug tools.
       "abora/nixpkgs".source = pkgs.path;
       "abora/installer.sh" = {
         source = installerScript;
@@ -786,6 +811,9 @@ in
 
           abora welcome       first steps and quick actions
           abora gaming        gaming layer status and Steam Big Picture helper
+          abora gaming doctor Gaming config/GPU/Vulkan/disk checks
+          abora gaming repair-cache
+                              fix local Nix fetch-cache errors
           abora doctor        check system health
           abora recovery      rollback and repair tools
           sudo abora update   rebuild and switch the system
@@ -969,8 +997,8 @@ in
     // lib.optionalAttrs (aboraLogoFile != null) {
       "abora/Abora-LOGO.png".source = aboraLogoFile;
     }
-    // lib.optionalAttrs (effectsDir != null) {
-      "abora/effects/v3StartingAbora.mp3".source = effectsDir + "/v3StartingAbora.mp3";
+    // lib.optionalAttrs (effectsAudioFile != null) {
+      "abora/effects/v3StartingAbora.mp3".source = effectsAudioFile;
     }
     // lib.optionalAttrs (welcomeGuiScript != null) {
       "abora/welcome-gui.py".source = welcomeGuiScript;

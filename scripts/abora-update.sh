@@ -35,17 +35,66 @@ else
     abora_card_start() { printf '  %b┌─ %s ─%b\n' "$ABORA_BLUE" "${1:-}" "$ABORA_NC"; }
     abora_card_end()   { printf '  %b└────────%b\n' "$ABORA_BLUE" "$ABORA_NC"; }
     abora_wu_banner()  { printf '\n  %b%s%b\n  %b%s%b\n\n' "$ABORA_WHITE" "${1:-}" "$ABORA_NC" "$ABORA_DIM" "${2:-}" "$ABORA_NC"; }
+    abora_log_tail() {
+        local logfile="$1" line total=0 index=0 shown=0
+        local -a matches=()
+        if [[ ! -s "$logfile" ]]; then
+            abora_dim_line "no output captured yet"
+            return 0
+        fi
+        mapfile -t matches < <(
+            grep -Eai \
+            '(^|[[:space:]])(error:|fatal:|failed:|cannot|could not|no such file|not found|undefined variable|permission denied|no space left on device|database or disk is full|disk I/O error)' \
+            "$logfile" 2>/dev/null \
+            | grep -Eavi 'Reason: 1 dependency failed|Output paths:|Cannot build .*[.]drv' \
+        )
+        total="${#matches[@]}"
+        if [[ "$total" -gt 0 ]]; then
+            abora_warn "Important log lines"
+            while IFS= read -r line; do
+                abora_dim_line "$line" >&2
+                shown=$((shown + 1))
+            done < <(printf '%s\n' "${matches[@]:0:6}")
+            if [[ "$total" -gt 12 ]]; then
+                abora_dim_line "... $((total - 12)) more matching log lines ..." >&2
+                index=$((total - 6))
+                while IFS= read -r line; do
+                    abora_dim_line "$line" >&2
+                    shown=$((shown + 1))
+                done < <(printf '%s\n' "${matches[@]:index:6}")
+            elif [[ "$total" -gt 6 ]]; then
+                while IFS= read -r line; do
+                    abora_dim_line "$line" >&2
+                    shown=$((shown + 1))
+                done < <(printf '%s\n' "${matches[@]:6}")
+            fi
+            [[ "$shown" -gt 0 ]] && printf '\n' >&2
+        fi
+        abora_dim_line "Last log lines" >&2
+        tail -n 10 "$logfile" 2>/dev/null >&2 || true
+    }
     abora_wu_run() {
         local wu_msg="$1" wu_log="$2" wu_status=0
         shift 2
         [[ "${1:-}" == "--" ]] && shift
         abora_step "$wu_msg"
-        "$@" >"$wu_log" 2>&1 || wu_status=$?
+        # $wu_log is a fixed, predictable /tmp path by design (so a failed
+        # update tells the user exactly where to look) -- a plain `>`
+        # redirect there is a classic symlink race against this
+        # root-privileged run: rm the name (never follows a symlink),
+        # then create with noclobber so a symlink racing back into place
+        # makes the open fail closed instead of writing through it.
+        rm -f -- "$wu_log" 2>/dev/null || true
+        if ! ( set -o noclobber; : > "$wu_log" ) 2>/dev/null; then
+            abora_error "$wu_msg failed (could not safely create $wu_log)"
+            return 1
+        fi
+        "$@" >>"$wu_log" 2>&1 || wu_status=$?
         if [[ "$wu_status" -eq 0 ]]; then
             abora_success "$wu_msg"
         else
             abora_error "$wu_msg failed (exit $wu_status)"
-            tail -n 20 "$wu_log" 2>/dev/null >&2 || true
+            abora_log_tail "$wu_log"
         fi
         return "$wu_status"
     }
@@ -68,6 +117,8 @@ pre_alpha_mode="${ABORA_PRE_ALPHA_MODE:-0}"
 pre_alpha_ref="${ABORA_PRE_ALPHA_REF:-edge}"
 dry_run="${ABORA_DRY_RUN:-0}"
 git_fetch_timeout="${ABORA_GIT_FETCH_TIMEOUT:-300}"
+build_timeout="${ABORA_BUILD_TIMEOUT:-3600}"
+switch_timeout="${ABORA_SWITCH_TIMEOUT:-1800}"
 # The channel/version decision logic in resolve_update_ref/
 # guard_against_accidental_downgrade below is a real Native AOT C# binary
 # (tools/abora-update-resolver) -- see its Program.cs for why: it's a
@@ -76,8 +127,38 @@ git_fetch_timeout="${ABORA_GIT_FETCH_TIMEOUT:-300}"
 # script still owns every bit of I/O (git ls-remote, reading VERSION,
 # printing colored UI text) and just shells out for the decision itself.
 # Defaults to relying on PATH (present via Nix systemPackages on any real
-# Abora system); override for local/test runs against an unpublished build.
-resolver_bin="${ABORA_UPDATE_RESOLVER_BIN:-abora-update-resolver}"
+# Abora system); source checkouts may also have the debug binary from
+# check-scripts.sh/dotnet build, which keeps `bash scripts/abora-update.sh
+# --check` useful before an ISO has shipped the new package.
+resolve_resolver_bin() {
+    local candidate repo_dir
+
+    if [[ -n "${ABORA_UPDATE_RESOLVER_BIN:-}" ]]; then
+        printf '%s\n' "$ABORA_UPDATE_RESOLVER_BIN"
+        return 0
+    fi
+
+    if candidate="$(command -v abora-update-resolver 2>/dev/null)"; then
+        printf '%s\n' "$candidate"
+        return 0
+    fi
+
+    repo_dir="$(CDPATH= cd -- "$script_dir/.." 2>/dev/null && pwd -P || true)"
+    for candidate in \
+        "$repo_dir/tools/abora-update-resolver/bin/Debug/net10.0/abora-update-resolver" \
+        "$repo_dir/tools/abora-update-resolver/bin/Release/net10.0/abora-update-resolver" \
+        "$script_dir/update-resolver/bin/Debug/net10.0/abora-update-resolver" \
+        "$script_dir/update-resolver/bin/Release/net10.0/abora-update-resolver"; do
+        if [[ -x "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    printf '%s\n' abora-update-resolver
+}
+
+resolver_bin="$(resolve_resolver_bin)"
 effective_ref=""
 effective_ref_reason=""
 update_tmp_files=()
@@ -677,6 +758,118 @@ confirm() {
     esac
 }
 
+store_free_gib() {
+    local path="${1:-/nix/store}"
+    local available_kb=""
+
+    [[ -e "$path" ]] || path="/"
+    available_kb="$(df -Pk "$path" 2>/dev/null | awk 'NR == 2 { print $4 }')"
+    [[ "$available_kb" =~ ^[0-9]+$ ]] || return 1
+    printf '%s\n' "$((available_kb / 1024 / 1024))"
+}
+
+show_update_space_status() {
+    local path="${1:-/nix/store}"
+    local available_gib=""
+    local warn_gib="${ABORA_UPDATE_WARN_FREE_GIB:-12}"
+
+    available_gib="$(store_free_gib "$path" || true)"
+    [[ -n "$available_gib" ]] || return 0
+    if [[ "$available_gib" -lt "$warn_gib" ]]; then
+        abora_warn "Nix store free space is low: ${available_gib} GiB available near ${path}."
+        abora_dim_line "If the rebuild fails with a /nix/store create error, run: sudo nix-collect-garbage -d"
+    else
+        abora_info "Nix store free space: ${available_gib} GiB available near ${path}."
+    fi
+}
+
+# Unlike show_update_space_status (which only warns), this is a hard stop.
+# Below this threshold, `nix build`/`nixos-rebuild switch` are effectively
+# guaranteed to fail anyway -- and can spend a very long time doing it,
+# retrying copies/substitutions into a store that has no room, before
+# finally erroring. Bailing out immediately turns that into a five-second
+# failure with a clear next step instead of a multi-hour hang.
+require_minimum_free_space() {
+    local path="${1:-/nix/store}"
+    local critical_gib="${ABORA_UPDATE_CRITICAL_FREE_GIB:-3}"
+    local available_gib=""
+
+    available_gib="$(store_free_gib "$path" || true)"
+    [[ -n "$available_gib" ]] || return 0
+
+    if [[ "$available_gib" -lt "$critical_gib" ]]; then
+        abora_error "Only ${available_gib} GiB free near ${path} -- too low to safely build."
+        abora_dim_line "A build/rebuild at this point would very likely fail after a long time instead of quickly."
+        abora_dim_line "Free space first: sudo nix-collect-garbage -d"
+        abora_dim_line "If that also fails with 'disk is full', free non-Nix space first (old ISOs, Downloads, Trash, VM snapshots)."
+        abora_dim_line "Then retry: sudo abora update"
+        return 1
+    fi
+    return 0
+}
+
+explain_update_failure() {
+    local log_file="$1"
+    local disk_full_seen=0
+
+    [[ -f "$log_file" ]] || return 0
+
+    if grep -Eqi 'no space left on device|ENOSPC|database or disk is full|/nix/var/nix/db/db\.sqlite|copy-fd: write returned|cannot copy .*/nix/store' "$log_file"; then
+        disk_full_seen=1
+        printf '\n'
+        abora_warn "Disk space or the Nix database appears full."
+        abora_dim_line "Check: df -h /nix/store / /tmp"
+        abora_dim_line "Free non-Nix space first if garbage collection cannot commit."
+        abora_dim_line "Good targets: old ISO files, Downloads, Trash, VM snapshots, and stale package caches."
+        abora_dim_line "Then run: sudo nix-collect-garbage -d"
+        abora_dim_line "Then retry: sudo abora update"
+        printf '\n'
+    fi
+
+    if grep -Eqi 'fetcher-cache.*sqlite|sqlite.*disk I/O|disk I/O error' "$log_file"; then
+        printf '\n'
+        abora_warn "Nix reported a local fetch-cache disk I/O error."
+        abora_dim_line "Try: abora gaming repair-cache"
+        abora_dim_line "Manual fallback: rm -f ~/.cache/nix/fetcher-cache-v*.sqlite*"
+        abora_dim_line "Then check free space with: df -h /nix/store /"
+        printf '\n'
+    fi
+
+    if [[ "$disk_full_seen" -eq 0 ]] && grep -Eqi 'cannot create .*/nix/store|Cannot build .*/nix/store' "$log_file"; then
+        printf '\n'
+        abora_warn "Nix could not create or finish a store path."
+        abora_dim_line "This is usually low disk space, a read-only/busy Nix store, or earlier builder failure noise."
+        abora_dim_line "Check: df -h /nix/store / /tmp"
+        abora_dim_line "Free space: sudo nix-collect-garbage -d"
+        abora_dim_line "Then retry: sudo abora update"
+        printf '\n'
+    fi
+}
+
+# Wraps explain_update_failure with one extra case: a step killed by our own
+# `timeout` wrapper (exit 124) rather than failing on its own. Without this,
+# that just looked like a generic unexplained failure -- worth calling out
+# explicitly since it usually means Nix got stuck retrying, not that it hit
+# a real error.
+explain_step_failure() {
+    local status="$1"
+    local log_file="$2"
+    local step_timeout="$3"
+
+    if [[ "$status" -eq 124 ]]; then
+        printf '\n'
+        abora_warn "This step was still running after $(( step_timeout / 60 )) minutes, so it was stopped."
+        abora_dim_line "This usually means Nix got stuck retrying a fetch/copy, often because free space ran out mid-build."
+        abora_dim_line "Check: df -h /nix/store /"
+        abora_dim_line "Free space: sudo nix-collect-garbage -d"
+        abora_dim_line "Then retry: sudo abora update"
+        printf '\n'
+        return 0
+    fi
+
+    explain_update_failure "$log_file"
+}
+
 copy_upstream_file() {
     local source="$1"
     local destination="$2"
@@ -723,6 +916,7 @@ copy_first_existing_upstream_file() {
 # continuing.
 maybe_reexec_synced_updater() {
     local synced_script="$config_dir/abora/update.sh"
+    local synced_ui="$config_dir/abora/ui.sh"
     local script_hash_after=""
 
     [[ "${ABORA_UPDATE_REEXECED:-0}" != 1 ]] || return 0
@@ -741,7 +935,7 @@ maybe_reexec_synced_updater() {
         ABORA_REPO_REF="$repo_ref" \
         ABORA_UPSTREAM_DIR="$upstream_dir" \
         ABORA_FLAKE_CONFIG_NAME="$flake_config_name" \
-        ABORA_UI_LIB="$ui_lib" \
+        ABORA_UI_LIB="${synced_ui}" \
         bash "$synced_script"
 }
 
@@ -802,6 +996,13 @@ release_has_dotfiles_import() {
 }
 
 release_has_source_build_helper() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "edge" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.0"
+}
+
+release_has_branding_assets() {
     local selected_ref="$1"
     [[ "$selected_ref" == "edge" ]] && return 0
     is_final_release_tag "$selected_ref" || return 1
@@ -926,6 +1127,13 @@ EOF
 scripts/abora-build.sh
 scripts/abora-adopt-nixos.sh
 scripts/abora-custom-packages.sh
+EOF
+    fi
+
+    if release_has_branding_assets "$selected_ref"; then
+        cat <<'EOF'
+assets/Abora-LOGO.png
+assets/Abora-Text.png
 EOF
     fi
 
@@ -1187,6 +1395,12 @@ sync_abora_files() {
     copy_upstream_file "$upstream_dir/scripts/abora-theme-sync.sh" "$abora_dir/theme-sync.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-update.sh" "$abora_dir/update.sh"
     copy_upstream_file "$upstream_dir/assets/abora-title.txt" "$abora_dir/title.txt"
+    if [[ -f "$upstream_dir/assets/Abora-LOGO.png" ]]; then
+        copy_upstream_file "$upstream_dir/assets/Abora-LOGO.png" "$abora_dir/Abora-LOGO.png"
+    fi
+    if [[ -f "$upstream_dir/assets/Abora-Text.png" ]]; then
+        copy_upstream_file "$upstream_dir/assets/Abora-Text.png" "$abora_dir/Abora-Text.png"
+    fi
     copy_upstream_file "$upstream_dir/assets/fastfetch-logo.txt" "$abora_dir/fastfetch-logo.txt"
     copy_upstream_file "$upstream_dir/assets/fastfetch-config.jsonc" "$abora_dir/fastfetch-config.jsonc"
     copy_first_existing_upstream_file \
@@ -1324,7 +1538,18 @@ write_installed_flake() {
     cat > "$flake_tmp" <<EOF
 {
   description = "Abora installed system";
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  # A local path, not a github: URL: this must resolve to the exact same
+  # nixpkgs tree the running system's own packages (including out-of-tree
+  # ones like abora-plan-tool/abora-update-resolver) were built from, or
+  # every one of those custom derivations gets a different hash and has to
+  # be rebuilt from source instead of reusing what's already in the local
+  # store -- which is expensive enough for the two dotnet/Native-AOT
+  # packages to crash a memory-constrained install VM outright. /etc/abora/
+  # nixpkgs is exactly that: written by both live.nix and installed-base.nix
+  # as pkgs.path, so it's always this system's own current nixpkgs, on the
+  # live ISO and after every later rebuild alike -- no network fetch needed
+  # either.
+  inputs.nixpkgs.url = "path:/etc/abora/nixpkgs";
   outputs = { nixpkgs, ... }: {
     nixosConfigurations = {
       "${flake_config_name}" = nixpkgs.lib.nixosSystem {
@@ -1377,7 +1602,7 @@ repair_flake_layout_if_needed() {
         return 0
     fi
 
-    if grep -Eq '(/nix/store|../../nix|../../../nix|nix/pkgs/mango\.nix|nix/pkgs/modularity\.nix)' "$flake_file"; then
+    if grep -Eq '(/nix/store|../../nix|../../../nix|nix/pkgs/mango\.nix|nix/pkgs/modularity\.nix|nixos-unstable)' "$flake_file"; then
         needs_repair=1
     elif [[ -d "$abora_dir" ]] && grep -RIEq '(/nix/store|(\.\./){2,}assets/mango/config\.conf|(\.\./){2,}nix/|nix/(pkgs|modules)/(mango|modularity)\.nix)' "$abora_dir"; then
         needs_repair=1
@@ -1582,7 +1807,9 @@ channel="$(read_channel)"
 if [[ "$fallback_mode" -eq 1 ]]; then
     channel="fallback"
 elif [[ "$pre_alpha_mode" -eq 1 || "$command_name" == "install" ]]; then
-    confirm_pre_alpha_risk || exit 1
+    if [[ "${ABORA_UPDATE_REEXECED:-0}" != 1 ]]; then
+        confirm_pre_alpha_risk || exit 1
+    fi
     channel="pre-alpha"
 fi
 
@@ -1620,7 +1847,7 @@ if [[ ! -d "$config_dir" ]]; then
     exit 1
 fi
 
-if [[ -x "$config_dir/abora/anix.sh" ]]; then
+if [[ "${ABORA_UPDATE_REEXECED:-0}" != 1 && -x "$config_dir/abora/anix.sh" ]]; then
     if confirm "Save a local ANIX snapshot before updating?"; then
         env ANIX_SYSTEM_CONFIG="$config_dir" ANIX_FLAKE_CONFIG_NAME="$flake_config_name" bash "$config_dir/abora/anix.sh" save "anix: snapshot before Abora update" || {
             abora_warn "Snapshot failed or was cancelled; continuing with update."
@@ -1631,13 +1858,18 @@ fi
 
 abora_wu_banner "Working on updates" "Don't turn off your computer"
 
-abora_wu_run "Getting things ready" "/tmp/abora-update-sync.log" -- \
-    sync_abora_files "$effective_ref" || {
-    abora_error "Abora could not fetch the latest project files."
-    exit 1
-}
+if [[ "${ABORA_UPDATE_REEXECED:-0}" == 1 ]]; then
+    abora_info "Continuing with the synced updater."
+else
+    abora_wu_run "Getting things ready" "/tmp/abora-update-sync.log" -- \
+        sync_abora_files "$effective_ref" || {
+        explain_update_failure "/tmp/abora-update-sync.log"
+        abora_error "Abora could not fetch the latest project files."
+        exit 1
+    }
 
-maybe_reexec_synced_updater
+    maybe_reexec_synced_updater
+fi
 
 ensure_flake_layout || {
     abora_error "Abora could not prepare a flake-native system update."
@@ -1645,14 +1877,41 @@ ensure_flake_layout || {
 }
 
 abora_wu_run "Updating flake inputs" "/tmp/abora-update-flake.log" -- \
-    nix --extra-experimental-features "nix-command flakes" flake update --flake "$config_dir" || exit 1
+    nix --extra-experimental-features "nix-command flakes" flake update --flake "$config_dir" || {
+    explain_update_failure "/tmp/abora-update-flake.log"
+    exit 1
+}
 
 if git -C "$config_dir" rev-parse --git-dir >/dev/null 2>&1; then
     git -C "$config_dir" add -A 2>/dev/null || true
 fi
 
-abora_wu_run "Rebuilding Abora from $config_dir" "/tmp/abora-update-rebuild.log" -- \
-    nixos-rebuild switch --flake "$config_dir#${flake_config_name}" || exit 1
+show_update_space_status /nix/store
+
+require_minimum_free_space /nix/store || exit 1
+
+build_status=0
+abora_wu_run "Checking the new Abora system" "/tmp/abora-update-build.log" -- \
+    timeout "$build_timeout" \
+    nix --extra-experimental-features "nix-command flakes" build \
+        --no-link \
+        --show-trace \
+        "$config_dir#nixosConfigurations.${flake_config_name}.config.system.build.toplevel" || build_status=$?
+if [[ "$build_status" -ne 0 ]]; then
+    explain_step_failure "$build_status" "/tmp/abora-update-build.log" "$build_timeout"
+    exit 1
+fi
+
+require_minimum_free_space /nix/store || exit 1
+
+switch_status=0
+abora_wu_run "Switching to the new Abora system" "/tmp/abora-update-rebuild.log" -- \
+    timeout "$switch_timeout" \
+    nixos-rebuild switch --flake "$config_dir#${flake_config_name}" || switch_status=$?
+if [[ "$switch_status" -ne 0 ]]; then
+    explain_step_failure "$switch_status" "/tmp/abora-update-rebuild.log" "$switch_timeout"
+    exit 1
+fi
 
 printf '\n'
 abora_success "Abora is up to date."

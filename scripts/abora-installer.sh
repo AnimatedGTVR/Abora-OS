@@ -34,10 +34,15 @@ starter_apps_bundle="favorites"
 starter_apps_label="Fan Favorites"
 install_apps_during_setup="${ABORA_INSTALL_APPS_DURING_SETUP:-no}"
 gaming_enabled="${ABORA_GAMING_ENABLED:-no}"
+gaming_steam="${ABORA_GAMING_STEAM:-yes}"
 gaming_big_picture="${ABORA_GAMING_BIG_PICTURE:-yes}"
 gaming_autostart="${ABORA_GAMING_AUTOSTART:-no}"
 gaming_gamescope="${ABORA_GAMING_GAMESCOPE:-yes}"
 gaming_vulkan="${ABORA_GAMING_VULKAN:-yes}"
+gaming_controller="${ABORA_GAMING_CONTROLLER:-yes}"
+gaming_mangohud="${ABORA_GAMING_MANGOHUD:-yes}"
+gaming_gamemode="${ABORA_GAMING_GAMEMODE:-yes}"
+gaming_launchers="${ABORA_GAMING_LAUNCHERS:-yes}"
 anix_enabled="yes"
 github_identity="Skipped"
 user_password_hash=""
@@ -1568,31 +1573,51 @@ step_options() {
     case "$MENU_RESULT" in
         0)
             gaming_enabled="no"
+            gaming_steam="no"
             gaming_big_picture="no"
             gaming_autostart="no"
             gaming_gamescope="no"
             gaming_vulkan="no"
+            gaming_controller="no"
+            gaming_mangohud="no"
+            gaming_gamemode="no"
+            gaming_launchers="no"
             ;;
         1)
             gaming_enabled="yes"
+            gaming_steam="yes"
             gaming_big_picture="no"
             gaming_autostart="no"
             gaming_gamescope="no"
             gaming_vulkan="yes"
+            gaming_controller="yes"
+            gaming_mangohud="yes"
+            gaming_gamemode="yes"
+            gaming_launchers="yes"
             ;;
         2)
             gaming_enabled="yes"
+            gaming_steam="yes"
             gaming_big_picture="yes"
             gaming_autostart="no"
             gaming_gamescope="no"
             gaming_vulkan="yes"
+            gaming_controller="yes"
+            gaming_mangohud="yes"
+            gaming_gamemode="yes"
+            gaming_launchers="yes"
             ;;
         3)
             gaming_enabled="yes"
+            gaming_steam="yes"
             gaming_big_picture="yes"
             gaming_autostart="no"
             gaming_gamescope="yes"
             gaming_vulkan="yes"
+            gaming_controller="yes"
+            gaming_mangohud="yes"
+            gaming_gamemode="yes"
+            gaming_launchers="yes"
             ;;
     esac
 }
@@ -2196,6 +2221,8 @@ write_branding_assets() {
     done
     [[ -f /etc/abora/Abora-LOGO.png ]] && \
         cp /etc/abora/Abora-LOGO.png "${root}/etc/nixos/abora/Abora-LOGO.png"
+    [[ -f /etc/abora/Abora-Text.png ]] && \
+        cp /etc/abora/Abora-Text.png "${root}/etc/nixos/abora/Abora-Text.png"
     cp_required /etc/abora/plymouth/abora.plymouth "${root}/etc/nixos/abora/plymouth/abora.plymouth"
     cp_required /etc/abora/plymouth/abora.script   "${root}/etc/nixos/abora/plymouth/abora.script"
     install_mango_config_asset "$root"
@@ -2213,8 +2240,11 @@ write_branding_assets() {
     cp -a /etc/abora/vendor/modularity "${root}/etc/nixos/abora/vendor/modularity"
 
     [[ -f /etc/abora/anix.sh           ]] && cp /etc/abora/anix.sh            "${root}/etc/nixos/abora/anix.sh"
-    [[ -f /etc/abora/effects/v3StartingAbora.mp3 ]] && \
+    if [[ -f /etc/abora/effects/v3StartingAbora.mp3 ]]; then
         cp /etc/abora/effects/v3StartingAbora.mp3 "${root}/etc/nixos/abora/effects/v3StartingAbora.mp3"
+    elif [[ -f /etc/abora/effects/LaunchingAbora.mp3 ]]; then
+        cp /etc/abora/effects/LaunchingAbora.mp3 "${root}/etc/nixos/abora/effects/v3StartingAbora.mp3"
+    fi
 
     cp -a /etc/abora/desktops/. "${root}/etc/nixos/abora/desktops/"
     cp -a /etc/abora/wallpapers/. "${root}/etc/nixos/abora/wallpapers/"
@@ -2296,7 +2326,7 @@ generate_nixos_config() {
     write_branding_assets "$root"
 
     local desktop_pkgs root_pw_line host_nix user_nix locale_nix timezone_nix keyboard_nix xkb_nix desktop_nix wallpaper_nix anix_import_line disk_nix gpu_nix
-    local gaming_enabled_nix gaming_big_picture_nix gaming_autostart_nix gaming_gamescope_nix gaming_vulkan_nix
+    local gaming_enabled_nix gaming_steam_nix gaming_big_picture_nix gaming_autostart_nix gaming_gamescope_nix gaming_vulkan_nix gaming_controller_nix gaming_mangohud_nix gaming_gamemode_nix gaming_launchers_nix
     local disk_bios_support_nix
     timezone_value="$(normalize_timezone "$timezone_value")"
     desktop_pkgs="$(abora_desktop_package_block "$desktop_profile")"
@@ -2323,10 +2353,15 @@ generate_nixos_config() {
         disk_bios_support_nix="true"
     fi
     gaming_enabled_nix="$(nix_bool "$gaming_enabled")"
+    gaming_steam_nix="$(nix_bool "$gaming_steam")"
     gaming_big_picture_nix="$(nix_bool "$gaming_big_picture")"
     gaming_autostart_nix="$(nix_bool "$gaming_autostart")"
     gaming_gamescope_nix="$(nix_bool "$gaming_gamescope")"
     gaming_vulkan_nix="$(nix_bool "$gaming_vulkan")"
+    gaming_controller_nix="$(nix_bool "$gaming_controller")"
+    gaming_mangohud_nix="$(nix_bool "$gaming_mangohud")"
+    gaming_gamemode_nix="$(nix_bool "$gaming_gamemode")"
+    gaming_launchers_nix="$(nix_bool "$gaming_launchers")"
 
     # Persist the dotfiles Git URL (if any) so the first graphical session
     # can clone and import it automatically — see
@@ -2409,10 +2444,15 @@ EOF
   abora.diskBiosSupport = ${disk_bios_support_nix};
   abora.stateVersion = "26.05";
   abora.gaming.enable = ${gaming_enabled_nix};
+  abora.gaming.steam = ${gaming_steam_nix};
   abora.gaming.bigPictureShortcut = ${gaming_big_picture_nix};
   abora.gaming.bigPictureAutostart = ${gaming_autostart_nix};
   abora.gaming.gamescopeSession = ${gaming_gamescope_nix};
+  abora.gaming.controllerSupport = ${gaming_controller_nix};
+  abora.gaming.mangohud = ${gaming_mangohud_nix};
+  abora.gaming.gamemode = ${gaming_gamemode_nix};
   abora.gaming.vulkanTools = ${gaming_vulkan_nix};
+  abora.gaming.launchers = ${gaming_launchers_nix};
   abora.extras.diagnostics = false;
   abora.extras.virtualizationGuests = false;
   abora.extras.mobileBroadband = false;
@@ -2428,13 +2468,29 @@ EOF
 ${root_pw_line}
 }
 EOF
+    # abora.user.hashedPassword above (and users.users.root.hashedPassword,
+    # when root_pw_line sets a separate root password) must not be
+    # world-readable -- the default umask leaves a freshly-created file at
+    # 0644, which would let any local user on the installed system read the
+    # hash and run an offline attack against it, exactly what /etc/shadow's
+    # own restrictive permissions exist to prevent. See the matching guard
+    # at the top of abora-config.sh's reads.
+    chmod 0600 "${cfgdir}/abora-local.nix"
 
     cat > "${cfgdir}/flake.nix" <<EOF
 {
   description = "Abora installed system";
-  # Use the standard flake input so future rebuilds and updates work in pure
-  # evaluation mode on the installed system.
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  # A local path, not a github: URL: use the exact same NixOS base as the
+  # release ISO (this live system's own current nixpkgs, written to
+  # /etc/abora/nixpkgs by live.nix as pkgs.path) so installed systems reuse
+  # the desktop/app package set Abora already built and boot-tested,
+  # instead of a fresh nixos-unstable checkout that has almost certainly
+  # drifted since this ISO was built. That drift is what made
+  # nixos-install rebuild abora-plan-tool/abora-update-resolver (both
+  # Native AOT dotnet packages, not on any binary cache) from source
+  # instead of reusing the copies already sitting in this live system's
+  # own store -- expensive enough to crash a memory-constrained install VM.
+  inputs.nixpkgs.url = "path:/etc/abora/nixpkgs";
   outputs = { nixpkgs, ... }: {
     nixosConfigurations = {
       abora = nixpkgs.lib.nixosSystem {
@@ -3079,6 +3135,7 @@ run_install() {
 
     local nix_config
     nix_config="$(printf '%s\n' \
+        "experimental-features = nix-command flakes" \
         "substituters = https://cache.nixos.org" \
         "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" \
         "connect-timeout = 10" \
@@ -3092,10 +3149,24 @@ run_install() {
 
     msg "Running nixos-install…"
     log_network_snapshot
+    # --flake, not the legacy NIX_PATH+configuration.nix path this used to
+    # take: that legacy evaluation is structurally different from the
+    # flake-based nixosSystem { ... } that actually built this live ISO
+    # (nix/profiles/live.nix, via flake.nix's mkLive), even when pointed at
+    # the identical nixpkgs tree via $nixpkgs. That divergence gives
+    # out-of-tree packages -- notably abora-plan-tool and
+    # abora-update-resolver, both Native AOT dotnet builds not available on
+    # any binary cache -- a different derivation hash than the copies
+    # already sitting fully built in this live system's own /nix/store, so
+    # nixos-install rebuilt them from source instead of reusing them. That
+    # rebuild (dotnetBuildHook running a real AOT compile) is expensive
+    # enough to crash outright in a memory-constrained install VM. Building
+    # through the same flake this ISO was built from (now pinned to
+    # path:/etc/abora/nixpkgs -- see write_installed_flake in
+    # abora-update.sh) means the derivations match and get reused instead.
     if ! run_with_log_panel 70 "Installing system" \
-        env "NIX_PATH=nixpkgs=${nixpkgs}:nixos-config=/mnt/etc/nixos/configuration.nix" \
-        "NIX_CONFIG=${nix_config}" \
-        nixos-install --root /mnt --no-root-passwd; then
+        env "NIX_CONFIG=${nix_config}" \
+        nixos-install --root /mnt --no-root-passwd --flake "/mnt/etc/nixos#abora"; then
         die "nixos-install failed. See ${install_log}."
     fi
     progress_line 90 "System installed"
@@ -3200,6 +3271,9 @@ read_current_config() {
     v="$(sed -nE 's/^[[:space:]]*abora\.gaming\.enable *= *(true|false).*/\1/p' "$f" | head -1)"
     [[ "$v" == "true" ]] && gaming_enabled="yes"
     [[ "$v" == "false" ]] && gaming_enabled="no"
+    v="$(sed -nE 's/^[[:space:]]*abora\.gaming\.steam *= *(true|false).*/\1/p' "$f" | head -1)"
+    [[ "$v" == "true" ]] && gaming_steam="yes"
+    [[ "$v" == "false" ]] && gaming_steam="no"
     v="$(sed -nE 's/^[[:space:]]*abora\.gaming\.bigPictureShortcut *= *(true|false).*/\1/p' "$f" | head -1)"
     [[ "$v" == "true" ]] && gaming_big_picture="yes"
     [[ "$v" == "false" ]] && gaming_big_picture="no"
@@ -3212,6 +3286,18 @@ read_current_config() {
     v="$(sed -nE 's/^[[:space:]]*abora\.gaming\.vulkanTools *= *(true|false).*/\1/p' "$f" | head -1)"
     [[ "$v" == "true" ]] && gaming_vulkan="yes"
     [[ "$v" == "false" ]] && gaming_vulkan="no"
+    v="$(sed -nE 's/^[[:space:]]*abora\.gaming\.controllerSupport *= *(true|false).*/\1/p' "$f" | head -1)"
+    [[ "$v" == "true" ]] && gaming_controller="yes"
+    [[ "$v" == "false" ]] && gaming_controller="no"
+    v="$(sed -nE 's/^[[:space:]]*abora\.gaming\.mangohud *= *(true|false).*/\1/p' "$f" | head -1)"
+    [[ "$v" == "true" ]] && gaming_mangohud="yes"
+    [[ "$v" == "false" ]] && gaming_mangohud="no"
+    v="$(sed -nE 's/^[[:space:]]*abora\.gaming\.gamemode *= *(true|false).*/\1/p' "$f" | head -1)"
+    [[ "$v" == "true" ]] && gaming_gamemode="yes"
+    [[ "$v" == "false" ]] && gaming_gamemode="no"
+    v="$(sed -nE 's/^[[:space:]]*abora\.gaming\.launchers *= *(true|false).*/\1/p' "$f" | head -1)"
+    [[ "$v" == "true" ]] && gaming_launchers="yes"
+    [[ "$v" == "false" ]] && gaming_launchers="no"
 }
 
 read_anix_config() {
@@ -3266,10 +3352,15 @@ run_reconfig() {
                 "$abora_local" 2>/dev/null || true
         fi
         set_nix_bool_assignment "$abora_local" "abora.gaming.enable" "$gaming_enabled"
+        set_nix_bool_assignment "$abora_local" "abora.gaming.steam" "$gaming_steam"
         set_nix_bool_assignment "$abora_local" "abora.gaming.bigPictureShortcut" "$gaming_big_picture"
         set_nix_bool_assignment "$abora_local" "abora.gaming.bigPictureAutostart" "$gaming_autostart"
         set_nix_bool_assignment "$abora_local" "abora.gaming.gamescopeSession" "$gaming_gamescope"
+        set_nix_bool_assignment "$abora_local" "abora.gaming.controllerSupport" "$gaming_controller"
+        set_nix_bool_assignment "$abora_local" "abora.gaming.mangohud" "$gaming_mangohud"
+        set_nix_bool_assignment "$abora_local" "abora.gaming.gamemode" "$gaming_gamemode"
         set_nix_bool_assignment "$abora_local" "abora.gaming.vulkanTools" "$gaming_vulkan"
+        set_nix_bool_assignment "$abora_local" "abora.gaming.launchers" "$gaming_launchers"
         ok "abora-local.nix updated"
     fi
 
@@ -3679,31 +3770,51 @@ release_gaming() {
     case "$MENU_RESULT" in
         0)
             gaming_enabled="no"
+            gaming_steam="no"
             gaming_big_picture="no"
             gaming_autostart="no"
             gaming_gamescope="no"
             gaming_vulkan="no"
+            gaming_controller="no"
+            gaming_mangohud="no"
+            gaming_gamemode="no"
+            gaming_launchers="no"
             ;;
         1)
             gaming_enabled="yes"
+            gaming_steam="yes"
             gaming_big_picture="no"
             gaming_autostart="no"
             gaming_gamescope="no"
             gaming_vulkan="yes"
+            gaming_controller="yes"
+            gaming_mangohud="yes"
+            gaming_gamemode="yes"
+            gaming_launchers="yes"
             ;;
         2)
             gaming_enabled="yes"
+            gaming_steam="yes"
             gaming_big_picture="yes"
             gaming_autostart="no"
             gaming_gamescope="no"
             gaming_vulkan="yes"
+            gaming_controller="yes"
+            gaming_mangohud="yes"
+            gaming_gamemode="yes"
+            gaming_launchers="yes"
             ;;
         3)
             gaming_enabled="yes"
+            gaming_steam="yes"
             gaming_big_picture="yes"
             gaming_autostart="no"
             gaming_gamescope="yes"
             gaming_vulkan="yes"
+            gaming_controller="yes"
+            gaming_mangohud="yes"
+            gaming_gamemode="yes"
+            gaming_launchers="yes"
             ;;
     esac
 }

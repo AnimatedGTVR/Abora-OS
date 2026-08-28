@@ -36,6 +36,32 @@ abora network
 abora support-report
 ```
 
+## Disk Or Nix Database Full
+
+If the updater says `No space left on device`, `database or disk is full`, or
+mentions `/nix/var/nix/db/db.sqlite`, free normal files first. Nix garbage
+collection also needs a little writable space to commit its database changes.
+
+Check space:
+
+```sh
+df -h /nix/store / /tmp
+```
+
+Then remove old ISO files, empty Trash, clear large downloads, or expand the VM
+disk if you are testing in a VM. After that:
+
+```sh
+sudo nix-collect-garbage -d
+sudo abora update
+```
+
+If only the per-user Nix fetch cache is damaged, this can help:
+
+```sh
+abora gaming repair-cache
+```
+
 ## What The Updater Does
 
 The update helper:
@@ -52,6 +78,10 @@ The update helper:
 Abora OS v4 Everest is currently an alpha release line, so new installs
 default to `unstable`, which tracks the `edge` branch. `stable` remains
 available for final tagged releases and older installed systems.
+
+The Abora channel controls Abora project files. Abora v4 alpha tracks
+NixOS's rolling `nixos-unstable` package branch so desktop environments,
+drivers, and regular Nix apps move forward with `sudo abora update`.
 
 Show the current channel:
 

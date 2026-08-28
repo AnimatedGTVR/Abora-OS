@@ -2,7 +2,14 @@
 , lib
 , autoPatchelfHook
 , makeWrapper
-, xorg
+, libsm
+, libice
+, libx11
+, libxext
+, libxrandr
+, libxi
+, libxinerama
+, libxcursor
 , ffmpeg_7
 , vulkan-loader
 , mono
@@ -32,14 +39,14 @@ stdenv.mkDerivation rec {
   nativeBuildInputs = [ autoPatchelfHook makeWrapper ];
 
   buildInputs = [
-    xorg.libSM
-    xorg.libICE
-    xorg.libX11
-    xorg.libXext
-    xorg.libXrandr
-    xorg.libXi
-    xorg.libXinerama
-    xorg.libXcursor
+    libsm
+    libice
+    libx11
+    libxext
+    libxrandr
+    libxi
+    libxinerama
+    libxcursor
     ffmpeg_7
     vulkan-loader
     mono
