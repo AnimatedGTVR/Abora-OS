@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Abora OS GUI Installer - legacy launcher for Abora OS 2026.7.27."""
+"""Abora OS GUI Installer - legacy launcher for Abora OS v4 Everest."""
 
 import gi
 gi.require_version('Gtk', '4.0')
@@ -22,9 +22,16 @@ from pathlib import Path
 # ── Runtime paths ──────────────────────────────────────────────────────────────
 INSTALLER_BIN  = os.environ.get('ABORA_INSTALLER', '/etc/abora/installer.sh')
 LOG_FILE       = '/tmp/abora-gui-installer.log'
-VERSION        = os.environ.get('ABORA_VERSION', '2026.7.27')
+VERSION        = os.environ.get('ABORA_VERSION', 'v4 Everest')
 LOGO_FILE      = os.environ.get('ABORA_LOGO', '/etc/abora/Abora-LOGO.png')
 EDITION        = os.environ.get('ABORA_EDITION', 'cosmic')
+ZONE_DIR       = Path('/usr/share/zoneinfo')
+
+# Only these top-level zoneinfo directories are real continents/areas; the
+# rest (Brazil, Canada, US, posix, right, Factory, ...) are legacy aliases
+# that duplicate zones already reachable under their real continent.
+ZONE_TOP_LEVEL = {'Africa', 'America', 'Antarctica', 'Arctic', 'Asia', 'Atlantic',
+                  'Australia', 'Europe', 'Indian', 'Pacific'}
 
 
 def write_log(message: str):
@@ -35,6 +42,23 @@ def write_log(message: str):
             f.write(f'[{stamp}] {message.rstrip()}\n')
     except Exception:
         pass
+
+
+def list_timezones() -> list[str]:
+    """Every real IANA zone on this system, e.g. America/Indiana/Knox --
+    a hand-picked list would always miss zones like Indiana's, which has
+    eight distinct real timezones within the same state."""
+    zones: list[str] = []
+    if not ZONE_DIR.exists():
+        return ['UTC']
+    for top in sorted(ZONE_DIR.iterdir()):
+        if top.name not in ZONE_TOP_LEVEL:
+            continue
+        for path in sorted(top.rglob('*')):
+            if path.is_file():
+                zones.append(str(path.relative_to(ZONE_DIR)))
+    zones.append('UTC')
+    return zones
 
 # ── Desktop choices ────────────────────────────────────────────────────────────
 DESKTOPS = [
@@ -49,6 +73,7 @@ DESKTOPS = [
     ('budgie',        'Budgie',        'Clean panel desktop'),
     ('cinnamon',      'Cinnamon',      'Traditional layout'),
     ('mate',          'MATE',          'Classic GNOME 2'),
+    ('pantheon',      'Pantheon',      'elementary OS desktop'),
     ('xfce',          'Xfce',          'Lightweight GTK'),
     ('lxqt',          'LXQt',          'Lightweight Qt'),
     ('niri',          'Niri',          'Scrollable Wayland'),
@@ -64,12 +89,11 @@ DESKTOPS = [
 
 DESKTOP_LABELS = {d[0]: d[1] for d in DESKTOPS}
 
-# Desktop IDs that are tiling WMs / compositors (no full DE)
+# Desktop IDs that are tiling WMs / compositors (no full DE) — this is the
+# desktop set the "Other Desktops" edition offers, and must stay in sync
+# with abora_tiling_wm_profiles() in abora-desktop-profiles.sh.
 _TILING_WMS = {'hyprland', 'mangowm', 'sway', 'i3', 'niri', 'river', 'bspwm',
                'qtile', 'awesome', 'herbstluftwm', 'openbox', 'fluxbox', 'icewm'}
-# Desktop IDs that are alternative DEs (Alt Desktops edition focus)
-_ALT_DES    = {'xfce', 'cinnamon', 'mate', 'budgie', 'lxqt',
-               'icewm', 'fluxbox', 'openbox'}
 
 
 # A distinct symbolic icon per desktop, not just "tiling vs. full DE" — real
@@ -157,16 +181,16 @@ STEP_ICONS = {
 
 def _edition_desktops() -> list[tuple[str, str, str]]:
     """Return DESKTOPS re-ordered for the current ISO edition."""
-    if EDITION == 'hyprland':
+    if EDITION in ('hyprland', 'other'):
+        # "other" is the tiling-WM edition — abora_tiling_wm_profiles() in
+        # abora-desktop-profiles.sh is the authoritative set and must stay
+        # in sync with _TILING_WMS here; both editions get the same
+        # tiling-first ordering the TUI installer's release_desktop/
+        # step_desktop use.
         tiling = [d for d in DESKTOPS if d[0] in _TILING_WMS]
         rest   = [d for d in DESKTOPS if d[0] not in _TILING_WMS and d[0] != 'none']
         tail   = [d for d in DESKTOPS if d[0] == 'none']
         return tiling + rest + tail
-    if EDITION == 'other':
-        alt    = [d for d in DESKTOPS if d[0] in _ALT_DES]
-        rest   = [d for d in DESKTOPS if d[0] not in _ALT_DES and d[0] != 'none']
-        tail   = [d for d in DESKTOPS if d[0] == 'none']
-        return alt + rest + tail
     return DESKTOPS
 
 
@@ -218,42 +242,6 @@ KEYBOARDS = [
     ('kr',  'Korean'),
     ('tr',  'Turkish'),
     ('br',  'Brazilian Portuguese'),
-]
-
-TIMEZONES = [
-    ('UTC',                 'UTC'),
-    ('America/New_York',    'US Eastern (New York)'),
-    ('America/Chicago',     'US Central (Chicago)'),
-    ('America/Denver',      'US Mountain (Denver)'),
-    ('America/Los_Angeles', 'US Pacific (Los Angeles)'),
-    ('America/Anchorage',   'US Alaska (Anchorage)'),
-    ('Pacific/Honolulu',    'US Hawaii (Honolulu)'),
-    ('America/Sao_Paulo',   'Brazil (São Paulo)'),
-    ('America/Buenos_Aires','Argentina (Buenos Aires)'),
-    ('America/Bogota',      'Colombia (Bogotá)'),
-    ('Europe/London',       'UK (London)'),
-    ('Europe/Paris',        'Central Europe (Paris/Berlin)'),
-    ('Europe/Madrid',       'Western Europe (Madrid)'),
-    ('Europe/Warsaw',       'Eastern Europe (Warsaw)'),
-    ('Europe/Stockholm',    'Northern Europe (Stockholm)'),
-    ('Europe/Moscow',       'Russia (Moscow)'),
-    ('Europe/Istanbul',     'Turkey (Istanbul)'),
-    ('Asia/Dubai',          'Gulf (Dubai)'),
-    ('Asia/Kolkata',        'India (Kolkata)'),
-    ('Asia/Dhaka',          'Bangladesh (Dhaka)'),
-    ('Asia/Bangkok',        'Indochina (Bangkok)'),
-    ('Asia/Singapore',      'Singapore'),
-    ('Asia/Shanghai',       'China (Shanghai)'),
-    ('Asia/Tokyo',          'Japan (Tokyo)'),
-    ('Asia/Seoul',          'South Korea (Seoul)'),
-    ('Asia/Jakarta',        'Indonesia (Jakarta)'),
-    ('Africa/Cairo',        'Egypt (Cairo)'),
-    ('Africa/Lagos',        'Nigeria (Lagos)'),
-    ('Africa/Johannesburg', 'South Africa (Johannesburg)'),
-    ('Africa/Nairobi',      'Kenya (Nairobi)'),
-    ('Australia/Sydney',    'Australia East (Sydney)'),
-    ('Australia/Perth',     'Australia West (Perth)'),
-    ('Pacific/Auckland',    'New Zealand (Auckland)'),
 ]
 
 WALLPAPERS = [
@@ -579,9 +567,10 @@ def _boot_media_disk_names() -> set[str]:
 
 def get_disks() -> list[tuple[str, str, str]]:
     """Return [(device, size, model), …] for internal block devices,
-    excluding loop/sr/fd-prefixed names, hotplug-flagged devices, and
-    (via _boot_media_disk_names) the actual disk the live session booted
-    from."""
+    excluding loop/sr/fd/ram/zram-prefixed names (mirroring
+    abora-installer.sh's collect_disks() awk filter), hotplug-flagged
+    devices, and (via _boot_media_disk_names) the actual disk the live
+    session booted from."""
     boot_names = _boot_media_disk_names()
     try:
         r = subprocess.run(
@@ -594,9 +583,15 @@ def get_disks() -> list[tuple[str, str, str]]:
             if d.get('type') != 'disk':
                 continue
             name = d.get('name', '')
-            if not name or name.startswith(('loop', 'sr', 'fd')):
+            if not name or name.startswith(('loop', 'sr', 'fd', 'ram', 'zram')):
                 continue
-            if d.get('hotplug') == '1':
+            # lsblk -J emits HOTPLUG as a real JSON boolean (true/false), not
+            # the string "1"/"0" -- `d.get('hotplug') == '1'` compared a bool
+            # against a str and was always False, so this filter never
+            # excluded a single device. str()+lower() handles both the
+            # normal boolean case and a defensive fallback if some lsblk
+            # build ever emits it as a string instead.
+            if str(d.get('hotplug', '')).strip().lower() in ('1', 'true'):
                 continue
             if name in boot_names:
                 continue
@@ -771,12 +766,12 @@ class LanguagePage(Gtk.Widget):
         self._locale_row.set_selected(0)
         grp.add(self._locale_row)
 
-        tz_model = Gtk.StringList()
-        for _, lbl in TIMEZONES:
-            tz_model.append(lbl)
+        self._zones = list_timezones()
+        tz_model = Gtk.StringList.new(self._zones)
         self._tz_row = Adw.ComboRow(title='Timezone')
         self._tz_row.set_model(tz_model)
-        self._tz_row.set_selected(0)
+        self._tz_row.set_enable_search(True)
+        self._tz_row.set_selected(self._zones.index('UTC') if 'UTC' in self._zones else 0)
         grp.add(self._tz_row)
 
         kb_model = Gtk.StringList()
@@ -802,7 +797,7 @@ class LanguagePage(Gtk.Widget):
         ki = self._kb_row.get_selected()
         self._state.locale       = LOCALES[li][0]
         self._state.locale_label = LOCALES[li][1]
-        self._state.tz           = TIMEZONES[ti][0]
+        self._state.tz           = self._zones[ti]
         self._state.keyboard     = KEYBOARDS[ki][0]
 
 
@@ -923,7 +918,7 @@ class DesktopPage(Gtk.Box):
         inner.set_margin_bottom(8)
         _subtitles = {
             'hyprland': 'Tiling window managers are shown first for this edition.',
-            'other':    'Alternative desktops are shown first for this edition.',
+            'other':    'Tiling window managers are shown first for this edition.',
         }
         inner.append(heading_box('Desktop Environment',
                                  _subtitles.get(EDITION, 'Choose how your desktop will look and feel.')))
@@ -1422,6 +1417,18 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
         sm.connect('notify::dark', self._on_system_theme_changed)
 
         self._build_ui()
+
+        key_controller = Gtk.EventControllerKey()
+        key_controller.connect('key-pressed', self._on_key_pressed)
+        self.add_controller(key_controller)
+
+    def _on_key_pressed(self, _controller, keyval, _keycode, _state):
+        """Esc is a second way to go back a step, alongside the ← Back
+        button -- every screen should be undoable either way."""
+        if keyval == Gdk.KEY_Escape and not self._installing and self._cur > 0:
+            self._go_back(None)
+            return True
+        return False
 
     def _build_ui(self):
         shell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)

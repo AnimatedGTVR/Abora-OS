@@ -18,7 +18,15 @@ enable_serial_mirror() {
     export ABORA_SERIAL_MIRROR_ACTIVE=1
     # Mirror live boot and installer output to the first serial device so a
     # graphical QEMU session can stream the same text into the host terminal.
-    exec > >(tee /dev/ttyS0) 2>&1
+    # `-w` above only checks permission bits, not whether anything else
+    # already owns the device -- booting via the ISO's own "Serial console"
+    # menu entry (console=ttyS0 on the kernel cmdline) starts
+    # serial-getty@ttyS0.service on it too, so tee's own writes there can
+    # fail with "Input/output error" (reproduced by actually booting that
+    # entry). That's tee's error, not this script's -- suppress just tee's
+    # own stderr so a real conflict degrades silently instead of printing a
+    # confusing error onto the installer's own tty1 output.
+    exec > >(tee /dev/ttyS0 2>/dev/null) 2>&1
 }
 
 force_installer=0
@@ -63,7 +71,7 @@ _boot_frame() {
     printf '\033c'
     printf '\n'
     printf '  %b╔══════════════════════════════════════════════════════╗%b\n' "$BL" "$NC"
-    printf '  %b║%b  %-54s%b║%b\n' "$BL" "$WH" "ABORA OS  —  2026.7.27  ·  Starting" "$BL" "$NC"
+    printf '  %b║%b  %-54s%b║%b\n' "$BL" "$WH" "ABORA OS  —  v4 Everest  ·  Starting" "$BL" "$NC"
     printf '  %b╠══════════════════════════════════════════════════════╣%b\n' "$BL" "$NC"
     printf '  %b║%b  %-54s%b║%b\n' "$BL" "$DM" "$msg" "$BL" "$NC"
     printf '  %b║%b  [%s] %b%s%b  %b%3d%%%b\n' \

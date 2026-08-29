@@ -32,7 +32,7 @@ stdenvNoCC.mkDerivation {
 
   meta = with lib; {
     description = "Compiles a ModuCPP ANIX script and runs it, emitting an ANIX Plan on stdout";
-    homepage = "https://github.com/AnimatedGTVR/abora-os";
+    homepage = "https://github.com/AnimatedGTVR/Abora-OS";
     license = licenses.mit;
     platforms = platforms.linux;
     mainProgram = "moducpp-anix";

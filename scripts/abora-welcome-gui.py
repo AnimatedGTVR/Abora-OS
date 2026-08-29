@@ -30,6 +30,7 @@ def _resolve_logo_path() -> str:
 
 LOGO_FILE      = _resolve_logo_path()
 UPDATE_SCRIPT  = os.environ.get('ABORA_UPDATE_SCRIPT', '/etc/abora/update.sh')
+GAMING_WELCOME_COMMAND = os.environ.get('ABORA_GAMING_WELCOME_GUI', 'abora-gaming-welcome-gui')
 CONFIG_PATH    = Path(os.environ.get('ABORA_SYSTEM_CONFIG', '/etc/nixos')) / 'abora-local.nix'
 CHANNEL_FILE   = Path(os.environ.get('ABORA_SYSTEM_CONFIG', '/etc/nixos')) / 'abora' / 'channel'
 SEEN_MARKER    = Path.home() / '.cache' / 'abora' / 'welcome-seen'
@@ -82,10 +83,20 @@ def read_local_setting(key: str) -> str:
     return match.group(1) if match else ''
 
 
+def read_local_bool(key: str, default: bool = False) -> bool:
+    if not CONFIG_PATH.exists():
+        return default
+    pattern = re.compile(r'^\s*abora\.' + re.escape(key) + r'\s*=\s*(true|false)', re.MULTILINE)
+    match = pattern.search(CONFIG_PATH.read_text(errors='replace'))
+    if not match:
+        return default
+    return match.group(1) == 'true'
+
+
 def read_channel() -> str:
     if CHANNEL_FILE.exists():
-        return CHANNEL_FILE.read_text().strip() or 'stable'
-    return 'stable'
+        return CHANNEL_FILE.read_text().strip() or os.environ.get('ABORA_DEFAULT_CHANNEL', 'unstable')
+    return os.environ.get('ABORA_DEFAULT_CHANNEL', 'unstable')
 
 
 def flathub_configured() -> bool:
@@ -146,6 +157,17 @@ class WelcomeWindow(Adw.ApplicationWindow):
         self._build_ui()
 
     # ── UI ────────────────────────────────────────────────────────────────
+    def _tab_page(self) -> tuple[Gtk.Box, Adw.Clamp]:
+        """A scrollable, clamped-width vertical box -- the same shell every
+        tab page uses, so each tab only has to build its own content."""
+        scroller = Gtk.ScrolledWindow(vexpand=True)
+        page = Adw.Clamp(maximum_size=520)
+        scroller.set_child(page)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18,
+                      margin_top=24, margin_bottom=24, margin_start=12, margin_end=12)
+        page.set_child(box)
+        return box, scroller
+
     def _build_ui(self):
         toolbar = Adw.ToolbarView()
         self.set_content(toolbar)
@@ -154,15 +176,28 @@ class WelcomeWindow(Adw.ApplicationWindow):
         hb.pack_start(logo_widget(24))
         toolbar.add_top_bar(hb)
 
-        scroller = Gtk.ScrolledWindow(vexpand=True)
-        toolbar.set_content(scroller)
+        self._stack = Adw.ViewStack()
+        toolbar.set_content(self._stack)
 
-        page = Adw.Clamp(maximum_size=520)
-        scroller.set_child(page)
+        # A bottom tab bar (not the header bar) is the idiomatic libadwaita
+        # pattern for a narrow single-window app like this -- it stays
+        # usable at the window's default 560px width, where a header-bar
+        # switcher would get cramped, and its left-to-right icon+label tabs
+        # are the most approachable navigation for a first-run "welcome"
+        # audience.
+        switcher_bar = Adw.ViewSwitcherBar()
+        switcher_bar.set_stack(self._stack)
+        switcher_bar.set_reveal(True)
+        toolbar.add_bottom_bar(switcher_bar)
 
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18,
-                      margin_top=24, margin_bottom=24, margin_start=12, margin_end=12)
-        page.set_child(box)
+        self._stack.add_titled_with_icon(self._build_home_tab(), 'home', 'Home', 'user-home-symbolic')
+        self._stack.add_titled_with_icon(self._build_system_tab(), 'system', 'System', 'preferences-system-symbolic')
+
+        self.connect('close-request', self._on_close)
+        GLib.idle_add(self._check_for_updates)
+
+    def _build_home_tab(self) -> Gtk.Widget:
+        box, scroller = self._tab_page()
 
         header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, halign=Gtk.Align.CENTER)
         header.append(logo_widget(72))
@@ -185,16 +220,6 @@ class WelcomeWindow(Adw.ApplicationWindow):
         startup_row.set_activatable_widget(self._startup_switch)
         startup_group.add(startup_row)
 
-        # Status card
-        status_group = Adw.PreferencesGroup(title='System')
-        box.append(status_group)
-        self._row_desktop  = Adw.ActionRow(title='Desktop', subtitle=read_local_setting('desktop') or 'unknown')
-        self._row_wallpaper = Adw.ActionRow(title='Wallpaper', subtitle=read_local_setting('wallpaper') or 'unknown')
-        self._row_channel  = Adw.ActionRow(title='Update channel', subtitle=read_channel())
-        self._row_flathub  = Adw.ActionRow(title='Flathub', subtitle='configured' if flathub_configured() else 'not configured')
-        for row in (self._row_desktop, self._row_wallpaper, self._row_channel, self._row_flathub):
-            status_group.add(row)
-
         # Updates card
         update_group = Adw.PreferencesGroup(title='Updates')
         box.append(update_group)
@@ -214,24 +239,72 @@ class WelcomeWindow(Adw.ApplicationWindow):
         button_row.append(self._update_btn)
         box.append(button_row)
 
-        # Quick actions
+        return scroller
+
+    def _build_system_tab(self) -> Gtk.Widget:
+        box, scroller = self._tab_page()
+
+        gaming_enabled = read_local_bool('gaming.enable')
+        status_group = Adw.PreferencesGroup(title='System')
+        box.append(status_group)
+        self._row_desktop  = Adw.ActionRow(title='Desktop', subtitle=read_local_setting('desktop') or 'unknown')
+        self._row_wallpaper = Adw.ActionRow(title='Wallpaper', subtitle=read_local_setting('wallpaper') or 'unknown')
+        self._row_gaming   = Adw.ActionRow(title='Gaming', subtitle='enabled' if gaming_enabled else 'off')
+        self._row_channel  = Adw.ActionRow(title='Update channel', subtitle=read_channel())
+        self._row_flathub  = Adw.ActionRow(title='Flathub', subtitle='configured' if flathub_configured() else 'not configured')
+        for row in (self._row_desktop, self._row_wallpaper, self._row_gaming, self._row_channel, self._row_flathub):
+            status_group.add(row)
+
         actions_group = Adw.PreferencesGroup(title='Quick Actions')
         box.append(actions_group)
         actions = [
-            ('System Doctor', 'Check system health', ['abora-doctor']),
-            ('App Manager', 'Install or remove applications', ['abora-apps']),
+            ('System Doctor', 'Check system health', ['abora', 'doctor']),
+            ('App Manager', 'Install or remove applications', ['abora', 'apps']),
+            ('Gaming Setup', 'Check or enable Steam and gaming helpers', ['abora', 'gaming', 'status']),
             ('First ANIX Snapshot', 'Save a restore point now', ['anix', 'save', 'anix: first Abora snapshot']),
-            ('Switch Desktop', 'Change your desktop environment', ['abora-desktop', 'list']),
-            ('Recovery Tools', 'Rollback and repair options', ['abora-recovery']),
+            ('Switch Desktop', 'Change your desktop environment', ['abora', 'desktop', 'list']),
+            ('Recovery Tools', 'Rollback and repair options', ['abora', 'recovery']),
         ]
+        self._add_action_rows(actions_group, actions)
+
+        # Abora Welcome tells you about your system in general; Abora Gaming
+        # Welcome is its own separate app for games specifically (library,
+        # Steam sign-in, installing a game) -- this is just a hand-off
+        # button between the two, not a merge of the two experiences.
+        if gaming_enabled:
+            gaming_group = Adw.PreferencesGroup()
+            box.append(gaming_group)
+            gaming_row = Adw.ActionRow(
+                title='Abora Gaming Welcome', subtitle='Your library, signing into Steam, and installing games',
+                activatable=True)
+            gaming_row.set_icon_name('input-gaming-symbolic')
+            gaming_row.connect('activated', lambda *_: self._open_gaming_welcome())
+            gaming_group.add(gaming_row)
+
+        return scroller
+
+    def _open_gaming_welcome(self):
+        command = GAMING_WELCOME_COMMAND
+        if command == 'abora-gaming-welcome-gui':
+            command = shutil.which(command) or command
+        try:
+            subprocess.Popen([command])
+        except Exception:
+            fallback = '/etc/abora/gaming-welcome-gui.py'
+            try:
+                if Path(fallback).exists():
+                    subprocess.Popen(['python3', fallback])
+                    return
+            except Exception:
+                pass
+            run_in_terminal(['abora', 'gaming', 'status'])
+
+    def _add_action_rows(self, group: Adw.PreferencesGroup, actions: list[tuple[str, str, list[str]]]):
         for label, subtitle, command in actions:
             row = Adw.ActionRow(title=label, subtitle=subtitle, activatable=True)
             row.set_icon_name('go-next-symbolic')
             row.connect('activated', lambda _row, cmd=command: run_in_terminal(cmd))
-            actions_group.add(row)
-
-        self.connect('close-request', self._on_close)
-        GLib.idle_add(self._check_for_updates)
+            group.add(row)
 
     # ── Update checking ──────────────────────────────────────────────────
     def _check_for_updates(self):
@@ -254,6 +327,14 @@ class WelcomeWindow(Adw.ApplicationWindow):
                 if line.startswith('ABORA_UPDATE_AVAILABLE\t'):
                     parts = line.split('\t')
                     available_ref = parts[2] if len(parts) > 2 else None
+            # Exit code 10 means "update available" (not a failure); 0 means
+            # up to date. Anything else is a real check failure -- e.g. an
+            # unresolvable channel -- and must not be reported as "up to
+            # date" just because no ABORA_UPDATE_AVAILABLE line was printed.
+            if result.returncode not in (0, 10):
+                error = result.stderr.strip()[-800:] or f'abora-update exited with status {result.returncode}'
+                GLib.idle_add(self._on_check_done, None, error)
+                return
             GLib.idle_add(self._on_check_done, available_ref, None)
         except Exception as exc:
             GLib.idle_add(self._on_check_done, None, str(exc))

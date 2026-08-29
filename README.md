@@ -59,12 +59,16 @@
 ## Screenshots
 
 <div align="center">
-
-<img src="/assets/Images/v4/screenshot-2026-07-27_03-54-02.png" width="410" alt="Abora Welcome on GNOME">
-<img src="/assets/Images/v4/screenshot-2026-07-27_03-56-03.png" width="410" alt="Abora System Settings">
-<img src="/assets/Images/v4/screenshot-2026-07-27_03-58-15.png" width="410" alt="fastfetch on GNOME">
-<img src="/assets/Images/v4/screenshot-2026-07-27_05-32-15.png" width="410" alt="fastfetch on COSMIC">
-
+<table>
+<tr>
+<td><img src="/assets/Images/v4/screenshot-2026-07-27_03-54-02.png" width="340" alt="Abora Welcome on GNOME"></td>
+<td><img src="/assets/Images/v4/screenshot-2026-07-27_03-56-03.png" width="340" alt="Abora System Settings"></td>
+</tr>
+<tr>
+<td><img src="/assets/Images/v4/screenshot-2026-07-27_03-58-15.png" width="340" alt="fastfetch on GNOME"></td>
+<td><img src="/assets/Images/v4/screenshot-2026-07-27_05-32-15.png" width="340" alt="fastfetch on COSMIC"></td>
+</tr>
+</table>
 </div>
 
 ## What is Abora OS?
@@ -103,14 +107,16 @@ Examples include:
 2.5
 3.0
 3.14
-4.0
+4.0 / v4 Everest
 ```
 
-This is the default channel and the recommended choice for most users.
+This is what final releases track by default, and what most people should run once v4 graduates from alpha.
 
 ### Edge
 
-Edge follows active development from `main`.
+Tracks `edge` directly, no waiting for a tag. Same deal as `nixos-unstable`: newest installer work, desktop changes, ANIX changes, and fixes land here first, before anything's been fully vetted. Things can and do break.
+
+Abora OS v4 Everest alpha installs default to this line so they can receive alpha fixes from `edge`.
 
 New installer work, desktop changes, ANIX changes, and fixes arrive here first. Edge may contain unfinished features or bugs.
 
@@ -131,7 +137,15 @@ sudo abora channel set stable
 
 ## Features
 
-### Core
+* Built on NixOS
+* System rollback support
+* Reproducible system configuration
+* Multiple desktop options
+* Stable and Edge release lines
+* Custom installer development
+* Abora-specific defaults and tools
+* ANIX system management tools
+* Optional Abora Gaming layer with Steam Big Picture support
 
 - Built on NixOS
 - Declarative system management
@@ -159,14 +173,46 @@ sudo abora channel set stable
 ANIX is Abora's command-line tool for common system management tasks.
 
 ```bash
-anix update
-anix switch
-anix rollback
 anix status
+anix switch nix gaming
+anix rollback nix
+anix apply
 ```
 
 > [!NOTE]
 > ANIX does not replace NixOS. It makes common commands easier to remember and use.
+
+## Gaming
+
+Abora Gaming is optional and works on top of the desktop you choose.
+
+```bash
+abora gaming status
+abora gaming enable
+abora gaming steam on
+abora gaming install steam
+abora gaming install wine winetricks
+abora gaming big-picture
+abora gaming logs
+abora gaming repair-cache
+```
+
+It can add Steam, Wine, Winetricks, GameMode, MangoHud, Vulkan tools, controller support, launchers, and an optional Gamescope Big Picture session. Steam-related commands enable the required parent options automatically, so `abora gaming big-picture on` also turns on the Steam support it needs. If Nix reports a local fetch-cache disk I/O error during a Gaming install, `abora gaming repair-cache` clears the stale per-user cache files.
+
+---
+
+## Dotfiles
+
+Hyprland and Other Environment installs can import your existing setup.
+
+```bash
+abora dotfiles --dry-run ~/dotfiles
+abora dotfiles ~/dotfiles
+```
+
+Existing files are kept unless you pass `--replace`.
+
+---
 
 ## Download
 
@@ -194,9 +240,19 @@ cd Abora-OS
 
 Build the ISO:
 
+For the current source line, use:
+
 ```bash
-make iso
+./abora build --from-source
 ```
+
+Or build the normal flake target directly:
+
+```bash
+nix build .#nixosConfigurations.abora.config.system.build.toplevel
+```
+
+Check the project website, release notes, or DeepWiki for the latest build information.
 
 Boot the latest ISO in QEMU:
 
@@ -222,7 +278,20 @@ Refresh release metadata without rebuilding the ISO:
 make metadata
 ```
 
-The release bundle is generated in `out/` and includes the ISO, checksums, release manifest, and release notes.
+For installer or network bug reports, include:
+
+```bash
+abora bug-report
+abora bug-report --github --web
+abora logs --lines 200
+abora network
+abora support-report
+```
+
+Use [docs/bug-report-template.md](docs/bug-report-template.md) when filing a
+full report.
+
+Open an issue before starting a large change so it can be discussed first. Smaller fixes can be submitted through a pull request.
 
 ## Repository Layout
 

@@ -1,0 +1,93 @@
+name: Discord Changelog (Push)
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Post push changelog to Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_CHANGELOG_WEBHOOK }}
+          REPO: ${{ github.repository }}
+          REF_NAME: ${{ github.ref_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          COMPARE_URL: ${{ github.event.compare }}
+          HEAD_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "Missing DISCORD_CHANGELOG_WEBHOOK secret."
+            exit 1
+          fi
+
+          python3 - <<'PY'
+import json
+import os
+import subprocess
+import urllib.request
+
+webhook = os.environ["WEBHOOK"]
+repo = os.environ["REPO"]
+ref_name = os.environ["REF_NAME"]
+before = os.environ.get("BEFORE", "")
+after = os.environ["AFTER"]
+compare_url = os.environ.get("COMPARE_URL", "")
+head_message = (os.environ.get("HEAD_MESSAGE") or "").strip()
+
+commit_range = after
+if before and before != "0000000000000000000000000000000000000000":
+    commit_range = f"{before}..{after}"
+
+try:
+    log_output = subprocess.check_output(
+        ["git", "log", "--format=%h %s", "-n", "10", commit_range],
+        text=True,
+    ).strip()
+except subprocess.CalledProcessError:
+    log_output = ""
+
+lines = [
+    "**#/var/changelog**",
+    f"**{repo}** -> push on **{ref_name}**",
+]
+if compare_url:
+    lines.append(compare_url)
+elif after:
+    lines.append(f"https://github.com/{repo}/commit/{after}")
+
+if head_message:
+    lines.append("")
+    lines.append(f"Head: {head_message}")
+
+if log_output:
+    lines.append("")
+    lines.append("Recent commits:")
+    for entry in log_output.splitlines()[:10]:
+        lines.append(f"- {entry}")
+
+content = "\n".join(lines)
+if len(content) > 1800:
+    content = content[:1797] + "..."
+
+payload = {"content": content}
+req = urllib.request.Request(
+    webhook,
+    data=json.dumps(payload).encode("utf-8"),
+    headers={"Content-Type": "application/json"},
+)
+try:
+    with urllib.request.urlopen(req) as response:
+        print(f"Discord webhook status: {response.status}")
+        response.read()
+except Exception as exc:
+    print(f"Discord webhook failed: {exc}")
+    raise
+PY

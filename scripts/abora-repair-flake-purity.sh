@@ -18,6 +18,7 @@ bad_mango_store='/nix/store/assets/mango/config.conf'
 usage() {
     cat <<'EOF'
 Usage: abora-repair-flake-purity [--mango]
+       abora repair --mango
 
 Repairs installed Abora flake paths that can break pure evaluation.
 EOF
@@ -79,15 +80,28 @@ if [[ -d "$abora_dir/desktops" ]]; then
 fi
 
 if git -C "$config_dir" rev-parse --git-dir >/dev/null 2>&1; then
-    git -C "$config_dir" add \
+    # One git-add call per path, not a single multi-path call: git add fails
+    # (and stages nothing at all, for any of the paths given) the moment one
+    # pathspec doesn't match -- and abora/desktops/mangowm.nix doesn't exist
+    # on installs from before nix/modules/desktops became its own directory
+    # (see release_uses_modern_layout in abora-update.sh). On exactly the
+    # legacy installs this script exists to repair, that missing path was
+    # silently voiding staging for mango/config.conf too, even when this
+    # script had just created it fresh -- leaving a new, untracked file
+    # invisible to `nix flake`'s pure evaluation, the very failure mode
+    # being repaired.
+    for _repair_path in \
         abora/mango/config.conf \
         abora/abora-options.nix \
         abora/installed-base.nix \
-        abora/desktops/mangowm.nix \
-        2>/dev/null || true
+        abora/desktops/mangowm.nix; do
+        git -C "$config_dir" add "$_repair_path" 2>/dev/null || true
+    done
 fi
 
 printf 'Abora MangoWM flake purity repair complete.\n'
 printf 'Mango config asset: %s\n' "$mango_config"
 printf '\nRun:\n'
+printf '  sudo abora config apply\n'
+printf 'or:\n'
 printf '  sudo nixos-rebuild switch --flake %s#abora\n' "$config_dir"

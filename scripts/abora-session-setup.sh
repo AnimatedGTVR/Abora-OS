@@ -5,7 +5,10 @@ export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/
 
 default_wallpaper="${ABORA_DEFAULT_WALLPAPER:-/etc/abora/default-wallpaper.png}"
 default_dark_wallpaper="${ABORA_DEFAULT_DARK_WALLPAPER:-$default_wallpaper}"
-if [[ ! -f "$default_dark_wallpaper" ]]; then
+if [[ ! -s "$default_wallpaper" && -s /etc/abora/default-wallpaper.png ]]; then
+    default_wallpaper="/etc/abora/default-wallpaper.png"
+fi
+if [[ ! -s "$default_dark_wallpaper" ]]; then
     default_dark_wallpaper="$default_wallpaper"
 fi
 default_wallpaper_uri="file://${default_wallpaper}"
@@ -32,7 +35,7 @@ command_exists() {
 }
 
 play_launch_sound_once() {
-    [[ -f "$launch_sound" ]] || return 0
+    [[ -s "$launch_sound" ]] || return 0
     [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || return 0
     [[ ! -f "$launch_sound_marker" ]] || return 0
 
@@ -228,6 +231,11 @@ seed_gnome_light() {
     set_gsettings_string org.gnome.desktop.interface icon-theme "'${icon_theme}'" || true
 }
 
+gnome_light_seeded() {
+    command_exists "$gsettings_bin" || return 1
+    [[ "$("$gsettings_bin" get org.gnome.desktop.interface color-scheme 2>/dev/null || true)" == "'prefer-light'" ]]
+}
+
 seed_cinnamon_light() {
     set_gsettings_string org.cinnamon.desktop.interface gtk-theme "'Adwaita'" || true
     set_gsettings_string org.cinnamon.desktop.interface icon-theme "'${icon_theme}'" || true
@@ -342,6 +350,120 @@ seed_gnome_like() {
     set_gsettings_string "$schema" picture-options "'zoom'" || true
 }
 
+seed_gnome_wallpapers() {
+    seed_gnome_like org.gnome.desktop.background || return 1
+    seed_gnome_like org.gnome.desktop.screensaver || true
+}
+
+read_gsettings_string() {
+    local schema="$1"
+    local key="$2"
+    local value=""
+
+    command_exists "$gsettings_bin" || return 1
+    value="$("$gsettings_bin" get "$schema" "$key" 2>/dev/null || true)"
+    value="${value#\'}"
+    value="${value%\'}"
+    printf '%s\n' "$value"
+}
+
+gnome_wallpaper_uri_missing() {
+    local schema="$1"
+    local key="$2"
+    local value=""
+    local path=""
+
+    value="$(read_gsettings_string "$schema" "$key" || true)"
+    [[ -n "$value" && "$value" != "''" ]] || return 1
+    [[ "$value" == file://* ]] || return 0
+
+    path="${value#file://}"
+    [[ -s "$path" ]] && return 1
+    return 0
+}
+
+gnome_wallpaper_schema_empty() {
+    local schema="$1"
+    local light=""
+    local dark=""
+
+    light="$(read_gsettings_string "$schema" picture-uri || true)"
+    dark="$(read_gsettings_string "$schema" picture-uri-dark || true)"
+    [[ -z "$light" || "$light" == "''" ]] && [[ -z "$dark" || "$dark" == "''" ]]
+}
+
+gnome_wallpaper_active_uri_empty() {
+    local schema="$1"
+    local scheme=""
+    local key="picture-uri"
+    local value=""
+
+    scheme="$(read_gsettings_string org.gnome.desktop.interface color-scheme || true)"
+    if [[ "$scheme" == "prefer-dark" ]]; then
+        key="picture-uri-dark"
+    fi
+
+    value="$(read_gsettings_string "$schema" "$key" || true)"
+    [[ -z "$value" || "$value" == "''" ]]
+}
+
+gnome_wallpaper_options_need_repair() {
+    local schema="$1"
+    local value=""
+
+    value="$(read_gsettings_string "$schema" picture-options || true)"
+    case "$value" in
+        none|centered|scaled|stretched)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+gnome_wallpaper_is_stale_abora_uri() {
+    local schema="$1"
+    local key="$2"
+    local value=""
+    local basename_value=""
+    local default_name=""
+
+    value="$(read_gsettings_string "$schema" "$key" || true)"
+    [[ "$value" == file://* ]] || return 1
+
+    basename_value="$(basename "${value#file://}")"
+    default_name="$(basename "$default_wallpaper")"
+    [[ -n "$basename_value" && -n "$default_name" ]] || return 1
+    [[ "$basename_value" == "$default_name" ]] && return 1
+
+    case "$value" in
+        file:///etc/abora/*|file:///run/current-system/sw/share/backgrounds/abora/*|*abora-gaming*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+gnome_wallpapers_need_repair() {
+    gnome_wallpaper_schema_empty org.gnome.desktop.background && return 0
+    gnome_wallpaper_active_uri_empty org.gnome.desktop.background && return 0
+    gnome_wallpaper_options_need_repair org.gnome.desktop.background && return 0
+    gnome_wallpaper_uri_missing org.gnome.desktop.background picture-uri && return 0
+    gnome_wallpaper_uri_missing org.gnome.desktop.background picture-uri-dark && return 0
+    gnome_wallpaper_is_stale_abora_uri org.gnome.desktop.background picture-uri && return 0
+    gnome_wallpaper_is_stale_abora_uri org.gnome.desktop.background picture-uri-dark && return 0
+    gnome_wallpaper_active_uri_empty org.gnome.desktop.screensaver && return 0
+    gnome_wallpaper_options_need_repair org.gnome.desktop.screensaver && return 0
+    gnome_wallpaper_uri_missing org.gnome.desktop.screensaver picture-uri && return 0
+    gnome_wallpaper_uri_missing org.gnome.desktop.screensaver picture-uri-dark && return 0
+    gnome_wallpaper_is_stale_abora_uri org.gnome.desktop.screensaver picture-uri && return 0
+    gnome_wallpaper_is_stale_abora_uri org.gnome.desktop.screensaver picture-uri-dark && return 0
+    return 1
+}
+
 seed_cinnamon() {
     set_gsettings_string org.cinnamon.desktop.background picture-uri "'${default_wallpaper_uri}'" || return 1
     set_gsettings_string org.cinnamon.desktop.background picture-options "'zoom'" || true
@@ -393,6 +515,7 @@ seed_swaybg() {
         return 0
     fi
 
+    mkdir -p "$(dirname "$swaybg_pid_file")"
     nohup swaybg -i "$default_wallpaper" -m fill >/dev/null 2>&1 &
     printf '%s\n' "$!" > "$swaybg_pid_file"
 }
@@ -407,7 +530,7 @@ seed_cosmic() {
 
     # Keep COSMIC on the bright default wallpaper too; Titlis Alps should stay
     # visible even if the desktop has its own day/night theme state.
-    if [[ ! -f "$wallpaper_path" ]]; then
+    if [[ ! -s "$wallpaper_path" ]]; then
         wallpaper_path="$default_wallpaper"
     fi
 
@@ -435,10 +558,16 @@ run_theme_sync_once() {
 
 main() {
     local signature=""
+    local wait_seconds="${ABORA_SESSION_SETUP_WAIT:-0}"
+    local wallpaper_available=0
 
     ensure_zsh_profile
 
-    [[ -f "$default_wallpaper" ]] || exit 0
+    [[ -s "$default_wallpaper" ]] && wallpaper_available=1
+    while [[ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" && "$wait_seconds" =~ ^[0-9]+$ && "$wait_seconds" -gt 0 ]]; do
+        sleep 1
+        wait_seconds=$((wait_seconds - 1))
+    done
     [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || exit 0
 
     import_dotfiles_once
@@ -446,10 +575,13 @@ main() {
     signature="$(desktop_signature)"
     clear_legacy_dark_theme_marker
 
-    if ! theme_already_seeded; then
+    if ! theme_already_seeded \
+        || { [[ "$signature" == *GNOME*:* || "$signature" == *gnome*:* || "$signature" == *:gnome* || "$signature" == *:GNOME* || "$signature" == *ubuntu:gnome* || "$signature" == *:ubuntu* ]] && ! gnome_light_seeded; }; then
         seed_light_theme_for_session "$signature"
         mark_theme_seeded
     fi
+
+    [[ "$wallpaper_available" -eq 1 ]] || exit 0
 
     case "$signature" in
         *COSMIC*:* | *cosmic*:* | *:COSMIC* | *:cosmic*)
@@ -458,8 +590,8 @@ main() {
             fi
             ;;
         *GNOME*:* | *gnome*:* | *:gnome* | *:GNOME* | *ubuntu:gnome* | *:ubuntu*)
-            if ! already_seeded; then
-                seed_gnome_like org.gnome.desktop.background && mark_seeded
+            if ! already_seeded || gnome_wallpapers_need_repair; then
+                seed_gnome_wallpapers && mark_seeded
             fi
             run_theme_sync_once
             ;;
@@ -509,19 +641,27 @@ main() {
         *fluxbox*:* | *:fluxbox* | \
         *icewm*:* | *:icewm* | \
         *herbstluftwm*:* | *:herbstluftwm*)
-            seed_feh || true
+            if ! already_seeded; then
+                seed_feh && mark_seeded || true
+            fi
             ;;
         *Hyprland*:* | *hyprland*:* | *:hyprland* | *:Hyprland* | \
         *sway*:* | *:sway* | *:sway-uwsm* | \
         *niri*:* | *:niri* | \
         *river*:* | *:river*)
-            seed_swaybg || true
+            if ! already_seeded; then
+                seed_swaybg && mark_seeded || true
+            fi
             ;;
         *)
             if [[ -n "${DISPLAY:-}" ]]; then
-                seed_feh || true
+                if ! already_seeded; then
+                    seed_feh && mark_seeded || true
+                fi
             elif [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
-                seed_swaybg || true
+                if ! already_seeded; then
+                    seed_swaybg && mark_seeded || true
+                fi
             fi
             ;;
     esac

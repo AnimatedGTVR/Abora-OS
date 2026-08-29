@@ -46,14 +46,26 @@ let
   aboraApps = pkgs.writeShellScriptBin "abora-apps" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/apps.sh "$@"
   '';
+  aboraCustomPackages = pkgs.writeShellScriptBin "abora-custom-packages" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/custom-packages.sh "$@"
+  '';
   aboraConfig = pkgs.writeShellScriptBin "abora-config" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/config.sh "$@"
   '';
   aboraCommand = pkgs.writeShellScriptBin "abora" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/abora.sh "$@"
   '';
+  aboraBuild = pkgs.writeShellScriptBin "abora-build" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/build.sh "$@"
+  '';
+  aboraAdoptNixos = pkgs.writeShellScriptBin "abora-adopt-nixos" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/adopt-nixos.sh "$@"
+  '';
   aboraDesktop = pkgs.writeShellScriptBin "abora-desktop" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/desktop.sh "$@"
+  '';
+  aboraGaming = pkgs.writeShellScriptBin "abora-gaming" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/gaming.sh "$@"
   '';
   aboraDotfilesImport = pkgs.writeShellScriptBin "abora-dotfiles-import" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/dotfiles-import.sh "$@"
@@ -66,6 +78,9 @@ let
   '';
   aboraRecovery = pkgs.writeShellScriptBin "abora-recovery" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/recovery.sh "$@"
+  '';
+  aboraRepairFlakePurity = pkgs.writeShellScriptBin "abora-repair-flake-purity" ''
+    exec env ABORA_SYSTEM_CONFIG=/etc/nixos ${pkgs.bashInteractive}/bin/bash /etc/abora/repair-flake-purity.sh "$@"
   '';
   aboraWelcome = pkgs.writeShellScriptBin "abora-welcome" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/welcome.sh "$@"
@@ -149,6 +164,21 @@ let
   wallpaperDir = ../../assets/wallpapers/collection;
   wallpaperThemeDir = ../../assets/wallpaper-themes;
   tinypmDir = ../../vendor/tinypm;
+  # TinyPM was rewritten from a bash multicall tree to a real Rust crate
+  # (see TinyPM's own CLAUDE.md: "the old Bash runtime was removed").
+  # Two real binaries now exist -- tinypm (inspection/diagnostics) and
+  # grab (install-first) -- replacing the old mkGrabCmd multicall
+  # wrapper's much longer alias list (tiny/Parcel/search/term/start/
+  # supdate/grab-add-repo/grab-de/syspm), none of which have a Rust
+  # equivalent; TinyPM's own CLI --help is the source of truth for what
+  # commands actually exist now.
+  tinypmPackage = pkgs.rustPlatform.buildRustPackage {
+    pname = "tinypm";
+    version = "0.8.1-alpha";
+    src = tinypmDir;
+    cargoLock.lockFile = tinypmDir + "/Cargo.lock";
+    doCheck = false;
+  };
   mintPackage = pkgs.buildGoModule {
     pname = "mint";
     version = version;
@@ -216,6 +246,25 @@ let
       export GDK_BACKEND="''${GDK_BACKEND:-wayland,x11}"
       exec ${python}/bin/python3 /etc/abora/config-gui.py "$@"
     '';
+  aboraGamingWelcomeGui =
+    let
+      python = pkgs.python3.withPackages (ps: with ps; [ pygobject3 ]);
+      giPath = lib.makeSearchPath "lib/girepository-1.0" (with pkgs; [
+        gtk4 libadwaita glib gdk-pixbuf (lib.getLib pango) harfbuzz graphene cairo gobject-introspection
+      ]);
+      libPath = lib.makeLibraryPath (with pkgs; [
+        gtk4 libadwaita glib gdk-pixbuf cairo
+      ]);
+    in
+    pkgs.writeShellScriptBin "abora-gaming-welcome-gui" ''
+      export GI_TYPELIB_PATH="${giPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+      export LD_LIBRARY_PATH="${libPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      export ABORA_APPS_SCRIPT="''${ABORA_APPS_SCRIPT:-/etc/abora/apps.sh}"
+      export ABORA_APP_CATALOG="''${ABORA_APP_CATALOG:-/etc/abora/app-catalog.sh}"
+      export GSK_RENDERER="''${GSK_RENDERER:-cairo}"
+      export GDK_BACKEND="''${GDK_BACKEND:-wayland,x11}"
+      exec ${python}/bin/python3 /etc/abora/gaming-welcome-gui.py "$@"
+    '';
   aboraWallpapersPackage = pkgs.runCommandLocal "abora-wallpapers" { } ''
     mkdir -p "$out/share/backgrounds/abora" "$out/share/abora/themes" "$out/share/gnome-background-properties"
     find ${wallpaperDir} -maxdepth 1 -type f -exec cp {} "$out/share/backgrounds/abora/" \;
@@ -281,24 +330,6 @@ let
     </wallpapers>
     EOF
   '';
-  mkGrabCmd = name: pkgs.writeShellScriptBin name ''
-    runtime=/etc/abora/tinypm
-    entry="$runtime/bin/${name}"
-    if [ ! -x "$entry" ]; then
-      entry="$runtime/${name}"
-    fi
-    if [ ! -x "$entry" ]; then
-      case "${name}" in
-        Parcel|version)
-          exec env TINYPM_FLAVOR=abora ${pkgs.bashInteractive}/bin/bash "$runtime/bin/tinypm" version "$@"
-          ;;
-        *)
-          exec env TINYPM_FLAVOR=abora TINYPM_ENTRYPOINT=${name} ${pkgs.bashInteractive}/bin/bash "$runtime/bin/tinypm" "$@"
-          ;;
-      esac
-    fi
-    exec env TINYPM_FLAVOR=abora TINYPM_ENTRYPOINT=${name} ${pkgs.bashInteractive}/bin/bash "$entry" "$@"
-  '';
 in
 {
   system.stateVersion = "26.05";
@@ -354,13 +385,13 @@ in
     label = version;
     extraOSReleaseArgs = {
       LOGO = "abora";
-      VERSION = "2026.7.27";
-      VERSION_ID = "4.0";
+      VERSION = "v4 Everest";
+      VERSION_ID = "4";
       VERSION_CODENAME = "everest";
-      PRETTY_NAME = "Abora OS 2026.7.27";
+      PRETTY_NAME = "Abora OS v4 Everest";
       HOME_URL = "https://www.aboraos.org/";
-      SUPPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
-      BUG_REPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
+      SUPPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
+      BUG_REPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
       ANSI_COLOR = "0;38;2;80;220;255";
     };
   };
@@ -379,6 +410,22 @@ in
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.initrd.systemd.enable = true;
   boot.initrd.verbose = false;
+  # Ventoy boots an ISO by presenting it as a real by-label block device to
+  # the target kernel (exactly the mechanism NixOS's own iso-image.nix
+  # `/iso` mount relies on), but bridging "GRUB-level ISO loopback" into
+  # "kernel-visible block device" needs help from Ventoy's own udev hook
+  # (/ventoy/hook/default/udev/udev_disk_hook.sh, injected by Ventoy
+  # itself, not part of this repo). That hook assumes common utilities
+  # (grep/sed/awk/cut/blkid, etc.) are on PATH in the target initrd -- a
+  # real, reproduced failure: `udev_disk_hook.sh sdb2 noreplace` exiting 1,
+  # which cascaded straight into "Timed out waiting for device
+  # /dev/disk/by-label/nixos-26.05-x86_64" ~27s later on real hardware.
+  # iso-image.nix's own initrdBin only adds util-linux ("most of
+  # util-linux is not included by default") -- nowhere near a full
+  # userland. busybox provides the standard POSIX utility set Ventoy's
+  # hook expects; NixOS list options merge across modules (no mkForce
+  # here or in iso-image.nix), so this adds to, not replaces, that.
+  boot.initrd.systemd.initrdBin = [ pkgs.busybox ];
   boot.initrd.kernelModules = lib.mkForce [
     "loop"
     "overlay"
@@ -423,28 +470,25 @@ in
 
   environment.systemPackages = (with pkgs; [
     # ── Abora installer toolchain ────────────────────────────────────────────
-    (mkGrabCmd "tinypm")
-    (mkGrabCmd "tiny")
-    (mkGrabCmd "Parcel")
-    (mkGrabCmd "grab")
-    (mkGrabCmd "search")
-    (mkGrabCmd "term")
-    (mkGrabCmd "start")
-    (mkGrabCmd "supdate")
-    (mkGrabCmd "grab-add-repo")
-    (mkGrabCmd "grab-de")
-    (mkGrabCmd "syspm")
+    tinypmPackage
+    abora-update-resolver
+    abora-plan-tool
     aboraApps
+    aboraCustomPackages
+    aboraAdoptNixos
+    aboraBuild
     aboraCommand
     aboraCheckFull
     aboraInstall
     anixCommand
     aboraConfig
     aboraDesktop
+    aboraGaming
     aboraDotfilesImport
     aboraDoctor
     aboraHardwareTest
     aboraRecovery
+    aboraRepairFlakePurity
     aboraSessionSetup
     aboraSetup
     aboraSetupDesktopPkg
@@ -463,12 +507,16 @@ in
     gum         # upstream Charm gum picker/input UI used by installer.sh
     mintPackage # Abora helper commands; intentionally not linked as gum
     fastfetch   # shown in the live welcome banner
+    feh         # X11 wallpaper fallback for lightweight live desktops
     chafa       # terminal logo rendering fallback
     fbv         # real framebuffer PNG splash before the TTY installer
     htop
     jq          # ANIX v2 plan validation/execution (anix run/validate-plan/apply-plan)
     moducpp-anix # ANIX v2 ModuCPP frontend — standalone, no Modularity checkout needed; bundles its own C++ compiler
     newt        # provides nmtui for Wi-Fi setup
+    libsForQt5.qt5ct
+    qt6Packages.qt6ct
+    swaybg      # wlroots wallpaper fallback for Hyprland/Sway/MangoWM live sessions
     xterm       # tiny fallback so the Start Abora launcher can always open
     zenity      # graphical ANIX helper when launched from a desktop
 
@@ -521,6 +569,17 @@ in
     ABORA_ZONEINFO_PATH = "${pkgs.tzdata}/share/zoneinfo";
   };
 
+  systemd.user.services.abora-session-setup = {
+    description = "Apply Abora desktop session defaults";
+    wantedBy = [ "graphical-session.target" ];
+    partOf = [ "graphical-session.target" ];
+    environment.ABORA_SESSION_SETUP_WAIT = "10";
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${aboraSessionSetup}/bin/abora-session-setup";
+    };
+  };
+
   environment.etc =
     {
       "abora/README".text = ''
@@ -535,12 +594,28 @@ in
         source = ../../scripts/abora-apps.sh;
         mode = "0755";
       };
+      "abora/custom-packages.sh" = {
+        source = ../../scripts/abora-custom-packages.sh;
+        mode = "0755";
+      };
       "abora/abora.sh" = {
         source = ../../scripts/abora.sh;
         mode = "0755";
       };
+      "abora/build.sh" = {
+        source = ../../scripts/abora-build.sh;
+        mode = "0755";
+      };
+      "abora/adopt-nixos.sh" = {
+        source = ../../scripts/abora-adopt-nixos.sh;
+        mode = "0755";
+      };
       "abora/desktop.sh" = {
         source = ../../scripts/abora-desktop.sh;
+        mode = "0755";
+      };
+      "abora/gaming.sh" = {
+        source = ../../scripts/abora-gaming.sh;
         mode = "0755";
       };
       "abora/dotfiles-import.sh" = {
@@ -609,10 +684,10 @@ in
       "xdg/fastfetch/config.jsonc".source = ../../assets/fastfetch-config.jsonc;
       "xdg/fastfetch/abora-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "issue".text = ''
-        Abora OS 2026.7.27
+        Abora OS v4 Everest
       '';
       "issue.net".text = ''
-        Abora OS 2026.7.27
+        Abora OS v4 Everest
       '';
       "profile.d/abora-live.sh".text = ''
         # Only greet on real TTY sessions (not COSMIC/graphical login shells)
@@ -649,11 +724,18 @@ in
       "abora/pkgs/scenefx-0_5.nix".source = ../pkgs/scenefx-0_5.nix;
       "abora/pkgs/modularity.nix".source = ../pkgs/modularity.nix;
       "abora/pkgs/moducpp-anix.nix".source = ../pkgs/moducpp-anix.nix;
+      "abora/pkgs/abora-update-resolver.nix".source = ../pkgs/abora-update-resolver.nix;
+      "abora/pkgs/abora-update-resolver-deps.json".source = ../pkgs/abora-update-resolver-deps.json;
+      "abora/pkgs/abora-plan-tool.nix".source = ../pkgs/abora-plan-tool.nix;
+      "abora/pkgs/abora-plan-tool-deps.json".source = ../pkgs/abora-plan-tool-deps.json;
       "abora/tools/moducpp-anix" = {
         source = ../../tools/moducpp-anix;
         mode = "0755";
       };
       "abora/tinypm".source = tinypmDir;
+      "abora/update-resolver".source = ../../tools/abora-update-resolver;
+      "abora/plan-tool".source = ../../tools/abora-plan-tool;
+      "abora/vendor/modularity".source = ../../vendor/modularity;
       "abora/docs".source = ../../docs;
       "abora/anix-languages".source = ../../assets/anix-languages;
       "anix/languages".source = ../../assets/anix-languages;
@@ -668,6 +750,7 @@ in
       };
       "abora/welcome-gui.py".source = ../../scripts/abora-welcome-gui.py;
       "abora/config-gui.py".source = ../../scripts/abora-config-gui.py;
+      "abora/gaming-welcome-gui.py".source = ../../scripts/abora-gaming-welcome-gui.py;
       "abora/anix.sh" = {
         source = ../../scripts/anix.sh;
         mode = "0755";
@@ -810,7 +893,18 @@ in
   services.qemuGuest.enable = true;
   services.spice-vdagentd.enable = true;
   virtualisation.vmware.guest.enable = pkgs.stdenv.hostPlatform.isx86;
-  virtualisation.virtualbox.guest.enable = pkgs.stdenv.hostPlatform.isx86;
+  # VirtualBox Guest Additions compiles an out-of-tree kernel module
+  # (vboxguest/vboxsf/vboxvideo) against whatever kernel the live ISO ships,
+  # and that module has a long history of breaking on new kernel releases
+  # (e.g. nixpkgs#65689, #182985, #41360; most recently vbox_fb.c failing to
+  # compile against kernel 7.1+ here). Forcing it on for every x86_64 build,
+  # including the vast majority who never boot the ISO in VirtualBox
+  # specifically (GNOME Boxes/QEMU/libvirt use spice-vdagentd/qemuGuest
+  # above instead), meant one upstream VBox/kernel incompatibility could
+  # block shipping unrelated kernel/firmware updates for everyone. Left
+  # off by default; still available to installed systems via `abora
+  # config` (abora.extras.virtualizationGuests).
+  virtualisation.virtualbox.guest.enable = false;
   virtualisation.hypervGuest.enable =
     pkgs.stdenv.hostPlatform.isx86 || pkgs.stdenv.hostPlatform.isAarch64;
 

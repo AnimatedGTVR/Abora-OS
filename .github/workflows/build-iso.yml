@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - main
+      - edge
     paths:
       - ".github/workflows/build-iso.yml"
       - "assets/**"
@@ -72,7 +72,7 @@ jobs:
 
       - name: Show output files
         if: steps.build_iso.outcome == 'success'
-        run: ls -lah out
+        run: find out -maxdepth 2 -type f -print | sort
 
       - name: Upload Build Log Artifact
         if: always()
@@ -88,11 +88,12 @@ jobs:
         with:
           name: abora-${{ steps.version.outputs.tag }}-${{ github.run_number }}
           path: |
-            out/*-${{ steps.version.outputs.tag }}.iso
-            out/tinypm-*-abora-${{ steps.version.outputs.tag }}.tar.gz
-            out/SHA256SUMS-${{ steps.version.outputs.tag }}.txt
-            out/RELEASE_MANIFEST-${{ steps.version.outputs.tag }}.txt
-            out/RELEASE_NOTES-${{ steps.version.outputs.tag }}.md
+            out/iso/*-${{ steps.version.outputs.tag }}.iso
+            out/packages/tinypm-*-abora-${{ steps.version.outputs.tag }}.tar.gz
+            out/packages/anix-*-abora-${{ steps.version.outputs.tag }}.tar.gz
+            out/release/SHA256SUMS-${{ steps.version.outputs.tag }}.txt
+            out/release/RELEASE_MANIFEST-${{ steps.version.outputs.tag }}.txt
+            out/release/RELEASE_NOTES-${{ steps.version.outputs.tag }}.md
           if-no-files-found: error
 
       - name: Fail Build If ISO Step Failed

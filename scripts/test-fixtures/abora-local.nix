@@ -7,4 +7,7 @@
   abora.desktop = "gnome";
   abora.wallpaper = "titlis-alps.jpg";
   abora.gpu = "amdgpu";
+  abora.extras.diagnostics = false;
+  abora.extras.virtualizationGuests = false;
+  abora.extras.mobileBroadband = false;
 }

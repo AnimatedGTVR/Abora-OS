@@ -1,7 +1,7 @@
 name: Flake & Script Check
 
 # Runs on every push and PR to catch pure-eval regressions and script issues
-# before they reach main. The full ISO build runs separately on main only.
+# before they reach edge. The full ISO build runs separately on edge only.
 
 permissions:
   contents: read
@@ -53,6 +53,7 @@ jobs:
           export PATH="$HOME/.nix-profile/bin:$PATH"
           nix shell nixpkgs#shellcheck -c shellcheck -S error \
             scripts/abora-desktop-profiles.sh \
+            scripts/abora-gaming.sh \
             scripts/abora-installer.sh \
             scripts/abora-update.sh \
             scripts/check-scripts.sh

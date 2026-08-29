@@ -12,8 +12,20 @@ if [[ ! -f "$ui_lib" && -f "$abora_dir/ui.sh" ]]; then
     ui_lib="$abora_dir/ui.sh"
 fi
 
-# shellcheck source=/dev/null
-source "$ui_lib"
+if [[ -f "$ui_lib" ]]; then
+    # shellcheck source=/dev/null
+    source "$ui_lib"
+else
+    # Minimal fallback UI -- used when abora-ui.sh isn't available (e.g. a
+    # bare checkout before install, or a corrupted /etc/abora).
+    ABORA_DIM=$'\033[38;5;242m'
+    ABORA_NC=$'\033[0m'
+    ABORA_WHITE=$'\033[1;97m'
+    abora_banner()  { printf '\n  %b%s%b  %b%s%b\n\n' "$ABORA_WHITE" "${1:-}" "$ABORA_NC" "$ABORA_DIM" "${2:-}" "$ABORA_NC"; }
+    abora_success() { printf '  \033[38;5;77m✓\033[0m  \033[38;5;77m%s\033[0m\n' "$1"; }
+    abora_warn()    { printf '  \033[38;5;222m!\033[0m  \033[38;5;222m%s\033[0m\n' "$1"; }
+    abora_error()   { printf '  \033[38;5;203m✗\033[0m  \033[38;5;203m%s\033[0m\n' "$1" >&2; }
+fi
 
 warnings=0
 failures=0
@@ -124,7 +136,7 @@ check_flatpak() {
 
 check_channel() {
     local channel_file="$config_dir/abora/channel"
-    local channel="stable"
+    local channel="${ABORA_DEFAULT_CHANNEL:-unstable}"
     [[ -f "$channel_file" ]] && channel="$(tr -d '[:space:]' < "$channel_file")"
     case "$channel" in
         stable|demo|dev|unstable) ok "update channel: $channel" ;;
@@ -153,7 +165,14 @@ check_desktop() {
 check_anix() {
     if command -v anix >/dev/null 2>&1; then
         ok "ANIX command is installed"
-        if anix doctor >/tmp/abora-anix-doctor.log 2>&1; then
+        # Fixed, predictable /tmp path by design (so "see ..." below is
+        # actionable) -- a plain `>` redirect there is a classic symlink
+        # race, so create it the same safe way abora_wu_run does: rm the
+        # name (never follows a symlink), then create with noclobber so a
+        # symlink racing back into place makes the open fail closed.
+        rm -f -- /tmp/abora-anix-doctor.log 2>/dev/null || true
+        if ( set -o noclobber; : > /tmp/abora-anix-doctor.log ) 2>/dev/null \
+            && anix doctor >>/tmp/abora-anix-doctor.log 2>&1; then
             ok "ANIX doctor completed"
         else
             warn "ANIX doctor reported issues; see /tmp/abora-anix-doctor.log"

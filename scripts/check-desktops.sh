@@ -7,7 +7,7 @@ cd "$repo_dir"
 # shellcheck source=/dev/null
 source "$repo_dir/scripts/abora-desktop-profiles.sh"
 
-version="$(tr -d '\n' < "$repo_dir/VERSION")"
+release_short="v4 Everest"
 bootloader_background="$repo_dir/assets/bootloader/limine-background.png"
 tmpdir="$(mktemp -d)"
 staged_abora="$tmpdir/abora"
@@ -34,6 +34,7 @@ fail() {
 }
 
 resolve_nixpkgs_path() {
+  local candidate
   if [[ -n "${ABORA_NIXPKGS_PATH:-}" && -d "${ABORA_NIXPKGS_PATH:-}" ]]; then
     printf '%s\n' "$ABORA_NIXPKGS_PATH"
     return 0
@@ -56,6 +57,15 @@ resolve_nixpkgs_path() {
       "${nix_eval[@]}" 2>/dev/null
     fi
   fi
+
+  # Last-resort daemonless fallback for dev shells where a nixpkgs source is
+  # already present in /nix/store but nix-daemon/NIX_PATH are unavailable.
+  for candidate in /nix/store/*-source; do
+    if [[ -f "$candidate/nixos/lib/eval-config.nix" && -f "$candidate/lib/modules.nix" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
 }
 
 # Every desktop profile must be listed consistently across the CLI (anix.sh,
@@ -71,7 +81,7 @@ assert_supported_everywhere() {
     "$repo_dir/scripts/abora-config.sh" \
     "$repo_dir/nix/modules/abora-options.nix" \
     "$repo_dir/nix/modules/anix.nix"; do
-    if ! grep -Eq "\"?${profile}\"?([[:space:]]|$)" "$file"; then
+    if ! grep -Eq "(^|[^A-Za-z0-9_-])\"?${profile}\"?([[:space:]]|$)" "$file"; then
       fail "desktop list missing ${profile}: ${file#$repo_dir/}"
     fi
   done
@@ -81,6 +91,14 @@ if ! pkgs_path="$(resolve_nixpkgs_path)"; then
   printf 'No nixpkgs source is available.\n' >&2
   printf 'Set ABORA_NIXPKGS_PATH to a nixpkgs checkout/store path, or configure NIX_PATH.\n' >&2
   printf 'Example: ABORA_NIXPKGS_PATH=/nix/store/...-source ./scripts/check-desktops.sh\n' >&2
+  exit 1
+fi
+
+if ! "${nix_cmd[@]}" --eval --strict --expr "let pkgs = import ${pkgs_path} { system = \"x86_64-linux\"; }; in pkgs.lib.version" >/dev/null 2>&1; then
+  printf 'nixpkgs source was found, but Nix cannot import it in this environment.\n' >&2
+  printf 'This usually means the Nix daemon/store is unavailable or not writable by this user.\n' >&2
+  printf 'Fix the daemon/store, or run with a working remote/local store, then retry:\n' >&2
+  printf '  ABORA_NIXPKGS_PATH=%s ./scripts/check-desktops.sh\n' "$pkgs_path" >&2
   exit 1
 fi
 
@@ -98,6 +116,7 @@ stage_installed_abora() {
     "$staged_abora/plymouth" \
     "$staged_abora/themes" \
     "$staged_abora/tools" \
+    "$staged_abora/vendor" \
     "$staged_abora/wallpapers"
 
   cp "$repo_dir/VERSION" "$staged_abora/VERSION"
@@ -123,11 +142,16 @@ stage_installed_abora() {
   cp "$repo_dir/nix/pkgs/modularity.nix" "$staged_abora/pkgs/modularity.nix"
   cp "$repo_dir/nix/pkgs/moducpp-anix.nix" "$staged_abora/pkgs/moducpp-anix.nix"
   cp "$repo_dir/tools/moducpp-anix" "$staged_abora/tools/moducpp-anix"
+  cp -R "$repo_dir/vendor/modularity" "$staged_abora/vendor/modularity"
 
   cp "$repo_dir/scripts/abora-ui.sh" "$staged_abora/ui.sh"
   cp "$repo_dir/scripts/abora-config.sh" "$staged_abora/config.sh"
   cp "$repo_dir/scripts/abora.sh" "$staged_abora/abora.sh"
+  cp "$repo_dir/scripts/abora-build.sh" "$staged_abora/build.sh"
+  cp "$repo_dir/scripts/abora-adopt-nixos.sh" "$staged_abora/adopt-nixos.sh"
   cp "$repo_dir/scripts/abora-desktop.sh" "$staged_abora/desktop.sh"
+  cp "$repo_dir/scripts/abora-gaming.sh" "$staged_abora/gaming.sh"
+  cp "$repo_dir/scripts/abora-dotfiles-import.sh" "$staged_abora/dotfiles-import.sh"
   cp "$repo_dir/scripts/abora-doctor.sh" "$staged_abora/doctor.sh"
   cp "$repo_dir/scripts/abora-check-full.sh" "$staged_abora/check-full.sh"
   cp "$repo_dir/scripts/abora-recovery.sh" "$staged_abora/recovery.sh"
@@ -136,6 +160,7 @@ stage_installed_abora() {
   cp "$repo_dir/scripts/anix.sh" "$staged_abora/anix.sh"
   cp "$repo_dir/scripts/abora-app-catalog.sh" "$staged_abora/app-catalog.sh"
   cp "$repo_dir/scripts/abora-apps.sh" "$staged_abora/apps.sh"
+  cp "$repo_dir/scripts/abora-custom-packages.sh" "$staged_abora/custom-packages.sh"
   cp "$repo_dir/scripts/abora-support-report.sh" "$staged_abora/support-report.sh"
   cp "$repo_dir/scripts/abora-hardware-test.sh" "$staged_abora/hardware-test.sh"
   cp "$repo_dir/scripts/abora-desktop-profiles.sh" "$staged_abora/desktop-profiles.sh"
@@ -171,8 +196,9 @@ let
   pkgsPath = ${pkgs_path};
   evalConfig = import (pkgsPath + "/nixos/lib/eval-config.nix");
   installedBase = import ${staged_abora}/installed-base.nix;
+  aboraOptions = import ${staged_abora}/abora-options.nix;
   desktopModule = { pkgs, lib, ... }: {
-    system.nixos.variantName = "Abora ${version} ${desktop_label} Edition";
+    system.nixos.variantName = "Abora ${release_short} ${desktop_label} Edition";
     system.nixos.variant_id = "${desktop_variant_id}";
 
     networking.hostName = "abora-${desktop_profile}";
@@ -217,7 +243,7 @@ ${desktop_packages}
   };
   config = (evalConfig {
     system = "x86_64-linux";
-    modules = [ installedBase desktopModule ];
+    modules = [ installedBase aboraOptions desktopModule ];
   }).config;
 in
   {

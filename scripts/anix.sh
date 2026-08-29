@@ -61,10 +61,9 @@ wallpaper_dir="${ANIX_WALLPAPER_DIR:-/etc/abora/wallpapers}"
 anix_state_dir="${ANIX_STATE_DIR:-$config_dir/.anix}"        # git snapshots + this tool's own settings
 anix_tool_config="${ANIX_TOOL_CONFIG:-$anix_state_dir/config}"
 docs_dir="${ANIX_DOCS_DIR:-/etc/abora/docs/wiki}"
-tinypm_source_dir="${ANIX_TINYPM_SOURCE:-/etc/abora/tinypm}"
 sound_file="${ANIX_SOUND_FILE:-/etc/abora/effects/v3StartingAbora.mp3}"
 anix_doc_file="${ANIX_DOC_FILE:-$docs_dir/ANIX-V1.md}"
-tinypm_doc_file="${ANIX_TINYPM_DOC_FILE:-$docs_dir/TinyPM-V4.md}"
+tinypm_doc_file="${ANIX_TINYPM_DOC_FILE:-$docs_dir/TinyPM.md}"
 abora_tools_doc_file="${ANIX_ABORA_TOOLS_DOC_FILE:-$docs_dir/Abora-Tools.md}"
 recovery_doc_file="${ANIX_RECOVERY_DOC_FILE:-$docs_dir/Recovery.md}"
 
@@ -75,6 +74,17 @@ recovery_doc_file="${ANIX_RECOVERY_DOC_FILE:-$docs_dir/Recovery.md}"
 anix_system_language_dir="${ANIX_SYSTEM_LANGUAGE_DIR:-/etc/anix/languages}"
 anix_user_language_dir="${ANIX_USER_LANGUAGE_DIR:-$HOME/.config/anix/languages}"
 anix_plan_version=1
+# Plan JSON structural validation/parsing (well-formed JSON, planVersion,
+# operation shapes, the "set" key allowlist, package-name syntax) is a real
+# Native AOT C# binary (tools/abora-plan-tool) -- see its PlanParser.cs for
+# why: it's the same class of "structured data through jq shell-outs and
+# string matching" problem as tools/abora-update-resolver, and it replaces
+# what used to be many `jq` subprocess calls (one per field per operation)
+# with a single call that parses the whole plan at once. ANIX-specific
+# business rules that must stay a single source of truth with do_toggle/
+# do_set (feature_to_anix_key, per-key value validation) are NOT duplicated
+# there -- see parse_and_validate_plan() below and PlanParser.cs's comment.
+plan_tool_bin="${ABORA_PLAN_TOOL_BIN:-abora-plan-tool}"
 
 valid_desktops=(
     none gnome plasma hyprland sway xfce cinnamon mate budgie lxqt pantheon
@@ -717,6 +727,19 @@ render_template() {
   ## Command: anix enable allowUnfree
   anix.allowUnfree = true;
 
+  ## Optional Abora Gaming layer.
+  ## Commands: anix enable gaming ; anix enable gaming.steam ; anix enable gaming.big-picture ; anix enable gaming.vulkan
+  anix.gaming.enable = false;
+  anix.gaming.steam = true;
+  anix.gaming.bigPictureShortcut = true;
+  anix.gaming.bigPictureAutostart = false;
+  anix.gaming.gamescopeSession = true;
+  anix.gaming.controllerSupport = true;
+  anix.gaming.mangohud = true;
+  anix.gaming.gamemode = true;
+  anix.gaming.vulkanTools = true;
+  anix.gaming.launchers = true;
+
   ## Modern Nix CLI and flakes.
   ## Command: anix enable experimentalNix
   anix.experimentalNix = true;
@@ -725,8 +748,9 @@ render_template() {
   ## Command: anix set shell zsh
   anix.shell = "zsh";
 
-  ## TinyPM installs per-user on first login when a TinyPM source is available.
-  ## Command: anix tinypm install
+  ## TinyPM ships system-wide as an ordinary package; this option is
+  ## historical and no longer does anything (see anix.tinypm.enable docs).
+  ## Command: anix tinypm status
   anix.tinypm.enable = true;
 
   ## System services.
@@ -737,9 +761,12 @@ render_template() {
   anix.services.audio = true;
   anix.services.openssh = false;
 
-  ## Laptop and power helpers.
+  ## Laptop and power helpers. thermald is Intel's laptop-specific thermal
+  ## daemon -- it fails to start on non-mobile hardware, and a failed unit
+  ## makes every "anix apply"/nixos-rebuild report an error, so it's off
+  ## by default; enable it only if this is a laptop.
   ## Commands: anix enable thermald ; anix enable tlp
-  anix.power.thermald = true;
+  anix.power.thermald = false;
   anix.power.tlp = false;
 
   ## Extra packages and fonts.
@@ -769,16 +796,20 @@ ensure_anix_file() {
     run_as_root bash -c "$(printf 'cat > %q <<'"'"'EOF'"'"'\n%s\nEOF' "$anix_file" "$(render_template)")"
 }
 
-# Older anix.nix files were rendered with a bare `{ ... }:` module header,
+# Older anix.nix files were rendered with a bare `{ ... }:` module header
+# (or a user may have hand-edited it to something like `{ lib, ... }:`),
 # which breaks the moment the body references `pkgs` (as `anix.packages`/
-# `anix.fonts` do). This upgrades just that one header line in place, on an
-# already-existing user file, without touching anything else they've edited.
+# `anix.fonts` do). This adds `pkgs, ` to whatever single-line arg header is
+# there, on an already-existing user file, without touching anything else
+# they've edited (existing bound names like `lib` are preserved).
 repair_anix_module_args() {
     [[ -f "$anix_file" ]] || return 0
-    if grep -Eq '^[[:space:]]*\{[[:space:]]*\.\.\.[[:space:]]*\}:[[:space:]]*$' "$anix_file" \
-        && grep -Eq 'with[[:space:]]+pkgs[[:space:]]*;' "$anix_file"; then
-        run_as_root sed -i -E '0,/^[[:space:]]*\{[[:space:]]*\.\.\.[[:space:]]*\}:[[:space:]]*$/s//{ pkgs, ... }:/' "$anix_file"
-    fi
+    grep -Eq 'with[[:space:]]+pkgs[[:space:]]*;' "$anix_file" || return 0
+    local header
+    header="$(grep -m1 -E '^[[:space:]]*\{[^{}]*\}:[[:space:]]*$' "$anix_file")"
+    [[ -n "$header" ]] || return 0
+    printf '%s' "$header" | grep -Eq '(^|[^A-Za-z0-9_])pkgs([^A-Za-z0-9_]|$)' && return 0
+    run_as_root sed -i -E '0,/^([[:space:]]*)\{([[:space:]]*)/s//\1{ pkgs, /' "$anix_file"
 }
 
 # All values here are read back out with sed rather than a real Nix parser
@@ -793,7 +824,8 @@ show_config() {
     fi
 
     local hostname timezone kb_console kb_xkb desktop wallpaper
-    local allow_unfree tinypm bluetooth flatpak audio openssh gc shell
+    local allow_unfree bluetooth flatpak audio openssh gc shell
+    local gaming gaming_steam gaming_big_picture gaming_autostart gaming_gamescope gaming_controller gaming_mangohud gaming_gamemode gaming_vulkan gaming_launchers
     hostname="$(read_anix_option "hostname")"
     timezone="$(read_anix_option "timezone")"
     kb_console="$(read_anix_option "keyboard.console")"
@@ -802,12 +834,21 @@ show_config() {
     wallpaper="$(read_anix_option "wallpaper")"
     shell="$(read_anix_option "shell")"
     allow_unfree="$(sed -nE 's|^[[:space:]]*anix\.allowUnfree[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
-    tinypm="$(sed -nE 's|^[[:space:]]*anix\.tinypm\.enable[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
     bluetooth="$(sed -nE 's|^[[:space:]]*anix\.services\.bluetooth[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
     flatpak="$(sed -nE 's|^[[:space:]]*anix\.services\.flatpak[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
     audio="$(sed -nE 's|^[[:space:]]*anix\.services\.audio[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
     openssh="$(sed -nE 's|^[[:space:]]*anix\.services\.openssh[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
     gc="$(sed -nE 's|^[[:space:]]*anix\.garbageCollect\.enable[[:space:]]*=[[:space:]]*([^;]+);.*|\1|p' "$anix_file" | head -n1)"
+    gaming="$(read_anix_bool_option "gaming.enable")"
+    gaming_steam="$(read_anix_bool_option "gaming.steam")"
+    gaming_big_picture="$(read_anix_bool_option "gaming.bigPictureShortcut")"
+    gaming_autostart="$(read_anix_bool_option "gaming.bigPictureAutostart")"
+    gaming_gamescope="$(read_anix_bool_option "gaming.gamescopeSession")"
+    gaming_controller="$(read_anix_bool_option "gaming.controllerSupport")"
+    gaming_mangohud="$(read_anix_bool_option "gaming.mangohud")"
+    gaming_gamemode="$(read_anix_bool_option "gaming.gamemode")"
+    gaming_vulkan="$(read_anix_bool_option "gaming.vulkanTools")"
+    gaming_launchers="$(read_anix_bool_option "gaming.launchers")"
 
     abora_banner "ANIX" "${anix_file}"
 
@@ -824,11 +865,25 @@ show_config() {
     abora_kv "wallpaper"   "${wallpaper:-—}"
     abora_kv "shell"       "${shell:-—}"
     abora_kv "allowUnfree" "${allow_unfree:-—}"
+    abora_kv "gaming"      "${gaming:-—}"
+    abora_kv "steam"       "${gaming_steam:-—}"
+    abora_kv "big picture" "${gaming_big_picture:-—}"
+    abora_kv "gamescope"   "${gaming_gamescope:-—}"
+    abora_kv "controllers" "${gaming_controller:-—}"
+    abora_kv "MangoHud"    "${gaming_mangohud:-—}"
+    abora_kv "GameMode"    "${gaming_gamemode:-—}"
+    abora_kv "vulkan tools" "${gaming_vulkan:-—}"
+    abora_kv "launchers"   "${gaming_launchers:-—}"
+    abora_kv "gaming autostart" "${gaming_autostart:-—}"
 
     abora_card_end
 
     abora_card_start "Services"
-    abora_kv "TinyPM"      "${tinypm:-—}"
+    if tinypm_available; then
+        abora_kv "TinyPM"  "yes (system, $(tinypm_version))"
+    else
+        abora_kv "TinyPM"  "not found on PATH"
+    fi
     abora_kv "Bluetooth"   "${bluetooth:-—}"
     abora_kv "Flatpak"     "${flatpak:-—}"
     abora_kv "Audio"       "${audio:-—}"
@@ -959,7 +1014,7 @@ do_set() {
 }
 
 # Single source of truth for feature name -> anix.nix key, shared by
-# do_toggle (writes), validate_plan_json (allowlist), and do_diff_plan
+# do_toggle (writes), parse_and_validate_plan (allowlist), and do_diff_plan
 # (reads current state) so the three can never drift out of sync with each
 # other. Prints the key on success; returns non-zero and prints nothing on
 # an unknown feature.
@@ -975,7 +1030,16 @@ feature_to_anix_key() {
         openssh|ssh) printf 'services.openssh' ;;
         thermald) printf 'power.thermald' ;;
         tlp) printf 'power.tlp' ;;
-        tinypm) printf 'tinypm.enable' ;;
+        gaming) printf 'gaming.enable' ;;
+        gaming.steam|steam) printf 'gaming.steam' ;;
+        gaming.big-picture|gaming.bigPictureShortcut|bigPicture|big-picture) printf 'gaming.bigPictureShortcut' ;;
+        gaming.autostart|gaming.bigPictureAutostart) printf 'gaming.bigPictureAutostart' ;;
+        gaming.gamescope|gaming.gamescopeSession|gamescope) printf 'gaming.gamescopeSession' ;;
+        gaming.controllers|gaming.controller|gaming.controllerSupport|controllers|controller) printf 'gaming.controllerSupport' ;;
+        gaming.mangohud|mangohud) printf 'gaming.mangohud' ;;
+        gaming.gamemode|gamemode) printf 'gaming.gamemode' ;;
+        gaming.vulkan|gaming.vulkanTools|vulkan|vulkanTools) printf 'gaming.vulkanTools' ;;
+        gaming.launchers|launchers) printf 'gaming.launchers' ;;
         garbageCollect|gc) printf 'garbageCollect.enable' ;;
         *) return 1 ;;
     esac
@@ -991,6 +1055,76 @@ read_anix_bool_option() {
     sed -nE "s@^[[:space:]]*anix\\.${escaped_key}[[:space:]]*=[[:space:]]*(true|false);.*@\1@p" "$anix_file" | head -n1
 }
 
+write_anix_gaming_dependencies() {
+    local wanted="$1"
+    local key="$2"
+
+    if [[ "$wanted" == "true" ]]; then
+        case "$key" in
+            gaming.steam)
+                write_anix_raw_option "gaming.enable" "true"
+                write_anix_raw_option "gaming.controllerSupport" "true"
+                ;;
+            gaming.bigPictureShortcut)
+                write_anix_raw_option "gaming.enable" "true"
+                write_anix_raw_option "gaming.steam" "true"
+                ;;
+            gaming.bigPictureAutostart)
+                write_anix_raw_option "gaming.enable" "true"
+                write_anix_raw_option "gaming.steam" "true"
+                write_anix_raw_option "gaming.bigPictureShortcut" "true"
+                ;;
+            gaming.gamescopeSession)
+                write_anix_raw_option "gaming.enable" "true"
+                write_anix_raw_option "gaming.steam" "true"
+                ;;
+            gaming.controllerSupport|gaming.mangohud|gaming.gamemode|gaming.vulkanTools|gaming.launchers)
+                write_anix_raw_option "gaming.enable" "true"
+                ;;
+        esac
+    else
+        case "$key" in
+            gaming.steam)
+                write_anix_raw_option "gaming.bigPictureShortcut" "false"
+                write_anix_raw_option "gaming.bigPictureAutostart" "false"
+                write_anix_raw_option "gaming.gamescopeSession" "false"
+                write_anix_raw_option "gaming.controllerSupport" "false"
+                ;;
+        esac
+    fi
+}
+
+anix_gaming_dependency_keys() {
+    local wanted="$1"
+    local key="$2"
+
+    if [[ "$wanted" == "true" ]]; then
+        case "$key" in
+            gaming.steam)
+                printf '%s\n' gaming.enable gaming.controllerSupport
+                ;;
+            gaming.bigPictureShortcut)
+                printf '%s\n' gaming.enable gaming.steam
+                ;;
+            gaming.bigPictureAutostart)
+                printf '%s\n' gaming.enable gaming.steam gaming.bigPictureShortcut
+                ;;
+            gaming.gamescopeSession)
+                printf '%s\n' gaming.enable gaming.steam
+                ;;
+            gaming.controllerSupport|gaming.mangohud|gaming.gamemode|gaming.vulkanTools|gaming.launchers)
+                printf '%s\n' gaming.enable
+                ;;
+        esac
+    else
+        case "$key" in
+            gaming.steam)
+                printf '%s\n' gaming.bigPictureShortcut gaming.bigPictureAutostart gaming.gamescopeSession gaming.controllerSupport
+                ;;
+        esac
+    fi
+}
+
 do_toggle() {
     local wanted="$1"
     local name="${2:-}"
@@ -1003,10 +1137,11 @@ do_toggle() {
 
     if ! key="$(feature_to_anix_key "$name")"; then
         abora_error "Unknown feature: ${name}"
-        abora_dim_line "Known: allowUnfree experimentalNix bluetooth printing flatpak audio openssh thermald tlp tinypm garbageCollect"
+        abora_dim_line "Known: allowUnfree experimentalNix bluetooth printing flatpak audio openssh thermald tlp gaming gaming.steam gaming.big-picture gaming.autostart gaming.gamescope gaming.controllers gaming.mangohud gaming.gamemode gaming.vulkan gaming.launchers garbageCollect"
         exit 1
     fi
 
+    write_anix_gaming_dependencies "$wanted" "$key"
     write_anix_raw_option "$key" "$wanted"
     abora_success "'anix.${key}' set to '${wanted}'"
     abora_dim_line "Run 'anix apply' to rebuild."
@@ -1256,27 +1391,29 @@ do_status() {
     abora_card_end
 
     abora_card_start "TinyPM"
-    if tinypm_installed; then
-        abora_kv "installed" "yes"
-        local _ver=""
-        _ver="$("${HOME}/.tinypm/bin/version" 2>/dev/null | head -1 || true)"
-        abora_kv "version" "${_ver:-unknown}"
+    if tinypm_available; then
+        abora_kv "installed" "yes (system-wide)"
+        abora_kv "version" "$(tinypm_version)"
     else
-        abora_kv "installed" "no — run: anix tinypm install"
+        abora_kv "installed" "no — not found on PATH"
     fi
     abora_card_end
     printf '\n'
 }
 
-# Marker file recording that this user has run TinyPM's installer through
-# ANIX before — lets `anix tinypm install` refuse to silently reinstall
-# unless the user explicitly asks for `reinstall`.
-tinypm_stamp() {
-    printf '%s' "${XDG_STATE_HOME:-${HOME}/.local/state}/tinypm/anix-init-done"
+# TinyPM was rewritten from a bash multicall tree (with its own per-user
+# "flavor" installer) into a real Rust crate that ships system-wide via
+# nix/profiles/live.nix's tinypmPackage — the same as any other
+# environment.systemPackages entry. There is no per-user install step
+# anymore: `tinypm`/`grab` are just on PATH once the system is built.
+tinypm_available() {
+    command -v tinypm >/dev/null 2>&1
 }
 
-tinypm_installed() {
-    [[ -f "$(tinypm_stamp)" ]] && [[ -d "${HOME}/.tinypm/bin" ]]
+tinypm_version() {
+    local ver=""
+    ver="$(tinypm --version 2>/dev/null | head -1 || true)"
+    printf '%s' "${ver:-unknown}"
 }
 
 do_tinypm() {
@@ -1287,49 +1424,30 @@ do_tinypm() {
         status)
             abora_banner "TinyPM" "Abora Package Manager"
             abora_card_start "Status"
-            if tinypm_installed; then
-                abora_kv "installed"  "yes (${HOME}/.tinypm)"
-                local ver=""
-                ver="$("${HOME}/.tinypm/bin/version" 2>/dev/null | head -1 || true)"
-                abora_kv "version"    "${ver:-unknown}"
-                abora_kv "commands"   "grab  search  term  start  supdate"
+            if tinypm_available; then
+                abora_kv "installed" "yes (system-wide)"
+                abora_kv "version"   "$(tinypm_version)"
+                abora_kv "commands"  "tinypm  grab"
             else
-                abora_kv "installed"  "no"
-                abora_kv "stamp"      "$(tinypm_stamp)"
+                abora_kv "installed" "no — not found on PATH"
+                abora_dim_line "TinyPM ships as a system package on Abora; if it's"
+                abora_dim_line "missing, rebuild the system (sudo abora update)."
             fi
-            abora_kv "system src" "${tinypm_source_dir}"
             abora_card_end
             printf '\n'
-            if ! tinypm_installed; then
-                abora_dim_line "Run 'anix tinypm install' to set up TinyPM now."
-                printf '\n'
-            fi
             ;;
         install|setup|reinstall)
-            local src="${tinypm_source_dir}"
-            if [[ ! -f "${src}/install.sh" ]]; then
-                abora_error "TinyPM source not found at ${src}/install.sh"
-                exit 1
+            if tinypm_available; then
+                abora_success "TinyPM is already installed system-wide ($(tinypm_version))."
+                abora_dim_line "It ships with Abora itself — there's no separate install step."
+            else
+                abora_warn "TinyPM was not found on PATH."
+                abora_dim_line "It should ship system-wide with Abora; try: sudo abora update"
             fi
-            if tinypm_installed && [[ "$sub" != "reinstall" ]]; then
-                abora_warn "TinyPM is already installed at ${HOME}/.tinypm"
-                abora_dim_line "Use 'anix tinypm reinstall' to force a fresh install."
-                printf '\n'
-                return 0
-            fi
-            abora_step "Installing TinyPM (flavor: abora)…"
-            TINYPM_FLAVOR=abora bash "${src}/install.sh" \
-                --flavor abora --yes --native nix
-            local stamp_dir
-            stamp_dir="$(dirname "$(tinypm_stamp)")"
-            mkdir -p "${stamp_dir}"
-            touch "$(tinypm_stamp)"
-            printf '\n'
-            abora_success "TinyPM installed. Open a new shell or run: hash -r"
             printf '\n'
             ;;
         *)
-            abora_error "Usage: anix tinypm [status|install|reinstall]"
+            abora_error "Usage: anix tinypm [status|install]"
             exit 1
             ;;
     esac
@@ -1523,8 +1641,6 @@ gui_pick_feature_action() {
         "thermald:off" "Disable thermald" \
         "tlp:on" "Enable TLP power management" \
         "tlp:off" "Disable TLP" \
-        "tinypm:on" "Turn on TinyPM bootstrap" \
-        "tinypm:off" "Turn off TinyPM bootstrap" \
         "garbageCollect:on" "Enable scheduled garbage collection" \
         "garbageCollect:off" "Disable scheduled garbage collection" \
         "back" "Return to the main menu"
@@ -1675,16 +1791,14 @@ gui_packages_menu() {
     local action pkg
 
     while true; do
-        action="$(gui_choose_action "ANIX Packages" "Manage TinyPM bootstrap and simple package edits." \
+        action="$(gui_choose_action "ANIX Packages" "Check TinyPM and edit simple package lists." \
             "tinypm-status" "Show TinyPM status" \
-            "tinypm-install" "Install or repair TinyPM for this user" \
             "package-add" "Add a package to anix.packages" \
             "package-remove" "Remove a package from anix.packages" \
             "back" "Return to the main menu")"
 
         case "$action" in
             tinypm-status) gui_capture "TinyPM Status" do_tinypm status ;;
-            tinypm-install) gui_capture "TinyPM Install" do_tinypm install ;;
             package-add)
                 pkg="$(gui_prompt_text "Add Package" "Package name to add to anix.packages")"
                 [[ -n "$pkg" ]] || continue
@@ -1752,8 +1866,7 @@ terminal_prompt_feature_action() {
     printf '  7  OpenSSH\n'
     printf '  8  Thermald\n'
     printf '  9  TLP\n'
-    printf '  10 TinyPM bootstrap\n'
-    printf '  11 Garbage collect\n'
+    printf '  10 Garbage collect\n'
     printf '  0  Back\n\n'
     printf '  Select: '
 }
@@ -1770,7 +1883,7 @@ terminal_settings_menu() {
         terminal_prompt_setting_key
         read -r choice || choice="0"
         case "$choice" in
-            1) show_config ;;
+            1) ( show_config ) || true ;;
             2) key="hostname" ;;
             3) key="timezone" ;;
             4) key="keyboard.console" ;;
@@ -1793,7 +1906,14 @@ terminal_settings_menu() {
         printf '  Current [%s]: ' "${current:-unset}"
         read -r value || value=""
         [[ -n "$value" ]] || continue
-        do_set "$key" "$value"
+        # do_set exit 1's on invalid input (belt-and-suspenders value
+        # checks, invalid hostname/desktop/wallpaper/shell) -- that's
+        # correct for direct CLI `anix set`, but here it silently killed
+        # this entire interactive menu (and the whole `anix --gui` session)
+        # on a plain typo, with no way back to the menu. Reproduced
+        # directly: typing a hostname containing a space exited the whole
+        # process. A subshell contains do_set's exit to just this call.
+        ( do_set "$key" "$value" ) || true
         printf '\nPress Enter to return to settings.'
         read -r _ || true
     done
@@ -1816,8 +1936,7 @@ terminal_features_menu() {
             7) feature="openssh" ;;
             8) feature="thermald" ;;
             9) feature="tlp" ;;
-            10) feature="tinypm" ;;
-            11) feature="garbageCollect" ;;
+            10) feature="garbageCollect" ;;
             0|"") return 0 ;;
             *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
         esac
@@ -1829,7 +1948,9 @@ terminal_features_menu() {
             off|disable|disabled|false|no|n) wanted="false" ;;
             *) abora_warn "Type on or off."; printf '\n'; continue ;;
         esac
-        do_toggle "$wanted" "$feature"
+        # do_toggle can exit on a bad state; see the identical do_set fix
+        # in terminal_settings_menu above for why this needs a subshell.
+        ( do_toggle "$wanted" "$feature" ) || true
         printf '\nPress Enter to return to features.'
         read -r _ || true
     done
@@ -1851,15 +1972,20 @@ terminal_profiles_menu() {
         printf '  0  Back\n\n'
         printf '  Select: '
         read -r choice || choice="0"
+        # Every action below is subshell + `|| true`-guarded: do_switch and
+        # do_rollback exit on failure (a real, plausible outcome here --
+        # e.g. no previous generation to roll back to), which would
+        # otherwise kill this whole interactive menu on `set -e`. See the
+        # identical do_set fix in terminal_settings_menu above.
         case "$choice" in
-            1) do_profiles ;;
-            2) do_generations ;;
-            3) profile="$(gui_pick_profile)"; do_diff nix "$profile" ;;
-            4) profile="$(gui_pick_profile)"; do_build_profile nix "$profile" ;;
-            5) profile="$(gui_pick_profile)"; do_test nix "$profile" ;;
-            6) profile="$(gui_pick_profile)"; do_boot nix "$profile" ;;
-            7) profile="$(gui_pick_profile)"; do_switch nix "$profile" ;;
-            8) do_rollback ;;
+            1) ( do_profiles ) || true ;;
+            2) ( do_generations ) || true ;;
+            3) profile="$(gui_pick_profile)"; ( do_diff nix "$profile" ) || true ;;
+            4) profile="$(gui_pick_profile)"; ( do_build_profile nix "$profile" ) || true ;;
+            5) profile="$(gui_pick_profile)"; ( do_test nix "$profile" ) || true ;;
+            6) profile="$(gui_pick_profile)"; ( do_boot nix "$profile" ) || true ;;
+            7) profile="$(gui_pick_profile)"; ( do_switch nix "$profile" ) || true ;;
+            8) ( do_rollback ) || true ;;
             0|"") return 0 ;;
             *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
         esac
@@ -1881,21 +2007,25 @@ terminal_snapshots_menu() {
         printf '  0  Back\n\n'
         printf '  Select: '
         read -r choice || choice="0"
+        # Subshell + `|| true`-guarded: do_save/do_tool_config exit on
+        # failure, which would otherwise kill this whole interactive menu
+        # on `set -e`. See the identical do_set fix in
+        # terminal_settings_menu above.
         case "$choice" in
-            1) do_status ;;
+            1) ( do_status ) || true ;;
             2)
                 printf '  Message [anix: local config snapshot]: '
                 read -r message || message=""
-                do_save "${message:-anix: local config snapshot}"
+                ( do_save "${message:-anix: local config snapshot}" ) || true
                 ;;
             3)
                 if is_yes "$current"; then
-                    do_tool_config set snapshots.push false
+                    ( do_tool_config set snapshots.push false ) || true
                 else
-                    do_tool_config set snapshots.push true
+                    ( do_tool_config set snapshots.push true ) || true
                 fi
                 ;;
-            4) do_tool_config show ;;
+            4) ( do_tool_config show ) || true ;;
             0|"") return 0 ;;
             *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
         esac
@@ -1916,18 +2046,23 @@ terminal_packages_menu() {
         printf '  0  Back\n\n'
         printf '  Select: '
         read -r choice || choice="0"
+        # Subshell + `|| true`-guarded: do_tinypm/do_package exit on
+        # failure (e.g. an unknown package name -- a very plausible typo
+        # here), which would otherwise kill this whole interactive menu on
+        # `set -e`. See the identical do_set fix in terminal_settings_menu
+        # above.
         case "$choice" in
-            1) do_tinypm status ;;
-            2) do_tinypm install ;;
+            1) ( do_tinypm status ) || true ;;
+            2) ( do_tinypm install ) || true ;;
             3)
                 printf '  Package to add: '
                 read -r pkg || pkg=""
-                [[ -n "$pkg" ]] && do_package add "$pkg"
+                if [[ -n "$pkg" ]]; then ( do_package add "$pkg" ) || true; fi
                 ;;
             4)
                 printf '  Package to remove: '
                 read -r pkg || pkg=""
-                [[ -n "$pkg" ]] && do_package remove "$pkg"
+                if [[ -n "$pkg" ]]; then ( do_package remove "$pkg" ) || true; fi
                 ;;
             0|"") return 0 ;;
             *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
@@ -1950,12 +2085,17 @@ terminal_maintenance_menu() {
         printf '  0  Back\n\n'
         printf '  Select: '
         read -r choice || choice="0"
+        # Subshell + `|| true`-guarded: do_doctor/do_apply exit on failure
+        # -- exactly the outcome a user reaching for "Doctor" or "Apply" on
+        # an already-troubled system is likely to hit -- which would
+        # otherwise kill this whole interactive menu on `set -e`. See the
+        # identical do_set fix in terminal_settings_menu above.
         case "$choice" in
-            1) do_quickstart ;;
-            2) do_doctor ;;
-            3) do_doctor --fix ;;
-            4) do_apply ;;
-            5) do_docs ;;
+            1) ( do_quickstart ) || true ;;
+            2) ( do_doctor ) || true ;;
+            3) ( do_doctor --fix ) || true ;;
+            4) ( do_apply ) || true ;;
+            5) ( do_docs ) || true ;;
             0|"") return 0 ;;
             *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
         esac
@@ -2277,49 +2417,20 @@ do_language() {
 # Turns a .anix Native file into Plan JSON without touching state — the file
 # form of the same `set`/`enable`/`disable`/`package add`/`package remove`
 # commands, grouped into one transaction instead of running immediately.
+# Building the JSON itself is $plan_tool_bin's job (NativePlanBuilder.cs) --
+# same reasoning as parse_and_validate_plan above.
 native_plan_from_file() {
     local file="$1"
-    require_command jq
-    local ops="[]"
-    local line_no=0
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        line_no=$((line_no + 1))
-        # shellcheck disable=SC2295
-        line="${line#"${line%%[![:space:]]*}"}"
-        [[ -z "$line" || "$line" == \#* ]] && continue
-        local words=()
-        read -r -a words <<<"$line"
-        local op_json=""
-        case "${words[0]:-}" in
-            set)
-                [[ "${#words[@]}" -eq 3 ]] || { abora_error "${file}:${line_no}: usage: set <key> <value>"; exit 1; }
-                op_json="$(jq -nc --arg key "${words[1]}" --arg value "${words[2]}" '{op:"set",key:$key,value:$value}')"
-                ;;
-            enable)
-                [[ "${#words[@]}" -eq 2 ]] || { abora_error "${file}:${line_no}: usage: enable <feature>"; exit 1; }
-                op_json="$(jq -nc --arg feature "${words[1]}" '{op:"enable",feature:$feature}')"
-                ;;
-            disable)
-                [[ "${#words[@]}" -eq 2 ]] || { abora_error "${file}:${line_no}: usage: disable <feature>"; exit 1; }
-                op_json="$(jq -nc --arg feature "${words[1]}" '{op:"disable",feature:$feature}')"
-                ;;
-            package)
-                [[ "${#words[@]}" -eq 3 ]] || { abora_error "${file}:${line_no}: usage: package <add|remove> <name>"; exit 1; }
-                case "${words[1]}" in
-                    add)    op_json="$(jq -nc --arg name "${words[2]}" '{op:"package.add",name:$name}')" ;;
-                    remove) op_json="$(jq -nc --arg name "${words[2]}" '{op:"package.remove",name:$name}')" ;;
-                    *) abora_error "${file}:${line_no}: package action must be add or remove"; exit 1 ;;
-                esac
-                ;;
-            *)
-                abora_error "${file}:${line_no}: unknown ANIX Native command: ${words[0]:-}"
-                exit 1
-                ;;
-        esac
-        ops="$(jq -c --argjson op "$op_json" '. + [$op]' <<<"$ops")"
-    done < "$file"
-    jq -nc --argjson version "$anix_plan_version" --argjson ops "$ops" \
-        '{planVersion:$version,language:"anix",operations:$ops}'
+    require_command "$plan_tool_bin"
+
+    local output="" rc=0
+    output="$("$plan_tool_bin" build-native --expected-version "$anix_plan_version" < "$file" 2>&1)" || rc=$?
+    if [[ "$rc" -ne 0 ]]; then
+        abora_error "${file}:${output}"
+        exit 1
+    fi
+
+    printf '%s\n' "$output"
 }
 
 # Resolves a source file to a Plan JSON string, either via the ANIX Native
@@ -2367,66 +2478,49 @@ plan_from_source_file() {
 # do_package already enforce, so a plan can never do anything an interactive
 # ANIX command couldn't. Never writes state; returns non-zero on any
 # violation and prints every problem found, not just the first.
-validate_plan_json() {
+# Parses+validates a Plan JSON string via $plan_tool_bin (JSON well-
+# formedness, planVersion, operations array/op shapes, the "set" key
+# allowlist, package-name syntax -- see PlanParser.cs), plus the one
+# business rule that must stay a single source of truth with do_toggle/
+# do_diff_plan: enable/disable feature names are resolved through
+# feature_to_anix_key. On success, sets $plan_language and populates the
+# $plan_ops array (one entry per operation, tab-separated
+# "op<TAB>field1<TAB>field2") so callers can iterate the plan without
+# re-parsing JSON themselves.
+plan_language=""
+plan_ops=()
+parse_and_validate_plan() {
     local plan="$1"
-    require_command jq
+    require_command "$plan_tool_bin"
 
-    if ! jq -e . >/dev/null 2>&1 <<<"$plan"; then
-        abora_error "Plan is not valid JSON."
+    plan_language=""
+    plan_ops=()
+
+    local output="" rc=0
+    output="$("$plan_tool_bin" parse --expected-version "$anix_plan_version" <<<"$plan" 2>&1)" || rc=$?
+    if [[ "$rc" -ne 0 ]]; then
+        local line=""
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && abora_error "$line"
+        done <<<"$output"
         return 1
     fi
 
-    local version=""
-    version="$(jq -r '.planVersion // empty' <<<"$plan")"
-    if [[ "$version" != "$anix_plan_version" ]]; then
-        abora_error "Unsupported plan version: '${version:-missing}' (expected ${anix_plan_version})."
-        return 1
+    local header="${output%%$'\n'*}"
+    plan_language="${header#language$'\t'}"
+
+    if [[ "$output" == *$'\n'* ]]; then
+        local rest="${output#*$'\n'}"
+        [[ -n "$rest" ]] && mapfile -t plan_ops <<<"$rest"
     fi
 
-    if [[ "$(jq -r '.operations | type' <<<"$plan" 2>/dev/null)" != "array" ]]; then
-        abora_error "Plan is missing an 'operations' array."
-        return 1
-    fi
-
-    local failures=0
-    local count=0
-    count="$(jq '.operations | length' <<<"$plan")"
-    local i=0
-    while [[ "$i" -lt "$count" ]]; do
-        local entry op
-        entry="$(jq -c ".operations[$i]" <<<"$plan")"
-        op="$(jq -r '.op // empty' <<<"$entry")"
-        case "$op" in
-            set)
-                local key
-                key="$(jq -r '.key // empty' <<<"$entry")"
-                case "$key" in
-                    hostname|timezone|keyboard|keyboard.console|keyboard.xkb|desktop|wallpaper|shell|gc.days|garbageCollect.dates|gc.dates) ;;
-                    *) abora_error "operation ${i}: unknown set key '${key}'"; failures=$((failures + 1)) ;;
-                esac
-                [[ "$(jq -r '.value // empty' <<<"$entry")" != "" ]] || { abora_error "operation ${i}: set requires a value"; failures=$((failures + 1)); }
-                ;;
-            enable|disable)
-                local feature
-                feature="$(jq -r '.feature // empty' <<<"$entry")"
-                if ! feature_to_anix_key "$feature" >/dev/null; then
-                    abora_error "operation ${i}: unknown feature '${feature}'"
-                    failures=$((failures + 1))
-                fi
-                ;;
-            package.add|package.remove)
-                local pkg_name
-                pkg_name="$(jq -r '.name // empty' <<<"$entry")"
-                if [[ ! "$pkg_name" =~ ^[A-Za-z0-9._+-]+$ ]]; then
-                    abora_error "operation ${i}: invalid package name '${pkg_name}'"
-                    failures=$((failures + 1))
-                fi
-                ;;
-            *)
-                abora_error "operation ${i}: unknown op '${op}'"
-                failures=$((failures + 1))
-                ;;
-        esac
+    local failures=0 i=0 entry op field1 field2
+    for entry in "${plan_ops[@]}"; do
+        IFS=$'\t' read -r op field1 field2 <<<"$entry"
+        if [[ "$op" == "enable" || "$op" == "disable" ]] && ! feature_to_anix_key "$field1" >/dev/null; then
+            abora_error "operation ${i}: unknown feature '${field1}'"
+            failures=$((failures + 1))
+        fi
         i=$((i + 1))
     done
 
@@ -2439,7 +2533,7 @@ validate_plan_json() {
 # those commands by hand), then a single dry-build + confirm + switch closes
 # the transaction instead of one apply per setting.
 #
-# validate_plan_json only checks that each operation's key/op/shape is
+# parse_and_validate_plan only checks that each operation's key/op/shape is
 # recognized -- it does not (and cannot, without duplicating do_set's own
 # logic) check that a "set desktop" value is an actual supported profile, or
 # that a hostname passes the hostname regex. Those checks only run inside
@@ -2459,44 +2553,41 @@ apply_plan_json() {
     local plan="$1"
     local skip_confirm="${2:-no}"
 
-    validate_plan_json "$plan" || { abora_error "Refusing to apply an invalid plan."; exit 1; }
+    parse_and_validate_plan "$plan" || { abora_error "Refusing to apply an invalid plan."; exit 1; }
 
-    local count=0
-    count="$(jq '.operations | length' <<<"$plan")"
+    local count="${#plan_ops[@]}"
     if [[ "$count" -eq 0 ]]; then
         abora_warn "Plan has no operations."
         return 0
     fi
 
-    abora_banner "ANIX Plan" "$(jq -r '"\(.operations | length) operation(s) from " + (.language // "unknown")' <<<"$plan")"
+    abora_banner "ANIX Plan" "${count} operation(s) from ${plan_language:-unknown}"
 
     ensure_anix_file
     local real_anix_file="$anix_file"
     local staged_anix_file
-    staged_anix_file="$(mktemp "${real_anix_file}.plan.XXXXXX")"
-    cp -f "$real_anix_file" "$staged_anix_file"
+    staged_anix_file="$(run_as_root mktemp "${real_anix_file}.plan.XXXXXX")"
+    run_as_root cp -f "$real_anix_file" "$staged_anix_file"
     anix_file="$staged_anix_file"
 
-    local i=0 op_rc=0
-    while [[ "$i" -lt "$count" ]]; do
-        local entry op
-        entry="$(jq -c ".operations[$i]" <<<"$plan")"
-        op="$(jq -r '.op' <<<"$entry")"
+    local i=0 op_rc=0 entry op field1 field2
+    for entry in "${plan_ops[@]}"; do
+        IFS=$'\t' read -r op field1 field2 <<<"$entry"
         case "$op" in
             set)
-                ( do_set "$(jq -r '.key' <<<"$entry")" "$(jq -r '.value' <<<"$entry")" ) || op_rc=$?
+                ( do_set "$field1" "$field2" ) || op_rc=$?
                 ;;
             enable)
-                ( do_toggle true "$(jq -r '.feature' <<<"$entry")" ) || op_rc=$?
+                ( do_toggle true "$field1" ) || op_rc=$?
                 ;;
             disable)
-                ( do_toggle false "$(jq -r '.feature' <<<"$entry")" ) || op_rc=$?
+                ( do_toggle false "$field1" ) || op_rc=$?
                 ;;
             package.add)
-                ( do_package add "$(jq -r '.name' <<<"$entry")" ) || op_rc=$?
+                ( do_package add "$field1" ) || op_rc=$?
                 ;;
             package.remove)
-                ( do_package remove "$(jq -r '.name' <<<"$entry")" ) || op_rc=$?
+                ( do_package remove "$field1" ) || op_rc=$?
                 ;;
         esac
         [[ "$op_rc" -ne 0 ]] && break
@@ -2506,12 +2597,12 @@ apply_plan_json() {
     anix_file="$real_anix_file"
 
     if [[ "$op_rc" -ne 0 ]]; then
-        rm -f "$staged_anix_file"
+        run_as_root rm -f "$staged_anix_file"
         abora_error "Plan operation $((i + 1)) of ${count} failed; no changes were written to ${anix_file}."
         exit "$op_rc"
     fi
 
-    mv -f "$staged_anix_file" "$anix_file"
+    run_as_root mv -f "$staged_anix_file" "$anix_file"
 
     if [[ "$skip_confirm" != "yes" ]] && ! confirm "Apply this plan with 'nixos-rebuild switch'?" "no"; then
         abora_warn "Plan written to ${anix_file} but not applied — run 'anix apply' when ready."
@@ -2529,7 +2620,14 @@ do_run() {
     shift || true
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --language) language="${2:-}"; shift 2 ;;
+            --language)
+                if [[ -z "${2:-}" ]]; then
+                    abora_error "Usage: anix run <file> [--language <id>] [--yes]"
+                    exit 1
+                fi
+                language="$2"
+                shift 2
+                ;;
             --yes|-y) yes="yes"; shift ;;
             *) abora_error "Unknown option: $1"; exit 1 ;;
         esac
@@ -2546,8 +2644,8 @@ do_validate_plan() {
     [[ -n "$file" && -f "$file" ]] || { abora_error "Usage: anix validate-plan <plan.json>"; exit 1; }
     local plan=""
     plan="$(cat "$file")"
-    if validate_plan_json "$plan"; then
-        abora_success "Plan is valid: $(jq -r '.operations | length' <<<"$plan") operation(s)."
+    if parse_and_validate_plan "$plan"; then
+        abora_success "Plan is valid: ${#plan_ops[@]} operation(s)."
         printf '\n'
     else
         abora_error "Plan is invalid."
@@ -2577,36 +2675,29 @@ do_diff_plan() {
     else
         plan="$(plan_from_source_file "$file" "")"
     fi
-    validate_plan_json "$plan" || { abora_error "Refusing to diff an invalid plan."; exit 1; }
+    parse_and_validate_plan "$plan" || { abora_error "Refusing to diff an invalid plan."; exit 1; }
 
-    abora_banner "ANIX Plan Diff" "$(jq -r '.language // "unknown"' <<<"$plan")"
+    abora_banner "ANIX Plan Diff" "${plan_language:-unknown}"
 
-    local count=0
-    count="$(jq '.operations | length' <<<"$plan")"
-    local i=0
-    while [[ "$i" -lt "$count" ]]; do
-        local entry op label=""
-        entry="$(jq -c ".operations[$i]" <<<"$plan")"
-        op="$(jq -r '.op' <<<"$entry")"
+    local entry op field1 field2 label=""
+    for entry in "${plan_ops[@]}"; do
+        IFS=$'\t' read -r op field1 field2 <<<"$entry"
         case "$op" in
             set)
-                local key value current
-                key="$(jq -r '.key' <<<"$entry")"
-                value="$(jq -r '.value' <<<"$entry")"
-                current="$( [[ -f "$anix_file" ]] && read_anix_option "$key" || true )"
+                local current
+                current="$( [[ -f "$anix_file" ]] && read_anix_option "$field1" || true )"
                 if [[ -z "$current" ]]; then label="ADD"
-                elif [[ "$current" == "$value" ]]; then label="SAME"
+                elif [[ "$current" == "$field2" ]]; then label="SAME"
                 else label="CHANGE"; fi
-                printf '  %-7s set %s = "%s"' "$label" "$key" "$value"
+                printf '  %-7s set %s = "%s"' "$label" "$field1" "$field2"
                 [[ "$label" == "CHANGE" ]] && printf ' (was "%s")' "$current"
                 printf '\n'
                 ;;
             enable|disable)
-                local feature wanted current_bool anix_key
-                feature="$(jq -r '.feature' <<<"$entry")"
+                local wanted current_bool anix_key
                 wanted="$([[ "$op" == "enable" ]] && printf 'true' || printf 'false')"
                 current_bool=""
-                if anix_key="$(feature_to_anix_key "$feature")"; then
+                if anix_key="$(feature_to_anix_key "$field1")"; then
                     current_bool="$(read_anix_bool_option "$anix_key")"
                 fi
                 if [[ -z "$current_bool" ]]; then
@@ -2616,25 +2707,41 @@ do_diff_plan() {
                 else
                     label="CHANGE"
                 fi
-                printf '  %-7s %s %s\n' "$label" "$op" "$feature"
+                printf '  %-7s %s %s\n' "$label" "$op" "$field1"
+                local dep_key dep_current dep_label dep_op
+                while IFS= read -r dep_key; do
+                    [[ -n "$dep_key" ]] || continue
+                    [[ "$dep_key" == "$anix_key" ]] && continue
+                    dep_current="$(read_anix_bool_option "$dep_key")"
+                    if [[ -z "$dep_current" ]]; then
+                        dep_label="$([[ "$wanted" == "true" ]] && printf 'ADD' || printf 'REMOVE')"
+                    elif [[ "$dep_current" == "$wanted" ]]; then
+                        dep_label="SAME"
+                    else
+                        dep_label="CHANGE"
+                    fi
+                    [[ "$dep_label" == "SAME" ]] && continue
+                    dep_op="$([[ "$wanted" == "true" ]] && printf 'enable' || printf 'disable')"
+                    printf '          also %s %s %s\n' "$dep_label" "$dep_op" "$dep_key"
+                done < <(anix_gaming_dependency_keys "$wanted" "$anix_key")
                 ;;
             package.add)
-                local name
-                name="$(jq -r '.name' <<<"$entry")"
-                if [[ -f "$anix_file" ]] && grep -Eq "anix\\.packages = with pkgs; \\[[^]]*([[:space:][])${name}([[:space:]]|\\])" "$anix_file"; then
+                if [[ -f "$anix_file" ]] && grep -Eq "anix\\.packages = with pkgs; \\[[^]]*([[:space:][])${field1}([[:space:]]|\\])" "$anix_file"; then
                     label="SAME"
                 else
                     label="ADD"
                 fi
-                printf '  %-7s package %s\n' "$label" "$name"
+                printf '  %-7s package %s\n' "$label" "$field1"
                 ;;
             package.remove)
-                local name
-                name="$(jq -r '.name' <<<"$entry")"
-                printf '  %-7s package %s\n' "REMOVE" "$name"
+                if [[ -f "$anix_file" ]] && grep -Eq "anix\\.packages = with pkgs; \\[[^]]*([[:space:][])${field1}([[:space:]]|\\])" "$anix_file"; then
+                    label="REMOVE"
+                else
+                    label="SAME"
+                fi
+                printf '  %-7s package %s\n' "$label" "$field1"
                 ;;
         esac
-        i=$((i + 1))
     done
     printf '\n'
 }
@@ -2739,7 +2846,15 @@ do_switch() {
     local now="false"
     local target=""
 
-    shift 2 2>/dev/null || true
+    # Shift off only the positionals that were actually present (family,
+    # then profile) rather than an unconditional `shift 2` — with a single
+    # arg (e.g. `anix switch nix`), `shift 2` fails and shifts nothing,
+    # leaving "nix" for the flag loop below to reject as an unknown option
+    # instead of reaching the usage message. Mirrors do_rollback's pattern.
+    shift 1 2>/dev/null || true
+    if [[ -n "$profile" ]]; then
+        shift 1 2>/dev/null || true
+    fi
     while [[ "$#" -gt 0 ]]; do
         case "$1" in
             --now) now="true" ;;
@@ -3054,6 +3169,9 @@ do_doctor() {
 usage() {
     abora_banner "ANIX v${anix_version}" "Nix without the homework."
     printf '  %bUsage%b\n\n' "$ABORA_WHITE" "$ABORA_NC"
+    printf '  %banix learn%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Show the short beginner command cheat sheet."
+    printf '\n'
     printf '  %banix status%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Show profile, generation, flake, Git, and snapshot state."
     printf '\n'
@@ -3110,7 +3228,8 @@ usage() {
     abora_dim_line "  Update a simple ANIX setting."
     printf '\n'
     printf '  %banix enable <feature>%b / %banix disable <feature>%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
-    abora_dim_line "  Toggle bluetooth, flatpak, audio, openssh, allowUnfree, tinypm, gc, and power helpers."
+    abora_dim_line "  Toggle bluetooth, flatpak, audio, openssh, allowUnfree, gc, power, and gaming helpers."
+    abora_dim_line "  Gaming toggles add required parent options automatically."
     printf '\n'
     printf '  %banix package add <pkg>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     printf '  %banix package remove <pkg>%b\n' "$ABORA_CYAN" "$ABORA_NC"
@@ -3147,10 +3266,56 @@ usage() {
     abora_dim_line "  Apply a pre-built Plan JSON file as one transaction."
     printf '\n'
     printf '  %banix diff-plan <file>%b\n' "$ABORA_CYAN" "$ABORA_NC"
-    abora_dim_line "  Show ADD/CHANGE/REMOVE/SAME for a source or Plan JSON file against current state."
+    abora_dim_line "  Show ADD/CHANGE/REMOVE/SAME for a source or Plan JSON file, including implied gaming changes."
     printf '\n'
-    printf '  %banix tinypm [status|install|reinstall]%b\n' "$ABORA_CYAN" "$ABORA_NC"
-    abora_dim_line "  Manage the TinyPM per-user installation."
+    printf '  %banix tinypm [status|install]%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Check TinyPM, the system-wide package manager frontend."
+    printf '\n'
+}
+
+do_learn() {
+    abora_banner "ANIX quick start" "Small commands for changing Abora without wrestling Nix."
+    abora_card_start "Read First"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix learn" "$ABORA_NC" "show this cheat sheet"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix status" "$ABORA_NC" "show profile, generation, Git, and snapshot state"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix show" "$ABORA_NC" "show the current ANIX settings"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix doctor" "$ABORA_NC" "check the ANIX/Nix config layer"
+    abora_card_end
+    printf '\n'
+
+    abora_card_start "Change Settings"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix set hostname my-pc" "$ABORA_NC" "rename the computer"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix set desktop cosmic" "$ABORA_NC" "choose cosmic, gnome, plasma, hyprland, or other"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix set timezone America/New_York" "$ABORA_NC" "set timezone"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix set wallpaper titlis-alps.jpg" "$ABORA_NC" "set wallpaper"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix enable flatpak" "$ABORA_NC" "enable a feature"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix enable gaming.steam" "$ABORA_NC" "enable gaming, Steam, and controller support"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix enable gaming.big-picture" "$ABORA_NC" "enable the Steam Big Picture shortcut"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix disable openssh" "$ABORA_NC" "disable a feature"
+    abora_card_end
+    printf '\n'
+
+    abora_card_start "Packages"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix package add fastfetch" "$ABORA_NC" "add a Nix package"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix pkg remove fastfetch" "$ABORA_NC" "remove a Nix package"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix apply" "$ABORA_NC" "rebuild after ANIX changes"
+    abora_card_end
+    printf '\n'
+
+    abora_card_start "Try, Apply, Undo"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix diff nix" "$ABORA_NC" "preview package closure changes"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix test nix" "$ABORA_NC" "try a rebuild without making it boot default"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix switch nix abora" "$ABORA_NC" "switch to a named profile"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix rollback nix --now" "$ABORA_NC" "roll back immediately"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix save \"message\"" "$ABORA_NC" "save a local /etc/nixos snapshot"
+    abora_card_end
+    printf '\n'
+
+    abora_card_start "ANIX v2 Languages"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix language list" "$ABORA_NC" "show .anix, MAKO, ModuCPP, and custom adapters"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix run workstation.mko" "$ABORA_NC" "run a frontend file as one ANIX transaction"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix diff-plan plan.json" "$ABORA_NC" "preview a plan before applying it"
+    abora_card_end
     printf '\n'
 }
 
@@ -3174,6 +3339,7 @@ main() {
     case "$command" in
         version|--version|-v) shift || true; do_version "$@" ;;
         --gui|gui) shift || true; do_gui "$@" ;;
+        learn|cheatsheet|commands) shift || true; do_learn "$@" ;;
         status) shift || true; do_status "$@" ;;
         quickstart|start) shift || true; do_quickstart "$@" ;;
         docs|doc) shift || true; do_docs "$@" ;;

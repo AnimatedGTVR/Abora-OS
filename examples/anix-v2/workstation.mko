@@ -4,6 +4,13 @@ using ANIX;
 main() {
     ANIX.set("hostname", "everest-workstation");
     ANIX.enable("bluetooth");
+    ANIX.enable("gaming");
+    ANIX.enable("gaming.steam");
+    ANIX.enable("gaming.big-picture");
+    ANIX.enable("gaming.controllers");
+    ANIX.enable("gaming.mangohud");
+    ANIX.enable("gaming.gamemode");
+    ANIX.enable("gaming.launchers");
     ANIX.package("firefox");
     ANIX.package("git");
     ANIX.finish();

@@ -1,0 +1,26 @@
+# Generated build artifacts
+build/
+target/
+
+# Runtime data
+.atiny/
+logs/
+cache/
+state/
+tmp/
+registry/
+config/
+*.log
+
+# Language and OS junk
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+
+# Editor junk
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

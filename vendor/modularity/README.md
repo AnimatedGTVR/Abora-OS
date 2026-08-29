@@ -6,13 +6,19 @@ The prebuilt binary is not committed to this repository. Run the setup target to
 
 ## Setup
 
-Download `Modularity-1.0.0-Linux.zip` from:
-https://pak.moduengine.xyz/Tareno-Labs-LLC/Modularity/releases/tag/Modularity-6.8.1-PreRelease
+Download the Modularity V7 Linux zip from the Tareno Labs release page:
+https://pak.moduengine.xyz/Tareno-Labs-LLC/Modularity
 
 Then run:
 
 ```sh
-make setup-modularity ZIP=/path/to/Modularity-1.0.0-Linux.zip
+make setup-modularity ZIP=/path/to/Modularity-7.0.0-Linux.zip
+```
+
+If the zip uses a different top-level folder name, override it:
+
+```sh
+make setup-modularity ZIP=/path/to/modularity-v7-linux.zip MODULARITY_ZIP_ROOT=Modularity-V7-Linux
 ```
 
 This extracts the runtime binary and shared libraries into `vendor/modularity/bin/` and `vendor/modularity/lib/`, which are gitignored.
@@ -20,7 +26,7 @@ This extracts the runtime binary and shared libraries into `vendor/modularity/bi
 ## What gets extracted
 
 - `bin/Modularity` — the engine editor executable
-- `lib/libPhysX*.so` — bundled PhysX physics libraries
+- `lib/*.so*` — bundled runtime libraries, including PhysX when shipped by the release
 - `share/modularity/Resources/` — GLSL and Vulkan shaders (already committed)
 
 ## Nix package

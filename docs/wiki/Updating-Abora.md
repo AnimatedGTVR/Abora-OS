@@ -29,6 +29,39 @@ abora update --check
 
 This resolves your channel and compares it against the installed version, same as a normal update would, but stops there — no rebuild, no root needed. `abora welcome-gui` uses this under the hood for its status card.
 
+If update checks fail with network, DNS, or cache errors, run:
+
+```sh
+abora network
+abora support-report
+```
+
+## Disk Or Nix Database Full
+
+If the updater says `No space left on device`, `database or disk is full`, or
+mentions `/nix/var/nix/db/db.sqlite`, free normal files first. Nix garbage
+collection also needs a little writable space to commit its database changes.
+
+Check space:
+
+```sh
+df -h /nix/store / /tmp
+```
+
+Then remove old ISO files, empty Trash, clear large downloads, or expand the VM
+disk if you are testing in a VM. After that:
+
+```sh
+sudo nix-collect-garbage -d
+sudo abora update
+```
+
+If only the per-user Nix fetch cache is damaged, this can help:
+
+```sh
+abora gaming repair-cache
+```
+
 ## What The Updater Does
 
 The update helper:
@@ -41,6 +74,14 @@ The update helper:
 - runs `nixos-rebuild switch`
 
 ## Channels
+
+Abora OS v4 Everest is currently an alpha release line, so new installs
+default to `unstable`, which tracks the `edge` branch. `stable` remains
+available for final tagged releases and older installed systems.
+
+The Abora channel controls Abora project files. Abora v4 alpha tracks
+NixOS's rolling `nixos-unstable` package branch so desktop environments,
+drivers, and regular Nix apps move forward with `sudo abora update`.
 
 Show the current channel:
 
@@ -64,7 +105,14 @@ sudo abora channel set unstable
 
 - `stable` tracks the latest tagged Abora release
 - `demo` tracks tagged demo/dev builds for the installed release line
-- `unstable` tracks the `main` branch
+- `unstable` tracks the `edge` branch and is the v4 Everest alpha default
+
+Abora's development branch is `edge`. If an older config or test command asks
+for `main`, use `edge` instead:
+
+```sh
+sudo ABORA_REPO_REF=edge abora update
+```
 
 ## Pre-Alpha Builds
 
@@ -124,7 +172,7 @@ anix rollback nix
 - `anix save`: local `/etc/nixos` snapshot
 - `anix diff nix <profile>`: preview profile changes
 - `anix test nix <profile>`: test-activate a profile
-- `tinypm sources`: show app/package source status
+- `tinypm providers`: show app/package provider status
 
 ## Notes
 

@@ -819,6 +819,7 @@ EOF
         niri)
             cat <<'EOF'
     foot
+    alacritty
     waybar
     fuzzel
 EOF

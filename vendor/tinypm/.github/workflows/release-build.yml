@@ -1,0 +1,151 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            arch: x86_64
+            flavor: gnu
+            runner: ubuntu-24.04
+            setup: "true"
+          - target: x86_64-unknown-linux-musl
+            arch: x86_64
+            flavor: musl
+            runner: ubuntu-24.04
+            setup: "sudo apt-get update && sudo apt-get install -y musl-tools"
+          - target: aarch64-unknown-linux-gnu
+            arch: aarch64
+            flavor: gnu
+            runner: ubuntu-24.04-arm
+            setup: "true"
+          - target: aarch64-unknown-linux-musl
+            arch: aarch64
+            flavor: musl
+            runner: ubuntu-24.04-arm
+            setup: "sudo apt-get update && sudo apt-get install -y musl-tools"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Verify release tag matches Cargo version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          crate_version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "tinypm") | .version')"
+          if [[ "${RELEASE_TAG}" != "v${crate_version}" ]]; then
+            echo "Release tag ${RELEASE_TAG} does not match Cargo version v${crate_version}" >&2
+            exit 1
+          fi
+      - name: Install target linker
+        run: ${{ matrix.setup }}
+      - name: Build locked release binaries
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Package grab and tinypm
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          ARCH: ${{ matrix.arch }}
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          set -euo pipefail
+          package="tinypm-linux-${ARCH}-${FLAVOR}"
+          mkdir -p "dist/${package}"
+          install -m 0755 "target/${TARGET}/release/grab" "dist/${package}/grab"
+          install -m 0755 "target/${TARGET}/release/tinypm" "dist/${package}/tinypm"
+          cp CHANGELOG.md LICENSE README.md "dist/${package}/"
+          tar -C dist -czf "dist/${package}.tar.gz" "${package}"
+          cd dist
+          sha256sum "${package}.tar.gz" > "${package}.sha256"
+      - name: Smoke-test packaged release
+        shell: bash
+        env:
+          ARCH: ${{ matrix.arch }}
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          set -euo pipefail
+          package="tinypm-linux-${ARCH}-${FLAVOR}"
+          archive="${package}.tar.gz"
+          crate_version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "tinypm") | .version')"
+          cd dist
+          sha256sum --check "${package}.sha256"
+          test "$(tar -tzf "${archive}" | sort)" = "$(printf '%s\n' \
+            "${package}/" \
+            "${package}/CHANGELOG.md" \
+            "${package}/LICENSE" \
+            "${package}/README.md" \
+            "${package}/grab" \
+            "${package}/tinypm" | sort)"
+          mkdir smoke
+          tar -xzf "${archive}" -C smoke
+          test "$(smoke/${package}/tinypm --version)" = "tinypm ${crate_version}"
+          test "$(smoke/${package}/grab --version)" = "grab ${crate_version}"
+          smoke/${package}/tinypm --help > tinypm-help.txt
+          smoke/${package}/grab --help > grab-help.txt
+          ! grep -q '^  install' tinypm-help.txt
+          grep -q '^  install' grab-help.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tinypm-linux-${{ matrix.arch }}-${{ matrix.flavor }}-${{ github.ref_name }}
+          path: |
+            dist/tinypm-linux-${{ matrix.arch }}-${{ matrix.flavor }}.tar.gz
+            dist/tinypm-linux-${{ matrix.arch }}-${{ matrix.flavor }}.sha256
+          if-no-files-found: error
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: linux
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: tinypm-linux-*-${{ github.ref_name }}
+          path: dist
+          merge-multiple: true
+      - name: Verify complete release asset set
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t archives < <(find dist -maxdepth 1 -type f -name '*.tar.gz' -print | sort)
+          mapfile -t checksums < <(find dist -maxdepth 1 -type f -name '*.sha256' -print | sort)
+          test "${#archives[@]}" -eq 4
+          test "${#checksums[@]}" -eq 4
+          for checksum in "${checksums[@]}"; do
+            (cd dist && sha256sum --check "$(basename "${checksum}")")
+          done
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mapfile -t assets < <(find dist -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.sha256' \) -print | sort)
+          release_flags=(--verify-tag --generate-notes --title "TinyPM ${RELEASE_TAG}")
+          if [[ "${RELEASE_TAG}" == *-* ]]; then
+            release_flags+=(--prerelease)
+          else
+            release_flags+=(--latest)
+          fi
+          gh release create "${RELEASE_TAG}" "${assets[@]}" "${release_flags[@]}"

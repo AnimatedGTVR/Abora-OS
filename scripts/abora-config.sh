@@ -10,12 +10,54 @@ if [[ ! -f "$ui_lib" && -f /etc/abora/ui.sh ]]; then
     ui_lib="/etc/abora/ui.sh"
 fi
 
-# shellcheck source=/dev/null
-source "$ui_lib"
+if [[ -f "$ui_lib" ]]; then
+    # shellcheck source=/dev/null
+    source "$ui_lib"
+else
+    # Minimal fallback UI -- used when abora-ui.sh isn't available (e.g. a
+    # bare checkout before install, or a corrupted /etc/abora).
+    ABORA_DIM=$'\033[38;5;242m'
+    ABORA_NC=$'\033[0m'
+    ABORA_CYAN=$'\033[38;5;44m'
+    ABORA_WHITE=$'\033[1;97m'
+    ABORA_BLUE=$'\033[38;5;33m'
+    abora_banner()     { printf '\n  %b%s%b  %b%s%b\n\n' "$ABORA_WHITE" "${1:-}" "$ABORA_NC" "$ABORA_DIM" "${2:-}" "$ABORA_NC"; }
+    abora_success()    { printf '  \033[38;5;77m✓\033[0m  \033[38;5;77m%s\033[0m\n' "$1"; }
+    abora_warn()       { printf '  \033[38;5;222m!\033[0m  \033[38;5;222m%s\033[0m\n' "$1"; }
+    abora_error()      { printf '  \033[38;5;203m✗\033[0m  \033[38;5;203m%s\033[0m\n' "$1" >&2; }
+    abora_step()       { printf '  \033[38;5;44m▸\033[0m  %s\n' "$1"; }
+    abora_dim_line()   { printf '  \033[38;5;242m%s\033[0m\n' "$1"; }
+    abora_kv()         { printf '  %b%-18s%b  %b%s%b\n' "$ABORA_DIM" "$1" "$ABORA_NC" "$ABORA_CYAN" "${2:-}" "$ABORA_NC"; }
+    abora_kv_faint()   { printf '  %b%-18s%b  %b%s%b\n' "$ABORA_DIM" "$1" "$ABORA_NC" "$ABORA_DIM" "${2:-}" "$ABORA_NC"; }
+    abora_card_start() { printf '  %b┌─ %s ─%b\n' "$ABORA_BLUE" "${1:-}" "$ABORA_NC"; }
+    abora_card_end()   { printf '  %b└────────%b\n' "$ABORA_BLUE" "$ABORA_NC"; }
+fi
 
 config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
 local_module="${config_dir}/abora-local.nix"
 wallpaper_dir="${ABORA_WALLPAPER_DIR:-/etc/abora/wallpapers}"
+
+# abora-local.nix carries abora.user.hashedPassword (and, when a separate
+# root password was set, users.users.root.hashedPassword) -- it is created
+# mode 600 (see abora-installer.sh and the migration path below) precisely
+# so a password hash sitting in /etc/nixos isn't readable by every local
+# user the way it used to be, which would let anyone on the machine run an
+# offline dictionary attack against it, undermining exactly what
+# /etc/shadow's own restrictive permissions exist to prevent. Every read
+# in this script (read_option, desktop/GPU detection, the legacy-format
+# migration, ...) goes through this one file, so rather than threading
+# root access through each of those call sites individually, self-elevate
+# once here: only when the file exists and isn't readable by the current
+# user (root, the file's owner, and every test run against its own
+# ABORA_SYSTEM_CONFIG temp dir all pass -r already, so this is a no-op for
+# them), and never under the sudo-bypass tests already rely on.
+if [[ "${ABORA_NO_SUDO:-0}" != "1" && -f "$local_module" && ! -r "$local_module" ]]; then
+    if command -v sudo >/dev/null 2>&1; then
+        exec sudo "$0" "$@"
+    fi
+    printf 'abora config: %s exists but is not readable, and sudo is unavailable.\n' "$local_module" >&2
+    exit 1
+fi
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -107,7 +149,7 @@ migrate_legacy_config() {
     locale="$(read_legacy_string "i18n.defaultLocale")"
     kb_console="$(read_legacy_string "console.keyMap")"
     kb_xkb="$(read_legacy_string "services.xserver.xkb.layout")"
-    user_name="$(sed -nE 's|^[[:space:]]*users\.users\."?([^".{[:space:]]]+)"?[[:space:]]*=[[:space:]]*\{.*|\1|p' "$local_module" | head -n1)"
+    user_name="$(sed -nE 's|^[[:space:]]*users\.users\."?([^".{[:space:]]+)"?[[:space:]]*=[[:space:]]*\{.*|\1|p' "$local_module" | head -n1)"
     user_hash="$(sed -nE 's|^[[:space:]]*hashedPassword[[:space:]]*=[[:space:]]*"([^"]*)".*|\1|p' "$local_module" | head -n1)"
     desktop="$(detect_legacy_desktop)"
     disk="$(read_legacy_string "boot.loader.limine.biosDevice")"
@@ -129,6 +171,13 @@ migrate_legacy_config() {
     backup="${local_module}.legacy.$(date +%Y%m%d%H%M%S)"
     tmp="$(mktemp "${local_module}.tmp.XXXXXX")"
     cp "$local_module" "$backup"
+    # Plain cp doesn't preserve the source's permissions on a newly-created
+    # destination -- it gets the default umask (typically 0644, world-
+    # readable) regardless of the source's own mode. The legacy file this
+    # backs up carries a hashedPassword field (extracted right below), so
+    # this would otherwise leak it into a fresh, world-readable copy even
+    # after the real file itself is locked down.
+    chmod 0600 "$backup"
     cat >"$tmp" <<EOF
 { config, ... }:
 {
@@ -141,6 +190,19 @@ migrate_legacy_config() {
   abora.wallpaper = "${wallpaper}";
   abora.gpu = "${gpu}";
   abora.stateVersion = "${state_ver}";
+  abora.gaming.enable = false;
+  abora.gaming.steam = true;
+  abora.gaming.bigPictureShortcut = true;
+  abora.gaming.bigPictureAutostart = false;
+  abora.gaming.gamescopeSession = true;
+  abora.gaming.controllerSupport = true;
+  abora.gaming.mangohud = true;
+  abora.gaming.gamemode = true;
+  abora.gaming.vulkanTools = true;
+  abora.gaming.launchers = true;
+  abora.extras.diagnostics = false;
+  abora.extras.virtualizationGuests = false;
+  abora.extras.mobileBroadband = false;
   abora.user.name = "${user_name}";
   abora.user.hashedPassword = "${user_hash}";
 EOF
@@ -160,7 +222,9 @@ EOF
 }
 EOF
     mv "$tmp" "$local_module"
-    chmod 0644 "$local_module"
+    # 0600, not the previous 0644: this file carries a hashedPassword
+    # field (see the run_as_root guard above this file's top-level reads).
+    chmod 0600 "$local_module"
     abora_warn "Migrated abora-local.nix to the current format."
     abora_dim_line "Backup saved at ${backup}"
 }
@@ -189,14 +253,42 @@ read_option() {
         "$local_module" | head -n1
 }
 
-# Replace a single abora.* value in abora-local.nix.
-# Usage: write_option "hostname" "new-value"
-write_option() {
-    local key="$1" value="$2"
+read_bool_option() {
+    local key="$1"
     local escaped_key="${key//./\\.}"
-    sed -i -E \
-        "s|^([[:space:]]*abora\\.${escaped_key}[[:space:]]*=[[:space:]]*)\"[^\"]*\";|\1\"${value}\";|" \
-        "$local_module"
+    sed -nE "s#^[[:space:]]*abora\\.${escaped_key}[[:space:]]*=[[:space:]]*(true|false).*#\\1#p" \
+        "$local_module" | head -n1
+}
+
+normalize_bool() {
+    case "${1,,}" in
+        true|yes|y|on|1|enable|enabled) printf 'true' ;;
+        false|no|n|off|0|disable|disabled) printf 'false' ;;
+        *)
+            abora_error "Invalid boolean '${1}' — use true/false, yes/no, on/off, or 1/0."
+            exit 1
+            ;;
+    esac
+}
+
+write_bool_option() {
+    local key="$1" value="$2" escaped_key tmp
+    local escaped_key="${key//./\\.}"
+    if grep -Eq "^[[:space:]]*abora\\.${escaped_key}[[:space:]]*=" "$local_module"; then
+        run_as_root sed -i -E \
+            "s|^[[:space:]]*abora\\.${escaped_key}[[:space:]]*=.*|  abora.${key} = ${value};|" \
+            "$local_module"
+        return 0
+    fi
+
+    tmp="$(mktemp)"
+    awk -v line="  abora.${key} = ${value};" '
+        /^[[:space:]]*}[[:space:]]*$/ && !done { print line; done=1 }
+        { print }
+        END { if (!done) print line }
+    ' "$local_module" > "$tmp"
+    run_as_root cp "$tmp" "$local_module"
+    rm -f "$tmp"
 }
 
 # ── Display ───────────────────────────────────────────────────────────────────
@@ -204,7 +296,7 @@ write_option() {
 show_config() {
     require_local_module
 
-    local hostname timezone kb_console kb_xkb user_name desktop wallpaper disk gpu state_ver
+    local hostname timezone kb_console kb_xkb user_name desktop wallpaper disk gpu state_ver gaming gaming_steam gaming_big_picture gaming_autostart gaming_gamescope gaming_controller gaming_mangohud gaming_gamemode gaming_vulkan gaming_launchers extras_diagnostics extras_vm extras_mobile
     hostname="$(read_option "hostname")"
     timezone="$(read_option "timezone")"
     kb_console="$(read_option "keyboard.console")"
@@ -215,6 +307,19 @@ show_config() {
     disk="$(read_option "disk")"
     gpu="$(read_option "gpu")"
     state_ver="$(read_option "stateVersion")"
+    gaming="$(read_bool_option "gaming.enable")"
+    gaming_steam="$(read_bool_option "gaming.steam")"
+    gaming_big_picture="$(read_bool_option "gaming.bigPictureShortcut")"
+    gaming_autostart="$(read_bool_option "gaming.bigPictureAutostart")"
+    gaming_gamescope="$(read_bool_option "gaming.gamescopeSession")"
+    gaming_controller="$(read_bool_option "gaming.controllerSupport")"
+    gaming_mangohud="$(read_bool_option "gaming.mangohud")"
+    gaming_gamemode="$(read_bool_option "gaming.gamemode")"
+    gaming_vulkan="$(read_bool_option "gaming.vulkanTools")"
+    gaming_launchers="$(read_bool_option "gaming.launchers")"
+    extras_diagnostics="$(read_bool_option "extras.diagnostics")"
+    extras_vm="$(read_bool_option "extras.virtualizationGuests")"
+    extras_mobile="$(read_bool_option "extras.mobileBroadband")"
 
     if ! is_options_format; then
         abora_banner "System Configuration" "Legacy format — upgrade to v2.5 to use abora config set."
@@ -238,6 +343,19 @@ show_config() {
     abora_kv "desktop"       "${desktop:-—}"
     abora_kv "wallpaper"     "${wallpaper:-—}"
     abora_kv "gpu"           "${gpu:-—}"
+    abora_kv "gaming"        "${gaming:-false}"
+    abora_kv "steam"         "${gaming_steam:-true}"
+    abora_kv "big picture"   "${gaming_big_picture:-true}"
+    abora_kv "gamescope"     "${gaming_gamescope:-true}"
+    abora_kv "controllers"   "${gaming_controller:-true}"
+    abora_kv "MangoHud"      "${gaming_mangohud:-true}"
+    abora_kv "GameMode"      "${gaming_gamemode:-true}"
+    abora_kv "vulkan tools"  "${gaming_vulkan:-true}"
+    abora_kv "launchers"     "${gaming_launchers:-true}"
+    abora_kv "gaming autostart" "${gaming_autostart:-false}"
+    abora_kv "diagnostics extras" "${extras_diagnostics:-false}"
+    abora_kv "VM guest extras" "${extras_vm:-false}"
+    abora_kv "mobile broadband" "${extras_mobile:-false}"
     abora_kv "user"          "${user_name:-—}"
     abora_kv_faint "disk"    "${disk:-—}"
     abora_kv_faint "state version" "${state_ver:-—}"
@@ -383,9 +501,142 @@ do_set() {
             fi
             validate_gpu "$value"
             ;;
+        gaming | gaming.enable)
+            key="gaming.enable"
+            value="$(normalize_bool "$value")"
+            write_bool_option "$key" "$value"
+            abora_success "'abora.${key}' set to '${value}'"
+            abora_dim_line "Run 'abora config apply' to rebuild the system."
+            printf '\n'
+            return 0
+            ;;
+        gaming.steam | steam)
+            key="gaming.steam"
+            value="$(normalize_bool "$value")"
+            write_bool_option "$key" "$value"
+            abora_success "'abora.${key}' set to '${value}'"
+            abora_dim_line "Run 'abora config apply' to rebuild the system."
+            printf '\n'
+            return 0
+            ;;
+        gaming.big-picture | gaming.bigPictureShortcut)
+            key="gaming.bigPictureShortcut"
+            value="$(normalize_bool "$value")"
+            if [[ "$value" == "true" ]]; then
+                write_bool_option "gaming.enable" "true"
+                write_bool_option "gaming.steam" "true"
+            fi
+            write_bool_option "$key" "$value"
+            abora_success "'abora.${key}' set to '${value}'"
+            [[ "$value" == "true" ]] && abora_dim_line "Enabled 'abora.gaming.enable' and 'abora.gaming.steam' too."
+            abora_dim_line "Run 'abora config apply' to rebuild the system."
+            printf '\n'
+            return 0
+            ;;
+        gaming.autostart | gaming.bigPictureAutostart)
+            key="gaming.bigPictureAutostart"
+            value="$(normalize_bool "$value")"
+            if [[ "$value" == "true" ]]; then
+                write_bool_option "gaming.enable" "true"
+                write_bool_option "gaming.steam" "true"
+                write_bool_option "gaming.bigPictureShortcut" "true"
+            fi
+            write_bool_option "$key" "$value"
+            abora_success "'abora.${key}' set to '${value}'"
+            [[ "$value" == "true" ]] && abora_dim_line "Enabled the Gaming layer, Steam, and Big Picture launcher too."
+            abora_dim_line "Run 'abora config apply' to rebuild the system."
+            printf '\n'
+            return 0
+            ;;
+        gaming.gamescope | gaming.gamescopeSession)
+            key="gaming.gamescopeSession"
+            value="$(normalize_bool "$value")"
+            if [[ "$value" == "true" ]]; then
+                write_bool_option "gaming.enable" "true"
+                write_bool_option "gaming.steam" "true"
+            fi
+            write_bool_option "$key" "$value"
+            abora_success "'abora.${key}' set to '${value}'"
+            [[ "$value" == "true" ]] && abora_dim_line "Enabled 'abora.gaming.enable' and 'abora.gaming.steam' too."
+            abora_dim_line "Run 'abora config apply' to rebuild the system."
+            printf '\n'
+            return 0
+            ;;
+        gaming.controllers | gaming.controller | gaming.controllerSupport | controllers)
+            key="gaming.controllerSupport"
+            value="$(normalize_bool "$value")"
+            write_bool_option "$key" "$value"
+            abora_success "'abora.${key}' set to '${value}'"
+            abora_dim_line "Run 'abora config apply' to rebuild the system."
+            printf '\n'
+            return 0
+            ;;
+        gaming.mangohud | mangohud)
+            key="gaming.mangohud"
+            value="$(normalize_bool "$value")"
+            write_bool_option "$key" "$value"
+            abora_success "'abora.${key}' set to '${value}'"
+            abora_dim_line "Run 'abora config apply' to rebuild the system."
+            printf '\n'
+            return 0
+            ;;
+        gaming.gamemode | gamemode)
+            key="gaming.gamemode"
+            value="$(normalize_bool "$value")"
+            write_bool_option "$key" "$value"
+            abora_success "'abora.${key}' set to '${value}'"
+            abora_dim_line "Run 'abora config apply' to rebuild the system."
+            printf '\n'
+            return 0
+            ;;
+        gaming.vulkan | gaming.vulkanTools)
+            key="gaming.vulkanTools"
+            value="$(normalize_bool "$value")"
+            write_bool_option "$key" "$value"
+            abora_success "'abora.${key}' set to '${value}'"
+            abora_dim_line "Run 'abora config apply' to rebuild the system."
+            printf '\n'
+            return 0
+            ;;
+        gaming.launchers | launchers)
+            key="gaming.launchers"
+            value="$(normalize_bool "$value")"
+            write_bool_option "$key" "$value"
+            abora_success "'abora.${key}' set to '${value}'"
+            abora_dim_line "Run 'abora config apply' to rebuild the system."
+            printf '\n'
+            return 0
+            ;;
+        extras.diagnostics | diagnostics)
+            key="extras.diagnostics"
+            value="$(normalize_bool "$value")"
+            write_bool_option "$key" "$value"
+            abora_success "'abora.${key}' set to '${value}'"
+            abora_dim_line "Run 'abora config apply' to rebuild the system."
+            printf '\n'
+            return 0
+            ;;
+        extras.virtualizationGuests | virtualization-guests | vm-guests)
+            key="extras.virtualizationGuests"
+            value="$(normalize_bool "$value")"
+            write_bool_option "$key" "$value"
+            abora_success "'abora.${key}' set to '${value}'"
+            abora_dim_line "Run 'abora config apply' to rebuild the system."
+            printf '\n'
+            return 0
+            ;;
+        extras.mobileBroadband | mobile-broadband | modemmanager)
+            key="extras.mobileBroadband"
+            value="$(normalize_bool "$value")"
+            write_bool_option "$key" "$value"
+            abora_success "'abora.${key}' set to '${value}'"
+            abora_dim_line "Run 'abora config apply' to rebuild the system."
+            printf '\n'
+            return 0
+            ;;
         *)
             abora_error "Unknown key: '${key}'"
-            printf '  %bSettable keys:%b  hostname  timezone  keyboard  keyboard.xkb  desktop  wallpaper  gpu\n\n' \
+            printf '  %bSettable keys:%b  hostname  timezone  keyboard  keyboard.xkb  desktop  wallpaper  gpu  gaming  gaming.steam  gaming.big-picture  gaming.autostart  gaming.gamescope  gaming.controllers  gaming.mangohud  gaming.gamemode  gaming.vulkan  gaming.launchers  diagnostics  vm-guests  mobile-broadband\n\n' \
                 "$ABORA_DIM" "$ABORA_NC"
             exit 1
             ;;
@@ -438,6 +689,8 @@ usage() {
     printf '  %babora config set desktop    <value>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     printf '  %babora config set wallpaper  <value>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     printf '  %babora config set gpu        <value>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora config set gaming     <true|false>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %babora config set gaming.steam <true|false>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Update a setting in abora-local.nix."
     printf '\n'
 
@@ -454,6 +707,19 @@ usage() {
     abora_dim_line "  desktop        Desktop environment (e.g. gnome, hyprland, plasma)"
     abora_dim_line "  wallpaper      Shipped Abora wallpaper filename"
     abora_dim_line "  gpu            GPU driver: nouveau, nvidia, nvidia-open, amdgpu, intel, none, or auto"
+    abora_dim_line "  gaming         Enable Steam, 32-bit graphics, GameMode, and gaming helpers"
+    abora_dim_line "  gaming.steam   Install Steam through the Abora Gaming layer"
+    abora_dim_line "  gaming.big-picture  Add the Steam Big Picture launcher"
+    abora_dim_line "  gaming.autostart    Start Steam Big Picture on desktop login"
+    abora_dim_line "  gaming.gamescope    Add the Big Picture Gamescope session"
+    abora_dim_line "  gaming.controllers  Add Steam/controller udev support"
+    abora_dim_line "  gaming.mangohud     Add the MangoHud performance overlay"
+    abora_dim_line "  gaming.gamemode     Enable GameMode performance tuning"
+    abora_dim_line "  gaming.vulkan       Add Vulkan diagnostic tools"
+    abora_dim_line "  gaming.launchers    Add Lutris, Heroic, Bottles, and ProtonUp-Qt when available"
+    abora_dim_line "  diagnostics         Add dmidecode, ethtool, htop, and smartmontools"
+    abora_dim_line "  vm-guests           Enable VM guest agents for QEMU/SPICE/VMware/VirtualBox/Hyper-V"
+    abora_dim_line "  mobile-broadband    Enable ModemManager for cellular devices"
     printf '\n'
 }
 

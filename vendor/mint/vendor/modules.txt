@@ -1,8 +1,8 @@
 # github.com/Masterminds/semver/v3 v3.5.0
 ## explicit; go 1.21
 github.com/Masterminds/semver/v3
-# github.com/alecthomas/chroma/v2 v2.20.0
-## explicit; go 1.22
+# github.com/alecthomas/chroma/v2 v2.27.0
+## explicit; go 1.25
 github.com/alecthomas/chroma/v2
 github.com/alecthomas/chroma/v2/formatters
 github.com/alecthomas/chroma/v2/formatters/html
@@ -10,7 +10,7 @@ github.com/alecthomas/chroma/v2/formatters/svg
 github.com/alecthomas/chroma/v2/lexers
 github.com/alecthomas/chroma/v2/quick
 github.com/alecthomas/chroma/v2/styles
-# github.com/alecthomas/kong v1.15.0
+# github.com/alecthomas/kong v1.16.1
 ## explicit; go 1.20
 github.com/alecthomas/kong
 # github.com/alecthomas/mango-kong v0.1.0
@@ -43,8 +43,8 @@ github.com/charmbracelet/bubbles/viewport
 # github.com/charmbracelet/bubbletea v1.3.10
 ## explicit; go 1.24.0
 github.com/charmbracelet/bubbletea
-# github.com/charmbracelet/colorprofile v0.4.1
-## explicit; go 1.24.2
+# github.com/charmbracelet/colorprofile v0.4.3
+## explicit; go 1.25.0
 github.com/charmbracelet/colorprofile
 # github.com/charmbracelet/glamour v1.0.0
 ## explicit; go 1.24.0
@@ -59,27 +59,24 @@ github.com/charmbracelet/lipgloss/table
 # github.com/charmbracelet/log v1.0.0
 ## explicit; go 1.21
 github.com/charmbracelet/log
-# github.com/charmbracelet/x/ansi v0.11.7
+# github.com/charmbracelet/x/ansi v0.11.8
 ## explicit; go 1.24.2
 github.com/charmbracelet/x/ansi
 github.com/charmbracelet/x/ansi/parser
 # github.com/charmbracelet/x/cellbuf v0.0.15
 ## explicit; go 1.24.2
 github.com/charmbracelet/x/cellbuf
-# github.com/charmbracelet/x/conpty v0.1.1
+# github.com/charmbracelet/x/conpty v0.2.0
 ## explicit; go 1.24.0
 github.com/charmbracelet/x/conpty
 # github.com/charmbracelet/x/editor v0.2.0
 ## explicit; go 1.24.0
 github.com/charmbracelet/x/editor
-# github.com/charmbracelet/x/errors v0.0.0-20240508181413-e8d8b6e2de86
-## explicit; go 1.17
-github.com/charmbracelet/x/errors
 # github.com/charmbracelet/x/exp/ordered v0.1.0
 ## explicit; go 1.21
 github.com/charmbracelet/x/exp/ordered
-# github.com/charmbracelet/x/exp/slice v0.0.0-20250327172914-2fdc97757edf
-## explicit; go 1.19
+# github.com/charmbracelet/x/exp/slice v0.0.0-20260823001701-96af6d2cb5f6
+## explicit; go 1.24.0
 github.com/charmbracelet/x/exp/slice
 # github.com/charmbracelet/x/term v0.2.2
 ## explicit; go 1.24.0
@@ -87,8 +84,8 @@ github.com/charmbracelet/x/term
 # github.com/charmbracelet/x/termios v0.1.1
 ## explicit; go 1.18
 github.com/charmbracelet/x/termios
-# github.com/charmbracelet/x/xpty v0.1.3
-## explicit; go 1.24.0
+# github.com/charmbracelet/x/xpty v0.1.4
+## explicit; go 1.25.0
 github.com/charmbracelet/x/xpty
 # github.com/clipperhouse/displaywidth v0.11.0
 ## explicit; go 1.18
@@ -99,10 +96,11 @@ github.com/clipperhouse/uax29/v2/graphemes
 # github.com/creack/pty v1.1.24
 ## explicit; go 1.18
 github.com/creack/pty
-# github.com/dlclark/regexp2 v1.11.5
-## explicit; go 1.13
-github.com/dlclark/regexp2
-github.com/dlclark/regexp2/syntax
+# github.com/dlclark/regexp2/v2 v2.7.1
+## explicit; go 1.25
+github.com/dlclark/regexp2/v2
+github.com/dlclark/regexp2/v2/helpers
+github.com/dlclark/regexp2/v2/syntax
 # github.com/dustin/go-humanize v1.0.1
 ## explicit; go 1.16
 github.com/dustin/go-humanize
@@ -115,17 +113,17 @@ github.com/go-logfmt/logfmt
 # github.com/gorilla/css v1.0.1
 ## explicit; go 1.20
 github.com/gorilla/css/scanner
-# github.com/lucasb-eyer/go-colorful v1.4.0
+# github.com/lucasb-eyer/go-colorful v1.4.1
 ## explicit; go 1.12
 github.com/lucasb-eyer/go-colorful
-# github.com/mattn/go-isatty v0.0.20
-## explicit; go 1.15
+# github.com/mattn/go-isatty v0.0.24
+## explicit; go 1.20
 github.com/mattn/go-isatty
 # github.com/mattn/go-localereader v0.0.1
 ## explicit
 github.com/mattn/go-localereader
-# github.com/mattn/go-runewidth v0.0.23
-## explicit; go 1.20
+# github.com/mattn/go-runewidth v0.0.28
+## explicit; go 1.23
 github.com/mattn/go-runewidth
 # github.com/microcosm-cc/bluemonday v1.0.27
 ## explicit; go 1.19
@@ -159,10 +157,10 @@ github.com/rivo/uniseg
 # github.com/sahilm/fuzzy v0.1.3
 ## explicit; go 1.24.5
 github.com/sahilm/fuzzy
-# github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e
+# github.com/xo/terminfo v1.0.0
 ## explicit; go 1.19
 github.com/xo/terminfo
-# github.com/yuin/goldmark v1.7.13
+# github.com/yuin/goldmark v1.8.5
 ## explicit; go 1.22
 github.com/yuin/goldmark
 github.com/yuin/goldmark/ast
@@ -178,26 +176,25 @@ github.com/yuin/goldmark/util
 github.com/yuin/goldmark-emoji
 github.com/yuin/goldmark-emoji/ast
 github.com/yuin/goldmark-emoji/definition
-# golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
-## explicit; go 1.20
-golang.org/x/exp/constraints
+# golang.org/x/exp v0.0.0-20260824195058-e88cd73687aa
+## explicit; go 1.26.0
 golang.org/x/exp/slices
 golang.org/x/exp/slog
 golang.org/x/exp/slog/internal
 golang.org/x/exp/slog/internal/buffer
-# golang.org/x/net v0.40.0
-## explicit; go 1.23.0
+# golang.org/x/net v0.58.0
+## explicit; go 1.25.0
 golang.org/x/net/html
 golang.org/x/net/html/atom
-# golang.org/x/sys v0.38.0
-## explicit; go 1.24.0
+# golang.org/x/sys v0.47.0
+## explicit; go 1.25.0
 golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/term v0.36.0
-## explicit; go 1.24.0
+# golang.org/x/term v0.45.0
+## explicit; go 1.25.0
 golang.org/x/term
-# golang.org/x/text v0.38.0
+# golang.org/x/text v0.41.0
 ## explicit; go 1.25.0
 golang.org/x/text/cases
 golang.org/x/text/encoding

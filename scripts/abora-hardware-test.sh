@@ -16,8 +16,27 @@ if [[ ! -f "$ui_lib" && -f /etc/abora/ui.sh ]]; then
     ui_lib="/etc/abora/ui.sh"
 fi
 
-# shellcheck source=/dev/null
-source "$ui_lib"
+if [[ -f "$ui_lib" ]]; then
+    # shellcheck source=/dev/null
+    source "$ui_lib"
+else
+    # Minimal fallback UI -- used when abora-ui.sh isn't available (e.g. a
+    # bare checkout before install, or a corrupted /etc/abora).
+    ABORA_DIM=$'\033[38;5;242m'
+    ABORA_NC=$'\033[0m'
+    ABORA_CYAN=$'\033[38;5;44m'
+    ABORA_WHITE=$'\033[1;97m'
+    ABORA_BLUE=$'\033[38;5;33m'
+    ABORA_ACCENT=$'\033[38;5;87m'
+    ABORA_GREEN=$'\033[38;5;77m'
+    ABORA_RED=$'\033[38;5;203m'
+    ABORA_YELLOW=$'\033[38;5;222m'
+    abora_banner()     { printf '\n  %b%s%b  %b%s%b\n\n' "$ABORA_WHITE" "${1:-}" "$ABORA_NC" "$ABORA_DIM" "${2:-}" "$ABORA_NC"; }
+    abora_info()       { printf '  %b·%b  %s\n' "$ABORA_CYAN" "$ABORA_NC" "$1"; }
+    abora_rule()       { printf '  %b%s%b\n' "$ABORA_DIM" "────────────────────────────────────────" "$ABORA_NC"; }
+    abora_card_start() { printf '  %b┌─ %s ─%b\n' "$ABORA_BLUE" "${1:-}" "$ABORA_NC"; }
+    abora_card_end()   { printf '  %b└────────%b\n' "$ABORA_BLUE" "$ABORA_NC"; }
+fi
 
 section() {
     printf '\n'
@@ -64,6 +83,15 @@ memory_gib() {
     awk '/MemTotal:/ { printf "%.1f", $2 / 1024 / 1024 }' /proc/meminfo 2>/dev/null || printf '0'
 }
 
+# TYPE=disk alone does not mean real storage -- zram (RAM-backed swap)
+# reports TYPE=disk too, confirmed directly against a real machine (lsblk
+# -P showed /dev/zram0 as TYPE="disk", RM="0", TRAN=""), so the RM/TYPE
+# checks below never excluded it on their own: this hardware-readiness
+# tool reported zram0 as one of "2 disk target(s)" and counted it toward
+# "at least one fixed internal disk is visible" -- the opposite of what
+# those checks exist to confirm. abora-installer.sh already excludes
+# exactly these name prefixes for the same reason (collect_disks()'s
+# ^(fd|loop|ram|sr|zram) filter); both functions below mirror it.
 list_disks() {
     lsblk -dn -P -e 7,11 -o NAME,SIZE,MODEL,TRAN,RM,TYPE 2>/dev/null | awk '
         {
@@ -84,6 +112,9 @@ list_disks() {
             if (type != "disk") {
                 next
             }
+            if (name ~ /^(fd|loop|ram|sr|zram)/) {
+                next
+            }
             if (model == "") model = "Unknown model"
             if (tran == "") tran = "internal"
             removable = (rm == "1" ? "removable" : "fixed")
@@ -93,7 +124,8 @@ list_disks() {
 }
 
 has_internal_disk() {
-    lsblk -dn -e 7,11 -o RM,TYPE 2>/dev/null | awk '$2 == "disk" && $1 == "0" { found = 1 } END { exit(found ? 0 : 1) }'
+    lsblk -dn -e 7,11 -o NAME,RM,TYPE 2>/dev/null \
+        | awk '$3 == "disk" && $2 == "0" && $1 !~ /^(fd|loop|ram|sr|zram)/ { found = 1 } END { exit(found ? 0 : 1) }'
 }
 
 has_transport() {

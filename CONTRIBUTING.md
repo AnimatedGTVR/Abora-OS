@@ -103,118 +103,14 @@ Clear commit messages make the project's history much easier to understand.
 
 # Coding Style
 
-Follow the existing style used throughout the project.
+If `git push origin edge` (or `stable`) is rejected because the remote moved first, the safe flow is:
 
-General guidelines:
-
-* Write readable code.
-* Keep functions reasonably small.
-* Use descriptive variable names.
-* Avoid unnecessary dependencies.
-* Don't reformat unrelated files.
-* Comment code when the reasoning isn't obvious.
-
-Consistency is more important than personal preference.
-
----
-
-# Documentation
-
-Documentation is just as important as code.
-
-If your contribution changes how something works, please update the relevant documentation.
-
-This includes:
-
-* Installation instructions
-* Configuration guides
-* Release notes
-* User documentation
-* Developer documentation
-
----
-
-# Testing
-
-Every contribution should be tested whenever possible.
-
-Depending on your changes, this may include:
-
-* Building the ISO
-* Booting in QEMU
-* Testing on real hardware
-* Confirming existing features still work
-* Verifying installer changes
-* Checking logs for unexpected warnings or errors
-
-If you weren't able to test something, mention that in your pull request.
-
----
-
-# Reporting Bugs
-
-Bug reports are always welcome.
-
-A good bug report includes:
-
-* Abora OS version
-* Desktop environment
-* Hardware information (when relevant)
-* Steps to reproduce the issue
-* Expected behavior
-* Actual behavior
-* Logs or screenshots if available
-
-The more information you provide, the easier it is to investigate the problem.
-
----
-
-# Feature Requests
-
-Ideas and suggestions are welcome.
-
-Before requesting a feature, consider whether it fits Abora OS's goal of making NixOS easier to use without adding unnecessary complexity.
-
-If possible, explain:
-
-* What problem the feature solves
-* Why it would benefit users
-* Any alternatives you've considered
-
----
-
-# AI-Assisted Contributions
-
-AI-assisted contributions are welcome.
-
-If you use AI to help write code, documentation, translations, or artwork descriptions, you are responsible for reviewing, understanding, and testing everything you submit.
-
-Maintainers may request changes regardless of how the contribution was created.
-
-If an AI model made a significant contribution to your changes, please include a commit trailer such as:
-
-Co-Authored-By: Claude - Opus 5
-Co-Authored-By: ChatGPT - GPT-5.5
-Co-Authored-By: Gemini - 2.5 Pro
-
-Thanks!
----
-
-# Licensing
-
-By contributing to Abora OS, you agree that your contribution may be distributed under the project's license.
-
-Only submit code, artwork, documentation, or other content that you have the right to contribute.
-
----
-
-# Community
-
-Be respectful and constructive.
-
-Everyone starts somewhere, and respectful discussions make the project better for everyone.
-
-Critique ideas and code not people.
+```sh
+git add -A
+git commit -m "Describe your change"
+git pull --rebase origin edge
+git push origin edge
+```
 
 ---
 

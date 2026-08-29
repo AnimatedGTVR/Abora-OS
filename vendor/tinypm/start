@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-runtime_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-exec env TINYPM_ENTRYPOINT=start "$runtime_dir/bin/tinypm" "$@"

@@ -1,4 +1,4 @@
-{ lib, pkgs, ... }:
+{ lib, pkgs, config, ... }:
 let
   # All paths below are relative to this file as it lives on the installed system
   # (beside installed-base.nix in /etc/nixos/abora/ or equivalent).  The
@@ -14,6 +14,8 @@ let
   configScript         = ./config.sh;
   aboraScript          = ./abora.sh;
   desktopScript        = ./desktop.sh;
+  gamingScript         = ./gaming.sh;
+  dotfilesImportScript = ./dotfiles-import.sh;
   doctorScript         = ./doctor.sh;
   checkFullScript      = ./check-full.sh;
   recoveryScript       = ./recovery.sh;
@@ -24,6 +26,8 @@ let
     if builtins.pathExists ./welcome-gui.py then ./welcome-gui.py else null;
   configGuiScript =
     if builtins.pathExists ./config-gui.py then ./config-gui.py else null;
+  gamingWelcomeGuiScript =
+    if builtins.pathExists ./gaming-welcome-gui.py then ./gaming-welcome-gui.py else null;
   anixScript           = ./anix.sh;
   optionsModule        = ./abora-options.nix;
   anixModule           = ./anix-module.nix;
@@ -39,14 +43,26 @@ let
     if builtins.pathExists ./anix-languages then ./anix-languages else null;
   appCatalogScript     = ./app-catalog.sh;
   appManagerScript     = ./apps.sh;
+  customPackagesScript = ./custom-packages.sh;
+  buildScript          = ./build.sh;
+  adoptNixosScript     = ./adopt-nixos.sh;
   supportReportScript  = ./support-report.sh;
   hardwareTestScript   = ./hardware-test.sh;
   repairFlakePurityScript = ./repair-flake-purity.sh;
-  wallpaperFile        = ./default-wallpaper.png;
+  wallpaperFile =
+    if builtins.pathExists ./default-wallpaper.png then ./default-wallpaper.png
+    else if builtins.pathExists ../../assets/wallpapers/collection/titlis-alps.jpg then ../../assets/wallpapers/collection/titlis-alps.jpg
+    else throw "Abora default wallpaper asset is missing; expected ./default-wallpaper.png or ../../assets/wallpapers/collection/titlis-alps.jpg";
   aboraLogoFile =
     if builtins.pathExists ./Abora-LOGO.png then ./Abora-LOGO.png else null;
-  wallpaperDir         = ./wallpapers;
-  wallpaperThemeDir    = ./themes;
+  wallpaperDir =
+    if builtins.pathExists ./wallpapers then ./wallpapers
+    else if builtins.pathExists ../../assets/wallpapers/collection then ../../assets/wallpapers/collection
+    else throw "Abora wallpaper assets are missing; expected ./wallpapers or ../../assets/wallpapers/collection";
+  wallpaperThemeDir =
+    if builtins.pathExists ./themes then ./themes
+    else if builtins.pathExists ../../assets/wallpaper-themes then ../../assets/wallpaper-themes
+    else throw "Abora wallpaper theme assets are missing; expected ./themes or ../../assets/wallpaper-themes";
   updateScript         = ./update.sh;
   themeSyncScript      = ./theme-sync.sh;
   sessionSetupScript   = ./session-setup.sh;
@@ -54,40 +70,56 @@ let
   mangoConfigFile      = ./mango/config.conf;
   mangoConfigText      = builtins.readFile mangoConfigFile;
   moducppAnixTool      = ./tools/moducpp-anix;
+  modularitySrc        = ./vendor/modularity;
   installerScript      = ./installer.sh;
   setupLauncherScript  = ./setup-launcher.sh;
   setupDesktopFile     = ./setup.desktop;
   plymouthDir          = ./plymouth;
   bootloaderDir        = ./bootloader;
-  effectsDir =
-    if builtins.pathExists ./effects then ./effects else null;
+  effectsAudioFile =
+    if builtins.pathExists ./effects/v3StartingAbora.mp3 then ./effects/v3StartingAbora.mp3
+    else if builtins.pathExists ./effects/LaunchingAbora.mp3 then ./effects/LaunchingAbora.mp3
+    else null;
   limineWallpaperFile =
     if builtins.pathExists (bootloaderDir + "/limine-background.png") then
       bootloaderDir + "/limine-background.png"
     else
       bootloaderDir + "/background.png";
-  tinypmDir            = ./tinypm;
+  # Optional, like welcomeGuiScript/configGuiScript above: a system mid-
+  # update (new installed-base.nix synced before the corresponding new
+  # directory finishes copying) must not fail evaluation just because one
+  # of these hasn't landed yet.
+  tinypmDir =
+    if builtins.pathExists ./tinypm then ./tinypm else null;
+  updateResolverDir =
+    if builtins.pathExists ./update-resolver then ./update-resolver else null;
+  planToolDir =
+    if builtins.pathExists ./plan-tool then ./plan-tool else null;
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
-  mkGrabCmd = name: pkgs.writeShellScriptBin name ''
-    runtime=/etc/abora/tinypm
-    entry="$runtime/bin/${name}"
-    if [ ! -x "$entry" ]; then
-      entry="$runtime/${name}"
-    fi
-    if [ ! -x "$entry" ]; then
-      case "${name}" in
-        Parcel|version)
-          exec env TINYPM_FLAVOR=abora ${pkgs.bashInteractive}/bin/bash "$runtime/bin/tinypm" version "$@"
-          ;;
-        *)
-          exec env TINYPM_FLAVOR=abora TINYPM_ENTRYPOINT=${name} ${pkgs.bashInteractive}/bin/bash "$runtime/bin/tinypm" "$@"
-          ;;
-      esac
-    fi
-    exec env TINYPM_FLAVOR=abora TINYPM_ENTRYPOINT=${name} ${pkgs.bashInteractive}/bin/bash "$entry" "$@"
-  '';
+  # TinyPM was rewritten from a bash multicall tree to a real Rust crate
+  # (see TinyPM's own CLAUDE.md: "the old Bash runtime was removed"). The
+  # installer copies the vendored source to /etc/nixos/abora/tinypm
+  # (tinypmDir above), and this builds it the same way
+  # nix/profiles/live.nix's tinypmPackage does for the live ISO. Only two
+  # binaries exist now -- tinypm and grab -- replacing the old mkGrabCmd
+  # multicall wrapper's much longer alias list (tiny/Parcel/search/term/
+  # start/supdate/grab-add-repo/grab-de/syspm), none of which have a Rust
+  # equivalent.
+  tinypmPackage =
+    if tinypmDir != null then
+      pkgs.rustPlatform.buildRustPackage {
+        pname = "tinypm";
+        version = "0.8.1-alpha";
+        src = tinypmDir;
+        cargoLock.lockFile = tinypmDir + "/Cargo.lock";
+        doCheck = false;
+      }
+    else null;
   aboraApps = pkgs.writeShellScriptBin "abora-apps" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/apps.sh "$@"
+  '';
+  aboraCustomPackages = pkgs.writeShellScriptBin "abora-custom-packages" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/custom-packages.sh "$@"
   '';
   aboraConfig = pkgs.writeShellScriptBin "abora-config" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/config.sh "$@"
@@ -95,8 +127,20 @@ let
   aboraCommand = pkgs.writeShellScriptBin "abora" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/abora.sh "$@"
   '';
+  aboraBuild = pkgs.writeShellScriptBin "abora-build" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/build.sh "$@"
+  '';
+  aboraAdoptNixos = pkgs.writeShellScriptBin "abora-adopt-nixos" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/adopt-nixos.sh "$@"
+  '';
   aboraDesktop = pkgs.writeShellScriptBin "abora-desktop" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/desktop.sh "$@"
+  '';
+  aboraGaming = pkgs.writeShellScriptBin "abora-gaming" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/gaming.sh "$@"
+  '';
+  aboraDotfilesImport = pkgs.writeShellScriptBin "abora-dotfiles-import" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/dotfiles-import.sh "$@"
   '';
   aboraDoctor = pkgs.writeShellScriptBin "abora-doctor" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/doctor.sh "$@"
@@ -121,13 +165,30 @@ let
     export GI_TYPELIB_PATH="${aboraGuiGiPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
     export LD_LIBRARY_PATH="${aboraGuiLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     export ABORA_UPDATE_SCRIPT="''${ABORA_UPDATE_SCRIPT:-/etc/abora/update.sh}"
+    export GSK_RENDERER="''${GSK_RENDERER:-cairo}"
+    export GDK_BACKEND="''${GDK_BACKEND:-wayland,x11}"
     exec ${aboraGuiPython}/bin/python3 /etc/abora/welcome-gui.py "$@"
   '';
   aboraConfigGui = pkgs.writeShellScriptBin "abora-config-gui" ''
     export GI_TYPELIB_PATH="${aboraGuiGiPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
     export LD_LIBRARY_PATH="${aboraGuiLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     export ABORA_CONFIG_SCRIPT="''${ABORA_CONFIG_SCRIPT:-/etc/abora/config.sh}"
+    export GSK_RENDERER="''${GSK_RENDERER:-cairo}"
+    export GDK_BACKEND="''${GDK_BACKEND:-wayland,x11}"
     exec ${aboraGuiPython}/bin/python3 /etc/abora/config-gui.py "$@"
+  '';
+  # Abora Welcome (aboraWelcomeGui above) covers the system in general;
+  # this is a separate, dedicated app for games specifically -- your
+  # gaming platforms at a glance, signing into Steam, and installing a
+  # platform to get a game running through. See abora-gaming-welcome-gui.py.
+  aboraGamingWelcomeGui = pkgs.writeShellScriptBin "abora-gaming-welcome-gui" ''
+    export GI_TYPELIB_PATH="${aboraGuiGiPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+    export LD_LIBRARY_PATH="${aboraGuiLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    export ABORA_APPS_SCRIPT="''${ABORA_APPS_SCRIPT:-/etc/abora/apps.sh}"
+    export ABORA_APP_CATALOG="''${ABORA_APP_CATALOG:-/etc/abora/app-catalog.sh}"
+    export GSK_RENDERER="''${GSK_RENDERER:-cairo}"
+    export GDK_BACKEND="''${GDK_BACKEND:-wayland,x11}"
+    exec ${aboraGuiPython}/bin/python3 /etc/abora/gaming-welcome-gui.py "$@"
   '';
   anixCommand = pkgs.writeShellScriptBin "anix" ''
     exec env ANIX_SYSTEM_CONFIG=/etc/nixos ANIX_FLAKE_CONFIG_NAME=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/anix.sh "$@"
@@ -178,6 +239,20 @@ let
       Exec=abora-config-gui
       Icon=preferences-system
       Categories=System;Settings;
+      Terminal=false
+    '';
+  };
+  aboraGamingWelcomeDesktopPkg = pkgs.writeTextFile {
+    name = "abora-gaming-welcome-desktop";
+    destination = "/share/applications/abora-gaming-welcome.desktop";
+    text = ''
+      [Desktop Entry]
+      Type=Application
+      Name=Abora Gaming
+      Comment=Sign in and get a gaming platform ready
+      Exec=abora-gaming-welcome-gui
+      Icon=input-gaming
+      Categories=System;Game;
       Terminal=false
     '';
   };
@@ -280,16 +355,16 @@ in
     vendorName = "Abora OS";
     label = version;
     variant_id = lib.mkDefault "system";
-    variantName = lib.mkDefault "Abora OS 2026.7.27";
+    variantName = lib.mkDefault "Abora OS v4 Everest";
     extraOSReleaseArgs = lib.mapAttrs (_: lib.mkDefault) {
       LOGO = "abora";
-      VERSION = "2026.7.27";
-      VERSION_ID = "4.0";
+      VERSION = "v4 Everest";
+      VERSION_ID = "4";
       VERSION_CODENAME = "everest";
-      PRETTY_NAME = "Abora OS 2026.7.27";
+      PRETTY_NAME = "Abora OS v4 Everest";
       HOME_URL = "https://www.aboraos.org/";
-      SUPPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
-      BUG_REPORT_URL = "https://github.com/AnimatedGTVR/abora-os/issues";
+      SUPPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
+      BUG_REPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
       ANSI_COLOR = "0;38;2;80;220;255";
     };
   };
@@ -300,9 +375,19 @@ in
     (final: prev: {
       scenefx-0_5 = final.callPackage ./pkgs/scenefx-0_5.nix {};
       mango = final.callPackage ./pkgs/mango.nix {};
-      modularity = final.callPackage ./pkgs/modularity.nix {};
+      modularity = final.callPackage ./pkgs/modularity.nix { inherit modularitySrc; };
       moducpp-anix = final.callPackage ./pkgs/moducpp-anix.nix {
         moducppAnixSrc = moducppAnixTool;
+      };
+    }
+    // lib.optionalAttrs (updateResolverDir != null) {
+      abora-update-resolver = final.callPackage ./pkgs/abora-update-resolver.nix {
+        resolverSrc = updateResolverDir;
+      };
+    }
+    // lib.optionalAttrs (planToolDir != null) {
+      abora-plan-tool = final.callPackage ./pkgs/abora-plan-tool.nix {
+        toolSrc = planToolDir;
       };
     })
   ];
@@ -370,7 +455,13 @@ in
     ethernet.macAddress = lib.mkDefault "preserve";
     wifi.macAddress = lib.mkDefault "preserve";
   };
-  networking.modemmanager.enable = lib.mkDefault true;
+  # Not mkDefault: nixpkgs' own networkmanager.nix module also sets this via
+  # mkDefault true whenever NetworkManager is enabled (which Abora enables
+  # by default), so two same-priority mkDefault definitions with different
+  # values would conflict. A plain assignment cleanly wins over nixpkgs'
+  # own default while still respecting the abora.extras.mobileBroadband
+  # knob -- users can still force it either way with lib.mkForce.
+  networking.modemmanager.enable = config.abora.extras.mobileBroadband;
   security.polkit.enable = lib.mkDefault true;
   services.udisks2.enable = lib.mkDefault true;
   services.blueman.enable = lib.mkDefault true;
@@ -404,12 +495,14 @@ in
     '';
   };
 
-  services.qemuGuest.enable = lib.mkDefault true;
-  services.spice-vdagentd.enable = lib.mkDefault true;
-  virtualisation.vmware.guest.enable = lib.mkDefault pkgs.stdenv.hostPlatform.isx86;
-  virtualisation.virtualbox.guest.enable = lib.mkDefault pkgs.stdenv.hostPlatform.isx86;
+  services.qemuGuest.enable = lib.mkDefault config.abora.extras.virtualizationGuests;
+  services.spice-vdagentd.enable = lib.mkDefault config.abora.extras.virtualizationGuests;
+  virtualisation.vmware.guest.enable =
+    lib.mkDefault (config.abora.extras.virtualizationGuests && pkgs.stdenv.hostPlatform.isx86);
+  virtualisation.virtualbox.guest.enable =
+    lib.mkDefault (config.abora.extras.virtualizationGuests && pkgs.stdenv.hostPlatform.isx86);
   virtualisation.hypervGuest.enable =
-    lib.mkDefault (pkgs.stdenv.hostPlatform.isx86 || pkgs.stdenv.hostPlatform.isAarch64);
+    lib.mkDefault (config.abora.extras.virtualizationGuests && (pkgs.stdenv.hostPlatform.isx86 || pkgs.stdenv.hostPlatform.isAarch64));
 
   fonts.packages = with pkgs; [
     noto-fonts
@@ -436,23 +529,17 @@ in
   };
 
   environment.systemPackages = with pkgs; [
-    (mkGrabCmd "tinypm")
-    (mkGrabCmd "tiny")
-    (mkGrabCmd "Parcel")
-    (mkGrabCmd "grab")
-    (mkGrabCmd "search")
-    (mkGrabCmd "term")
-    (mkGrabCmd "start")
-    (mkGrabCmd "supdate")
-    (mkGrabCmd "grab-add-repo")
-    (mkGrabCmd "grab-de")
-    (mkGrabCmd "syspm")
     aboraApps
+    aboraCustomPackages
+    aboraAdoptNixos
+    aboraBuild
     aboraCommand
     aboraCheckFull
     anixCommand
     aboraConfig
     aboraDesktop
+    aboraGaming
+    aboraDotfilesImport
     aboraDoctor
     aboraHardwareTest
     aboraRecovery
@@ -460,9 +547,7 @@ in
     aboraSupportReport
     aboraUpdate
     aboraWelcome
-    aboraWelcomeGui
     aboraWelcomeDesktopPkg
-    aboraConfigGui
     aboraConfigDesktopPkg
     aboraWallpapersPackage
     aboraInstaller
@@ -472,29 +557,24 @@ in
     aboraThemeSync
     bashInteractive
     curl
-    dmidecode
-    ethtool
     feh
     fastfetch
-    gh
     git
-    htop
     iw
     jq
     libnotify
     moducpp-anix
     kdePackages.konsole
     linux-firmware
-    modemmanager
     nixosCommand
     pciutils
     mpg123
-    smartmontools
     updateCommand
     upgradeCommand
     rollbackCommand
     spaceship-prompt
     starship
+    unzip
     usbutils
     wget
     papirus-icon-theme
@@ -505,12 +585,37 @@ in
     zenity
     swaybg
     zsh
-  ];
+  ] ++ lib.optional (tinypmPackage != null) tinypmPackage
+    ++ lib.optional (pkgs ? abora-update-resolver) pkgs.abora-update-resolver
+    ++ lib.optional (pkgs ? abora-plan-tool) pkgs.abora-plan-tool
+    ++ lib.optional (welcomeGuiScript != null) aboraWelcomeGui
+    ++ lib.optional (configGuiScript != null) aboraConfigGui
+    ++ lib.optional (gamingWelcomeGuiScript != null) aboraGamingWelcomeGui
+    ++ lib.optional config.abora.gaming.enable aboraGamingWelcomeDesktopPkg
+  ++ lib.optionals config.abora.extras.diagnostics (with pkgs; [
+    dmidecode
+    ethtool
+    htop
+    smartmontools
+  ]) ++ lib.optionals config.abora.extras.mobileBroadband (with pkgs; [
+    modemmanager
+  ]);
 
   # Purely a desktop notification nudge (--notify --quiet); does not install
   # anything itself. Silently no-ops via `command -v` if TinyPM was never
   # installed for this user (anix tinypm install), so this timer is safe to
   # ship unconditionally on every desktop profile.
+  systemd.user.services.abora-session-setup = {
+    description = "Apply Abora desktop session defaults";
+    wantedBy = [ "graphical-session.target" ];
+    partOf = [ "graphical-session.target" ];
+    environment.ABORA_SESSION_SETUP_WAIT = "10";
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${aboraSessionSetup}/bin/abora-session-setup";
+    };
+  };
+
   systemd.user.services.tinypm-update-check = {
     description = "Check for TinyPM updates";
     serviceConfig = {
@@ -598,8 +703,24 @@ in
         source = aboraScript;
         mode = "0755";
       };
+      "abora/build.sh" = {
+        source = buildScript;
+        mode = "0755";
+      };
+      "abora/adopt-nixos.sh" = {
+        source = adoptNixosScript;
+        mode = "0755";
+      };
       "abora/desktop.sh" = {
         source = desktopScript;
+        mode = "0755";
+      };
+      "abora/gaming.sh" = {
+        source = gamingScript;
+        mode = "0755";
+      };
+      "abora/dotfiles-import.sh" = {
+        source = dotfilesImportScript;
         mode = "0755";
       };
       "abora/doctor.sh" = {
@@ -630,6 +751,10 @@ in
         source = appManagerScript;
         mode = "0755";
       };
+      "abora/custom-packages.sh" = {
+        source = customPackagesScript;
+        mode = "0755";
+      };
       "abora/support-report.sh" = {
         source = supportReportScript;
         mode = "0755";
@@ -652,11 +777,8 @@ in
       };
       "abora/mango/config.conf".source = mangoConfigFile;
       "mango/config.conf".text = lib.mkDefault mangoConfigText;
-      "abora/tinypm".source = tinypmDir;
-      # The generated /etc/nixos/flake.nix pins its nixpkgs input to
-      # "path:/etc/abora/nixpkgs". Expose the build-time nixpkgs source here so
-      # that path resolves on the installed system (the live ISO does the same).
-      # Without this, `anix apply` / nixos-rebuild fail to fetch the flake input.
+      "abora/vendor/modularity".source = modularitySrc;
+      # Keep the build-time nixpkgs source available for recovery/debug tools.
       "abora/nixpkgs".source = pkgs.path;
       "abora/installer.sh" = {
         source = installerScript;
@@ -680,7 +802,7 @@ in
         mode = "0755";
       };
       "motd".text = ''
-        Abora OS 2026.7.27
+        Abora OS v4 Everest
 
           grab <app>          install an app  (flatpak, nix, or snap)
           search <app>        find apps across all sources
@@ -688,6 +810,10 @@ in
           supdate             upgrade all installed apps
 
           abora welcome       first steps and quick actions
+          abora gaming        gaming layer status and Steam Big Picture helper
+          abora gaming doctor Gaming config/GPU/Vulkan/disk checks
+          abora gaming repair-cache
+                              fix local Nix fetch-cache errors
           abora doctor        check system health
           abora recovery      rollback and repair tools
           sudo abora update   rebuild and switch the system
@@ -828,10 +954,10 @@ in
         Opacity=0.84
       '';
       "issue".text = ''
-        Abora OS 2026.7.27
+        Abora OS v4 Everest
       '';
       "issue.net".text = ''
-        Abora OS 2026.7.27
+        Abora OS v4 Everest
       '';
     }
     // builtins.listToAttrs (
@@ -865,13 +991,14 @@ in
       "abora/docs".source = docsDir;
     }
     // lib.optionalAttrs (anixLanguagesDir != null) {
+      "abora/anix-languages".source = anixLanguagesDir;
       "anix/languages".source = anixLanguagesDir;
     }
     // lib.optionalAttrs (aboraLogoFile != null) {
       "abora/Abora-LOGO.png".source = aboraLogoFile;
     }
-    // lib.optionalAttrs (effectsDir != null) {
-      "abora/effects/v3StartingAbora.mp3".source = effectsDir + "/v3StartingAbora.mp3";
+    // lib.optionalAttrs (effectsAudioFile != null) {
+      "abora/effects/v3StartingAbora.mp3".source = effectsAudioFile;
     }
     // lib.optionalAttrs (welcomeGuiScript != null) {
       "abora/welcome-gui.py".source = welcomeGuiScript;
@@ -888,6 +1015,18 @@ in
     }
     // lib.optionalAttrs (configGuiScript != null) {
       "abora/config-gui.py".source = configGuiScript;
+    }
+    // lib.optionalAttrs (gamingWelcomeGuiScript != null) {
+      "abora/gaming-welcome-gui.py".source = gamingWelcomeGuiScript;
+    }
+    // lib.optionalAttrs (tinypmDir != null) {
+      "abora/tinypm".source = tinypmDir;
+    }
+    // lib.optionalAttrs (updateResolverDir != null) {
+      "abora/update-resolver".source = updateResolverDir;
+    }
+    // lib.optionalAttrs (planToolDir != null) {
+      "abora/plan-tool".source = planToolDir;
     };
 
   environment.shellAliases.fastfetch = "fastfetch -c /etc/xdg/fastfetch/config.jsonc";

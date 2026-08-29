@@ -31,13 +31,13 @@
 # mangowm case, not here.
 stdenv.mkDerivation {
   pname = "mango";
-  version = "0.15.4";
+  version = "0.16.2";
 
   src = fetchFromGitHub {
     owner = "mangowm";
     repo  = "mango";
-    rev   = "8e71d6b0aec6db04c0e0f10fd1814a7d411c926f";
-    hash  = "sha256-Bju+I6dW+m3RofwPx+ZYd84tZn1fBhOexIRl4TOrdy8=";
+    rev   = "0.16.2";
+    hash  = "sha256-od6lK1KOquakP/GD17fGEm1ck5EMZa/s+jhmvGrRFzk=";
   };
 
   nativeBuildInputs = [ meson ninja pkg-config wayland-scanner ];

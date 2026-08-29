@@ -51,11 +51,17 @@ lazygit|Lazygit|lazygit|Developer|Terminal UI for git commands|no
 docker|Docker|docker|Developer|Container engine for building and running apps|no
 filezilla|FileZilla|filezilla|Developer|FTP and SFTP file transfer client|no
 remmina|Remmina|remmina|Developer|Remote desktop client for RDP, VNC, and SSH|no
-modularity|Modularity|modularity|Extras|Game engine editor for 2D and 3D projects (requires vendor setup)|no
+modularity|Modularity|modularity|Extras|Game engine editor; installs a setup helper until the vendor binary is added|no
+dmidecode|dmidecode|dmidecode|System|Low-level hardware and BIOS inventory tool|no
+ethtool|ethtool|ethtool|System|Inspect and tune Ethernet devices|no
+smartmontools|smartmontools|smartmontools|System|Drive SMART health checks and diagnostics|no
+modemmanager|ModemManager|modemmanager|System|Mobile broadband and cellular modem support|no
 steam|Steam|steam|Gaming|Valve's game store and launcher for Linux|yes
 lutris|Lutris|lutris|Gaming|Game manager for native, Wine, and emulated titles|yes
 heroic|Heroic Games Launcher|heroic|Gaming|Epic Games and GOG launcher for Linux|yes
 bottles|Bottles|bottles|Gaming|Run Windows apps and games via Wine|no
+wine|Wine|wineWowPackages.stable|Gaming|Run Windows games and applications with 32-bit and 64-bit Wine support|no
+winetricks|Winetricks|winetricks|Gaming|Install common Wine components needed by older games and launchers|no
 mangohud|MangoHud|mangohud|Gaming|In-game performance overlay for FPS, temps, and more|no
 gamemode|GameMode|gamemode|Gaming|Optimise system performance while games are running|no
 gparted|GParted|gparted|System|Graphical disk partition editor|no

@@ -64,12 +64,44 @@ func renderLogo(path, width, mode, quality string, fallback bool) error {
 		}
 	}
 
+	// "auto" on a general (non-Linux-TTY, non-Alacritty) terminal used to
+	// try every inline-image protocol renderer in a fixed order (Kitty,
+	// then sixel, then iTerm, then chafa text art) regardless of whether
+	// this terminal actually understood any of them -- chafa happily
+	// *generates* Kitty/sixel escape sequences on request even though
+	// nothing downstream can render them, so any terminal/environment not
+	// specifically Kitty or iTerm got a screen (or, worse, a piped/log
+	// capture) full of raw escape bytes instead of a logo. Only attempt a
+	// protocol this terminal actually signals support for; chafa's plain
+	// ANSI truecolor block art is always safe and stays the final fallback.
+	if mode == "" || mode == "auto" {
+		return renderLogoWithRenderers(path, width, quality, fallback, autoLogoRenderers(terminal), "terminal image renderer unavailable")
+	}
+
 	renderers := logoRenderers(mode)
 	if len(renderers) == 0 {
 		return fmt.Errorf("unsupported logo render mode %q", mode)
 	}
 
 	return renderLogoWithRenderers(path, width, quality, fallback, renderers, "terminal image renderer unavailable")
+}
+
+// autoLogoRenderers picks only the inline-image renderers this terminal
+// actually signals support for (see terminalInfo.imageSupportSummary,
+// which already computes this same detection for `mint abora logo
+// --doctor`), always ending in the universally-safe plain chafa fallback.
+func autoLogoRenderers(t terminalInfo) []logoRenderer {
+	var renderers []logoRenderer
+	kittyLikely := t.KittyWindowID != "" || strings.Contains(strings.ToLower(t.Term), "xterm-kitty")
+	itermLikely := strings.Contains(strings.ToLower(t.TermProgram), "iterm")
+	if kittyLikely {
+		renderers = append(renderers, renderChafaKitty)
+	}
+	if itermLikely {
+		renderers = append(renderers, renderChafaITerm)
+	}
+	renderers = append(renderers, renderChafa)
+	return renderers
 }
 
 type logoRenderer func(string, string, string) ([]byte, error)

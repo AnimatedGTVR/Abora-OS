@@ -7,6 +7,7 @@ let
   # ever touching config.abora.* below, so anix.desktop/anix.wallpaper are
   # simply no-ops rather than eval errors on a non-Abora system.
   hasAboraOptions = options ? abora && options.abora ? desktop && options.abora ? wallpaper;
+  hasAboraGamingOptions = options ? abora && options.abora ? gaming;
 in
 {
   options.anix = {
@@ -115,10 +116,84 @@ in
       };
     };
 
+    gaming = {
+      enable = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Enable Abora's optional gaming layer when available.";
+      };
+
+      steam = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Install Steam through Abora's optional gaming layer when available.";
+      };
+
+      bigPictureShortcut = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Enable the Steam Big Picture launcher when Abora gaming is available.";
+      };
+
+      bigPictureAutostart = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Start Steam Big Picture at desktop login when Abora gaming is available.";
+      };
+
+      gamescopeSession = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Enable the Abora Gaming Gamescope session when available.";
+      };
+
+      controllerSupport = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Enable Steam/controller udev support when Abora gaming is available.";
+      };
+
+      mangohud = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Install MangoHud when Abora gaming is available.";
+      };
+
+      gamemode = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Enable GameMode when Abora gaming is available.";
+      };
+
+      vulkanTools = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Install Vulkan diagnostic tools when Abora gaming is available.";
+      };
+
+      launchers = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Install common game launchers when Abora gaming is available.";
+      };
+    };
+
     power = {
       thermald = lib.mkOption {
         type = lib.types.bool;
-        default = true;
+        # thermald is Intel's laptop-specific thermal daemon -- it detects
+        # non-mobile hardware and correctly refuses to do anything useful
+        # there, but exits nonzero doing so, and `nixos-rebuild switch`
+        # treats any failed unit as a hard activation error. Defaulting
+        # this to true meant every desktop-class Abora install had a
+        # perpetually-failing thermald.service, and every `nixos-rebuild
+        # switch` -- including `abora update`'s -- failed with "Rebuilding
+        # Abora ... failed (exit 4)" because of it. Reproduced on real
+        # desktop hardware: thermald logged "Non mobile ... THD engine"
+        # errors and the whole update aborted, existing config left
+        # untouched. Opt-in now, matching the description below; laptop
+        # users can `anix enable thermald`.
+        default = false;
         description = "Enable thermald when available.";
       };
 
@@ -162,17 +237,27 @@ in
         type = lib.types.bool;
         default = true;
         description = ''
-          Auto-install TinyPM into each user's home directory on their first
-          login via a systemd user service. TinyPM provides the grab, search,
-          term, start, and supdate commands for managing Flatpak, Nix, and
-          Snap packages on Abora OS.
+          Historical option, kept only so existing `anix.tinypm.enable`
+          settings in installed systems' abora-local.nix still evaluate.
+          TinyPM was rewritten from a bash multicall tree (with its own
+          per-user "flavor" install step) into a real Rust crate that
+          ships as an ordinary system package -- see
+          nix/profiles/live.nix's `tinypmPackage`. There is no longer a
+          per-user install step for this option to gate: `tinypm`/`grab`
+          are on PATH for every user as soon as the system is built, the
+          same as any other systemPackages entry. This option no longer
+          does anything.
         '';
       };
 
       flavor = lib.mkOption {
         type = lib.types.str;
         default = "abora";
-        description = "TinyPM flavor to use during the per-user installation.";
+        description = ''
+          Historical option, kept only for eval compatibility with
+          existing configs -- the Rust TinyPM has no flavor/branding
+          system. Unused.
+        '';
       };
     };
   };
@@ -190,12 +275,79 @@ in
     (lib.mkIf (cfg.keyboard.xkb != null) {
       services.xserver.xkb.layout = lib.mkForce cfg.keyboard.xkb;
     })
-    # desktop and wallpaper only take effect when running under Abora OS
+    # desktop and wallpaper only take effect when abora-options.nix (part of
+    # nixosModules.installed-base) is also imported -- a standalone
+    # `nixosModules.anix`-only system has nowhere for these to apply to.
+    # That's an easy trap for exactly the standalone-import use case this
+    # module exists for (see docs/wiki/ANIX-Standalone.md), so make the
+    # no-op visible instead of silent rather than just documenting it here.
     (lib.mkIf (cfg.desktop != null && hasAboraOptions) {
       abora.desktop = lib.mkForce cfg.desktop;
     })
     (lib.mkIf (cfg.wallpaper != null && hasAboraOptions) {
       abora.wallpaper = lib.mkForce cfg.wallpaper;
+    })
+    (lib.mkIf (cfg.gaming.enable != null && hasAboraGamingOptions) {
+      abora.gaming.enable = lib.mkForce cfg.gaming.enable;
+    })
+    (lib.mkIf (cfg.gaming.steam != null && hasAboraGamingOptions) {
+      abora.gaming.steam = lib.mkForce cfg.gaming.steam;
+    })
+    (lib.mkIf (cfg.gaming.bigPictureShortcut != null && hasAboraGamingOptions) {
+      abora.gaming.bigPictureShortcut = lib.mkForce cfg.gaming.bigPictureShortcut;
+    })
+    (lib.mkIf (cfg.gaming.bigPictureAutostart != null && hasAboraGamingOptions) {
+      abora.gaming.bigPictureAutostart = lib.mkForce cfg.gaming.bigPictureAutostart;
+    })
+    (lib.mkIf (cfg.gaming.gamescopeSession != null && hasAboraGamingOptions) {
+      abora.gaming.gamescopeSession = lib.mkForce cfg.gaming.gamescopeSession;
+    })
+    (lib.mkIf (cfg.gaming.controllerSupport != null && hasAboraGamingOptions) {
+      abora.gaming.controllerSupport = lib.mkForce cfg.gaming.controllerSupport;
+    })
+    (lib.mkIf (cfg.gaming.mangohud != null && hasAboraGamingOptions) {
+      abora.gaming.mangohud = lib.mkForce cfg.gaming.mangohud;
+    })
+    (lib.mkIf (cfg.gaming.gamemode != null && hasAboraGamingOptions) {
+      abora.gaming.gamemode = lib.mkForce cfg.gaming.gamemode;
+    })
+    (lib.mkIf (cfg.gaming.vulkanTools != null && hasAboraGamingOptions) {
+      abora.gaming.vulkanTools = lib.mkForce cfg.gaming.vulkanTools;
+    })
+    (lib.mkIf (cfg.gaming.launchers != null && hasAboraGamingOptions) {
+      abora.gaming.launchers = lib.mkForce cfg.gaming.launchers;
+    })
+    (lib.mkIf (cfg.desktop != null && !hasAboraOptions) {
+      warnings = [
+        "anix.desktop is set to \"${cfg.desktop}\" but has no effect here: it requires abora-options.nix (part of nixosModules.installed-base) to also be imported. On a standalone anix-only system, configure your desktop environment through normal NixOS options instead."
+      ];
+    })
+    (lib.mkIf (cfg.wallpaper != null && !hasAboraOptions) {
+      warnings = [
+        "anix.wallpaper is set to \"${cfg.wallpaper}\" but has no effect here: it requires abora-options.nix (part of nixosModules.installed-base) to also be imported."
+      ];
+    })
+    (lib.mkIf ((cfg.gaming.enable != null || cfg.gaming.steam != null || cfg.gaming.bigPictureShortcut != null || cfg.gaming.bigPictureAutostart != null || cfg.gaming.gamescopeSession != null || cfg.gaming.controllerSupport != null || cfg.gaming.mangohud != null || cfg.gaming.gamemode != null || cfg.gaming.vulkanTools != null || cfg.gaming.launchers != null) && !hasAboraGamingOptions) {
+      warnings = [
+        "anix.gaming.* is set but has no effect here: it requires abora-options.nix (part of nixosModules.installed-base) to also be imported."
+      ];
+    })
+    # config.abora.gaming.enable (not just cfg.gaming.enable, which is only
+    # this module's own anix.gaming.enable input) is checked here -- the
+    # common real sequence is "installer sets abora.gaming.enable = true in
+    # abora-local.nix, then later `anix enable gaming.vulkan` only sets
+    # anix.gaming.vulkanTools" -- leaving anix.gaming.enable at its null
+    # default even though gaming genuinely is on and vulkanTools genuinely
+    # does get force-applied below. Without this check the warning fired on
+    # every rebuild in that entirely normal, working configuration.
+    (lib.mkIf (hasAboraGamingOptions && cfg.gaming.enable != true &&
+      config.abora.gaming.enable != true &&
+      (cfg.gaming.steam != null || cfg.gaming.bigPictureShortcut != null || cfg.gaming.bigPictureAutostart != null ||
+       cfg.gaming.gamescopeSession != null || cfg.gaming.controllerSupport != null || cfg.gaming.mangohud != null ||
+       cfg.gaming.gamemode != null || cfg.gaming.vulkanTools != null || cfg.gaming.launchers != null)) {
+      warnings = [
+        "anix.gaming.* sub-options are set but anix.gaming.enable is not true, so abora.gaming.enable stays off (unless something else turns it on) -- every gaming package/service these sub-options would configure is gated behind abora.gaming.enable and won't be installed."
+      ];
     })
     (lib.mkIf (cfg.packages != [ ]) {
       environment.systemPackages = cfg.packages;
@@ -245,34 +397,9 @@ in
         options = cfg.garbageCollect.options;
       };
     })
-    (lib.mkIf cfg.tinypm.enable {
-      # On first login, install TinyPM into the user's home directory.
-      # A stamp file prevents reinstallation on subsequent logins.
-      systemd.user.services.tinypm-init = {
-        description = "TinyPM first-login user setup";
-        wantedBy = [ "default.target" ];
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-          ExecStart =
-            let
-              script = pkgs.writeShellScript "tinypm-user-init" ''
-                stamp_dir="''${XDG_STATE_HOME:-''${HOME}/.local/state}/tinypm"
-                stamp="''${stamp_dir}/anix-init-done"
-                [ -f "''${stamp}" ] && exit 0
-                src="/etc/abora/tinypm"
-                [ -f "''${src}/install.sh" ] || exit 0
-                TINYPM_FLAVOR="${cfg.tinypm.flavor}" \
-                  ${pkgs.bash}/bin/bash "''${src}/install.sh" \
-                    --flavor "${cfg.tinypm.flavor}" --yes --native nix \
-                  >/dev/null 2>&1 || true
-                mkdir -p "''${stamp_dir}"
-                touch "''${stamp}"
-              '';
-            in
-              "${script}";
-        };
-      };
-    })
+    # cfg.tinypm.enable/flavor are intentionally unused now -- see their
+    # option descriptions above. There is no per-user tinypm-init service
+    # anymore: TinyPM ships system-wide via nix/profiles/live.nix's
+    # tinypmPackage, the same as any other systemPackages entry.
   ]);
 }

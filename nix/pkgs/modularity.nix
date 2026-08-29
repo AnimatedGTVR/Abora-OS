@@ -2,13 +2,24 @@
 , lib
 , autoPatchelfHook
 , makeWrapper
-, xorg
+, libsm
+, libice
+, libx11
+, libxext
+, libxrandr
+, libxi
+, libxinerama
+, libxcursor
 , ffmpeg_7
 , vulkan-loader
 , mono
 , libsndfile
 , opusfile
 , libGL
+, modularitySrc ?
+    if builtins.pathExists ../vendor/modularity
+    then ../vendor/modularity
+    else ../../vendor/modularity
 }:
 
 # Packages a pre-built proprietary binary (vendor/modularity/bin/Modularity,
@@ -21,21 +32,21 @@
 # plain `modularity` command on PATH.
 stdenv.mkDerivation rec {
   pname = "modularity";
-  version = "1.0.0";
+  version = "7.0.0";
 
-  src = ../../vendor/modularity;
+  src = modularitySrc;
 
   nativeBuildInputs = [ autoPatchelfHook makeWrapper ];
 
   buildInputs = [
-    xorg.libSM
-    xorg.libICE
-    xorg.libX11
-    xorg.libXext
-    xorg.libXrandr
-    xorg.libXi
-    xorg.libXinerama
-    xorg.libXcursor
+    libsm
+    libice
+    libx11
+    libxext
+    libxrandr
+    libxi
+    libxinerama
+    libxcursor
     ffmpeg_7
     vulkan-loader
     mono
@@ -48,13 +59,16 @@ stdenv.mkDerivation rec {
   dontBuild = true;
   dontConfigure = true;
 
-  installPhase = ''
+  installPhase =
+    if builtins.pathExists (src + "/bin/Modularity") then ''
     runHook preInstall
 
     mkdir -p $out/bin $out/lib $out/share/modularity
 
     install -m 755 bin/Modularity $out/bin/.modularity-unwrapped
-    cp lib/*.so $out/lib/
+    if compgen -G "lib/*.so" >/dev/null; then
+      cp lib/*.so $out/lib/
+    fi
 
     if [ -d share/modularity/Resources ]; then
       cp -r share/modularity/Resources $out/share/modularity/
@@ -62,6 +76,29 @@ stdenv.mkDerivation rec {
 
     makeWrapper $out/bin/.modularity-unwrapped $out/bin/modularity \
       --chdir "$out/share/modularity"
+
+    runHook postInstall
+  '' else ''
+    runHook preInstall
+
+    mkdir -p $out/bin $out/share/modularity
+    if [ -d share/modularity/Resources ]; then
+      cp -r share/modularity/Resources $out/share/modularity/
+    fi
+    cat > $out/bin/modularity <<'EOF'
+#!/usr/bin/env bash
+cat >&2 <<'MSG'
+Modularity V7 is not bundled in this checkout yet.
+
+Download the Modularity V7 Linux zip from Tareno Labs, then run:
+  make setup-modularity ZIP=/path/to/Modularity-7.0.0-Linux.zip
+
+After rebuilding Abora, run:
+  modularity
+MSG
+exit 1
+EOF
+    chmod 0755 $out/bin/modularity
 
     runHook postInstall
   '';

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # check-all-files.sh — glob-based repo sweep, independent of check-scripts.sh's
 # hardcoded file lists. Walks every .sh, .nix, .py, .md, .yml, .json, and
-# .desktop file actually on disk (skipping out/, .git/, and vendor/) and
-# validates each by type, plus every extensionless-but-shebanged script (e.g.
+# .desktop file actually on disk (skipping out/, .git/, vendor/, and the
+# TinyPM/ submodule -- like vendor/, it's third-party-shaped: a separate
+# repo with its own upstream conventions and its own CI) and validates each
+# by type, plus every extensionless-but-shebanged script (e.g.
 # tools/moducpp-anix) and every ANIX v2 source file (.anix/.mko/.moducpp) via
 # `anix diff-plan`, so a new file that nobody registered anywhere still gets
 # checked.
@@ -27,6 +29,26 @@ if [[ -t 1 && -z "${NO_COLOR:-}" && "${TERM:-}" != "dumb" ]]; then
     C_NC=$'\033[0m'
 else
     C_GREEN="" C_RED="" C_YELLOW="" C_ORANGE="" C_DIM="" C_CYAN="" C_BOLD="" C_NC=""
+fi
+
+# `anix diff-plan` (used below to validate every .anix/.mko/.moducpp file)
+# needs a real abora-plan-tool binary -- see scripts/anix.sh's
+# parse_and_validate_plan(). There's no bash fallback anymore, so build one
+# for this sweep the same way check-scripts.sh does (plain `dotnet build`,
+# not the slower AOT publish used for the real Nix package).
+plan_tool_bin=""
+if command -v dotnet >/dev/null 2>&1 && [[ -f tools/abora-plan-tool/AboraPlanTool.csproj ]]; then
+    if MSBuildEnableWorkloadResolver=false dotnet build \
+        tools/abora-plan-tool/AboraPlanTool.csproj -c Debug >/dev/null 2>&1; then
+        plan_tool_wrapper="$(mktemp)"
+        printf '#!/usr/bin/env bash\nexec dotnet %q "$@"\n' \
+            "$repo_dir/tools/abora-plan-tool/bin/Debug/net10.0/abora-plan-tool.dll" \
+            > "$plan_tool_wrapper"
+        chmod +x "$plan_tool_wrapper"
+        plan_tool_bin="$plan_tool_wrapper"
+        trap 'rm -f "${plan_tool_wrapper:-}"' EXIT
+        export ABORA_PLAN_TOOL_BIN="$plan_tool_bin"
+    fi
 fi
 
 failed=0
@@ -85,11 +107,24 @@ section() {
 }
 
 # Find files by extension, excluding generated output, git internals, and
-# vendored third-party code (vendor/ has its own upstream conventions).
+# vendored/submodule third-party code (vendor/ and TinyPM/ have their own
+# upstream conventions). Also prunes any `obj`/`bin` directory at any depth
+# -- each C# project under tools/ has its own local .gitignore with those
+# bare names (a standard dotnet template convention), which git respects
+# but plain `find` has no way to know about. Without this, a prior `dotnet
+# build` (this script's own plan-tool build below, or check-scripts.sh's
+# resolver/plan-tool builds, both run routinely) leaves dozens of
+# generated *.json files (project.assets.json, *.deps.json,
+# *.runtimeconfig.json, ...) on disk that this sweep would otherwise
+# "check" as if they were real repo source -- currently harmless since
+# they happen to be well-formed, but a stale/interrupted build leaving a
+# truncated one behind would fail this check for something that was never
+# committed and isn't part of the repo at all.
 find_files() {
     local ext="$1"
     find . \
-        \( -path './out' -o -path './.git' -o -path './vendor' \) -prune -o \
+        \( -path './out' -o -path './.git' -o -path './vendor' -o -path './TinyPM' \
+           -o -name obj -o -name bin \) -prune -o \
         -type f -name "*.${ext}" -print \
         | sed 's|^\./||' | sort
 }
@@ -99,7 +134,8 @@ find_files() {
 # `find_files sh` can't see by name alone.
 find_shebang_scripts() {
     find . \
-        \( -path './out' -o -path './.git' -o -path './vendor' \) -prune -o \
+        \( -path './out' -o -path './.git' -o -path './vendor' -o -path './TinyPM' \
+           -o -name obj -o -name bin \) -prune -o \
         -type f -executable ! -name '*.*' -print 2>/dev/null \
         | sed 's|^\./||' | sort \
         | while IFS= read -r f; do
@@ -115,7 +151,17 @@ find_shebang_scripts() {
 
 check_shell() {
     local file="$1"
+    local source_only=0
     sh_count=$((sh_count + 1))
+
+    case "$file" in
+        TinyPM/src/lib/*.sh|TinyPM/src/lib/*/*.sh)
+            source_only=1
+            ;;
+    esac
+    if grep -qF 'Source this file; do not execute it directly' "$file"; then
+        source_only=1
+    fi
 
     if bash -n "$file" 2>/dev/null; then
         pass "syntax (bash): $file"
@@ -124,12 +170,14 @@ check_shell() {
         return
     fi
 
-    if [[ ! -x "$file" ]]; then
+    if [[ "$source_only" -eq 0 && ! -x "$file" ]]; then
         fail "not executable: $file"
     fi
 
-    if ! head -n1 "$file" | grep -q '^#!'; then
-        fail "missing shebang: $file"
+    if [[ "$source_only" -eq 0 ]]; then
+        if ! head -n1 "$file" | grep -q '^#!'; then
+            fail "missing shebang: $file"
+        fi
     fi
 
     # set -euo pipefail (in one line or split across several) is this repo's
@@ -141,7 +189,7 @@ check_shell() {
     # that does would impose -e on whatever sourced it). A file that marks
     # itself "Source this file; do not execute it directly." is trusted to
     # have made that choice on purpose.
-    if grep -qF 'Source this file; do not execute it directly' "$file"; then
+    if [[ "$source_only" -eq 1 ]]; then
         :
     elif ! grep -qE 'set -[a-zA-Z]*e' "$file" \
         || ! grep -qE 'set -[a-zA-Z]*u|set -o nounset' "$file" \
@@ -222,7 +270,7 @@ check_nix_referenced() {
 
     local hits
     hits="$(grep -rl --include='*.nix' -F "$base" . \
-        --exclude-dir=out --exclude-dir=.git --exclude-dir=vendor \
+        --exclude-dir=out --exclude-dir=.git --exclude-dir=vendor --exclude-dir=TinyPM \
         2>/dev/null | grep -vF "./$file" | wc -l)"
 
     if [[ "$hits" -eq 0 ]]; then
@@ -434,7 +482,7 @@ check_anix_plan() {
     local file="$1"
     anix_count=$((anix_count + 1))
 
-    if ! command -v jq >/dev/null 2>&1 || [[ ! -f scripts/anix.sh ]]; then
+    if ! command -v jq >/dev/null 2>&1 || [[ ! -f scripts/anix.sh ]] || [[ -z "$plan_tool_bin" ]]; then
         anix_skipped=$((anix_skipped + 1))
         return
     fi

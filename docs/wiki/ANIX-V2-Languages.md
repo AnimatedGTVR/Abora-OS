@@ -69,6 +69,12 @@ Adapters write JSON to standard output and diagnostics to standard error:
   "operations": [
     { "op": "set", "key": "hostname", "value": "everest" },
     { "op": "enable", "feature": "bluetooth" },
+    { "op": "enable", "feature": "gaming" },
+    { "op": "enable", "feature": "gaming.steam" },
+    { "op": "enable", "feature": "gaming.big-picture" },
+    { "op": "enable", "feature": "gaming.controllers" },
+    { "op": "enable", "feature": "gaming.mangohud" },
+    { "op": "enable", "feature": "gaming.gamemode" },
     { "op": "package.add", "name": "firefox" }
   ]
 }
@@ -77,6 +83,15 @@ Adapters write JSON to standard output and diagnostics to standard error:
 The core rejects unknown versions, operations, keys, and value types before
 touching state. Plans cannot contain shell fragments. Commands for systemd
 units remain structured argv arrays and retain the v1 allowlists.
+
+The workstation examples in `examples/anix-v2/` show the same gaming-enabled
+plan in ANIX Native, MAKO, and ModuCPP:
+
+```sh
+anix run examples/anix-v2/workstation.anix
+anix run examples/anix-v2/workstation.mko
+anix run examples/anix-v2/workstation.moducpp
+```
 
 ## Adapter manifest
 

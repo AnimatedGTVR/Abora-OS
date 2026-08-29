@@ -48,9 +48,10 @@ current_wallpaper_basename() {
 
     value="${value#\'}"
     value="${value%\'}"
+    [[ "$value" == file://* ]] || return 0
     path="${value#file://}"
 
-    if [[ -n "$path" ]]; then
+    if [[ -f "$path" ]]; then
         basename "$path"
     fi
 }

@@ -8,7 +8,10 @@
 let
   cfg = config.abora;
   active = cfg.user.name != null;
-  wallpaperDir = ./wallpapers;
+  wallpaperDir =
+    if builtins.pathExists ./wallpapers then ./wallpapers
+    else if builtins.pathExists ../../assets/wallpapers/collection then ../../assets/wallpapers/collection
+    else throw "Abora wallpaper assets are missing; expected ./wallpapers or ../../assets/wallpapers/collection";
   bundledWallpaperNames = [
     "alpine-glacier.jpg"
     "tannheimer-mountains.jpg"
@@ -124,16 +127,34 @@ in
       description = "Install disk for the Limine bootloader (e.g. /dev/sda, /dev/nvme0n1).";
     };
 
+    diskBiosSupport = lib.mkOption {
+      type    = lib.types.bool;
+      default = true;
+      description = ''
+        Whether to install Limine's legacy-BIOS stage 1 bootloader
+        (`limine bios-install`) in addition to the UEFI path. This needs a
+        dedicated `bios_grub`-flagged partition to exist on the disk (what
+        the installer's "erase entire disk" mode always creates) — on a GPT
+        disk with no such partition (the installer's "use an existing
+        partition" mode never creates one, since it never repartitions the
+        disk at all), `limine bios-install` fails outright with "no BIOS
+        boot partition specified or detected". Set to false for a disk that
+        has no `bios_grub` partition; the machine still boots fine over
+        UEFI through the ESP alone.
+      '';
+    };
+
     gpu = lib.mkOption {
-      type = lib.types.enum [ "nouveau" "nvidia" "nvidia-open" "amdgpu" "intel" "none" ];
+      type = lib.types.enum [ "auto" "nouveau" "nvidia" "nvidia-open" "amdgpu" "intel" "none" ];
       default = "none";
       description = ''
-        GPU driver selection. This module only accepts a resolved, concrete
-        value — pure Nix evaluation cannot safely probe real hardware, so
-        detecting "auto" happens one layer up, in the installer or
-        `abora config set gpu auto`, both of which run lspci on the actual
-        target machine and write the resolved value here.
+        GPU driver selection. Pure Nix evaluation cannot safely probe real
+        hardware, so the installer and `abora config set gpu auto` normally
+        resolve auto on the target machine before writing this option. The
+        module still accepts "auto" as a compatibility-safe no-op so older
+        or batch installs do not fail evaluation.
 
+        - auto: let NixOS and the kernel choose.
         - nouveau: open-source NVIDIA driver (the safe default for NVIDIA
           hardware, since it needs no license acceptance).
         - nvidia: proprietary NVIDIA driver.
@@ -155,6 +176,77 @@ in
       type = lib.types.enum wallpaperNames;
       default = "titlis-alps.jpg";
       description = "Default wallpaper file shipped with Abora.";
+    };
+
+    gaming = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Enable Abora's optional gaming layer.";
+      };
+      steam = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Enable Steam with 32-bit graphics support.";
+      };
+      bigPictureShortcut = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Install a Steam Big Picture launcher.";
+      };
+      bigPictureAutostart = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Start Steam Big Picture automatically after desktop login.";
+      };
+      gamescopeSession = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Install a Steam Big Picture Gamescope session entry.";
+      };
+      controllerSupport = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Install Steam/controller udev support when available.";
+      };
+      mangohud = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Install MangoHud for FPS/performance overlays.";
+      };
+      gamemode = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Enable GameMode performance tuning.";
+      };
+      vulkanTools = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Install Vulkan diagnostic tools for gaming readiness checks.";
+      };
+      launchers = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Install common desktop game launchers when present in nixpkgs.";
+      };
+    };
+
+    extras = {
+      diagnostics = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Install extra hardware/network diagnostic tools such as dmidecode, ethtool, htop, and smartmontools.";
+      };
+      virtualizationGuests = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Enable QEMU, SPICE, VMware, VirtualBox, and Hyper-V guest integration.";
+      };
+      mobileBroadband = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Enable ModemManager for cellular/mobile broadband devices.";
+      };
     };
   };
 
@@ -194,6 +286,17 @@ in
           extraGroups  = [ "wheel" "networkmanager" "audio" "video" ];
           hashedPassword = cfg.user.hashedPassword;
         };
+
+        # NixOS treats an empty hashedPassword as "login without password"
+        # (see nixos/modules/config/users-groups.nix's allowsLogin), not as
+        # "unset" -- so leaving this at its default would silently build a
+        # passwordless wheel-group account instead of failing loudly.
+        assertions = [
+          {
+            assertion = cfg.user.hashedPassword != "";
+            message = "abora.user.hashedPassword is empty while abora.user.name is set (\"${cfg.user.name}\"). An empty hash means NixOS allows login without a password. Generate one with: mkpasswd";
+          }
+        ];
       }
 
       # ── GPU ────────────────────────────────────────────────────────────
@@ -219,6 +322,114 @@ in
         services.xserver.videoDrivers = lib.mkDefault [ "modesetting" ];
       })
 
+      # ── Gaming ─────────────────────────────────────────────────────────
+      (lib.mkIf cfg.gaming.enable (let
+        pkgIf = enabled: name:
+          lib.optionals (enabled && builtins.hasAttr name pkgs) [ pkgs.${name} ];
+        wineIf = enabled:
+          lib.optionals (enabled && builtins.hasAttr "wineWowPackages" pkgs) [ pkgs.wineWowPackages.stable ];
+        steamBigPictureCommand = pkgs.writeShellScriptBin "abora-steam-big-picture" ''
+          if command -v steam >/dev/null 2>&1; then
+            export STEAM_FORCE_DESKTOPUI_SCALING="''${STEAM_FORCE_DESKTOPUI_SCALING:-1}"
+            if [ "''${1:-}" = "--session" ]; then
+              shift
+              steam -gamepadui "$@" || {
+                echo "Steam Gamepad UI failed; trying legacy Big Picture mode." >&2
+                exec steam -bigpicture "$@"
+              }
+              exit 0
+            fi
+            if [ "$#" -eq 0 ]; then
+              steam steam://open/bigpicture || steam -gamepadui || {
+                echo "Steam URI/Gamepad UI failed; trying legacy Big Picture mode." >&2
+                exec steam -bigpicture
+              }
+            else
+              steam -gamepadui "$@" || {
+                echo "Steam Gamepad UI failed; trying legacy Big Picture mode." >&2
+                exec steam -bigpicture "$@"
+              }
+            fi
+          else
+            echo "Steam is not installed. Run: abora gaming install steam" >&2
+            exit 1
+          fi
+        '';
+        steamGamescopeSessionCommand = pkgs.writeShellScriptBin "abora-steam-gamescope-session" ''
+          if command -v gamescope >/dev/null 2>&1; then
+            exec gamescope -e -f -- abora-steam-big-picture --session "$@"
+          fi
+          echo "Gamescope is not installed; starting Steam Big Picture directly." >&2
+          exec abora-steam-big-picture --session "$@"
+        '';
+        steamBigPictureDesktop = pkgs.writeTextFile {
+          name = "abora-steam-big-picture-desktop";
+          destination = "/share/applications/abora-steam-big-picture.desktop";
+          text = ''
+[Desktop Entry]
+Type=Application
+Name=Steam Big Picture
+Comment=Open Steam in controller-friendly Big Picture mode
+Exec=abora-steam-big-picture
+Icon=steam
+Categories=Game;
+Terminal=false
+          '';
+        };
+        gamescopeSessionDesktop = pkgs.writeTextFile {
+          name = "abora-steam-gamescope-session";
+          destination = "/share/wayland-sessions/abora-steam-gamescope.desktop";
+          text = ''
+[Desktop Entry]
+Name=Abora Gaming
+Comment=Steam Big Picture through Gamescope
+Exec=abora-steam-gamescope-session
+Type=Application
+          '';
+        };
+      in lib.mkMerge [
+        {
+          hardware.graphics.enable = lib.mkDefault true;
+          hardware.graphics.enable32Bit = lib.mkDefault true;
+
+          environment.systemPackages =
+            [ steamBigPictureCommand steamGamescopeSessionCommand ]
+            ++ lib.optionals (cfg.gaming.steam && cfg.gaming.bigPictureShortcut) [ steamBigPictureDesktop ]
+            ++ lib.optionals (cfg.gaming.steam && cfg.gaming.gamescopeSession) [ gamescopeSessionDesktop ]
+            ++ pkgIf cfg.gaming.gamescopeSession "gamescope"
+            ++ pkgIf cfg.gaming.mangohud "mangohud"
+            ++ pkgIf cfg.gaming.vulkanTools "vulkan-tools"
+            ++ pkgIf cfg.gaming.launchers "heroic"
+            ++ pkgIf cfg.gaming.launchers "lutris"
+            ++ pkgIf cfg.gaming.launchers "bottles"
+            ++ pkgIf cfg.gaming.launchers "protonup-qt"
+            ++ pkgIf cfg.gaming.launchers "winetricks"
+            ++ wineIf cfg.gaming.launchers;
+        }
+        (lib.mkIf cfg.gaming.steam {
+          programs.steam.enable = lib.mkDefault true;
+        })
+        (lib.mkIf cfg.gaming.gamemode {
+          programs.gamemode.enable = lib.mkDefault true;
+        })
+        (lib.mkIf cfg.gaming.controllerSupport {
+          hardware.steam-hardware.enable = lib.mkDefault true;
+        })
+        (lib.mkIf (cfg.gaming.steam && cfg.gaming.bigPictureAutostart) {
+          environment.etc."xdg/autostart/abora-steam-big-picture.desktop".text = ''
+[Desktop Entry]
+Type=Application
+Name=Steam Big Picture
+Comment=Open Steam in controller-friendly Big Picture mode
+Exec=abora-steam-big-picture
+Icon=steam
+Categories=Game;
+Terminal=false
+X-GNOME-Autostart-enabled=true
+          '';
+        })
+      ]))
+
       # ── Bootloader ─────────────────────────────────────────────────────
       (lib.mkIf (cfg.disk != null) {
         boot.loader.grub.enable = lib.mkForce false;
@@ -227,7 +438,7 @@ in
           enable              = true;
           enableEditor        = false;
           maxGenerations      = lib.mkDefault 8;
-          biosSupport         = true;
+          biosSupport         = cfg.diskBiosSupport;
           biosDevice          = cfg.disk;
           efiSupport          = true;
           efiInstallAsRemovable = true;

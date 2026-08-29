@@ -1,6 +1,6 @@
 # Installation
 
-This page covers the normal Abora OS install flow for v2.5+ through Abora OS 2026.7.27.
+This page covers the normal Abora OS install flow for v2.5+ through Abora OS v4 Everest.
 
 ## Build The ISO
 
@@ -30,11 +30,33 @@ The live image should:
 ### Getting a shell for diagnostics
 
 `tty1` is owned directly by the installer process and never asks for a
-login. If you need a shell (to run `dmesg`, `nmcli`, or `abora-support-report`
-before or during install), don't switch to another console — pick **Live
-shell** from the installer's first screen instead of **Install Abora OS**. It
-drops straight to a root prompt on the same screen; run `abora-install` when
-you're ready to relaunch the installer and continue where you left off.
+login. If you need a shell (to run `dmesg`, `nmcli`, or `abora support-report`
+before or during install), don't switch to another console — pick **Open
+terminal** from the installer's first screen. It drops straight to a root
+prompt on the same screen; run `abora-install` when you're ready to relaunch
+the installer and continue where you left off.
+
+The first screen also has **Debug installer**, which can tail
+`/tmp/abora-install.log`, tail `/tmp/abora-config.log`, run
+`abora hardware-test --with-report`, open `nmtui`, or create a redacted
+`abora support-report` archive before any disk is touched.
+
+Advanced users who want to compile Abora themselves can open **Build from
+source** for the clone/check/build commands (`make doctor`, `make iso`, and
+`make iso-all`) and then jump into a terminal.
+
+If you are compiling from a GitHub checkout manually, the current short build
+target is:
+
+```sh
+nix build .#nixosConfigurations.abora.config.system.build.toplevel
+```
+
+Older checkouts may only expose the live Cosmic target:
+
+```sh
+nix build .#nixosConfigurations.abora-live-cosmic.config.system.build.toplevel
+```
 
 If you do switch to another console (`tty2`–`tty6`), it's a normal login
 prompt. Two accounts exist for exactly that case:
@@ -59,6 +81,7 @@ The current flow includes:
 - timezone selection: pick a region first (Americas, Europe, Africa, Asia, Australia & Oceania, or UTC), then search the real IANA timezones within it — states/regions with more than one zone (Indiana's eight, for example) all show up individually
 - desktop profile selection
 - starter app bundle selection
+- optional dotfiles import for Hyprland and Other Environment installs
 - ANIX and GitHub options
 - disk selection
 - final review
@@ -77,6 +100,43 @@ Or run the bash installer directly, bypassing the MINT/backend choice entirely:
 abora-installer
 ```
 
+## Existing NixOS Systems
+
+If you already run NixOS and want Abora without wiping the machine, use the
+adoption path instead of the ISO installer. It keeps `/home`, users, existing
+packages, and your current desktop config, then imports Abora modules with
+`desktop = "none"` by default.
+
+The easiest way to start it is a single command — it clones the repo (or
+updates an existing checkout) and hands off to the real wizard, which asks
+a couple of questions and shows the exact plan before touching anything:
+
+```sh
+curl -sSL https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/scripts/abora-adopt-bootstrap.sh | bash
+```
+
+That's equivalent to cloning yourself and running the wizard directly:
+
+```sh
+git clone https://github.com/AnimatedGTVR/Abora-OS.git
+cd Abora-OS
+./abora adopt-nixos
+```
+
+Either way, the wizard asks for a desktop profile (blank keeps your current
+one) and whether to enable Abora Gaming, shows the plan, and only writes
+anything after you confirm — re-running with `sudo` itself, if needed, once
+you say yes. Prefer scripting it instead? Every wizard question has a flag:
+
+```sh
+sudo ./abora adopt-nixos --apply --desktop gnome --gaming
+sudo nixos-rebuild test
+sudo nixos-rebuild switch
+```
+
+The command writes a backup under `/etc/nixos/abora-backups/` before changing
+anything.
+
 ## After Install
 
 When installation finishes:
@@ -87,8 +147,12 @@ When installation finishes:
 4. confirm networking works
 5. run `abora doctor`
 6. run `anix quickstart`
-7. run `tinypm sources`
+7. run `tinypm providers`
 8. run `sudo abora update` when ready to test updates
+
+The installed system is intentionally lean. Extra diagnostics, VM guest agents,
+and mobile broadband support are available through `abora config`, but are not
+forced onto every machine.
 
 ## First Installed Commands
 
@@ -99,8 +163,16 @@ abora doctor
 anix status
 anix doctor
 anix --gui
-tinypm system
-tinypm sources
+tinypm doctor
+tinypm providers
+```
+
+For tiling desktop installs, you can import dotfiles again or test a local
+dotfiles folder with:
+
+```sh
+abora dotfiles --dry-run ~/dotfiles
+abora dotfiles ~/dotfiles
 ```
 
 If ANIX basics are missing:

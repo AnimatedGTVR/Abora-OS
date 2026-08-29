@@ -16,7 +16,7 @@ _abora_ui_resolve_version() {
         tr -d '[:space:]' < /etc/abora/VERSION
         return
     fi
-    printf '4.0'
+    printf 'v4 Everest'
 }
 
 ABORA_UI_VERSION="$(_abora_ui_resolve_version)"
@@ -315,11 +315,19 @@ abora_dim_line() {
 
 # ── Key-value row ─────────────────────────────────────────────────────────────
 
-# Print a neatly aligned key-value pair.
+# Print a neatly aligned key-value pair, as a row inside an
+# abora_card_start/abora_card_end box -- the left "|" here is that box's
+# side border, matching the "|" abora_card_start/abora_card_end draw on
+# their own border lines. Every abora_kv/abora_kv_faint call site in this
+# codebase is used between a card_start/card_end pair (verified across
+# anix.sh, abora-config.sh, abora-welcome.sh, etc.), so omitting it here
+# left every row unaligned with its own card's border -- reproduced via
+# `abora config show`, `anix status`, and `abora welcome`.
 # Usage: abora_kv "key" "value" [key_width]
 abora_kv() {
     local key="$1" value="$2" key_width="${3:-18}"
-    printf '  %b%-*s%b  %b%s%b\n' \
+    printf '  %b│%b  %b%-*s%b  %b%s%b\n' \
+        "$ABORA_BLUE" "$ABORA_NC" \
         "$ABORA_DIM" "$key_width" "$key" "$ABORA_NC" \
         "$ABORA_CYAN" "$value" "$ABORA_NC"
 }
@@ -327,7 +335,8 @@ abora_kv() {
 # Print a key-value with a dim/faint value (for read-only info).
 abora_kv_faint() {
     local key="$1" value="$2" key_width="${3:-18}"
-    printf '  %b%-*s%b  %b%s%b\n' \
+    printf '  %b│%b  %b%-*s%b  %b%s%b\n' \
+        "$ABORA_BLUE" "$ABORA_NC" \
         "$ABORA_DIM" "$key_width" "$key" "$ABORA_NC" \
         "$ABORA_FAINT" "$value" "$ABORA_NC"
 }
@@ -416,6 +425,49 @@ abora_spinner_done() {
 
 # ── Log tail ──────────────────────────────────────────────────────────────────
 
+abora_log_failure_summary() {
+    local logfile="$1" cols width line shown=0 total=0 index=0
+    local -a matches=()
+
+    [[ -s "$logfile" ]] || return 0
+
+    cols="$(abora_cols)"
+    width=$((cols - 6))
+    [[ $width -lt 20 ]] && width=20
+
+    mapfile -t matches < <(
+        grep -Eai \
+            '(^|[[:space:]])(error:|fatal:|failed:|cannot|could not|no such file|not found|undefined variable|permission denied|no space left on device|database or disk is full|disk I/O error)' \
+            "$logfile" 2>/dev/null \
+            | grep -Eavi 'Reason: 1 dependency failed|Output paths:|Cannot build .*[.]drv'
+    )
+    total="${#matches[@]}"
+    [[ "$total" -gt 0 ]] || return 0
+
+    printf '  %bImportant log lines%b\n' "$ABORA_YELLOW" "$ABORA_NC"
+
+    while IFS= read -r line; do
+        printf '  %b%s%b\n' "$ABORA_YELLOW" "$(abora_trunc "$line" "$width")" "$ABORA_NC"
+        shown=$((shown + 1))
+    done < <(printf '%s\n' "${matches[@]:0:6}")
+
+    if [[ "$total" -gt 12 ]]; then
+        printf '  %b... %s more matching log lines ...%b\n' "$ABORA_FAINT" "$((total - 12))" "$ABORA_NC"
+        index=$((total - 6))
+        while IFS= read -r line; do
+            printf '  %b%s%b\n' "$ABORA_YELLOW" "$(abora_trunc "$line" "$width")" "$ABORA_NC"
+            shown=$((shown + 1))
+        done < <(printf '%s\n' "${matches[@]:index:6}")
+    elif [[ "$total" -gt 6 ]]; then
+        while IFS= read -r line; do
+            printf '  %b%s%b\n' "$ABORA_YELLOW" "$(abora_trunc "$line" "$width")" "$ABORA_NC"
+            shown=$((shown + 1))
+        done < <(printf '%s\n' "${matches[@]:6}")
+    fi
+
+    [[ "$shown" -gt 0 ]] && printf '\n'
+}
+
 abora_log_tail() {
     local logfile="$1" cols width line
 
@@ -428,6 +480,8 @@ abora_log_tail() {
         return 0
     fi
 
+    abora_log_failure_summary "$logfile"
+    printf '  %bLast log lines%b\n' "$ABORA_FAINT" "$ABORA_NC"
     while IFS= read -r line; do
         printf '  %b%s%b\n' "$ABORA_FAINT" "$(abora_trunc "$line" "$width")" "$ABORA_NC"
     done < <(tail -n 10 "$logfile")
@@ -482,6 +536,27 @@ abora_wu_banner() {
     printf '\n'
 }
 
+# Safely (re)creates an empty, real regular file at a caller-chosen path,
+# refusing to follow a pre-existing symlink there. Several callers log to
+# fixed, predictable /tmp paths on purpose (so a failed `abora update` etc.
+# tells the user exactly where to look) -- but a fixed name in a
+# world-writable directory is a classic local symlink race: a plain `>`
+# redirect follows an existing symlink, so an attacker who pre-plants one
+# pointing at, say, /etc/shadow before a privileged run (abora update runs
+# as root) can get root to truncate/overwrite an arbitrary file through it.
+# `rm -f` only ever unlinks the *name* (never follows it) to clear any
+# leftover symlink, then the noclobber subshell creates the real file with
+# O_EXCL semantics: if a symlink races back into that name in the tiny
+# window before the create, the open fails closed instead of following it.
+# /tmp's own sticky bit then stops any other user from deleting/replacing
+# our file once it exists. Returns nonzero (leaving no file behind) if the
+# path still isn't safely creatable after that.
+abora_safe_create_file() {
+    local path="$1"
+    rm -f -- "$path" 2>/dev/null || true
+    ( set -o noclobber; : > "$path" ) 2>/dev/null
+}
+
 # Run a command in the background while showing a "Working on updates" status
 # line (ring spinner + elapsed time) on the current line, Windows-Update
 # style. The command's own stdout/stderr are captured to a log rather than
@@ -494,8 +569,11 @@ abora_wu_run() {
     shift 2
     [[ "${1:-}" == "--" ]] && shift
 
-    : > "$logfile"
-    "$@" >"$logfile" 2>&1 &
+    if ! abora_safe_create_file "$logfile"; then
+        abora_error "$msg failed (could not safely create $logfile)"
+        return 1
+    fi
+    "$@" >>"$logfile" 2>&1 &
     local cmd_pid=$!
 
     local frame=0 start_ts elapsed idx

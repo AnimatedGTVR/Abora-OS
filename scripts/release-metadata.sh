@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 version="$(tr -d '\n' < "$repo_dir/VERSION")"
-release_name="${ABORA_RELEASE_NAME:-Abora OS 2026.7.27}"
+release_name="${ABORA_RELEASE_NAME:-Abora OS v4 Everest}"
 out_dir="${ABORA_OUT_DIR:-$repo_dir/out}"
 iso_dir="${ABORA_ISO_DIR:-$out_dir/iso}"
 package_dir="${ABORA_PACKAGE_DIR:-$out_dir/packages}"
@@ -12,6 +12,7 @@ release_notes_src="$repo_dir/RELEASE_NOTES.md"
 generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 release_date="$(date -u +%Y-%m-%d)"
 release_stamp="${ABORA_RELEASE_STAMP:-$(date -u +%Y.%m.%d)}"
+release_stamp_explicit="${ABORA_RELEASE_STAMP:+yes}"
 
 version="$(printf '%s' "$version" | tr -cd '[:alnum:]._-')"
 [[ -n "$version" ]] || version="dev"
@@ -26,6 +27,20 @@ mkdir -p "$release_dir"
     cd "$release_dir"
     shopt -s nullglob
     iso_files=("$iso_dir"/*"$release_stamp"*-x86_64-"$version_tag".iso)
+    if [ "${#iso_files[@]}" -eq 0 ] && [ -z "$release_stamp_explicit" ]; then
+        all_version_isos=("$iso_dir"/*-x86_64-"$version_tag".iso)
+        if [ "${#all_version_isos[@]}" -gt 0 ]; then
+            newest_stamp="$(
+                for iso_file in "${all_version_isos[@]}"; do
+                    basename "$iso_file" | sed -nE "s/.*-([0-9]{4}\.[0-9]{2}\.[0-9]{2})-x86_64-${version_tag}\.iso$/\1/p"
+                done | sort -V | tail -n 1
+            )"
+            if [ -n "$newest_stamp" ]; then
+                release_stamp="$newest_stamp"
+                iso_files=("$iso_dir"/*"$release_stamp"*-x86_64-"$version_tag".iso)
+            fi
+        fi
+    fi
     package_files=(
         "$package_dir"/tinypm-*-abora-"$version_tag".tar.gz
         "$package_dir"/anix-*-abora-"$version_tag".tar.gz

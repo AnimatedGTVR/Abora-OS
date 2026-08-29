@@ -8,20 +8,20 @@ Abora OS is a distro project built on top of NixOS with a focus on a simpler fir
 
 Abora is still NixOS-based, but it adds its own live image flow, installer experience, branding, update path, desktop profiles, support tools, ANIX workflows, and TinyPM-flavored app commands.
 
-## What is Abora OS 2026.7.27?
+## What is Abora OS v4 Everest?
 
-Abora OS 2026.7.27 is the current stable release. It shipped multi-edition ISOs, ANIX v2 with pluggable configuration languages, and first-class GPU driver support, on top of everything DENALI 3.14 introduced.
+Abora OS v4 Everest is the current alpha release line. It introduces multi-edition ISOs, ANIX v2 with pluggable configuration languages, and first-class GPU driver support, on top of everything DENALI 3.14 introduced.
 
 Key additions over DENALI 3.14:
 
 - five edition ISOs (Cosmic, Hyprland, GNOME, KDE, Other) via `make iso-all`, instead of one general-purpose ISO
 - ANIX v2: configuration can be written in ANIX Native, MKO, or ModuCPP, all resolving to the same Plan JSON — see `anix language list`
 - `abora.gpu` option and an installer GPU step: choose nouveau, nvidia, nvidia-open, amdgpu, intel, or none, with NVIDIA hardware auto-detected and defaulted to the license-free `nouveau` driver
-- `abora-hardware-test` now points at the GPU step and `abora config set gpu` when it detects NVIDIA hardware
+- `abora hardware-test` now points at the GPU step and `abora config set gpu` when it detects NVIDIA hardware
 
 ## What is DENALI 3.14?
 
-DENALI 3.14 shipped the Omarchy-inspired TUI installer, stronger install validation, Abora branding across boot and desktop, ANIX v1, and TinyPM v4.
+DENALI 3.14 shipped the Omarchy-inspired TUI installer, stronger install validation, Abora branding across boot and desktop, ANIX v1, and TinyPM v0.8.
 
 Key additions over v2.5:
 
@@ -29,7 +29,7 @@ Key additions over v2.5:
 - config validation runs before `nixos-install`
 - Abora branding in bootloader, Plymouth, wallpapers, Fastfetch, and desktop defaults
 - ANIX v1 profile manager with snapshots, diff/test/boot/switch/rollback workflows
-- TinyPM v4 with Abora/ANIX/NixOS system bridges
+- TinyPM v0.8 with Abora/ANIX/NixOS system bridges
 - 21 desktop environments selectable at install time
 - COSMIC desktop support added
 
@@ -53,6 +53,27 @@ sudo abora update
 
 Compatibility aliases may still exist on installed systems, but `sudo abora
 update` is the intended Abora command.
+
+## The desktop's Software Center says updates failed, or an update I applied through it needs a reboot to take effect — is that an Abora bug?
+
+No — this is a known upstream limitation, not something Abora ships or can patch. Abora has no first-party auto-update timer or app-store component; the "Software"/"Discover"-style app bundled with your desktop environment talks to NixOS through PackageKit, and PackageKit's NixOS backend is incomplete. It commonly fails silent background update checks (e.g. at login) and generally can't apply changes live, since NixOS updates work by building a new system generation and switching to it, not by patching packages in place.
+
+Use `sudo abora update` (see above) for real updates — it goes through Abora's own updater, not the desktop's software center.
+
+## Why does Abora not install every helper tool by default?
+
+Abora is meant to feel easy, not stuffed. The base install keeps core desktop,
+networking, updates, Flatpak, ANIX, and Abora tools available, while heavier
+support tools are opt-in:
+
+```sh
+abora config set diagnostics true
+abora config set vm-guests true
+abora config set mobile-broadband true
+abora config apply
+```
+
+You can also install individual apps and tools from `abora apps catalog`.
 
 ## How do I test a pre-alpha build?
 
@@ -81,6 +102,15 @@ console (`tty2`–`tty6`) instead, log in as `aboraos` with a blank password, or
 `root` with password `linux` as a fallback. See [Installation](Installation.md#getting-a-shell-for-diagnostics).
 
 ## Wi-Fi shows as "unavailable" in nmtui/nmcli during install — what do I do?
+
+From the installer, open **Network tools** and try **Turn Wi-Fi on and rescan**
+or **Quick Wi-Fi connect**. On an installed system, run:
+
+```sh
+abora network
+```
+
+`abora recovery network` is the same diagnostic path with the longer name.
 
 If `nmcli device status` shows your Wi-Fi device (e.g. `wlp1s0`) stuck at
 `unavailable` — not `disconnected` — even though the card and driver loaded
@@ -139,11 +169,11 @@ After install, boot the virtual disk with:
 make qemu-disk
 ```
 
-## Does TinyPM v4 install permanent NixOS system packages?
+## Does TinyPM v0.8 install permanent NixOS system packages?
 
 TinyPM is part of the Abora ecosystem, but it is not a full replacement for declarative NixOS configuration.
 
-In Abora it provides friendly app commands such as `grab`, `search`, `term`, `start`, and `supdate`, plus helpers such as `tinypm sources`, `tinypm system`, `tinypm anix <command>`, and `tinypm abora <command>`.
+In Abora it provides two commands: `grab` for installing/removing/updating packages, and `tinypm` for search, info, checks, and diagnostics such as `tinypm doctor` and `tinypm providers`.
 
 ## Is Modularity available in Abora?
 
@@ -158,6 +188,13 @@ grab modularity
 Or select it from the Developer bundle during installation.
 
 Modularity is backed by a custom Nix derivation with PhysX, Vulkan, and Mono support built in.
+
+To update the standalone Modularity Stable payload without waiting for a full
+Abora release, download the Linux zip and run:
+
+```sh
+sudo abora apps custom update modularity-stable --zip ~/Downloads/Modularity-7.0.0-Linux.zip
+```
 
 ## Where are the project docs?
 
