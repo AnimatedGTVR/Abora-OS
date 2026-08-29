@@ -2769,6 +2769,53 @@ lock_target_flake() {
     fi
 }
 
+build_target_system() {
+    local root="${1:-/mnt}"
+    local output_file="$2"
+    local cfgdir="${root}/etc/nixos"
+    local tmpflake out_link system_path rc
+
+    [[ -f "${cfgdir}/flake.nix" ]] || return 1
+    [[ -f "${cfgdir}/flake.lock" ]] || return 1
+
+    tmpflake="$(mktemp -d /tmp/abora-target-flake.XXXXXX)" || return 1
+    chmod 0700 "$tmpflake" || true
+    rc=0
+
+    cp -a "${cfgdir}/." "$tmpflake/" || rc=1
+    if (( rc == 0 )) && grep -R -E 'path:.*(nixpkgs|/etc/abora|/mnt/etc/nixos)' "$tmpflake/flake.nix" "$tmpflake/flake.lock" >/dev/null 2>&1; then
+        printf 'Copied target flake still contains a local path input.\n' >>"$install_log"
+        rc=1
+    fi
+
+    if (( rc == 0 )); then
+        mkdir -p "${root}/tmp" || rc=1
+    fi
+    out_link="${root}/tmp/abora-system"
+
+    if (( rc == 0 )); then
+        nix --extra-experimental-features "nix-command flakes" build \
+            "${tmpflake}#nixosConfigurations.abora.config.system.build.toplevel" \
+            --store "$root" \
+            --extra-substituters "auto?trusted=1" \
+            --no-write-lock-file \
+            --out-link "$out_link" || rc=$?
+    fi
+
+    if (( rc == 0 )); then
+        system_path="$(readlink "$out_link" 2>/dev/null || true)"
+        if [[ "$system_path" != /nix/store/* ]]; then
+            printf 'Target system build did not produce a /nix/store path: %s\n' "${system_path:-<empty>}" >>"$install_log"
+            rc=1
+        else
+            printf '%s\n' "$system_path" > "$output_file" || rc=1
+        fi
+    fi
+
+    rm -rf "$tmpflake"
+    return "$rc"
+}
+
 register_efi_boot_entry() {
     # Skip on BIOS-only systems — efibootmgr only works under UEFI.
     [[ -d /sys/firmware/efi ]] || return 0
@@ -3185,7 +3232,11 @@ run_install() {
     fi
     ok "Target flake locked"
 
-    msg "Running nixos-install…"
+    local system_path_file system_path
+    system_path_file="/tmp/abora-built-system-path"
+    rm -f "$system_path_file"
+
+    msg "Building target system…"
     log_network_snapshot
     # --flake, not the legacy NIX_PATH+configuration.nix path this used to
     # take: that legacy evaluation is structurally different from the
@@ -3201,10 +3252,22 @@ run_install() {
     # enough to crash outright in a memory-constrained install VM. Building
     # through the same flake shape this ISO was built from keeps install and
     # update evaluation consistent enough for custom Abora packages to be
-    # reused whenever the Nixpkgs input still matches.
-    if ! run_with_log_panel 70 "Installing system" \
+    # reused whenever the Nixpkgs input still matches. The build happens from
+    # a stable /tmp copy of /mnt/etc/nixos, then nixos-install receives the
+    # finished system path with --system; this avoids Nix hashing mutable
+    # /mnt/etc/nixos while the install process is also creating files there.
+    if ! NIX_CONFIG="${nix_config}" run_with_log_panel 70 "Building system" \
+        build_target_system "/mnt" "$system_path_file"; then
+        die "Target system build failed. See ${install_log}."
+    fi
+    system_path="$(cat "$system_path_file" 2>/dev/null || true)"
+    [[ "$system_path" == /nix/store/* ]] || die "Target system build did not produce a system path. See ${install_log}."
+
+    msg "Running nixos-install…"
+    log_network_snapshot
+    if ! run_with_log_panel 82 "Installing bootloader" \
         env "NIX_CONFIG=${nix_config}" \
-        nixos-install --root /mnt --no-root-passwd --no-write-lock-file --flake "/mnt/etc/nixos#abora"; then
+        nixos-install --root /mnt --no-root-passwd --system "$system_path"; then
         die "nixos-install failed. See ${install_log}."
     fi
     progress_line 90 "System installed"

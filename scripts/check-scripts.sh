@@ -947,8 +947,11 @@ if grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";' "$tmp_u
   && grep -q 'rm -f "${cfgdir}/flake.lock"' scripts/abora-installer.sh \
   && grep -q 'write_installed_flake "$root"' scripts/abora-installer.sh \
   && grep -q '^lock_target_flake()' scripts/abora-installer.sh \
+  && grep -q '^build_target_system()' scripts/abora-installer.sh \
   && grep -q 'flake lock "${cfgdir}"' scripts/abora-installer.sh \
   && grep -q 'lock_target_flake "/mnt"' scripts/abora-installer.sh \
+  && grep -q 'mktemp -d /tmp/abora-target-flake' scripts/abora-installer.sh \
+  && grep -q 'build_target_system "/mnt" "$system_path_file"' scripts/abora-installer.sh \
   && ! grep -q 'path:/etc/abora/nixpkgs' "$tmp_update_flake/flake.nix" \
   && ! grep -q 'path:/etc/abora/nixpkgs' scripts/abora-installer.sh \
   && ! grep -q 'path:/mnt/etc/nixos/abora/nixpkgs' scripts/abora-installer.sh; then
@@ -957,16 +960,19 @@ else
   fail "runtime: installed flake uses a pure nixos-unstable input"
 fi
 
-# nixos-install must actually build through that flake (not the legacy
-# NIX_PATH+configuration.nix path this used to take) for the input above to
-# matter at all -- otherwise the very first install still evaluates
-# through a different path than what built the live ISO, defeating the
-# fix above on exactly the run where it counts most.
-if grep -q 'nixos-install --root /mnt --no-root-passwd --no-write-lock-file --flake "/mnt/etc/nixos#abora"' scripts/abora-installer.sh \
+# The target system must be built through the generated flake, but from a
+# stable /tmp copy, then handed to nixos-install with --system. Building
+# directly from /mnt/etc/nixos lets nixos-install/nix lock-file writes
+# mutate the path source while Nix is hashing it, causing NAR hash
+# mismatches in real installs.
+if grep -q 'nix --extra-experimental-features "nix-command flakes" build' scripts/abora-installer.sh \
+  && grep -q '#nixosConfigurations.abora.config.system.build.toplevel' scripts/abora-installer.sh \
+  && grep -q 'nixos-install --root /mnt --no-root-passwd --system "$system_path"' scripts/abora-installer.sh \
+  && ! grep -q 'nixos-install --root /mnt --no-root-passwd .*--flake "/mnt/etc/nixos#abora"' scripts/abora-installer.sh \
   && ! grep -q 'NIX_PATH=nixpkgs=\${nixpkgs}:nixos-config=/mnt/etc/nixos/configuration.nix' scripts/abora-installer.sh; then
-  pass "runtime: nixos-install runs through the flake, not legacy NIX_PATH"
+  pass "runtime: installer builds the flake before nixos-install instead of hashing mutable /mnt"
 else
-  fail "runtime: nixos-install runs through the flake, not legacy NIX_PATH"
+  fail "runtime: installer builds the flake before nixos-install instead of hashing mutable /mnt"
 fi
 
 if grep -Fq 'type = lib.types.enum [ "auto" "nouveau" "nvidia" "nvidia-open" "amdgpu" "intel" "none" ];' nix/modules/abora-options.nix \
