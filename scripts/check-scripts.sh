@@ -946,6 +946,9 @@ if grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";' "$tmp_u
   && grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";' scripts/abora-installer.sh \
   && grep -q 'rm -f "${cfgdir}/flake.lock"' scripts/abora-installer.sh \
   && grep -q 'write_installed_flake "$root"' scripts/abora-installer.sh \
+  && grep -q '^lock_target_flake()' scripts/abora-installer.sh \
+  && grep -q 'flake lock "${cfgdir}"' scripts/abora-installer.sh \
+  && grep -q 'lock_target_flake "/mnt"' scripts/abora-installer.sh \
   && ! grep -q 'path:/etc/abora/nixpkgs' "$tmp_update_flake/flake.nix" \
   && ! grep -q 'path:/etc/abora/nixpkgs' scripts/abora-installer.sh \
   && ! grep -q 'path:/mnt/etc/nixos/abora/nixpkgs' scripts/abora-installer.sh; then
@@ -959,7 +962,7 @@ fi
 # matter at all -- otherwise the very first install still evaluates
 # through a different path than what built the live ISO, defeating the
 # fix above on exactly the run where it counts most.
-if grep -q 'nixos-install --root /mnt --no-root-passwd --flake "/mnt/etc/nixos#abora"' scripts/abora-installer.sh \
+if grep -q 'nixos-install --root /mnt --no-root-passwd --no-write-lock-file --flake "/mnt/etc/nixos#abora"' scripts/abora-installer.sh \
   && ! grep -q 'NIX_PATH=nixpkgs=\${nixpkgs}:nixos-config=/mnt/etc/nixos/configuration.nix' scripts/abora-installer.sh; then
   pass "runtime: nixos-install runs through the flake, not legacy NIX_PATH"
 else

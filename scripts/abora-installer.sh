@@ -2750,6 +2750,25 @@ validate_generated_config() {
             --eval --strict >>"$config_log" 2>&1
 }
 
+lock_target_flake() {
+    local root="${1:-/mnt}"
+    local cfgdir="${root}/etc/nixos"
+
+    [[ -f "${cfgdir}/flake.nix" ]] || return 1
+    rm -f "${cfgdir}/flake.lock"
+
+    NIX_CONFIG="experimental-features = nix-command flakes" \
+        nix --extra-experimental-features "nix-command flakes" \
+            flake lock "${cfgdir}" >>"$install_log" 2>&1 || return 1
+
+    [[ -f "${cfgdir}/flake.lock" ]] || return 1
+    if grep -Eq 'path:.*(nixpkgs|/etc/abora|/mnt/etc/nixos)' "${cfgdir}/flake.lock"; then
+        printf 'Generated flake.lock contains a local path input:\n' >>"$install_log"
+        grep -E 'path:.*(nixpkgs|/etc/abora|/mnt/etc/nixos)' "${cfgdir}/flake.lock" >>"$install_log" 2>&1 || true
+        return 1
+    fi
+}
+
 register_efi_boot_entry() {
     # Skip on BIOS-only systems — efibootmgr only works under UEFI.
     [[ -d /sys/firmware/efi ]] || return 0
@@ -3159,6 +3178,13 @@ run_install() {
         "max-substitution-jobs = 32" \
         "http-connections = 32")"
 
+    msg "Locking target flake…"
+    log_network_snapshot
+    if ! lock_target_flake "/mnt"; then
+        die "Target flake lock failed. See ${install_log}."
+    fi
+    ok "Target flake locked"
+
     msg "Running nixos-install…"
     log_network_snapshot
     # --flake, not the legacy NIX_PATH+configuration.nix path this used to
@@ -3178,7 +3204,7 @@ run_install() {
     # reused whenever the Nixpkgs input still matches.
     if ! run_with_log_panel 70 "Installing system" \
         env "NIX_CONFIG=${nix_config}" \
-        nixos-install --root /mnt --no-root-passwd --flake "/mnt/etc/nixos#abora"; then
+        nixos-install --root /mnt --no-root-passwd --no-write-lock-file --flake "/mnt/etc/nixos#abora"; then
         die "nixos-install failed. See ${install_log}."
     fi
     progress_line 90 "System installed"
