@@ -1,47 +1,16 @@
 # Contributing to Abora OS
 
-Thanks for checking out Abora OS.
+First of all, thank you for taking the time to contribute to Abora OS.
 
-This repo is still pretty small, so the best way to help is to keep changes focused, test what you touch, and avoid sneaking in unrelated cleanup with feature work.
+Whether you're fixing a bug, improving documentation, testing a new feature, creating artwork, or helping other users, your contribution is appreciated.
 
-## Before you change anything
+Abora OS is a community-driven Linux distribution built on NixOS with the goal of making it easier to install, use, and understand. Every contribution helps move the project forward.
 
-New to the repo, or not sure your machine has everything set up? Run this
-first — it checks git/Nix/QEMU, whether Nix flakes are enabled, whether the
-Nix daemon is actually reachable, disk space, and your OS/architecture, and
-tells you exactly what to fix if something's missing, instead of leaving you
-to decode a build failure twenty minutes in:
+---
 
-```sh
-make doctor
-```
+# Before You Start
 
-Once that's clean, make sure you can build and boot the current ISO:
-
-```sh
-make iso
-make qemc
-```
-
-If you only want the quick checks:
-
-```sh
-make check
-```
-
-## Main folders
-
-If you are new to the repo, start here:
-
-- `assets/` for branding, wallpapers, bootloader art, and fastfetch assets
-- `docs/` for release notes, install validation, and roadmap docs
-- `nix/` for the live image configuration
-- `scripts/` for the boot flow, installer, build helpers, and release tooling
-- `vendor/tinypm/` for the vendored TinyPM v4 project
-
-There is also a more detailed layout guide in [docs/project-layout.md](docs/project-layout.md).
-
-## Common tasks
+Before working on a feature or fix, make sure you can successfully build and boot Abora OS.
 
 Build the ISO:
 
@@ -49,34 +18,90 @@ Build the ISO:
 make iso
 ```
 
-Build the full release bundle:
+Boot the latest build in QEMU:
 
 ```sh
-make release
+make qemu
 ```
 
-Refresh release metadata without rebuilding the ISO:
+Run the project's checks:
 
 ```sh
-make metadata
+make check
 ```
 
-Boot the latest ISO in QEMU:
+If something doesn't build before you make changes, it's usually best to ask before spending time debugging something unrelated to your work.
 
-```sh
-make qemc
+---
+
+# Repository Layout
+
+Some of the most important directories are:
+
+* `assets/`  Wallpapers, branding, icons, Plymouth themes, and other artwork.
+* `docs/`  Documentation, release notes, guides, and project information.
+* `nix/`  NixOS modules and system configuration.
+* `scripts/`  Build tools, installer scripts, release helpers, and utilities.
+* `vendor/` Third-party projects bundled with Abora OS.
+
+As the project grows, additional directories may be added. If you're unsure where something belongs, feel free to ask.
+
+---
+
+# Pull Requests
+
+Please try to keep pull requests focused on a single change.
+
+Good examples include:
+
+* Fixing one bug
+* Adding one feature
+* Updating documentation
+* Improving the installer
+* Cleaning up a specific part of the codebase
+
+Large pull requests that combine unrelated changes are much harder to review.
+
+Before opening a pull request:
+
+* Make sure the project still builds.
+* Test your changes whenever possible.
+* Update documentation if your change affects users.
+* Remove temporary debugging code.
+* Run `make check`.
+
+Draft pull requests are welcome if you'd like feedback before finishing your work.
+
+---
+
+# Commit Messages
+
+Write commit messages that explain what changed.
+
+Good examples:
+
+```text
+Improve installer error handling
+Update NVIDIA driver packages
+Fix Plymouth splash timeout
+Add COSMIC desktop option
 ```
 
-## Before pushing
+Avoid commit messages like:
 
-Try to keep the branch clean enough that someone else can understand what changed.
+```text
+update
+fix
+changes
+misc
+```
 
-Good rule of thumb:
+Clear commit messages make the project's history much easier to understand.
 
-- one feature or fix per commit
-- update docs if the workflow changed
-- do not leave broken release notes or mismatched version strings behind
-- run `make check` before pushing
+
+---
+
+# Coding Style
 
 If `git push origin edge` (or `stable`) is rejected because the remote moved first, the safe flow is:
 
@@ -87,13 +112,10 @@ git pull --rebase origin edge
 git push origin edge
 ```
 
-## Release notes
+---
 
-The release bundle is generated into `out/` and includes:
+# Thank You
 
-- ISO
-- checksums
-- release manifest
-- release notes
+Open-source projects only exist because people are willing to spend their time improving them.
 
-Tagged GitHub releases are handled by the release workflow.
+Whether you've fixed a typo, reported a bug, tested a release, or contributed code, thank you for helping make Abora OS better.

@@ -39,12 +39,22 @@
 ---
 
 > [!IMPORTANT]
-> Abora OS has two release lines: **Stable** and **Edge**.
+> Want to leave a feature recommendation? Do it!
 
-> [!TIP]
-> Downloads, documentation, screenshots, and project updates are available at **https://aboraos.org**.
 
----
+## Quick Links
+
+- [Official Website](https://aboraos.org)
+- [GitHub Releases](https://github.com/AnimatedGTVR/Abora-OS/releases)
+- [Documentation](https://deepwiki.com/AnimatedGTVR/Abora-OS)
+- [Issue Tracker](https://github.com/AnimatedGTVR/Abora-OS/issues)
+- [Discussions](https://github.com/AnimatedGTVR/Abora-OS/discussions)
+- [Contributing Guide](CONTRIBUTING.md)
+- [Security Policy](SECURITY.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Release Notes](RELEASE_NOTES.md)
+- [Roadmap](ROADMAP.md)
+- [License](LICENSE)
 
 ## Screenshots
 
@@ -61,27 +71,37 @@
 </table>
 </div>
 
----
-
 ## What is Abora OS?
 
 Abora OS is a Linux distribution based on NixOS.
 
-The goal is not to replace what makes NixOS useful. Abora keeps features such as system rollbacks, reproducible configurations, and declarative system management while providing a more approachable starting point.
+It keeps the parts that make NixOS useful, including system rollbacks, reproducible configurations, and declarative system management, while providing a more approachable starting point.
 
-It includes its own defaults, desktop choices, installer work, and tools designed to make common system tasks less confusing.
+Abora includes its own defaults, desktop choices, installer work, and tools designed to make common system tasks easier to understand.
 
-Abora is for people who want the power of NixOS without needing to build their entire setup from scratch before they can use it.
+It is built for people who want the power of NixOS without needing to create their entire setup from scratch before they can use it.
 
----
+## Why Abora?
+
+- Easier installation and setup
+- Declarative system configuration
+- Reproducible builds
+- Atomic upgrades
+- System rollback support
+- Multiple desktop environments
+- Abora-specific defaults and tooling
+- Stable and Edge release channels
+- ANIX system management tools
 
 ## Release Lines
 
-Abora ships on two branches, same idea as NixOS's stable/unstable split.
+Abora uses two release channels, similar to the stable and unstable split used by NixOS.
 
 ### Stable
 
-The tagged, tested releases. Version numbers like:
+Stable contains tagged and tested releases.
+
+Examples include:
 
 ```txt
 2.5
@@ -98,15 +118,22 @@ Tracks `edge` directly, no waiting for a tag. Same deal as `nixos-unstable`: new
 
 Abora OS v4 Everest alpha installs default to this line so they can receive alpha fixes from `edge`.
 
-Switch to it with:
+New installer work, desktop changes, ANIX changes, and fixes arrive here first. Edge may contain unfinished features or bugs.
+
+Switch to Edge:
 
 ```sh
 sudo abora channel set unstable
 ```
 
-Go back to stable the same way (`sudo abora channel set stable`) whenever you've had enough.
+Return to Stable:
 
----
+```sh
+sudo abora channel set stable
+```
+
+> [!WARNING]
+> Edge builds are intended for development and testing. Use Stable when reliability matters.
 
 ## Features
 
@@ -120,11 +147,30 @@ Go back to stable the same way (`sudo abora channel set stable`) whenever you've
 * ANIX system management tools
 * Optional Abora Gaming layer with Steam Big Picture support
 
----
+- Built on NixOS
+- Declarative system management
+- Reproducible system configuration
+- Atomic upgrades
+- System rollback support
+
+### Desktop Experience
+
+- Multiple desktop options
+- Abora-specific defaults
+- Custom branding and artwork
+- Guided installation
+- Tools for common system tasks
+
+### Development
+
+- Stable and Edge release channels
+- Custom installer development
+- ANIX tooling
+- Open-source development
 
 ## ANIX
 
-ANIX is Abora’s command-line tool for common system management tasks.
+ANIX is Abora's command-line tool for common system management tasks.
 
 ```bash
 anix status
@@ -134,9 +180,7 @@ anix apply
 ```
 
 > [!NOTE]
-> ANIX is not meant to hide NixOS. It exists to make the tasks people perform most often easier to understand and remember.
-
----
+> ANIX does not replace NixOS. It makes common commands easier to remember and use.
 
 ## Gaming
 
@@ -185,8 +229,6 @@ Abora OS can be downloaded from the official website or from GitHub Releases.
 
 </div>
 
----
-
 ## Building
 
 Clone the repository:
@@ -196,7 +238,7 @@ git clone https://github.com/AnimatedGTVR/Abora-OS.git
 cd Abora-OS
 ```
 
-The exact build process may differ between branches, releases, and ISO profiles.
+Build the ISO:
 
 For the current source line, use:
 
@@ -212,29 +254,29 @@ nix build .#nixosConfigurations.abora.config.system.build.toplevel
 
 Check the project website, release notes, or DeepWiki for the latest build information.
 
-<div align="center">
+Boot the latest ISO in QEMU:
 
-<a href="https://deepwiki.com/AnimatedGTVR/Abora-OS">
-  <img src="https://img.shields.io/badge/Ask%20DeepWiki-Abora%20OS-7c3aed?style=for-the-badge" alt="Ask DeepWiki">
-</a>
+```bash
+make qemc
+```
 
-</div>
+Run the project checks:
 
----
+```bash
+make check
+```
 
-## Contributing
+Build the complete release bundle:
 
-Contributions are welcome.
+```bash
+make release
+```
 
-Some useful ways to help include:
+Refresh release metadata without rebuilding the ISO:
 
-* Reporting bugs
-* Testing desktop environments
-* Testing the installer
-* Improving documentation
-* Working on ANIX
-* Cleaning up existing code
-* Submitting fixes and improvements
+```bash
+make metadata
+```
 
 For installer or network bug reports, include:
 
@@ -251,33 +293,36 @@ full report.
 
 Open an issue before starting a large change so it can be discussed first. Smaller fixes can be submitted through a pull request.
 
----
+## Repository Layout
 
-> [!WARNING]
-> Edge builds are development builds and may break. Use Stable for systems where reliability matters.
+- [`assets/`](assets/) contains branding, wallpapers, bootloader artwork, screenshots, and fastfetch assets.
+- [`docs/`](docs/) contains documentation, release notes, validation information, and roadmap files.
+- [`nix/`](nix/) contains the live image configuration.
+- [`scripts/`](scripts/) contains installer logic, boot flow, build helpers, and release tooling.
+- [`vendor/tinypm/`](vendor/tinypm/) contains the vendored TinyPM v4 project.
+- [`docs/project-layout.md`](docs/project-layout.md) contains a more detailed repository layout guide.
 
----
+## Contributing
 
-## Links
+Contributions are welcome.
 
-<div align="center">
+Useful ways to help include:
 
-<a href="https://aboraos.org">
-  <img src="https://img.shields.io/badge/Visit%20Website-aboraos.org-f0f0f0?style=for-the-badge" alt="Visit Website">
-</a>
-<a href="https://deepwiki.com/AnimatedGTVR/Abora-OS">
-  <img src="https://img.shields.io/badge/Ask%20DeepWiki-Abora%20OS-7c3aed?style=for-the-badge" alt="Ask DeepWiki">
-</a>
-<a href="https://github.com/AnimatedGTVR/Abora-OS">
-  <img src="https://img.shields.io/badge/View%20Source-GitHub-181717?style=for-the-badge&logo=github&logoColor=white" alt="View Source">
-</a>
-<a href="https://xenoproject.tech">
-  <img src="https://img.shields.io/badge/Xeno%20Tech-xenoproject.tech-2563eb?style=for-the-badge" alt="Xeno Tech">
-</a>
+- Reporting bugs
+- Testing desktop environments
+- Testing the installer
+- Improving documentation
+- Working on ANIX
+- Cleaning up existing code
+- Submitting fixes and improvements
 
-</div>
+Before opening a pull request, please read:
 
----
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- [SECURITY.md](SECURITY.md)
+
+Open an issue before starting a large change so it can be discussed first. Smaller fixes can usually be submitted directly through a pull request.
 
 ## License
 

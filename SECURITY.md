@@ -1,39 +1,75 @@
 # Security Policy
 
+Thank you for helping keep Abora OS secure.
+
+The security of our users and contributors is important to the project. If you discover a security vulnerability, please report it responsibly so it can be investigated and resolved before details are disclosed publicly.
+
 ## Supported Versions
 
-Abora is on the DENALI 3.1.4 line. Security fixes target the current stable release.
+Security updates are provided for the current stable release of Abora OS.
 
-| Version        | Supported |
-| -------------- | --------- |
-| `3.1.x`        | Yes       |
-| `v2.x`         | No        |
-| `v1.x`         | No        |
-| Older releases | No        |
+| Version                 | Supported |
+| :---------------------- | :-------: |
+| `2026.7.x (v4 Everest)` |     ✅    |
+| `3.x (Denali)`          |     ✅    |
+| `2.x`                   |     ❌    |
+| `1.x`                   |     ❌    |
 
-In practice, that means the latest `3.1.x` release is the one that receives security fixes and reports.
+Only the latest stable release series receives security updates. Users are encouraged to keep their systems up to date.
 
 ## Reporting a Vulnerability
 
-If you find a security issue in Abora OS, please do not post full exploit details in a public issue right away.
+Please **do not** report security vulnerabilities through public GitHub issues.
 
-Preferred path:
+Instead:
 
-1. Use GitHub's private vulnerability reporting for this repository, if it is enabled.
-2. If private reporting is not available, contact the maintainers through the main project contact path before sharing details publicly.
+1. Use **GitHub Private Vulnerability Reporting**, if it is enabled for this repository.
+2. If private reporting is unavailable, contact the project maintainers through the official Abora OS contact channels before publicly disclosing the issue.
 
-When reporting a vulnerability, include:
+## What to Include
 
-- affected version
-- where the issue happens
-- steps to reproduce it
-- any logs, screenshots, or proof of concept that help explain it
-- whether you believe it affects the live ISO, installer, updater, or installed system
+Please include as much of the following information as possible:
 
-What to expect:
+* The affected Abora OS version.
+* A description of the vulnerability.
+* Steps to reproduce the issue.
+* Expected and actual behavior.
+* Logs, screenshots, crash reports, or a proof of concept.
+* Whether the issue affects the installer, live ISO, ANIX, updater, or an installed system.
+* Any known workaround or mitigation.
 
-- an acknowledgement within 7 days
-- follow-up questions if more detail is needed
-- a fix, mitigation, or explicit decline once the report has been reviewed
+Providing detailed information helps us investigate and resolve issues more quickly.
 
-If the report is accepted, the goal is to fix it in the current supported release line and publish the fix in the next release.
+## Response Process
+
+When a valid report is received, you can expect:
+
+* An acknowledgement within **7 days**.
+* Follow-up questions if additional information is required.
+* An investigation to determine the severity and impact.
+* A fix, mitigation, or explanation if the report is determined not to be a security issue.
+
+Critical vulnerabilities may be addressed outside of the normal release schedule when necessary.
+
+## Responsible Disclosure
+
+Please allow the maintainers reasonable time to investigate and resolve the issue before publicly sharing technical details.
+
+Responsible disclosure helps protect users while a fix is being developed and tested.
+
+## Scope
+
+This policy applies to official Abora OS software and infrastructure, including:
+
+* The installer
+* ANIX
+* Official build scripts
+* Official packages maintained by the project
+* The live ISO
+* Project infrastructure maintained by the Abora OS team
+
+Security issues affecting third-party software should generally be reported to the upstream project unless the issue is specific to Abora OS.
+
+## Thank You
+
+Thank you for helping improve the security of Abora OS. Responsible reports from the community help keep the project reliable and secure for everyone.
