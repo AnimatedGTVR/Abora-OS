@@ -288,9 +288,11 @@ version_lt() {
 
 # Tries every URL in repo_git_fallbacks in order, returning the first one
 # that answers — ABORA_RELEASE_TAGS lets tests inject a fixed tag list
-# without any network access at all.
+# without any network access at all. An explicitly empty ABORA_RELEASE_TAGS
+# means "pretend no release tags are readable"; unset means use the network.
 list_release_tags() {
-    if [[ -n "${ABORA_RELEASE_TAGS:-}" ]]; then
+    if [[ "${ABORA_RELEASE_TAGS+x}" == x ]]; then
+        [[ -n "${ABORA_RELEASE_TAGS:-}" ]] || return 0
         printf '%s\n' $ABORA_RELEASE_TAGS
         return
     fi

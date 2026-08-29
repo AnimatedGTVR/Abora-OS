@@ -4150,6 +4150,21 @@ else
   fail "runtime: installer disables Limine BIOS install for the no-bios_grub-partition disk mode"
 fi
 
+# Release-mode disk selection must stay explicit. The short release flow
+# once auto-selected the only visible installable disk, which made QEMU
+# fast but made real hardware too easy to wipe by muscle memory. Guard
+# that release_disk() delegates to the full disk picker instead; that
+# picker always asks, supports terminal/debug recovery when no disk is
+# found, and exposes the existing-partition mode.
+_release_disk_body="$(sed -n '/^release_disk() {/,/^}$/p' scripts/abora-installer.sh)"
+if grep -q 'step_disk' <<<"$_release_disk_body" \
+  && ! grep -q 'Using detected disk' <<<"$_release_disk_body" \
+  && grep -q 'Use an existing partition' scripts/abora-installer.sh; then
+  pass "runtime: release installer always uses the explicit disk picker"
+else
+  fail "runtime: release installer always uses the explicit disk picker"
+fi
+
 # Regression test for validate_boot()'s BIOS-boot-partition check
 # (_has_bios_boot_partition): validate_boot()'s existing bootloader check
 # only confirmed limine-bios.sys was *copied* into /mnt/boot, which

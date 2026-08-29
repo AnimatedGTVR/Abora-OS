@@ -3572,49 +3572,10 @@ release_network() {
 }
 
 release_disk() {
-    release_header "Disk"
-    warn "This will permanently erase the selected disk."
-    printf '\n'
-
-    local -a disks=() row
-    while IFS= read -r row; do
-        [[ -n "$row" ]] && disks+=("$row")
-    done < <(collect_disks)
-    if [[ ${#disks[@]} -eq 0 ]]; then
-        warn "No installable disks found."
-        msg "USB boot media, loop devices, and currently mounted system disks are hidden on purpose."
-        printf '\n'
-        menu "Disk tools" \
-            "Scan again|Refresh the disk list" \
-            "Open terminal|Use lsblk, dmesg, or nvme/sata tools" \
-            "Debug installer|Run hardware tests or collect a support report" \
-            "Cancel|Return to the live shell"
-        case "$MENU_RESULT" in
-            0) release_disk; return ;;
-            1) open_live_terminal; release_disk; return ;;
-            2) debug_tools_menu; release_disk; return ;;
-            *) exit 1 ;;
-        esac
-    fi
-
-    if [[ ${#disks[@]} -eq 1 ]]; then
-        disk="${disks[0]%%|*}"
-        ok "Using detected disk: ${disk} (${disks[0]#*|})"
-        printf '\n'
-    else
-        menu "Choose disk to erase" "${disks[@]}"
-        disk="${disks[$MENU_RESULT]%%|*}"
-        printf '\n'
-    fi
-
-    warn "Erase ${disk}?"
-    menu "Confirm disk" \
-        "Yes, erase ${disk}|Install Abora OS here" \
-        "No, choose again|Return to disk picker"
-    if [[ "$MENU_RESULT" -ne 0 ]]; then
-        release_disk
-        return
-    fi
+    # Use the same full disk picker as the detailed wizard. The old release
+    # path auto-selected the only visible disk, which is fast in QEMU but too
+    # risky on real hardware and did not expose the existing-partition path.
+    step_disk
 }
 
 release_identity() {
@@ -3845,9 +3806,13 @@ release_review() {
     release_header "Review"
     _print_summary
     printf '\n'
-    warn "The next step erases ${disk} and installs Abora OS."
+    if [[ "$install_disk_mode" == "existing" ]]; then
+        warn "The next step formats ${target_partition} and installs Abora OS."
+    else
+        warn "The next step erases ${disk} and installs Abora OS."
+    fi
     menu "Install now?" \
-        "Install Abora OS|Erase ${disk} and start installation" \
+        "Install Abora OS|Start installation with the selected disk layout" \
         "Cancel|Return to live shell"
     [[ "$MENU_RESULT" -eq 0 ]] || exit 1
 }
