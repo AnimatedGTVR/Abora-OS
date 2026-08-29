@@ -2317,6 +2317,43 @@ write_branding_assets() {
 # this is what `abora config` reads/edits later), and flake.nix. Every
 # user-supplied string goes through nix_string() first since these are all
 # double-quoted Nix string literals.
+write_installed_flake() {
+    local root="${1:-/mnt}"
+    local cfgdir="${root}/etc/nixos"
+
+    # Always regenerate the installed-system flake and discard any stale lock
+    # from a previous failed attempt. A real install failure produced a lock
+    # pointing at the target-local Abora nixpkgs copy with an embedded
+    # narHash; on retry that can fail before the system ever builds. The
+    # installed system should track Abora's rolling nixpkgs input by ref,
+    # not a copied target-local path.
+    rm -f "${cfgdir}/flake.lock"
+    cat > "${cfgdir}/flake.nix" <<'EOF'
+{
+  description = "Abora installed system";
+  # Keep installed systems on the rolling NixOS package set used by Abora
+  # v4 alpha. Avoid path:/etc/... and path:/mnt/... here: on NixOS /etc
+  # entries resolve through /etc/static, and target-local copied paths can
+  # lock with stale nar hashes during nixos-install retries.
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  outputs = { nixpkgs, ... }: {
+    nixosConfigurations = {
+      abora = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./configuration.nix
+        ];
+      };
+    };
+  };
+}
+EOF
+
+    if grep -Eq 'path:.*(nixpkgs|/etc/abora|/mnt/etc/nixos)' "${cfgdir}/flake.nix"; then
+        die "Generated flake.nix still contains a local nixpkgs path. See ${config_log}."
+    fi
+}
+
 generate_nixos_config() {
     local root="${1:-/mnt}"
     local cfgdir="${root}/etc/nixos"
@@ -2477,25 +2514,7 @@ EOF
     # at the top of abora-config.sh's reads.
     chmod 0600 "${cfgdir}/abora-local.nix"
 
-    cat > "${cfgdir}/flake.nix" <<EOF
-{
-  description = "Abora installed system";
-  # Keep installed systems on the rolling NixOS package set used by Abora
-  # v4 alpha. Avoid path:/etc/... here: on NixOS that path resolves through
-  # /etc/static, which pure flake evaluation rejects as an absolute path.
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-  outputs = { nixpkgs, ... }: {
-    nixosConfigurations = {
-      abora = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        modules = [
-          ./configuration.nix
-        ];
-      };
-    };
-  };
-}
-EOF
+    write_installed_flake "$root"
 }
 
 copy_github_auth() {

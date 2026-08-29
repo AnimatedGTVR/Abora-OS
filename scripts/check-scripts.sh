@@ -936,14 +936,19 @@ else
   fail "runtime: updater flake writer self-test"
 fi
 
-# path:/etc/abora/nixpkgs looks tempting because it points at the running
-# system's nixpkgs tree, but on NixOS /etc entries resolve through
-# /etc/static. Pure flake evaluation rejects that absolute path, breaking
-# both `sudo abora update` and `sudo abora config apply`.
+# path:/etc/abora/nixpkgs and path:/mnt/etc/nixos/abora/nixpkgs look
+# tempting because they point at a local nixpkgs tree, but they are both
+# bad installed-system flake inputs: /etc resolves through /etc/static in
+# pure eval, and /mnt-local copied paths can lock with stale nar hashes
+# across install retries. The installer must write a GitHub nixpkgs ref
+# and remove any stale lock before nixos-install creates a fresh one.
 if grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";' "$tmp_update_flake/flake.nix" \
   && grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";' scripts/abora-installer.sh \
+  && grep -q 'rm -f "${cfgdir}/flake.lock"' scripts/abora-installer.sh \
+  && grep -q 'write_installed_flake "$root"' scripts/abora-installer.sh \
   && ! grep -q 'path:/etc/abora/nixpkgs' "$tmp_update_flake/flake.nix" \
-  && ! grep -q 'path:/etc/abora/nixpkgs' scripts/abora-installer.sh; then
+  && ! grep -q 'path:/etc/abora/nixpkgs' scripts/abora-installer.sh \
+  && ! grep -q 'path:/mnt/etc/nixos/abora/nixpkgs' scripts/abora-installer.sh; then
   pass "runtime: installed flake uses a pure nixos-unstable input"
 else
   fail "runtime: installed flake uses a pure nixos-unstable input"
