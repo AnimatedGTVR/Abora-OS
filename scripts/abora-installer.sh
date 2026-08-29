@@ -2794,7 +2794,11 @@ build_target_system() {
     out_link="${root}/tmp/abora-system"
 
     if (( rc == 0 )); then
+        printf '[installer] building target system from stable flake copy: %s\n' "$tmpflake" >>"$install_log"
         nix --extra-experimental-features "nix-command flakes" build \
+            --print-build-logs \
+            --option max-silent-time "${ABORA_INSTALL_NIX_MAX_SILENT_TIME:-900}" \
+            --option timeout "${ABORA_INSTALL_NIX_BUILD_TIMEOUT:-5400}" \
             "${tmpflake}#nixosConfigurations.abora.config.system.build.toplevel" \
             --store "$root" \
             --extra-substituters "auto?trusted=1" \
@@ -3033,11 +3037,32 @@ detect_install_activity() {
 
 process_activity() {
     local pid="$1"
+    local proc child child_proc grandchild grandchild_proc
     [[ "$pid" =~ ^[0-9]+$ ]] || {
         printf 'starting'
         return 0
     }
-    ps -o comm= -p "$pid" 2>/dev/null | tr -d '\n' || printf 'running'
+    proc="$(ps -o comm= -p "$pid" 2>/dev/null | tr -d '\n' || true)"
+    [[ -n "$proc" ]] || proc="running"
+
+    child="$(pgrep -P "$pid" 2>/dev/null | head -n 1 || true)"
+    if [[ "$child" =~ ^[0-9]+$ ]]; then
+        child_proc="$(ps -o comm= -p "$child" 2>/dev/null | tr -d '\n' || true)"
+        grandchild="$(pgrep -P "$child" 2>/dev/null | head -n 1 || true)"
+        if [[ "$grandchild" =~ ^[0-9]+$ ]]; then
+            grandchild_proc="$(ps -o comm= -p "$grandchild" 2>/dev/null | tr -d '\n' || true)"
+            if [[ -n "$child_proc" && -n "$grandchild_proc" ]]; then
+                printf '%s > %s > %s' "$proc" "$child_proc" "$grandchild_proc"
+                return 0
+            fi
+        fi
+        if [[ -n "$child_proc" ]]; then
+            printf '%s > %s' "$proc" "$child_proc"
+            return 0
+        fi
+    fi
+
+    printf '%s' "$proc"
 }
 
 truncate_line() {
@@ -3102,7 +3127,10 @@ run_with_log_panel() {
     local percent="$1" stage="$2"
     shift 2
 
-    local warn_after=480 hard_timeout=5400 idle_timeout=1800
+    local warn_after hard_timeout idle_timeout
+    warn_after="${ABORA_INSTALL_WARN_AFTER:-480}"
+    hard_timeout="${ABORA_INSTALL_HARD_TIMEOUT:-5400}"
+    idle_timeout="${ABORA_INSTALL_IDLE_TIMEOUT:-1800}"
     local started pid rc now elapsed status last_size current_size last_change idle
     started="$(monotonic_seconds)"
     last_change="$started"
@@ -3134,12 +3162,13 @@ run_with_log_panel() {
         fi
         draw_install_status "$percent" "$stage" "$pid" "$started" "$status" "$idle"
         if (( idle >= idle_timeout )); then
-            printf '\n  %bInstall command produced no new log output for 30 minutes; stopping it.%b\n' "$CY" "$R"
+            printf '\n  %bInstall command produced no new log output for %s; stopping it.%b\n' \
+                "$CY" "$(format_elapsed "$idle_timeout")" "$R"
             kill "$pid" >/dev/null 2>&1 || true
             sleep 5
             kill -KILL "$pid" >/dev/null 2>&1 || true
             wait "$pid" >/dev/null 2>&1 || true
-            draw_install_status "$percent" "$stage" "$pid" "$started" "Stopped after 30 minutes of no log output" "$idle"
+            draw_install_status "$percent" "$stage" "$pid" "$started" "Stopped after $(format_elapsed "$idle_timeout") of no log output" "$idle"
             return 124
         fi
         if (( elapsed >= hard_timeout )); then
@@ -3256,7 +3285,10 @@ run_install() {
     # a stable /tmp copy of /mnt/etc/nixos, then nixos-install receives the
     # finished system path with --system; this avoids Nix hashing mutable
     # /mnt/etc/nixos while the install process is also creating files there.
-    if ! NIX_CONFIG="${nix_config}" run_with_log_panel 70 "Building system" \
+    if ! NIX_CONFIG="${nix_config}" \
+        ABORA_INSTALL_IDLE_TIMEOUT=900 \
+        ABORA_INSTALL_NIX_MAX_SILENT_TIME=900 \
+        run_with_log_panel 70 "Building system" \
         build_target_system "/mnt" "$system_path_file"; then
         die "Target system build failed. See ${install_log}."
     fi

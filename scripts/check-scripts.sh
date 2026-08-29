@@ -966,6 +966,9 @@ fi
 # mutate the path source while Nix is hashing it, causing NAR hash
 # mismatches in real installs.
 if grep -q 'nix --extra-experimental-features "nix-command flakes" build' scripts/abora-installer.sh \
+  && grep -q -- '--print-build-logs' scripts/abora-installer.sh \
+  && grep -q -- '--option max-silent-time "${ABORA_INSTALL_NIX_MAX_SILENT_TIME:-900}"' scripts/abora-installer.sh \
+  && grep -q 'ABORA_INSTALL_IDLE_TIMEOUT=900' scripts/abora-installer.sh \
   && grep -q '#nixosConfigurations.abora.config.system.build.toplevel' scripts/abora-installer.sh \
   && grep -q 'nixos-install --root /mnt --no-root-passwd --system "$system_path"' scripts/abora-installer.sh \
   && ! grep -q 'nixos-install --root /mnt --no-root-passwd .*--flake "/mnt/etc/nixos#abora"' scripts/abora-installer.sh \
