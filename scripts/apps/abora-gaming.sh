@@ -1,7 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ui_lib="${ABORA_UI_LIB:-/etc/abora/ui.sh}"
+script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ui_lib="${ABORA_UI_LIB:-}"
+if [[ -z "$ui_lib" ]]; then
+  for candidate in \
+    "$script_dir/../core/abora-ui.sh" \
+    "$script_dir/abora-ui.sh" \
+    /etc/abora/ui.sh
+  do
+    if [[ -r "$candidate" ]]; then
+      ui_lib="$candidate"
+      break
+    fi
+  done
+fi
 if [[ -r "$ui_lib" ]]; then
   # shellcheck source=/dev/null
   source "$ui_lib"

@@ -23,6 +23,7 @@ def _resolve_logo_path() -> str:
         return os.environ['ABORA_LOGO']
     for candidate in (
         '/etc/abora/Abora-LOGO.png',
+        Path(__file__).resolve().parents[2] / 'assets' / 'Abora-LOGO.png',
         Path(__file__).resolve().parent.parent / 'assets' / 'Abora-LOGO.png',
     ):
         if Path(candidate).exists():

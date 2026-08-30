@@ -581,6 +581,30 @@ print('\n'.join(sorted(ids)))
   fi
 fi
 
+if command -v python3 >/dev/null 2>&1; then
+  if python3 - <<'PY'
+from pathlib import Path
+text = Path('scripts/abora-installer-gui.py').read_text()
+required = [
+    'GAMING_CHOICES = [',
+    "('gaming',     GamingPage)",
+    "'gaming', 'options'",
+    "'Gaming', 'Options'",
+    "'gaming_enabled'",
+    "'install_gaming_during_setup', 'no'",
+    "'gaming_gamescope'",
+    "'gaming_big_picture'",
+    "queued after first boot",
+]
+raise SystemExit(0 if all(item in text for item in required) else 1)
+PY
+  then
+    pass "runtime: graphical installer queues Abora Gaming after first boot"
+  else
+    fail "runtime: graphical installer queues Abora Gaming after first boot"
+  fi
+fi
+
 # Regression test: abora-installer-gui.py's get_disks() re-implements
 # abora-installer.sh's collect_disks() disk-name filtering in Python (can't
 # source the bash awk filter), and it silently drifted -- missing "ram" and

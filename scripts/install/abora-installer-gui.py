@@ -172,6 +172,7 @@ STEP_ICONS = {
     'desktop':    'preferences-desktop-appearance-symbolic',
     'disk':       'drive-harddisk-symbolic',
     'apps':       'view-grid-symbolic',
+    'gaming':     'applications-games-symbolic',
     'options':    'preferences-other-symbolic',
     'dotfiles':   'folder-symbolic',
     'summary':    'checkbox-checked-symbolic',
@@ -199,9 +200,16 @@ APP_BUNDLES = [
     ('essentials', 'Essentials',    'Browsers, office, media, everyday utilities'),
     ('creator',    'Creator',       'Design, audio, video, creative tools'),
     ('developer',  'Developer',     'IDEs, containers, terminal tools, Git'),
-    ('gaming',     'Gaming',        'Steam, Lutris, Wine, gaming helpers'),
+    ('gaming',     'Gaming Apps',   'Launchers and tools queued after first boot'),
     ('system',     'System Tools',  'Monitoring, backup, and system utilities'),
     ('none',       'None',          'Start clean and add apps later'),
+]
+
+GAMING_CHOICES = [
+    ('none',        'No Gaming Layer',              'Install the light base system first'),
+    ('desktop',     'Desktop Gaming',               'Queue Steam, GameMode, MangoHud, Vulkan tools, and launchers'),
+    ('big-picture', 'Desktop Gaming + Big Picture', 'Queue desktop gaming plus the Steam Big Picture launcher'),
+    ('console',     'Big Picture Console Mode',     'Queue the controller-first Gamescope login session'),
 ]
 
 LOCALES = [
@@ -630,6 +638,7 @@ class State:
     if desktop not in DESKTOP_LABELS:
         desktop = 'cosmic'
     apps          = 'favorites'
+    gaming        = 'none'
     anix          = True
     wallpaper     = 'titlis-alps.jpg'
     dotfiles_url  = ''
@@ -1101,6 +1110,60 @@ class AppsPage(Gtk.Widget):
                 break
 
 
+class GamingPage(Gtk.Widget):
+    __gtype_name__ = 'AboraGamingPage'
+
+    def __init__(self, state: State):
+        super().__init__()
+        self._state = state
+        self._radios: list[tuple[str, Gtk.CheckButton]] = []
+
+        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        inner.set_margin_top(8)
+        inner.set_margin_bottom(8)
+        inner.append(heading_box('Gaming',
+                                 'Gaming packages are queued after first boot so the base install can finish reliably.'))
+
+        grp = Adw.PreferencesGroup(title='Abora Gaming Layer')
+        inner.append(grp)
+
+        first_btn = None
+        for gid, name, desc in GAMING_CHOICES:
+            row = Adw.ActionRow(title=name, subtitle=desc)
+            cb = Gtk.CheckButton(valign=Gtk.Align.CENTER)
+            if first_btn is None:
+                first_btn = cb
+            else:
+                cb.set_group(first_btn)
+            cb.set_active(gid == state.gaming)
+            row.add_prefix(cb)
+            row.set_activatable_widget(cb)
+            grp.add(row)
+            self._radios.append((gid, cb))
+
+        note_grp = Adw.PreferencesGroup(title='After Install')
+        inner.append(note_grp)
+        note_grp.add(Adw.ActionRow(
+            title='Apply the queued gaming setup',
+            subtitle='Run abora gaming apply-queued after the first reboot.',
+        ))
+
+        self._sw = clamped_scroll(inner)
+        self._sw.set_parent(self)
+
+    def do_size_allocate(self, width, height, baseline):
+        self._sw.allocate(width, height, baseline)
+
+    def do_measure(self, orientation, for_size):
+        return self._sw.measure(orientation, for_size)
+
+    def collect(self):
+        for gid, cb in self._radios:
+            if cb.get_active():
+                self._state.gaming = gid
+                break
+
+
 class OptionsPage(Gtk.Widget):
     __gtype_name__ = 'AboraOptionsPage'
 
@@ -1248,6 +1311,9 @@ class SummaryPage(Gtk.Widget):
 
         desktop_lbl = DESKTOP_LABELS.get(state.desktop, state.desktop)
         bundle_lbl  = next((n for b, n, _ in APP_BUNDLES if b == state.apps), state.apps)
+        gaming_lbl  = next((n for g, n, _ in GAMING_CHOICES if g == state.gaming), state.gaming)
+        if state.gaming != 'none':
+            gaming_lbl = f'{gaming_lbl} (queued after first boot)'
         wp_lbl      = next((l for f, l in WALLPAPERS if f == state.wallpaper), state.wallpaper)
 
         for title, value in [
@@ -1256,6 +1322,7 @@ class SummaryPage(Gtk.Widget):
             ('Hostname',   state.hostname),
             ('Desktop',    desktop_lbl),
             ('App Bundle', bundle_lbl),
+            ('Gaming',     gaming_lbl),
             ('Locale',     state.locale_label),
             ('Timezone',   state.tz),
             ('Keyboard',   state.keyboard),
@@ -1381,14 +1448,14 @@ class InstallingPage(Gtk.Box):
 
 if EDITION in ('hyprland', 'other'):
     PAGES_ORDER = ['welcome', 'language', 'identity', 'desktop', 'disk', 'apps',
-                   'options', 'dotfiles', 'summary', 'installing']
+                   'gaming', 'options', 'dotfiles', 'summary', 'installing']
     STEP_NAMES  = ['Welcome', 'Language', 'Identity', 'Desktop', 'Disk', 'Apps',
-                   'Options', 'Dotfiles', 'Review', 'Installing']
+                   'Gaming', 'Options', 'Dotfiles', 'Review', 'Installing']
 else:
     PAGES_ORDER = ['welcome', 'language', 'identity', 'desktop', 'disk', 'apps',
-                   'options', 'summary', 'installing']
+                   'gaming', 'options', 'summary', 'installing']
     STEP_NAMES  = ['Welcome', 'Language', 'Identity', 'Desktop', 'Disk', 'Apps',
-                   'Options', 'Review', 'Installing']
+                   'Gaming', 'Options', 'Review', 'Installing']
 
 
 # ── Main window ────────────────────────────────────────────────────────────────
@@ -1501,6 +1568,7 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
             ('desktop',    DesktopPage),
             ('disk',       DiskPage),
             ('apps',       AppsPage),
+            ('gaming',     GamingPage),
             ('options',    OptionsPage),
         ]
         if EDITION in ('hyprland', 'other'):
@@ -1664,6 +1732,9 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
         # arbitrary shell code the moment abora-installer.sh sources it.
         pw_hash = hash_password(self._state.password)
         dl = DESKTOP_LABELS.get(self._state.desktop, self._state.desktop)
+        gaming_enabled = self._state.gaming != 'none'
+        gaming_big_picture = self._state.gaming in ('big-picture', 'console')
+        gaming_console = self._state.gaming == 'console'
         with open(path, 'w') as f:
             f.write('# Generated by abora-installer-gui\n')
             for k, v in [
@@ -1684,6 +1755,17 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
                 ('wallpaper_name',          self._state.wallpaper),
                 ('starter_apps_bundle',     self._state.apps),
                 ('install_apps_during_setup', 'no'),
+                ('gaming_enabled',          'yes' if gaming_enabled else 'no'),
+                ('gaming_steam',            'yes' if gaming_enabled else 'no'),
+                ('gaming_big_picture',      'yes' if gaming_big_picture else 'no'),
+                ('gaming_autostart',        'no'),
+                ('gaming_gamescope',        'yes' if gaming_console else 'no'),
+                ('gaming_vulkan',           'yes' if gaming_enabled else 'no'),
+                ('gaming_controller',       'yes' if gaming_enabled else 'no'),
+                ('gaming_mangohud',         'yes' if gaming_enabled else 'no'),
+                ('gaming_gamemode',         'yes' if gaming_enabled else 'no'),
+                ('gaming_launchers',        'yes' if gaming_enabled else 'no'),
+                ('install_gaming_during_setup', 'no'),
                 ('anix_enabled',            'yes' if self._state.anix else 'no'),
                 ('dotfiles_url',            self._state.dotfiles_url),
             ]:
