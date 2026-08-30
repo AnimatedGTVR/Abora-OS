@@ -1,0 +1,10 @@
+[package]
+name = "abora-installer"
+version = "4.0.1-alpha"
+edition = "2021"
+description = "Abora OS installer front controller"
+license = "MIT"
+
+[[bin]]
+name = "abora-installer"
+path = "src/main.rs"

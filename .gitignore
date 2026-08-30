@@ -8,6 +8,8 @@
 # derivations both build it via `cargoLock.lockFile = .../Cargo.lock`, so
 # this one *.lock file must be tracked for a fresh clone to build at all.
 !/vendor/tinypm/Cargo.lock
+!/tools/abora-installer/Cargo.lock
+/tools/abora-installer/target/
 .codex
 
 # Modularity prebuilt binary (run `make setup-modularity` to populate)
