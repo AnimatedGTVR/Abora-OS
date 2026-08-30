@@ -979,16 +979,18 @@ if grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";' "$tmp_u
   && grep -q 'write_installed_flake "$root"' scripts/abora-installer.sh \
   && grep -q '^lock_target_flake()' scripts/abora-installer.sh \
   && grep -q '^build_target_system()' scripts/abora-installer.sh \
-  && grep -q 'flake metadata' scripts/abora-installer.sh \
   && grep -q -- '--no-write-lock-file' scripts/abora-installer.sh \
   && grep -q 'lock_target_flake "/mnt"' scripts/abora-installer.sh \
   && grep -q 'mktemp -d /tmp/abora-target-flake' scripts/abora-installer.sh \
+  && grep -q 'mktemp -d /tmp/abora-validate-flake' scripts/abora-installer.sh \
   && grep -q 'build_target_system "/mnt" "$system_path_file"' scripts/abora-installer.sh \
   && ! grep -q 'path:/etc/abora/nixpkgs' "$tmp_update_flake/flake.nix" \
   && ! grep -q 'path:/etc/abora/nixpkgs' scripts/abora-installer.sh \
   && ! grep -q 'path:/mnt/etc/nixos/abora/nixpkgs' scripts/abora-installer.sh \
   && ! grep -q 'rm -f "${cfgdir}/flake.lock"' scripts/abora-installer.sh \
-  && ! grep -q 'flake lock "${cfgdir}"' scripts/abora-installer.sh; then
+  && ! grep -q 'flake lock "${cfgdir}"' scripts/abora-installer.sh \
+  && ! grep -q 'flake metadata.*"${cfgdir}"' scripts/abora-installer.sh \
+  && ! grep -q '"${cfgdir}#nixosConfigurations' scripts/abora-installer.sh; then
   pass "runtime: installed flake uses a release-pinned pure nixos-unstable input"
 else
   fail "runtime: installed flake uses a release-pinned pure nixos-unstable input"
@@ -2159,6 +2161,32 @@ if grep -q 'gaming_steam=' scripts/abora-installer.sh \
   pass "runtime: installer persists Abora Gaming Steam and Vulkan options"
 else
   fail "runtime: installer persists Abora Gaming Steam and Vulkan options"
+fi
+
+if grep -q '^read_nix_string_assignment()' scripts/abora-installer.sh \
+  && grep -q '^set_nix_string_assignment()' scripts/abora-installer.sh \
+  && grep -q 'read_nix_string_assignment "$f" "abora.hostname"' scripts/abora-installer.sh \
+  && grep -q 'read_nix_string_assignment "$f" "networking.hostName"' scripts/abora-installer.sh \
+  && grep -q 'read_nix_string_assignment "$f" "abora.locale"' scripts/abora-installer.sh \
+  && grep -q 'read_nix_string_assignment "$f" "abora.timezone"' scripts/abora-installer.sh \
+  && grep -q 'read_nix_string_assignment "$f" "abora.keyboard.console"' scripts/abora-installer.sh \
+  && grep -q 'read_nix_string_assignment "$f" "abora.keyboard.xkb"' scripts/abora-installer.sh \
+  && grep -q 'read_nix_string_assignment "$f" "abora.desktop"' scripts/abora-installer.sh \
+  && grep -q 'read_nix_string_assignment "$f" "abora.wallpaper"' scripts/abora-installer.sh \
+  && grep -q 'read_nix_string_assignment "$f" "abora.gpu"' scripts/abora-installer.sh \
+  && grep -q 'set_nix_string_assignment "$abora_local" "abora.hostname"' scripts/abora-installer.sh \
+  && grep -q 'set_nix_string_assignment "$abora_local" "abora.locale"' scripts/abora-installer.sh \
+  && grep -q 'set_nix_string_assignment "$abora_local" "abora.timezone"' scripts/abora-installer.sh \
+  && grep -q 'set_nix_string_assignment "$abora_local" "abora.keyboard.console"' scripts/abora-installer.sh \
+  && grep -q 'set_nix_string_assignment "$abora_local" "abora.keyboard.xkb"' scripts/abora-installer.sh \
+  && grep -q 'set_nix_string_assignment "$abora_local" "abora.desktop"' scripts/abora-installer.sh \
+  && grep -q 'set_nix_string_assignment "$abora_local" "abora.wallpaper"' scripts/abora-installer.sh \
+  && grep -q 'set_nix_string_assignment "$abora_local" "abora.gpu"' scripts/abora-installer.sh \
+  && grep -q 'set_nix_string_assignment "${cfgdir}/anix.nix" "anix.hostname"' scripts/abora-installer.sh \
+  && grep -q 'set_nix_string_assignment "${cfgdir}/anix.nix" "anix.wallpaper"' scripts/abora-installer.sh; then
+  pass "runtime: installer reconfig uses current Abora option names"
+else
+  fail "runtime: installer reconfig uses current Abora option names"
 fi
 
 if grep -q 'jq' nix/pkgs/anix.nix \

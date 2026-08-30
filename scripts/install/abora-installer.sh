@@ -599,6 +599,29 @@ set_nix_bool_assignment() {
     rm -f "$tmp"
 }
 
+read_nix_string_assignment() {
+    local file="$1" key="$2"
+    sed -nE "s|^[[:space:]]*${key//./\\.}[[:space:]]*=[[:space:]]*\"([^\"]*)\".*|\\1|p" "$file" | head -n 1
+}
+
+set_nix_string_assignment() {
+    local file="$1" key="$2" value="$3" nix_value line tmp
+    nix_value="$(nix_string "$value")"
+    if grep -Eq "^[[:space:]]*${key//./\\.}[[:space:]]*=" "$file"; then
+        sed -i -E "s|^[[:space:]]*${key//./\\.}[[:space:]]*=.*|  ${key} = \"${nix_value}\";|" "$file"
+        return 0
+    fi
+    line="  ${key} = \"${nix_value}\";"
+    tmp="$(mktemp)"
+    awk -v line="$line" '
+        /^[[:space:]]*}[[:space:]]*$/ && !done { print line; done=1 }
+        { print }
+        END { if (!done) print line }
+    ' "$file" > "$tmp"
+    cat "$tmp" > "$file"
+    rm -f "$tmp"
+}
+
 sync_xkb_layout() {
     case "$keyboard_value" in
         us) xkb_layout_value="us" ;;
@@ -2880,14 +2903,31 @@ validate_installed_system() {
 validate_generated_config() {
     local root="${1:-/mnt}"
     local cfgdir="${root}/etc/nixos"
+    local tmpflake rc
 
     command -v nix >/dev/null 2>&1 || return 0
-    NIX_CONFIG="experimental-features = nix-command flakes" \
-        nix --extra-experimental-features "nix-command flakes" \
-            eval \
-            --no-write-lock-file \
-            "${cfgdir}#nixosConfigurations.abora.config.system.build.toplevel.drvPath" \
-            >>"$config_log" 2>&1
+
+    tmpflake="$(mktemp -d /tmp/abora-validate-flake.XXXXXX)" || return 1
+    chmod 0700 "$tmpflake" || true
+    rc=0
+    cp -a "${cfgdir}/." "$tmpflake/" || rc=1
+
+    if (( rc == 0 )) && grep -R -E 'path:.*(nixpkgs|/etc/abora|/mnt/etc/nixos)' "$tmpflake/flake.nix" "$tmpflake/flake.lock" >/dev/null 2>&1; then
+        printf 'Copied validation flake still contains a local path input.\n' >>"$config_log"
+        rc=1
+    fi
+
+    if (( rc == 0 )); then
+        NIX_CONFIG="experimental-features = nix-command flakes" \
+            nix --extra-experimental-features "nix-command flakes" \
+                eval \
+                --no-write-lock-file \
+                "${tmpflake}#nixosConfigurations.abora.config.system.build.toplevel.drvPath" \
+                >>"$config_log" 2>&1 || rc=$?
+    fi
+
+    rm -rf "$tmpflake"
+    return "$rc"
 }
 
 lock_target_flake() {
@@ -2896,16 +2936,16 @@ lock_target_flake() {
 
     [[ -f "${cfgdir}/flake.nix" ]] || return 1
     [[ -f "${cfgdir}/flake.lock" ]] || return 1
-    NIX_CONFIG="experimental-features = nix-command flakes" \
-        nix --extra-experimental-features "nix-command flakes" \
-            flake metadata \
-            --no-write-lock-file \
-            "${cfgdir}" >>"$install_log" 2>&1 || return 1
 
-    [[ -f "${cfgdir}/flake.lock" ]] || return 1
-    if grep -Eq 'path:.*(nixpkgs|/etc/abora|/mnt/etc/nixos)' "${cfgdir}/flake.lock"; then
-        printf 'Generated flake.lock contains a local path input:\n' >>"$install_log"
-        grep -E 'path:.*(nixpkgs|/etc/abora|/mnt/etc/nixos)' "${cfgdir}/flake.lock" >>"$install_log" 2>&1 || true
+    # Do not run `nix flake metadata` on /mnt/etc/nixos here. On real
+    # installs, Nix snapshots that mutable path as a path flake; any target
+    # file touched during or after the snapshot can trigger the exact
+    # "NAR hash mismatch in input path:/mnt/etc/nixos" failure this release
+    # is trying to eliminate. The release already ships target-flake.lock,
+    # so this step is only a local-path contamination check.
+    if grep -Eq 'path:.*(nixpkgs|/etc/abora|/mnt/etc/nixos)' "${cfgdir}/flake.nix" "${cfgdir}/flake.lock"; then
+        printf 'Generated flake contains a local path input:\n' >>"$install_log"
+        grep -E 'path:.*(nixpkgs|/etc/abora|/mnt/etc/nixos)' "${cfgdir}/flake.nix" "${cfgdir}/flake.lock" >>"$install_log" 2>&1 || true
         return 1
     fi
 }
@@ -3541,14 +3581,26 @@ read_current_config() {
     local f="/etc/nixos/abora-local.nix"
     [[ -f "$f" ]] || return 0
     local v
-    v="$(sed -nE 's/^[[:space:]]*networking\.hostName *= *"([^"]+)".*/\1/p' "$f" | head -1)"
+    v="$(read_nix_string_assignment "$f" "abora.hostname")"
+    [[ -z "$v" ]] && v="$(read_nix_string_assignment "$f" "networking.hostName")"
     [[ -n "$v" ]] && hostname_value="$v"
-    v="$(sed -nE 's/^[[:space:]]*i18n\.defaultLocale *= *"([^"]+)".*/\1/p' "$f" | head -1)"
+    v="$(read_nix_string_assignment "$f" "abora.locale")"
+    [[ -z "$v" ]] && v="$(read_nix_string_assignment "$f" "i18n.defaultLocale")"
     [[ -n "$v" ]] && locale_value="$v"
-    v="$(sed -nE 's/^[[:space:]]*time\.timeZone *= *"([^"]+)".*/\1/p' "$f" | head -1)"
+    v="$(read_nix_string_assignment "$f" "abora.timezone")"
+    [[ -z "$v" ]] && v="$(read_nix_string_assignment "$f" "time.timeZone")"
     [[ -n "$v" ]] && timezone_value="$v"
-    v="$(sed -nE 's/^[[:space:]]*console\.keyMap *= *"([^"]+)".*/\1/p' "$f" | head -1)"
+    v="$(read_nix_string_assignment "$f" "abora.keyboard.console")"
+    [[ -z "$v" ]] && v="$(read_nix_string_assignment "$f" "console.keyMap")"
     [[ -n "$v" ]] && keyboard_value="$v"
+    v="$(read_nix_string_assignment "$f" "abora.keyboard.xkb")"
+    [[ -n "$v" ]] && xkb_layout_value="$v"
+    v="$(read_nix_string_assignment "$f" "abora.desktop")"
+    [[ -n "$v" ]] && desktop_profile="$v"
+    v="$(read_nix_string_assignment "$f" "abora.wallpaper")"
+    [[ -n "$v" ]] && wallpaper_name="$v"
+    v="$(read_nix_string_assignment "$f" "abora.gpu")"
+    [[ -n "$v" ]] && gpu_value="$v"
     v="$(sed -nE 's/^[[:space:]]*abora\.gaming\.enable *= *(true|false).*/\1/p' "$f" | head -1)"
     [[ "$v" == "true" ]] && gaming_enabled="yes"
     [[ "$v" == "false" ]] && gaming_enabled="no"
@@ -3606,25 +3658,26 @@ run_reconfig() {
 
     if [[ "$anix_enabled" == "yes" && -f "${cfgdir}/anix.nix" ]]; then
         msg "Updating anix.nix…"
-        sed -i \
-            -e "s|anix\.hostname *= *\"[^\"]*\"|anix.hostname = \"${hostname_value}\"|" \
-            -e "s|anix\.timezone *= *\"[^\"]*\"|anix.timezone = \"${timezone_value}\"|" \
-            -e "s|anix\.desktop *= *\"[^\"]*\"|anix.desktop = \"${desktop_profile}\"|" \
-            "${cfgdir}/anix.nix" 2>/dev/null || true
+        set_nix_string_assignment "${cfgdir}/anix.nix" "anix.hostname" "$hostname_value"
+        set_nix_string_assignment "${cfgdir}/anix.nix" "anix.timezone" "$timezone_value"
+        set_nix_string_assignment "${cfgdir}/anix.nix" "anix.keyboard.console" "$keyboard_value"
+        set_nix_string_assignment "${cfgdir}/anix.nix" "anix.keyboard.xkb" "$xkb_layout_value"
+        set_nix_string_assignment "${cfgdir}/anix.nix" "anix.desktop" "$desktop_profile"
+        set_nix_string_assignment "${cfgdir}/anix.nix" "anix.wallpaper" "$wallpaper_name"
         ok "anix.nix updated"
     fi
 
     local abora_local="${cfgdir}/abora-local.nix"
     if [[ -f "$abora_local" ]]; then
         msg "Updating abora-local.nix…"
-        sed -i \
-            -e "s|networking\.hostName *= *\"[^\"]*\"|networking.hostName = \"${hostname_value}\"|" \
-            -e "s|i18n\.defaultLocale *= *\"[^\"]*\"|i18n.defaultLocale = \"${locale_value}\"|" \
-            -e "s|time\.timeZone *= *\"[^\"]*\"|time.timeZone = \"${timezone_value}\"|" \
-            -e "s|console\.keyMap *= *\"[^\"]*\"|console.keyMap = \"${keyboard_value}\"|" \
-            -e "s|abora\.desktop *= *\"[^\"]*\"|abora.desktop = \"${desktop_profile}\"|" \
-            -e "s|abora\.gpu *= *\"[^\"]*\"|abora.gpu = \"${gpu_value}\"|" \
-            "$abora_local" 2>/dev/null || true
+        set_nix_string_assignment "$abora_local" "abora.hostname" "$hostname_value"
+        set_nix_string_assignment "$abora_local" "abora.locale" "$locale_value"
+        set_nix_string_assignment "$abora_local" "abora.timezone" "$timezone_value"
+        set_nix_string_assignment "$abora_local" "abora.keyboard.console" "$keyboard_value"
+        set_nix_string_assignment "$abora_local" "abora.keyboard.xkb" "$xkb_layout_value"
+        set_nix_string_assignment "$abora_local" "abora.desktop" "$desktop_profile"
+        set_nix_string_assignment "$abora_local" "abora.wallpaper" "$wallpaper_name"
+        set_nix_string_assignment "$abora_local" "abora.gpu" "$gpu_value"
         if [[ -n "$user_password_hash" ]]; then
             local root_pw_patch="${root_password_hash:-!}"
             sed -i \
