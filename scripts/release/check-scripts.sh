@@ -2189,7 +2189,8 @@ else
   fail "runtime: installer reconfig uses current Abora option names"
 fi
 
-if grep -q 'jq' nix/pkgs/anix.nix \
+if grep -q 'dontBuild = true;' nix/pkgs/anix.nix \
+  && grep -q 'jq' nix/pkgs/anix.nix \
   && grep -q 'moducpp-anix' nix/pkgs/anix.nix \
   && grep -q 'ANIX_SYSTEM_LANGUAGE_DIR' nix/pkgs/anix.nix \
   && grep -q 'assets/anix-languages' nix/pkgs/anix.nix \
