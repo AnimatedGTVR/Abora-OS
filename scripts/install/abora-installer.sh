@@ -3487,7 +3487,7 @@ run_install() {
     log_network_snapshot
     if ! run_with_log_panel 82 "Installing bootloader" \
         env "NIX_CONFIG=${nix_config}" \
-        nixos-install --root /mnt --no-root-passwd --system "$system_path"; then
+        nixos-install --root /mnt --no-channel-copy --no-root-passwd --system "$system_path"; then
         die "nixos-install failed. See ${install_log}."
     fi
     progress_line 90 "System installed"

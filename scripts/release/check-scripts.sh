@@ -984,6 +984,7 @@ if grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";' "$tmp_u
   && grep -q 'mktemp -d /tmp/abora-target-flake' scripts/abora-installer.sh \
   && grep -q 'mktemp -d /tmp/abora-validate-flake' scripts/abora-installer.sh \
   && grep -q 'build_target_system "/mnt" "$system_path_file"' scripts/abora-installer.sh \
+  && grep -q -- '--no-channel-copy' scripts/abora-installer.sh \
   && ! grep -q 'path:/etc/abora/nixpkgs' "$tmp_update_flake/flake.nix" \
   && ! grep -q 'path:/etc/abora/nixpkgs' scripts/abora-installer.sh \
   && ! grep -q 'path:/mnt/etc/nixos/abora/nixpkgs' scripts/abora-installer.sh \
@@ -1008,7 +1009,7 @@ if grep -q 'nix --extra-experimental-features "nix-command flakes" build' script
   && grep -q -- '--option max-silent-time "${ABORA_INSTALL_NIX_MAX_SILENT_TIME:-900}"' scripts/abora-installer.sh \
   && grep -q 'ABORA_INSTALL_IDLE_TIMEOUT=900' scripts/abora-installer.sh \
   && grep -q '#nixosConfigurations.abora.config.system.build.toplevel' scripts/abora-installer.sh \
-  && grep -q 'nixos-install --root /mnt --no-root-passwd --system "$system_path"' scripts/abora-installer.sh \
+  && grep -q 'nixos-install --root /mnt --no-channel-copy --no-root-passwd --system "$system_path"' scripts/abora-installer.sh \
   && ! grep -q 'nixos-install --root /mnt --no-root-passwd .*--flake "/mnt/etc/nixos#abora"' scripts/abora-installer.sh \
   && ! grep -q 'NIX_PATH=nixpkgs=\${nixpkgs}:nixos-config=/mnt/etc/nixos/configuration.nix' scripts/abora-installer.sh; then
   pass "runtime: installer builds the flake before nixos-install instead of hashing mutable /mnt"
