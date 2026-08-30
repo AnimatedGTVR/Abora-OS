@@ -51,6 +51,8 @@ Abora Gaming commands:
                             toggle Steam Big Picture autostart
   abora gaming doctor       check common gaming requirements
   abora gaming repair-cache clear stale local Nix fetch cache files
+  abora gaming apply-queued
+                            apply the gaming choice saved by the installer
   abora gaming logs         show recent Abora install/config logs
   abora gaming help         show this help
 
@@ -70,7 +72,9 @@ normalize_bool() {
   esac
 }
 
-config_file="${ABORA_SYSTEM_CONFIG:-/etc/nixos}/abora-local.nix"
+config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
+config_file="${config_dir}/abora-local.nix"
+pending_file="${config_dir}/abora/gaming.pending"
 
 write_bool_fallback() {
   local key="$1" value="$2" escaped_key tmp
@@ -135,6 +139,26 @@ set_config_bool() {
     ok "abora.${key} set to ${value}"
     warn "Run sudo abora update to rebuild the system."
   fi
+}
+
+pending_value() {
+  local key="$1"
+  [[ -r "$pending_file" ]] || return 1
+  sed -nE "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*(yes|no|true|false|1|0)[[:space:]]*$/\\1/p" "$pending_file" | head -n 1
+}
+
+pending_enabled() {
+  local value
+  value="$(pending_value enable || true)"
+  [[ "$value" =~ ^(yes|true|1)$ ]]
+}
+
+show_pending_plan() {
+  pending_enabled || return 0
+  warn "Installer queued Abora Gaming for after first boot."
+  info "Apply it with: abora gaming apply-queued"
+  info "Or install only Steam with: abora gaming install steam"
+  printf '\n'
 }
 
 enable_gaming() {
@@ -338,6 +362,7 @@ repair_fetcher_cache() {
 
 show_status() {
   printf '%sABORA OS%s  %sGaming%s\n\n' "${c_blue:-}" "${c_reset:-}" "${c_cyan:-}" "${c_reset:-}"
+  show_pending_plan
   print_status_row "Steam" steam
   print_status_row "Gamescope" gamescope
   print_status_row "MangoHud" mangohud
@@ -355,6 +380,42 @@ show_status() {
   fi
   if [[ -r "$config_file" ]] && grep -Eq 'abora\.gaming\.steam[[:space:]]*=[[:space:]]*false' "$config_file"; then
     warn "Steam is disabled in Abora Gaming"
+  fi
+}
+
+apply_queued() {
+  local key value any=false
+
+  if ! pending_enabled; then
+    warn "No queued Abora Gaming installer choice found at ${pending_file}."
+    return 0
+  fi
+
+  for key in enable steam bigPictureShortcut bigPictureAutostart gamescopeSession controllerSupport mangohud gamemode vulkanTools launchers; do
+    value="$(pending_value "$key" || true)"
+    [[ -n "$value" ]] || continue
+    value="$(normalize_bool "$value")"
+    case "$key" in
+      enable) set_config_bool gaming.enable "$value" ;;
+      steam) set_config_bool gaming.steam "$value" ;;
+      bigPictureShortcut) set_config_bool gaming.bigPictureShortcut "$value" ;;
+      bigPictureAutostart) set_config_bool gaming.bigPictureAutostart "$value" ;;
+      gamescopeSession) set_config_bool gaming.gamescopeSession "$value" ;;
+      controllerSupport) set_config_bool gaming.controllerSupport "$value" ;;
+      mangohud) set_config_bool gaming.mangohud "$value" ;;
+      gamemode) set_config_bool gaming.gamemode "$value" ;;
+      vulkanTools) set_config_bool gaming.vulkanTools "$value" ;;
+      launchers) set_config_bool gaming.launchers "$value" ;;
+    esac
+    any=true
+  done
+
+  if [[ "$any" == "true" ]]; then
+    rm -f "$pending_file" 2>/dev/null || true
+    ok "Queued Abora Gaming settings applied."
+    info "Run: sudo abora update"
+  else
+    warn "Queued Abora Gaming file had no recognized settings."
   fi
 }
 
@@ -533,6 +594,9 @@ case "${1:-status}" in
     ;;
   repair-cache|fix-cache|clear-cache)
     repair_fetcher_cache
+    ;;
+  apply-queued|apply-installer-choice)
+    apply_queued
     ;;
   logs|log)
     shift

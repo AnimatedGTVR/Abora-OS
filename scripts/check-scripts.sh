@@ -2071,6 +2071,10 @@ fi
 if grep -q 'gaming_steam=' scripts/abora-installer.sh \
   && grep -q 'gaming_vulkan=' scripts/abora-installer.sh \
   && grep -q 'Vulkan tools' scripts/abora-installer.sh \
+  && grep -q 'install_gaming_during_setup="${ABORA_INSTALL_GAMING_DURING_SETUP:-no}"' scripts/abora-installer.sh \
+  && grep -q '^write_pending_gaming_plan()' scripts/abora-installer.sh \
+  && grep -q 'deferred Abora Gaming package activation until first boot' scripts/abora-installer.sh \
+  && grep -q 'install_gaming_enabled="no"' scripts/abora-installer.sh \
   && grep -q 'abora.gaming.steam = ${gaming_steam_nix};' scripts/abora-installer.sh \
   && grep -q 'abora.gaming.vulkanTools = ${gaming_vulkan_nix};' scripts/abora-installer.sh \
   && grep -q 'set_nix_bool_assignment "$abora_local" "abora.gaming.steam"' scripts/abora-installer.sh \
@@ -3318,6 +3322,32 @@ cat > "$tmp_gaming_module" <<'EOF'
   abora.disk = null;
 }
 EOF
+mkdir -p "$tmp_gaming_config/abora"
+cat > "$tmp_gaming_config/abora/gaming.pending" <<'EOF'
+enable=yes
+steam=yes
+bigPictureShortcut=yes
+bigPictureAutostart=no
+gamescopeSession=yes
+controllerSupport=yes
+mangohud=yes
+gamemode=yes
+vulkanTools=yes
+launchers=yes
+EOF
+if PATH="/usr/bin:/bin" \
+  ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  bash scripts/abora-gaming.sh apply-queued >/dev/null 2>&1 \
+  && grep -q 'abora.gaming.enable = true;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.steam = true;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.gamescopeSession = true;' "$tmp_gaming_module" \
+  && grep -q 'abora.gaming.launchers = true;' "$tmp_gaming_module" \
+  && [[ ! -e "$tmp_gaming_config/abora/gaming.pending" ]]; then
+  pass "runtime: abora gaming applies installer-queued gaming settings"
+else
+  fail "runtime: abora gaming applies installer-queued gaming settings"
+fi
 if PATH="/usr/bin:/bin" \
   ABORA_SYSTEM_CONFIG="$tmp_gaming_config" \
   ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \

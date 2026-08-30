@@ -33,6 +33,7 @@ gpu_value="auto"
 starter_apps_bundle="favorites"
 starter_apps_label="Fan Favorites"
 install_apps_during_setup="${ABORA_INSTALL_APPS_DURING_SETUP:-no}"
+install_gaming_during_setup="${ABORA_INSTALL_GAMING_DURING_SETUP:-no}"
 gaming_enabled="${ABORA_GAMING_ENABLED:-no}"
 gaming_steam="${ABORA_GAMING_STEAM:-yes}"
 gaming_big_picture="${ABORA_GAMING_BIG_PICTURE:-yes}"
@@ -398,12 +399,14 @@ failed_install_menu() {
         fi
         err "$reason"
         printf '  %bLog: %s%b\n\n' "${D}${CG}" "$install_log" "$R"
+        draw_failure_log_summary "$install_log"
         if declare -F draw_log_tail >/dev/null 2>&1 && [[ -f "$install_log" ]]; then
             draw_log_tail "$install_log" 12
             printf '\n'
         fi
         printf '  %bHelpful commands%b  %babora logs%b  %b·%b  %babora network%b  %b·%b  %babora support-report%b\n\n' \
             "${B}${CS}" "$R" "${B}${CW}" "$R" "$CI" "$R" "${B}${CW}" "$R" "$CI" "$R" "${B}${CW}" "$R"
+        printf '  View the raw log with: %bless %s%b\n\n' "${B}${CW}" "$install_log" "$R"
 
         menu "What now?" \
             "Try installer again|Return to the first screen" \
@@ -447,6 +450,47 @@ failed_install_menu() {
 }
 
 # ── Utility ───────────────────────────────────────────────────────────────────
+
+draw_failure_log_summary() {
+    local logfile="$1" cols width line shown=0 total=0 index=0
+    local -a matches=()
+
+    [[ -s "$logfile" ]] || return 0
+    cols="$(terminal_cols)"
+    width=$((cols - 6))
+    [[ "$width" -lt 20 ]] && width=20
+
+    mapfile -t matches < <(
+        grep -Eai \
+            '(^|[[:space:]])(error:|fatal:|failed:|cannot|could not|no such file|not found|undefined variable|permission denied|no space left on device|database or disk is full|disk I/O error|timed out|timeout)' \
+            "$logfile" 2>/dev/null \
+            | grep -Eavi 'Reason: 1 dependency failed|Output paths:|Cannot build .*[.]drv'
+    )
+    total="${#matches[@]}"
+    [[ "$total" -gt 0 ]] || return 0
+
+    printf '  %bImportant log lines%b\n' "${B}${CY}" "$R"
+    while IFS= read -r line; do
+        printf '  %b%s%b\n' "$CY" "$(truncate_line "$line" "$width")" "$R"
+        shown=$((shown + 1))
+    done < <(printf '%s\n' "${matches[@]:0:6}")
+
+    if [[ "$total" -gt 12 ]]; then
+        printf '  %b... %s more matching log lines ...%b\n' "$CG" "$((total - 12))" "$R"
+        index=$((total - 6))
+        while IFS= read -r line; do
+            printf '  %b%s%b\n' "$CY" "$(truncate_line "$line" "$width")" "$R"
+            shown=$((shown + 1))
+        done < <(printf '%s\n' "${matches[@]:index:6}")
+    elif [[ "$total" -gt 6 ]]; then
+        while IFS= read -r line; do
+            printf '  %b%s%b\n' "$CY" "$(truncate_line "$line" "$width")" "$R"
+            shown=$((shown + 1))
+        done < <(printf '%s\n' "${matches[@]:6}")
+    fi
+
+    [[ "$shown" -gt 0 ]] && printf '\n'
+}
 
 require_root() {
     [[ "${EUID:-$(id -u)}" -eq 0 ]] || { err "Run the installer as root."; exit 1; }
@@ -1907,6 +1951,7 @@ _print_summary() {
         [[ "$gaming_gamescope" == "yes" ]] && gaming_desc+=", Gamescope session"
         [[ "$gaming_vulkan" == "yes" ]] && gaming_desc+=", Vulkan tools"
         [[ "$gaming_autostart" == "yes" ]] && gaming_desc+=", autostart"
+        [[ "$install_gaming_during_setup" != "yes" ]] && gaming_desc+=" (queued after first boot)"
         printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Gaming:" "$R" "$gaming_desc"
     else
         printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Gaming:" "$R" "off"
@@ -2092,6 +2137,34 @@ write_starter_app_exprs() {
         expr="$(abora_catalog_expr "$id" 2>/dev/null || true)"
         [[ -n "$expr" ]] && printf '%s\n' "$expr" >> "$target"
     done < <(abora_catalog_bundle_ids "$starter_apps_bundle" 2>/dev/null || true)
+}
+
+write_pending_gaming_plan() {
+    local root="${1:-/mnt}"
+    local target="${root}/etc/nixos/abora/gaming.pending"
+
+    if [[ "$gaming_enabled" != "yes" || "$install_gaming_during_setup" == "yes" ]]; then
+        rm -f "$target"
+        return 0
+    fi
+
+    mkdir -p "$(dirname "$target")"
+    cat > "$target" <<EOF
+# Abora Gaming was selected during install.
+# It is deferred so Steam/Gamescope/cache misses cannot block the base OS install.
+enable=${gaming_enabled}
+steam=${gaming_steam}
+bigPictureShortcut=${gaming_big_picture}
+bigPictureAutostart=${gaming_autostart}
+gamescopeSession=${gaming_gamescope}
+controllerSupport=${gaming_controller}
+mangohud=${gaming_mangohud}
+gamemode=${gaming_gamemode}
+vulkanTools=${gaming_vulkan}
+launchers=${gaming_launchers}
+EOF
+    chmod 644 "$target"
+    printf '[installer] deferred Abora Gaming package activation until first boot: %s\n' "$target" >>"$install_log"
 }
 
 render_apps_nix() {
@@ -2364,6 +2437,7 @@ generate_nixos_config() {
 
     local desktop_pkgs root_pw_line host_nix user_nix locale_nix timezone_nix keyboard_nix xkb_nix desktop_nix wallpaper_nix anix_import_line disk_nix gpu_nix
     local gaming_enabled_nix gaming_steam_nix gaming_big_picture_nix gaming_autostart_nix gaming_gamescope_nix gaming_vulkan_nix gaming_controller_nix gaming_mangohud_nix gaming_gamemode_nix gaming_launchers_nix
+    local install_gaming_enabled install_gaming_steam install_gaming_big_picture install_gaming_autostart install_gaming_gamescope install_gaming_vulkan install_gaming_controller install_gaming_mangohud install_gaming_gamemode install_gaming_launchers
     local disk_bios_support_nix
     timezone_value="$(normalize_timezone "$timezone_value")"
     desktop_pkgs="$(abora_desktop_package_block "$desktop_profile")"
@@ -2389,16 +2463,39 @@ generate_nixos_config() {
     else
         disk_bios_support_nix="true"
     fi
-    gaming_enabled_nix="$(nix_bool "$gaming_enabled")"
-    gaming_steam_nix="$(nix_bool "$gaming_steam")"
-    gaming_big_picture_nix="$(nix_bool "$gaming_big_picture")"
-    gaming_autostart_nix="$(nix_bool "$gaming_autostart")"
-    gaming_gamescope_nix="$(nix_bool "$gaming_gamescope")"
-    gaming_vulkan_nix="$(nix_bool "$gaming_vulkan")"
-    gaming_controller_nix="$(nix_bool "$gaming_controller")"
-    gaming_mangohud_nix="$(nix_bool "$gaming_mangohud")"
-    gaming_gamemode_nix="$(nix_bool "$gaming_gamemode")"
-    gaming_launchers_nix="$(nix_bool "$gaming_launchers")"
+    write_pending_gaming_plan "$root"
+    install_gaming_enabled="$gaming_enabled"
+    install_gaming_steam="$gaming_steam"
+    install_gaming_big_picture="$gaming_big_picture"
+    install_gaming_autostart="$gaming_autostart"
+    install_gaming_gamescope="$gaming_gamescope"
+    install_gaming_vulkan="$gaming_vulkan"
+    install_gaming_controller="$gaming_controller"
+    install_gaming_mangohud="$gaming_mangohud"
+    install_gaming_gamemode="$gaming_gamemode"
+    install_gaming_launchers="$gaming_launchers"
+    if [[ "$gaming_enabled" == "yes" && "$install_gaming_during_setup" != "yes" ]]; then
+        install_gaming_enabled="no"
+        install_gaming_steam="no"
+        install_gaming_big_picture="no"
+        install_gaming_autostart="no"
+        install_gaming_gamescope="no"
+        install_gaming_vulkan="no"
+        install_gaming_controller="no"
+        install_gaming_mangohud="no"
+        install_gaming_gamemode="no"
+        install_gaming_launchers="no"
+    fi
+    gaming_enabled_nix="$(nix_bool "$install_gaming_enabled")"
+    gaming_steam_nix="$(nix_bool "$install_gaming_steam")"
+    gaming_big_picture_nix="$(nix_bool "$install_gaming_big_picture")"
+    gaming_autostart_nix="$(nix_bool "$install_gaming_autostart")"
+    gaming_gamescope_nix="$(nix_bool "$install_gaming_gamescope")"
+    gaming_vulkan_nix="$(nix_bool "$install_gaming_vulkan")"
+    gaming_controller_nix="$(nix_bool "$install_gaming_controller")"
+    gaming_mangohud_nix="$(nix_bool "$install_gaming_mangohud")"
+    gaming_gamemode_nix="$(nix_bool "$install_gaming_gamemode")"
+    gaming_launchers_nix="$(nix_bool "$install_gaming_launchers")"
 
     # Persist the dotfiles Git URL (if any) so the first graphical session
     # can clone and import it automatically — see
