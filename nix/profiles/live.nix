@@ -94,11 +94,15 @@ let
   aboraHardwareTest = pkgs.writeShellScriptBin "abora-hardware-test" ''
     exec env ABORA_SUPPORT_REPORT_SCRIPT=/etc/abora/support-report.sh ${pkgs.bashInteractive}/bin/bash /etc/abora/hardware-test.sh "$@"
   '';
-  # abora-installer.sh needs root (it partitions disks), so this wrapper
-  # self-elevates via sudo when not already root. It prefers the setuid
-  # wrapper at /run/wrappers/bin/sudo (NixOS's actual working sudo binary)
-  # over a bare `sudo` lookup, since PATH ordering on the live image isn't
-  # guaranteed to put the wrapper first.
+  # The Rust front controller is the public installer binary; it delegates to
+  # the legacy Bash backend while the installer is migrated module by module.
+  installerRunner = "${pkgs.abora-installer}/bin/abora-installer --legacy-script /etc/abora/installer.sh";
+
+  # The installer needs root (it partitions disks), so this wrapper
+  # self-elevates via sudo when not already root. It prefers the setuid wrapper
+  # at /run/wrappers/bin/sudo (NixOS's actual working sudo binary) over a bare
+  # `sudo` lookup, since PATH ordering on the live image isn't guaranteed to
+  # put the wrapper first.
   aboraInstall = pkgs.writeShellScriptBin "abora-install" ''
     if [ "$(id -u)" -ne 0 ]; then
       sudo_bin=/run/wrappers/bin/sudo
@@ -111,7 +115,7 @@ let
         ABORA_APP_CATALOG_LIB=/etc/abora/app-catalog.sh \
         ABORA_EDITION="''${ABORA_EDITION:-${selectedEdition.id}}" \
         ABORA_DEFAULT_DESKTOP="''${ABORA_DEFAULT_DESKTOP:-${selectedEdition.desktop}}" \
-        ${pkgs.bashInteractive}/bin/bash /etc/abora/installer.sh "$@"
+        ${installerRunner} "$@"
     fi
     exec env \
       TERM="''${TERM:-linux}" \
@@ -119,14 +123,14 @@ let
       ABORA_APP_CATALOG_LIB=/etc/abora/app-catalog.sh \
       ABORA_EDITION="''${ABORA_EDITION:-${selectedEdition.id}}" \
       ABORA_DEFAULT_DESKTOP="''${ABORA_DEFAULT_DESKTOP:-${selectedEdition.desktop}}" \
-      ${pkgs.bashInteractive}/bin/bash /etc/abora/installer.sh "$@"
+      ${installerRunner} "$@"
   '';
   aboraSetup = pkgs.writeShellScriptBin "abora-setup" ''
     exec ${aboraInstall}/bin/abora-install "$@"
   '';
   aboraSetupDesktopPkg = pkgs.runCommandLocal "abora-setup-desktop" { } ''
     mkdir -p "$out/share/applications"
-    cp ${../../scripts/abora-setup.desktop} "$out/share/applications/abora-setup.desktop"
+    cp ${../../scripts/install/abora-setup.desktop} "$out/share/applications/abora-setup.desktop"
   '';
   aboraUpdate = pkgs.writeShellScriptBin "abora-update" ''
     exec env ABORA_UPDATE_COMMAND=abora-update ${pkgs.bashInteractive}/bin/bash /etc/abora/update.sh "$@"
@@ -473,6 +477,7 @@ in
     tinypmPackage
     abora-update-resolver
     abora-plan-tool
+    abora-installer
     aboraApps
     aboraCustomPackages
     aboraAdoptNixos
@@ -587,59 +592,59 @@ in
         Base: Abora OS
       '';
       "abora/app-catalog.sh" = {
-        source = ../../scripts/abora-app-catalog.sh;
+        source = ../../scripts/apps/abora-app-catalog.sh;
         mode = "0755";
       };
       "abora/apps.sh" = {
-        source = ../../scripts/abora-apps.sh;
+        source = ../../scripts/apps/abora-apps.sh;
         mode = "0755";
       };
       "abora/custom-packages.sh" = {
-        source = ../../scripts/abora-custom-packages.sh;
+        source = ../../scripts/apps/abora-custom-packages.sh;
         mode = "0755";
       };
       "abora/abora.sh" = {
-        source = ../../scripts/abora.sh;
+        source = ../../scripts/core/abora.sh;
         mode = "0755";
       };
       "abora/build.sh" = {
-        source = ../../scripts/abora-build.sh;
+        source = ../../scripts/install/abora-build.sh;
         mode = "0755";
       };
       "abora/adopt-nixos.sh" = {
-        source = ../../scripts/abora-adopt-nixos.sh;
+        source = ../../scripts/install/abora-adopt-nixos.sh;
         mode = "0755";
       };
       "abora/desktop.sh" = {
-        source = ../../scripts/abora-desktop.sh;
+        source = ../../scripts/config/abora-desktop.sh;
         mode = "0755";
       };
       "abora/gaming.sh" = {
-        source = ../../scripts/abora-gaming.sh;
+        source = ../../scripts/apps/abora-gaming.sh;
         mode = "0755";
       };
       "abora/dotfiles-import.sh" = {
-        source = ../../scripts/abora-dotfiles-import.sh;
+        source = ../../scripts/config/abora-dotfiles-import.sh;
         mode = "0755";
       };
       "abora/doctor.sh" = {
-        source = ../../scripts/abora-doctor.sh;
+        source = ../../scripts/support/abora-doctor.sh;
         mode = "0755";
       };
       "abora/check-full.sh" = {
-        source = ../../scripts/abora-check-full.sh;
+        source = ../../scripts/support/abora-check-full.sh;
         mode = "0755";
       };
       "abora/recovery.sh" = {
-        source = ../../scripts/abora-recovery.sh;
+        source = ../../scripts/support/abora-recovery.sh;
         mode = "0755";
       };
       "abora/welcome.sh" = {
-        source = ../../scripts/abora-welcome.sh;
+        source = ../../scripts/support/abora-welcome.sh;
         mode = "0755";
       };
       "abora/repair-flake-purity.sh" = {
-        source = ../../scripts/abora-repair-flake-purity.sh;
+        source = ../../scripts/config/abora-repair-flake-purity.sh;
         mode = "0755";
       };
       "abora/default-wallpaper.png".source = ../../assets/wallpapers/collection/titlis-alps.jpg;
@@ -661,21 +666,22 @@ in
       '';
       "abora/title.txt".source = ../../assets/abora-title.txt;
       "abora/VERSION".source = ../../VERSION;
+      "abora/target-flake.lock".source = ../../flake.lock;
       "abora/fastfetch-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "abora/fastfetch-config.jsonc".source = ../../assets/fastfetch-config.jsonc;
       "abora/effects/v3StartingAbora.mp3".source = ../../assets/Effects/v3StartingAbora.mp3;
       "abora/desktop-profiles.sh" = {
-        source = ../../scripts/abora-desktop-profiles.sh;
+        source = ../../scripts/config/abora-desktop-profiles.sh;
         mode = "0755";
       };
       "abora/mango/config.conf".source = ../../assets/mango/config.conf;
       "assets/mango/config.conf".source = ../../assets/mango/config.conf;
       "abora/support-report.sh" = {
-        source = ../../scripts/abora-support-report.sh;
+        source = ../../scripts/support/abora-support-report.sh;
         mode = "0755";
       };
       "abora/hardware-test.sh" = {
-        source = ../../scripts/abora-hardware-test.sh;
+        source = ../../scripts/support/abora-hardware-test.sh;
         mode = "0755";
       };
       "abora/plymouth/abora.plymouth".source = ../../assets/plymouth/abora.plymouth;
@@ -707,18 +713,18 @@ in
         esac
       '';
       "abora/boot.sh" = {
-        source = ../../scripts/abora-boot.sh;
+        source = ../../scripts/install/abora-boot.sh;
         mode = "0755";
       };
       "abora/installer.sh" = {
-        source = ../../scripts/abora-installer.sh;
+        source = ../../scripts/install/abora-installer.sh;
         mode = "0755";
       };
       "abora/setup-launcher.sh" = {
-        source = ../../scripts/abora-setup-launcher.sh;
+        source = ../../scripts/install/abora-setup-launcher.sh;
         mode = "0755";
       };
-      "abora/setup.desktop".source = ../../scripts/abora-setup.desktop;
+      "abora/setup.desktop".source = ../../scripts/install/abora-setup.desktop;
       "abora/installed-base.nix".source = ../modules/installed-base.nix;
       "abora/pkgs/mango.nix".source = ../pkgs/mango.nix;
       "abora/pkgs/scenefx-0_5.nix".source = ../pkgs/scenefx-0_5.nix;
@@ -741,31 +747,31 @@ in
       "anix/languages".source = ../../assets/anix-languages;
       "abora/abora-options.nix".source  = ../modules/abora-options.nix;
       "abora/ui.sh" = {
-        source = ../../scripts/abora-ui.sh;
+        source = ../../scripts/core/abora-ui.sh;
         mode   = "0644";
       };
       "abora/config.sh" = {
-        source = ../../scripts/abora-config.sh;
+        source = ../../scripts/config/abora-config.sh;
         mode   = "0755";
       };
-      "abora/welcome-gui.py".source = ../../scripts/abora-welcome-gui.py;
-      "abora/config-gui.py".source = ../../scripts/abora-config-gui.py;
-      "abora/gaming-welcome-gui.py".source = ../../scripts/abora-gaming-welcome-gui.py;
+      "abora/welcome-gui.py".source = ../../scripts/support/abora-welcome-gui.py;
+      "abora/config-gui.py".source = ../../scripts/config/abora-config-gui.py;
+      "abora/gaming-welcome-gui.py".source = ../../scripts/apps/abora-gaming-welcome-gui.py;
       "abora/anix.sh" = {
-        source = ../../scripts/anix.sh;
+        source = ../../scripts/core/anix.sh;
         mode = "0755";
       };
       "abora/anix-module.nix".source = ../modules/anix.nix;
       "abora/session-setup.sh" = {
-        source = ../../scripts/abora-session-setup.sh;
+        source = ../../scripts/config/abora-session-setup.sh;
         mode = "0755";
       };
       "abora/theme-sync.sh" = {
-        source = ../../scripts/abora-theme-sync.sh;
+        source = ../../scripts/config/abora-theme-sync.sh;
         mode = "0755";
       };
       "abora/update.sh" = {
-        source = ../../scripts/abora-update.sh;
+        source = ../../scripts/support/abora-update.sh;
         mode = "0755";
       };
       "xdg/autostart/abora-theme-sync.desktop".text = ''

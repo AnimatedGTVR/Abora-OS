@@ -1,12 +1,1 @@
-[Desktop Entry]
-Version=1.1
-Type=Application
-Name=Start Abora
-GenericName=Abora Installer
-Comment=Install or reconfigure Abora OS
-Icon=drive-harddisk
-Exec=abora-setup
-Terminal=false
-Categories=System;
-Keywords=setup;install;configure;reconfigure;desktop;apps;locale;abora;nixos;anix;
-StartupNotify=true
+install/abora-setup.desktop

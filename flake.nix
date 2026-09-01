@@ -20,6 +20,7 @@
         abora-plan-tool = final.callPackage ./nix/pkgs/abora-plan-tool.nix {};
         abora-desktop-preview = final.callPackage ./nix/pkgs/desktop-preview.nix {};
         abora-hardware-test = final.callPackage ./nix/pkgs/hardware-test.nix {};
+        abora-installer = final.callPackage ./nix/pkgs/abora-installer.nix {};
       };
 
       pkgs = import nixpkgs {
@@ -95,6 +96,7 @@
         moducpp-anix = pkgs.moducpp-anix;
         abora-desktop-preview = pkgs.abora-desktop-preview;
         abora-hardware-test = pkgs.abora-hardware-test;
+        abora-installer = pkgs.abora-installer;
         abora-update-resolver = pkgs.abora-update-resolver;
         abora-plan-tool = pkgs.abora-plan-tool;
 

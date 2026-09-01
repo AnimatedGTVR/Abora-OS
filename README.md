@@ -53,7 +53,7 @@
 - [Security Policy](SECURITY.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Release Notes](RELEASE_NOTES.md)
-- [Roadmap](ROADMAP.md)
+- [Roadmap](docs/roadmap.md)
 - [License](LICENSE)
 
 ## Screenshots
