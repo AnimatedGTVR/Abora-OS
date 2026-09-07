@@ -1,0 +1,138 @@
+name: Bug report
+description: Something in Abora OS is broken or behaves unexpectedly.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug.
+
+        If you are on a working Abora system, `abora bug-report --github --web` fills
+        most of this in for you. `abora support-report` builds a redacted diagnostic
+        archive worth attaching below.
+
+        **Before attaching an archive, skim it.** Abora redacts passwords, tokens,
+        API keys, wireless PSKs and authorization headers, but no redactor is perfect.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What broke?
+      description: What happened, and what did you expect instead?
+      placeholder: The installer exits after picking a disk. I expected it to continue to the user setup step.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where did it happen?
+      options:
+        - Live ISO installer
+        - Installed system
+        - Update (abora update)
+        - First boot
+        - Building from source
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: edition
+    attributes:
+      label: Desktop edition
+      description: The value of `abora config get desktop`, if the system is installed.
+      options:
+        - cosmic
+        - gnome
+        - plasma
+        - hyprland
+        - sway
+        - xfce
+        - cinnamon
+        - mate
+        - budgie
+        - lxqt
+        - pantheon
+        - mangowm
+        - i3
+        - awesome
+        - openbox
+        - niri
+        - river
+        - qtile
+        - bspwm
+        - fluxbox
+        - icewm
+        - herbstluftwm
+        - none
+        - Not sure / not installed yet
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Abora version
+      description: Output of `cat /etc/os-release | grep VERSION`, or the ISO filename you booted.
+      placeholder: "4.0.1"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: hardware
+    attributes:
+      label: Real hardware or a VM?
+      options:
+        - Real hardware
+        - Virtual machine
+    validations:
+      required: true
+
+  - type: dropdown
+    id: network
+    attributes:
+      label: Network at the time
+      options:
+        - Wired
+        - Wi-Fi
+        - Offline
+        - Not sure
+    validations:
+      required: false
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Number the steps if you can. "It happens every time" and "it happened once" are both useful — say which.
+      placeholder: |
+        1. Boot the Cosmic ISO
+        2. Run `abora install`
+        3. Pick the whole-disk option
+        4. It exits here
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output
+      description: |
+        Paste the exact error. Useful commands:
+        `abora logs --lines 200`, `abora network`, `abora check-full`
+        This box renders as a code block, so no backticks needed.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for this problem.
+          required: false
+        - label: If I attached a support archive, I skimmed it for anything private.
+          required: false

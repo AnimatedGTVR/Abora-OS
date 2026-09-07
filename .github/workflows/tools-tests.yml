@@ -1,0 +1,81 @@
+name: Tool Tests
+
+# The Rust installer and the two .NET tools ship real unit tests that nothing
+# in CI was running: flake-check.yml covers shell scripts and Nix evaluation,
+# and `nix flake check --no-build` does not build the installer derivation, so
+# its cargo tests never executed on a pull request. A regression in any of
+# these could only be caught by someone running the suites by hand.
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  rust-installer:
+    name: Rust installer (abora-installer)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/abora-installer
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Show toolchain
+        run: |
+          set -euxo pipefail
+          cargo --version
+          rustc --version
+
+      - name: Formatting
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test --all-targets
+
+  dotnet-tools:
+    name: .NET tools (plan-tool, update-resolver)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Test abora-plan-tool
+        run: dotnet test tools/abora-plan-tool/tests/AboraPlanTool.Tests.csproj --nologo
+
+      - name: Test abora-update-resolver
+        run: dotnet test tools/abora-update-resolver/tests/AboraUpdateResolver.Tests.csproj --nologo
+
+  python-syntax:
+    name: Python GUI syntax
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Byte-compile the GTK front-ends
+        # These import gi/Adw at runtime, which is not available on a bare
+        # runner, so this checks syntax only -- enough to catch the kind of
+        # edit that would crash the app the moment a user opened it.
+        run: |
+          set -euxo pipefail
+          find scripts -name '*.py' -print0 | xargs -0 -r python -m py_compile

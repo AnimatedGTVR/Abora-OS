@@ -16,22 +16,14 @@ pub fn run_legacy(script: &Path, passthrough: &[OsString]) -> Result<u8, String>
     // only then fall back to the usual absolute locations.
     let mut last_err = None;
     for bash in bash_candidates() {
-        match Command::new(&bash)
-            .arg(script)
-            .args(passthrough)
-            .status()
-        {
+        match Command::new(&bash).arg(script).args(passthrough).status() {
             Ok(status) => return Ok(status.code().unwrap_or(1).min(u8::MAX as i32) as u8),
             Err(err) => last_err = Some((bash, err)),
         }
     }
 
     Err(match last_err {
-        Some((bash, err)) => format!(
-            "failed to launch {} with {}: {err}",
-            script.display(),
-            bash
-        ),
+        Some((bash, err)) => format!("failed to launch {} with {}: {err}", script.display(), bash),
         None => format!("failed to launch {}: no bash found", script.display()),
     })
 }
