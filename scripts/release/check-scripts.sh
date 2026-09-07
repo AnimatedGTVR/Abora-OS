@@ -1632,6 +1632,53 @@ else
   fail "runtime: adopt-nixos interactive wizard asks desktop/gaming and confirms before applying"
 fi
 
+# abora-adopt-bootstrap.sh runs `git reset --hard` on an existing checkout,
+# and it is executed straight off a curl pipe, so its refusal check is the
+# only thing standing between a user's local work and a silent overwrite.
+# `git diff --quiet HEAD` is not sufficient there: it ignores untracked
+# files, and an untracked local file whose path also exists in the fetched
+# ref gets overwritten by the reset with no warning. Builds the exact
+# scenario -- untracked local file, same path present upstream -- and checks
+# the script's own guard expression classifies it as dirty, while leaving a
+# genuinely clean tree (including gitignored build output) alone.
+tmp_bootstrap_guard="$(mktemp -d)"
+(
+  cd "$tmp_bootstrap_guard"
+  git init -q repo
+  cd repo
+  git config user.email guard@example.invalid
+  git config user.name guard
+  printf 'out/\n' > .gitignore
+  printf 'base\n' > README
+  git add -A
+  git commit -qm base
+) >/dev/null 2>&1
+_guard_repo="$tmp_bootstrap_guard/repo"
+_bootstrap_dirty() {
+  [[ -n "$(git -C "$1" status --porcelain=v1 --untracked-files=all 2>/dev/null)" ]]
+}
+_guard_clean_ok=0
+_bootstrap_dirty "$_guard_repo" || _guard_clean_ok=1
+mkdir -p "$_guard_repo/out" && printf 'artifact\n' > "$_guard_repo/out/build.log"
+_guard_ignored_ok=0
+_bootstrap_dirty "$_guard_repo" || _guard_ignored_ok=1
+printf 'local work\n' > "$_guard_repo/settings.nix"
+_guard_untracked_ok=0
+_bootstrap_dirty "$_guard_repo" && _guard_untracked_ok=1
+rm -f "$_guard_repo/settings.nix"
+printf 'modified\n' >> "$_guard_repo/README"
+_guard_tracked_ok=0
+_bootstrap_dirty "$_guard_repo" && _guard_tracked_ok=1
+if [[ "$_guard_clean_ok" -eq 1 && "$_guard_ignored_ok" -eq 1 \
+  && "$_guard_untracked_ok" -eq 1 && "$_guard_tracked_ok" -eq 1 ]] \
+  && grep -q 'status --porcelain=v1 --untracked-files=all' scripts/abora-adopt-bootstrap.sh \
+  && grep -q 'ABORA_FORCE_RESET' scripts/abora-adopt-bootstrap.sh; then
+  pass "runtime: adopt-bootstrap refuses a hard reset over untracked or modified local work"
+else
+  fail "runtime: adopt-bootstrap refuses a hard reset over untracked or modified local work"
+fi
+rm -rf "$tmp_bootstrap_guard"
+
 tmp_bad_upstream="$(mktemp -d)"
 mkdir -p "$tmp_bad_upstream"
 if ABORA_SYSTEM_CONFIG="$tmp_update_flake" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-validate-upstream "$tmp_bad_upstream" test-ref >/dev/null 2>&1; then
