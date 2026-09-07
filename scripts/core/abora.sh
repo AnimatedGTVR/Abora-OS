@@ -2,6 +2,26 @@
 set -euo pipefail
 
 script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# This script lives in scripts/core, but the scripts it falls back to when the
+# packaged command is missing were moved into scripts/apps, scripts/install and
+# scripts/support. Resolving them next to this file found nothing, so every
+# fallback path was dead. Look in the sibling category directories, then in the
+# scripts/ root, which still carries compatibility symlinks.
+scripts_dir="$(dirname -- "$script_dir")"
+
+# Print the first existing path for a helper script, or fail if none matches.
+resolve_helper() {
+    local name="$1" dir
+    for dir in "$scripts_dir/apps" "$scripts_dir/install" "$scripts_dir/support" \
+               "$scripts_dir/config" "$scripts_dir/release" "$scripts_dir" "$script_dir"; do
+        if [[ -f "$dir/$name" ]]; then
+            printf '%s\n' "$dir/$name"
+            return 0
+        fi
+    done
+    printf 'abora: cannot find %s under %s\n' "$name" "$scripts_dir" >&2
+    return 1
+}
 
 show_learn() {
     cat <<'EOF'
@@ -348,14 +368,16 @@ case "${1:-help}" in
         if command -v abora-apps >/dev/null 2>&1; then
             exec abora-apps "$@"
         fi
-        exec "$script_dir/abora-apps.sh" "$@"
+        helper="$(resolve_helper abora-apps.sh)"
+        exec "$helper" "$@"
         ;;
     custom-packages)
         shift
         if command -v abora-custom-packages >/dev/null 2>&1; then
             exec abora-custom-packages "$@"
         fi
-        exec "$script_dir/abora-custom-packages.sh" "$@"
+        helper="$(resolve_helper abora-custom-packages.sh)"
+        exec "$helper" "$@"
         ;;
     config)
         shift
@@ -374,7 +396,8 @@ case "${1:-help}" in
         if command -v abora-gaming >/dev/null 2>&1; then
             exec abora-gaming "$@"
         fi
-        exec "$script_dir/abora-gaming.sh" "$@"
+        helper="$(resolve_helper abora-gaming.sh)"
+        exec "$helper" "$@"
         ;;
     doctor)
         shift
@@ -418,28 +441,32 @@ EOF
         if command -v abora-build >/dev/null 2>&1; then
             exec abora-build "$@"
         fi
-        exec "$script_dir/abora-build.sh" "$@"
+        helper="$(resolve_helper abora-build.sh)"
+        exec "$helper" "$@"
         ;;
     adopt-nixos|adopt)
         shift
         if command -v abora-adopt-nixos >/dev/null 2>&1; then
             exec abora-adopt-nixos "$@"
         fi
-        exec "$script_dir/abora-adopt-nixos.sh" "$@"
+        helper="$(resolve_helper abora-adopt-nixos.sh)"
+        exec "$helper" "$@"
         ;;
     recovery)
         shift
         if command -v abora-recovery >/dev/null 2>&1; then
             exec abora-recovery "$@"
         fi
-        exec "$script_dir/abora-recovery.sh" "$@"
+        helper="$(resolve_helper abora-recovery.sh)"
+        exec "$helper" "$@"
         ;;
     network)
         shift
         if command -v abora-recovery >/dev/null 2>&1; then
             exec abora-recovery network "$@"
         fi
-        exec "$script_dir/abora-recovery.sh" network "$@"
+        helper="$(resolve_helper abora-recovery.sh)"
+        exec "$helper" network "$@"
         ;;
     repair)
         shift

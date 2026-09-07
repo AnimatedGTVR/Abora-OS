@@ -1211,8 +1211,8 @@ if grep -q '^[[:space:]]*rollback)' scripts/abora.sh \
   && grep -q 'exec abora-dotfiles-import' scripts/abora.sh \
   && grep -q '^[[:space:]]*network)' scripts/abora.sh \
   && grep -q 'exec abora-recovery network "$@"' scripts/abora.sh \
-  && grep -q 'exec "$script_dir/abora-recovery.sh" network "$@"' scripts/abora.sh \
-  && grep -q 'exec "$script_dir/abora-recovery.sh" "$@"' scripts/abora.sh \
+  && grep -q 'resolve_helper abora-recovery.sh' scripts/abora.sh \
+  && grep -q 'exec "$helper" network "$@"' scripts/abora.sh \
   && grep -q '^[[:space:]]*logs|log)' scripts/abora.sh \
   && grep -q 'show_logs "$@"' scripts/abora.sh \
   && grep -q 'ABORA_LOG_LINES' scripts/abora.sh \
@@ -1222,18 +1222,46 @@ if grep -q '^[[:space:]]*rollback)' scripts/abora.sh \
   && grep -q 'gh issue create --repo "$repo"' scripts/abora.sh \
   && grep -q '^[[:space:]]*build)' scripts/abora.sh \
   && grep -q 'command -v abora-build' scripts/abora.sh \
-  && grep -q 'exec "$script_dir/abora-build.sh"' scripts/abora.sh \
+  && grep -q 'resolve_helper abora-build.sh' scripts/abora.sh \
   && grep -q '^[[:space:]]*adopt-nixos|adopt)' scripts/abora.sh \
-  && grep -q 'exec "$script_dir/abora-adopt-nixos.sh"' scripts/abora.sh \
+  && grep -q 'resolve_helper abora-adopt-nixos.sh' scripts/abora.sh \
   && grep -q '^[[:space:]]*gaming)' scripts/abora.sh \
   && grep -q 'exec abora-gaming' scripts/abora.sh \
-  && grep -q 'exec "$script_dir/abora-gaming.sh"' scripts/abora.sh \
+  && grep -q 'resolve_helper abora-gaming.sh' scripts/abora.sh \
   && grep -q 'exec abora-update channel "$@"' scripts/abora.sh \
   && ! grep -q 'ABORA_UPDATE_COMMAND=nixos abora-update channel' scripts/abora.sh \
   && grep -q 'abora channel set <stable|demo|unstable>' scripts/abora-update.sh; then
   pass "runtime: abora command routes update, channel, rollback, network, logs, bug-report, dotfiles, gaming, and pre-alpha"
 else
   fail "runtime: abora command routes update, channel, rollback, network, logs, bug-report, dotfiles, gaming, and pre-alpha"
+fi
+
+# Regression test: abora.sh lives in scripts/core, but the helpers it falls
+# back to when the packaged command is missing were moved into scripts/apps,
+# scripts/install and scripts/support. The fallbacks still resolved
+# "$script_dir/<name>" -- i.e. scripts/core/<name> -- so every one of them
+# pointed at a file that does not exist, and the fallback path was dead for
+# apps, custom-packages, gaming, build, adopt-nixos and recovery alike.
+# Assert the resolver returns a real file for each, rather than only that
+# some string appears in the source.
+_resolve_helper_src="$(sed -n '/^resolve_helper() {/,/^}/p' scripts/core/abora.sh)"
+_resolve_helper_failures=""
+for _helper in abora-apps.sh abora-custom-packages.sh abora-gaming.sh \
+               abora-build.sh abora-adopt-nixos.sh abora-recovery.sh; do
+  _resolved="$(
+    script_dir="$repo_dir/scripts/core"
+    scripts_dir="$repo_dir/scripts"
+    eval "$_resolve_helper_src"
+    resolve_helper "$_helper" 2>/dev/null
+  )"
+  if [[ -z "$_resolved" || ! -f "$_resolved" ]]; then
+    _resolve_helper_failures="${_resolve_helper_failures} ${_helper}"
+  fi
+done
+if [[ -z "$_resolve_helper_failures" ]]; then
+  pass "runtime: abora.sh fallbacks resolve to real helper scripts outside scripts/core"
+else
+  fail "runtime: abora.sh fallbacks resolve to real helper scripts outside scripts/core (unresolved:${_resolve_helper_failures} )"
 fi
 
 # Regression test: `abora setup` was documented as "the installed
@@ -4543,6 +4571,11 @@ _apps_render_stderr="$(mktemp)"
   apps_module="$abora_dir/apps.nix"
   run_as_root() { "$@"; }
   read_selected_ids() { grep -v '^[[:space:]]*$' "$apps_list" | grep -v '^[[:space:]]*#' || true; }
+  # render_apps_module places the generated file via install_generated_file
+  # (which root-owns it), so that helper has to come along too. ABORA_NO_SUDO
+  # selects its unprivileged branch -- this sandbox cannot chown to root.
+  export ABORA_NO_SUDO=1
+  eval "$(sed -n '/^install_generated_file() {/,/^}$/p' scripts/abora-apps.sh)"
   eval "$(sed -n '/^render_apps_module() {/,/^}$/p' scripts/abora-apps.sh)"
   render_apps_module
 ) >"$_apps_render_stdout" 2>"$_apps_render_stderr"
@@ -4571,6 +4604,10 @@ printf 'firefox\nstale-removed-app\n' > "$tmp_apps_remove_stale/abora/apps.list"
   apps_list="$abora_dir/apps.list"
   apps_module="$abora_dir/apps.nix"
   run_as_root() { "$@"; }
+  # write_selected_ids and render_apps_module both place their output through
+  # install_generated_file; ABORA_NO_SUDO picks its unprivileged branch.
+  export ABORA_NO_SUDO=1
+  eval "$(sed -n '/^install_generated_file() {/,/^}$/p' scripts/abora-apps.sh)"
   eval "$(sed -n '/^read_selected_ids() {/,/^}$/p' scripts/abora-apps.sh)"
   eval "$(sed -n '/^write_selected_ids() {/,/^}$/p' scripts/abora-apps.sh)"
   eval "$(sed -n '/^render_apps_module() {/,/^}$/p' scripts/abora-apps.sh)"

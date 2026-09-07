@@ -274,6 +274,39 @@ normalize_bool() {
     esac
 }
 
+# do_set used to write string keys with a bare `sed -i` and then report
+# success unconditionally. When abora.<key> was not present in the module --
+# an older install, or a key this CLI learned about after the file was
+# generated -- sed matched nothing, the setting was silently dropped, and the
+# next rebuild quietly kept the old value. Mirror write_bool_option: replace
+# in place when the key exists, otherwise insert it.
+write_string_option() {
+    local key="$1" value="$2" escaped_key escaped_value tmp
+    escaped_key="${key//./\\.}"
+
+    if grep -Eq "^[[:space:]]*abora\\.${escaped_key}[[:space:]]*=" "$local_module"; then
+        # Escape the sed replacement metacharacters so a value containing a
+        # backslash, an ampersand, or the `|` delimiter is written literally.
+        escaped_value="$value"
+        escaped_value="${escaped_value//\\/\\\\}"
+        escaped_value="${escaped_value//&/\\&}"
+        escaped_value="${escaped_value//|/\\|}"
+        run_as_root sed -i -E \
+            "s|^[[:space:]]*abora\\.${escaped_key}[[:space:]]*=.*|  abora.${key} = \"${escaped_value}\";|" \
+            "$local_module"
+        return 0
+    fi
+
+    tmp="$(mktemp)"
+    awk -v line="  abora.${key} = \"${value}\";" '
+        /^[[:space:]]*}[[:space:]]*$/ && !done { print line; done=1 }
+        { print }
+        END { if (!done) print line }
+    ' "$local_module" > "$tmp"
+    run_as_root cp "$tmp" "$local_module"
+    rm -f "$tmp"
+}
+
 write_bool_option() {
     local key="$1" value="$2" escaped_key tmp
     local escaped_key="${key//./\\.}"
@@ -645,11 +678,7 @@ do_set() {
             ;;
     esac
 
-    # Write the new value — one sed pass, works for all keys.
-    local escaped_key="${key//./\\.}"
-    run_as_root sed -i -E \
-        "s|^([[:space:]]*abora\\.${escaped_key}[[:space:]]*=[[:space:]]*)\"[^\"]*\";|\\1\"${value}\";|" \
-        "$local_module"
+    write_string_option "$key" "$value"
 
     abora_success "'abora.${key}' set to '${value}'"
     abora_dim_line "Run 'abora config apply' to rebuild the system."

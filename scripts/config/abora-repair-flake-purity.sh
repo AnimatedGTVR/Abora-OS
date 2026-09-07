@@ -56,11 +56,18 @@ rewrite_mango_path() {
     local replacement="$2"
 
     [[ -f "$file" ]] || return 0
+    # The dots in ../../ and ../../../ were unescaped, so each one matched any
+    # character. sed applies -e expressions in order per line, so on a
+    # three-level reference the two-level pattern fired first, matching from
+    # offset 3 and leaving a stray "../" behind ("../../mango/config.conf"
+    # where "../mango/config.conf" was meant). That points at a path which
+    # does not exist, so pure evaluation still failed on exactly the legacy
+    # layout this script exists to repair. Escape the dots, longest first.
     sed -i \
         -e "s|\"${bad_mango_store}\"|${replacement}|g" \
         -e "s|${bad_mango_store}|${replacement}|g" \
-        -e "s|../../assets/mango/config\\.conf|${replacement}|g" \
-        -e "s|../../../assets/mango/config\\.conf|${replacement}|g" \
+        -e "s|\\.\\./\\.\\./\\.\\./assets/mango/config\\.conf|${replacement}|g" \
+        -e "s|\\.\\./\\.\\./assets/mango/config\\.conf|${replacement}|g" \
         "$file"
 }
 

@@ -87,9 +87,16 @@ append_file() {
     } >>"$report"
 }
 
+# The key list has to cover networking.wireless.networks.*.psk: NixOS stores
+# the plaintext Wi-Fi passphrase there, and configuration.nix is copied into
+# these reports verbatim. The authorization rule is separate because a header
+# puts the credential after a scheme word ("Bearer <token>"), which the
+# key=value rule above cannot reach -- dmesg and journalctl output routinely
+# carries those.
 redact_stream() {
     sed -E \
-        -e 's@(^|[^[:alnum:]_])(hashedPassword|password|passwd|secret|token|api[_-]?key)([[:space:]]*[:=][[:space:]]*)("[^"]*"|'\''[^'\'']*'\''|[^[:space:];]+)@\1\2\3"[redacted]"@Ig' \
+        -e 's@(^|[^[:alnum:]_])(hashedPassword|password|passwd|psk|pskRaw|preSharedKey|secret|token|api[_-]?key)([[:space:]]*[:=][[:space:]]*)("[^"]*"|'\''[^'\'']*'\''|[^[:space:];]+)@\1\2\3"[redacted]"@Ig' \
+        -e 's@((proxy-)?authorization[[:space:]]*:[[:space:]]*)((bearer|basic|token|digest)[[:space:]]+)?[^[:space:]]+@\1\3[redacted]@Ig' \
         -e 's@(github\.com/[^[:space:]]+://)?([^[:space:]@/]+):([^[:space:]@]+)\@@\[redacted-user\]:[redacted]\@@g'
 }
 
