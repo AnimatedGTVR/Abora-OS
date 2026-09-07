@@ -99,7 +99,32 @@ append_file() {
 # end of line, because a Digest header keeps credentials in later parameters
 # (realm=, response=) well past the first space.
 redact_stream() {
-    sed -E \
+    # sed is line-based, so a Nix indented string spanning several lines --
+    #   psk = ''
+    #     passphrase
+    #   '';
+    # -- had its opening line rewritten to "[redacted]" while the passphrase
+    # sat untouched on the next line, which reads as sanitised and is not.
+    # Collapse credential blocks first, then apply the single-line rules.
+    # A block opens only on a credential key, so an ordinary indented string
+    # such as extraConfig = '' ... '' passes through intact.
+    awk '
+        function countq(s,   n, p) {
+            n = 0
+            p = index(s, q)
+            while (p > 0) { n++; s = substr(s, p + 2); p = index(s, q) }
+            return n
+        }
+        BEGIN {
+            q = sprintf("%c%c", 39, 39)
+            credopen = "(hashedpassword|password|passwd|psk|pskraw|presharedkey|secret|token|api[_-]?key)[ \t]*[:=][ \t]*" q
+        }
+        {
+            if (inblock) { if (countq($0) > 0) inblock = 0; next }
+            if (tolower($0) ~ credopen && countq($0) == 1 && $0 ~ (q "[ \t]*$")) { inblock = 1; print; next }
+            print
+        }
+    ' | sed -E \
         -e 's@(^|[^[:alnum:]_])(hashedPassword|password|passwd|psk|pskRaw|preSharedKey|secret|token|api[_-]?key)([[:space:]]*[:=][[:space:]]*)("[^"]*"|'\'''\''.*|'\''[^'\'']*'\''|[^[:space:];]+)@\1\2\3"[redacted]"@Ig' \
         -e 's@((proxy-)?authorization[[:space:]]*:[[:space:]]*)((bearer|basic|token|digest)[[:space:]]+)?.*@\1\3[redacted]@Ig' \
         -e 's@(github\.com/[^[:space:]]+://)?([^[:space:]@/]+):([^[:space:]@]+)\@@\[redacted-user\]:[redacted]\@@g'

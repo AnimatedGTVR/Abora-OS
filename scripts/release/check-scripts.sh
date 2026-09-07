@@ -2218,6 +2218,31 @@ else
   fail "runtime: redact_stream redacts Nix indented-string PSKs and full authorization headers"
 fi
 
+# The nastiest shape of the same leak: a Nix indented string spanning lines.
+#   psk = ''
+#     passphrase
+#   '';
+# A line-based redactor rewrites the opening line to "[redacted]" and leaves
+# the passphrase sitting on the next one, so the report reads as sanitised
+# while still carrying the secret. Also checks the collapse is scoped to
+# credential keys, so an ordinary extraConfig = '' ... '' block survives --
+# over-redaction would quietly gut the diagnostics these reports exist for.
+redact_multiline_out="$(printf '%s\n' \
+  "  psk = ''" \
+  "    supersecret-multiline-passphrase" \
+  "  '';" \
+  "  extraConfig = ''" \
+  "    keep-this-diagnostic-line" \
+  "  '';" \
+  | _redact_stream_under_test)"
+if ! printf '%s' "$redact_multiline_out" | grep -q 'supersecret-multiline-passphrase' \
+  && printf '%s' "$redact_multiline_out" | grep -q '\[redacted\]' \
+  && printf '%s' "$redact_multiline_out" | grep -q 'keep-this-diagnostic-line'; then
+  pass "runtime: redact_stream redacts multiline Nix indented-string credentials"
+else
+  fail "runtime: redact_stream redacts multiline Nix indented-string credentials"
+fi
+
 if grep -q 'redact_file "$tmp" >>"$report"' scripts/abora-check-full.sh \
   && grep -q 'redact_file "$tmp" >>"$report_dir/report.txt"' scripts/abora-support-report.sh \
   && grep -q 'Abora network diagnostics' scripts/abora-support-report.sh \

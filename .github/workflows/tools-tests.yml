@@ -26,6 +26,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          # These jobs run test code from the pull request branch. Checkout
+          # otherwise leaves the job's token in .git/config, where that code
+          # could read it. Nothing here talks to git after checkout.
+          persist-credentials: false
 
       - name: Show toolchain
         run: |
@@ -48,6 +53,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          # These jobs run test code from the pull request branch. Checkout
+          # otherwise leaves the job's token in .git/config, where that code
+          # could read it. Nothing here talks to git after checkout.
+          persist-credentials: false
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v5
@@ -66,6 +76,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          # These jobs run test code from the pull request branch. Checkout
+          # otherwise leaves the job's token in .git/config, where that code
+          # could read it. Nothing here talks to git after checkout.
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v6
