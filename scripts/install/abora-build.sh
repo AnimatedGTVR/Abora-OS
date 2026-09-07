@@ -147,22 +147,30 @@ if [[ "$checkout_explicit" != 1 && -f flake.nix && -d .git ]]; then
   # name, a tag, and a full or abbreviated commit id can all denote the commit
   # that is already checked out, and comparing the strings would reject
   # `--ref "$(git rev-parse HEAD)"` even though it asks for this exact commit.
-  # An unresolvable ref leaves requested_commit empty and still refuses.
-  requested_commit=""
-  head_commit=""
-  if [[ "$ref_explicit" == 1 ]] && command -v git >/dev/null 2>&1; then
-    requested_commit="$(git -C "$checkout" rev-parse --verify --quiet "${repo_ref}^{commit}" 2>/dev/null || true)"
-    head_commit="$(git -C "$checkout" rev-parse --verify --quiet 'HEAD^{commit}' 2>/dev/null || true)"
-  fi
+  #
+  # The guard proceeds only on positive proof that the requested ref *is* the
+  # commit checked out here. Anything that leaves that unproven -- no git, an
+  # unresolvable ref, an unreadable checkout -- refuses. Testing
+  # `-n "$current_ref"` here instead would invert that: with git unavailable
+  # every variable is empty, the guard is skipped, and the build proceeds
+  # while labelling itself with the requested ref, which is the exact failure
+  # this code exists to prevent.
+  if [[ "$ref_explicit" == 1 ]]; then
+    requested_commit=""
+    head_commit=""
+    if command -v git >/dev/null 2>&1; then
+      requested_commit="$(git -C "$checkout" rev-parse --verify --quiet "${repo_ref}^{commit}" 2>/dev/null || true)"
+      head_commit="$(git -C "$checkout" rev-parse --verify --quiet 'HEAD^{commit}' 2>/dev/null || true)"
+    fi
 
-  if [[ "$ref_explicit" == 1 && -n "$current_ref" && "$current_ref" != "$repo_ref" ]] \
-    && [[ -z "$requested_commit" || -z "$head_commit" || "$requested_commit" != "$head_commit" ]]; then
-    printf 'abora build: this checkout (%s) is on "%s", not the requested "%s".\n' \
-      "$checkout" "$current_ref" "$repo_ref" >&2
-    printf 'abora build: refusing to build a different ref than you asked for.\n' >&2
-    printf 'abora build: switch this checkout yourself (git checkout %s), or build\n' "$repo_ref" >&2
-    printf 'abora build: a managed copy instead: abora build --from-source --checkout ~/Abora-OS --ref %s\n' "$repo_ref" >&2
-    exit 1
+    if [[ -z "$requested_commit" || -z "$head_commit" || "$requested_commit" != "$head_commit" ]]; then
+      printf 'abora build: this checkout (%s) is on "%s", not the requested "%s".\n' \
+        "$checkout" "${current_ref:-unknown}" "$repo_ref" >&2
+      printf 'abora build: refusing to build a different ref than you asked for.\n' >&2
+      printf 'abora build: switch this checkout yourself (git checkout %s), or build\n' "$repo_ref" >&2
+      printf 'abora build: a managed copy instead: abora build --from-source --checkout ~/Abora-OS --ref %s\n' "$repo_ref" >&2
+      exit 1
+    fi
   fi
 
   [[ -z "$current_ref" ]] || repo_ref="$current_ref"
