@@ -140,10 +140,23 @@ if [[ "$checkout_explicit" != 1 && -f flake.nix && -d .git ]]; then
   current_ref=""
   if command -v git >/dev/null 2>&1; then
     current_ref="$(git -C "$checkout" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-    [[ "$current_ref" != "HEAD" ]] || current_ref="$(git -C "$checkout" rev-parse --short HEAD 2>/dev/null || true)"
+    [[ "$current_ref" != "HEAD" ]] || current_ref="$(git -C "$checkout" rev-parse HEAD 2>/dev/null || true)"
   fi
 
-  if [[ "$ref_explicit" == 1 && -n "$current_ref" && "$current_ref" != "$repo_ref" ]]; then
+  # Compare what the names resolve to, not the names themselves. A branch
+  # name, a tag, and a full or abbreviated commit id can all denote the commit
+  # that is already checked out, and comparing the strings would reject
+  # `--ref "$(git rev-parse HEAD)"` even though it asks for this exact commit.
+  # An unresolvable ref leaves requested_commit empty and still refuses.
+  requested_commit=""
+  head_commit=""
+  if [[ "$ref_explicit" == 1 ]] && command -v git >/dev/null 2>&1; then
+    requested_commit="$(git -C "$checkout" rev-parse --verify --quiet "${repo_ref}^{commit}" 2>/dev/null || true)"
+    head_commit="$(git -C "$checkout" rev-parse --verify --quiet 'HEAD^{commit}' 2>/dev/null || true)"
+  fi
+
+  if [[ "$ref_explicit" == 1 && -n "$current_ref" && "$current_ref" != "$repo_ref" ]] \
+    && [[ -z "$requested_commit" || -z "$head_commit" || "$requested_commit" != "$head_commit" ]]; then
     printf 'abora build: this checkout (%s) is on "%s", not the requested "%s".\n' \
       "$checkout" "$current_ref" "$repo_ref" >&2
     printf 'abora build: refusing to build a different ref than you asked for.\n' >&2

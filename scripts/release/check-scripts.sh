@@ -2141,6 +2141,36 @@ else
   fail "runtime: redact_stream credential regex does not devour timestamps or host:port pairs"
 fi
 
+# Two credential shapes the redactor used to leak straight into a support
+# archive, both reachable from files these scripts copy verbatim:
+#   - A Nix indented string (psk = ''passphrase''), the form NixOS uses for
+#     networking.wireless.networks.*.psk. The ordinary single-quote branch
+#     matched the leading '' as an empty value and left the passphrase in
+#     place.
+#   - A Digest authorization header, whose credentials live in later
+#     parameters (realm=, response=), past where a match ending at the first
+#     space could reach. dmesg and journalctl carry these.
+# Exercises the real extracted function, like the probe above.
+redact_creds_out="$(printf '%s\n' \
+  "  psk = ''correct horse battery staple'';" \
+  "  psk = ''unterminated indented string" \
+  'Authorization: Digest username="alice", realm="ex", response="sensitive-response"' \
+  'Authorization: Bearer ghp_bearer-secret' \
+  '  psk = "quoted-psk-secret";' \
+  'ordinary line mentioning a token ring network' \
+  | _redact_stream_under_test)"
+if ! printf '%s' "$redact_creds_out" | grep -q 'correct horse battery staple' \
+  && ! printf '%s' "$redact_creds_out" | grep -q 'unterminated indented string' \
+  && ! printf '%s' "$redact_creds_out" | grep -q 'sensitive-response' \
+  && ! printf '%s' "$redact_creds_out" | grep -q 'realm="ex"' \
+  && ! printf '%s' "$redact_creds_out" | grep -q 'ghp_bearer-secret' \
+  && ! printf '%s' "$redact_creds_out" | grep -q 'quoted-psk-secret' \
+  && printf '%s' "$redact_creds_out" | grep -q 'ordinary line mentioning a token ring network'; then
+  pass "runtime: redact_stream redacts Nix indented-string PSKs and full authorization headers"
+else
+  fail "runtime: redact_stream redacts Nix indented-string PSKs and full authorization headers"
+fi
+
 if grep -q 'redact_file "$tmp" >>"$report"' scripts/abora-check-full.sh \
   && grep -q 'redact_file "$tmp" >>"$report_dir/report.txt"' scripts/abora-support-report.sh \
   && grep -q 'Abora network diagnostics' scripts/abora-support-report.sh \

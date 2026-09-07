@@ -89,14 +89,19 @@ append_file() {
 
 # The key list has to cover networking.wireless.networks.*.psk: NixOS stores
 # the plaintext Wi-Fi passphrase there, and configuration.nix is copied into
-# these reports verbatim. The authorization rule is separate because a header
-# puts the credential after a scheme word ("Bearer <token>"), which the
-# key=value rule above cannot reach -- dmesg and journalctl output routinely
-# carries those.
+# these reports verbatim. The '' alternative catches Nix indented strings
+# (psk = ''secret''): without it the ordinary single-quote branch matches the
+# leading '' as an empty value and leaves the passphrase in the report. It
+# redacts to end of line so an unterminated indented string still fails
+# closed. The authorization rule is separate because a header puts the
+# credential after a scheme word ("Bearer <token>"), which the key=value rule
+# cannot reach -- dmesg and journalctl carry those routinely. It also runs to
+# end of line, because a Digest header keeps credentials in later parameters
+# (realm=, response=) well past the first space.
 redact_stream() {
     sed -E \
-        -e 's@(^|[^[:alnum:]_])(hashedPassword|password|passwd|psk|pskRaw|preSharedKey|secret|token|api[_-]?key)([[:space:]]*[:=][[:space:]]*)("[^"]*"|'\''[^'\'']*'\''|[^[:space:];]+)@\1\2\3"[redacted]"@Ig' \
-        -e 's@((proxy-)?authorization[[:space:]]*:[[:space:]]*)((bearer|basic|token|digest)[[:space:]]+)?[^[:space:]]+@\1\3[redacted]@Ig' \
+        -e 's@(^|[^[:alnum:]_])(hashedPassword|password|passwd|psk|pskRaw|preSharedKey|secret|token|api[_-]?key)([[:space:]]*[:=][[:space:]]*)("[^"]*"|'\'''\''.*|'\''[^'\'']*'\''|[^[:space:];]+)@\1\2\3"[redacted]"@Ig' \
+        -e 's@((proxy-)?authorization[[:space:]]*:[[:space:]]*)((bearer|basic|token|digest)[[:space:]]+)?.*@\1\3[redacted]@Ig' \
         -e 's@(github\.com/[^[:space:]]+://)?([^[:space:]@/]+):([^[:space:]@]+)\@@\[redacted-user\]:[redacted]\@@g'
 }
 
