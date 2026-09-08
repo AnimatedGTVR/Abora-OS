@@ -22,6 +22,7 @@ LOG_LINES = 200
 
 
 def run_command(command: list[str], timeout: int = 60) -> tuple[int, str, str]:
+    """Run a command and return its exit code, stdout, and stderr."""
     try:
         result = subprocess.run(
             command,
@@ -40,6 +41,7 @@ def run_command(command: list[str], timeout: int = 60) -> tuple[int, str, str]:
 
 
 def collect_logs() -> str:
+    """Collect the most recent Abora logs for inclusion in a report."""
     rc, stdout, stderr = run_command(["abora", "logs", "--lines", str(LOG_LINES)], timeout=15)
     if rc == 0:
         return stdout.strip()
@@ -47,6 +49,7 @@ def collect_logs() -> str:
 
 
 def create_support_report() -> tuple[str | None, str | None]:
+    """Create a local Abora support archive and return its path or an error."""
     output_dir = Path.home() / "Desktop"
     if not output_dir.exists():
         output_dir = Path.home()
@@ -67,6 +70,7 @@ def create_support_report() -> tuple[str | None, str | None]:
 
 
 def issue_body(summary: str, details: str, logs: str, support_archive: str | None) -> str:
+    """Build the Markdown body shown in the preview and sent to GitHub."""
     body = [
         "## Summary",
         "",
@@ -108,6 +112,7 @@ class FeedbackWindow(Adw.ApplicationWindow):
     __gtype_name__ = "AboraFeedbackWindow"
 
     def __init__(self, app: Adw.Application):
+        """Initialize the feedback window and its report state."""
         super().__init__(
             application=app,
             title="Abora Feedback",
@@ -121,6 +126,7 @@ class FeedbackWindow(Adw.ApplicationWindow):
         self._build_ui()
 
     def _build_ui(self):
+        """Construct the libadwaita feedback form and preview controls."""
         toolbar = Adw.ToolbarView()
         self.set_content(toolbar)
         toolbar.add_top_bar(Adw.HeaderBar())
@@ -178,7 +184,7 @@ class FeedbackWindow(Adw.ApplicationWindow):
 
         self.logs_switch = Gtk.Switch(active=True, valign=Gtk.Align.CENTER)
         logs_row = Adw.ActionRow(
-            title=f"Include recent logs",
+            title="Include recent logs",
             subtitle=f"Runs: abora logs --lines {LOG_LINES}",
         )
         logs_row.add_suffix(self.logs_switch)
@@ -230,31 +236,42 @@ class FeedbackWindow(Adw.ApplicationWindow):
         preview_group.add(preview_frame)
 
     def _text(self, view: Gtk.TextView) -> str:
+        """Return all text currently stored in a GTK text view."""
         buffer = view.get_buffer()
         start, end = buffer.get_bounds()
         return buffer.get_text(start, end, True)
 
     def _set_busy(self, busy: bool, message: str):
+        """Update action sensitivity and status while background work runs."""
         self._busy = busy
         self.collect_btn.set_sensitive(not busy)
         self.submit_btn.set_sensitive(not busy and bool(self._text(self.preview).strip()))
         self.status_row.set_title(message)
 
     def _collect(self, *_args):
+        """Capture UI choices on the GTK thread and start diagnostic collection."""
         if self._busy:
             return
+        include_logs = self.logs_switch.get_active()
+        include_support = self.support_switch.get_active()
         self._set_busy(True, "Collecting diagnostics…")
-        threading.Thread(target=self._collect_worker, daemon=True).start()
+        threading.Thread(
+            target=self._collect_worker,
+            args=(include_logs, include_support),
+            daemon=True,
+        ).start()
 
-    def _collect_worker(self):
-        logs = collect_logs() if self.logs_switch.get_active() else ""
+    def _collect_worker(self, include_logs: bool, include_support: bool):
+        """Collect requested diagnostics without accessing GTK widgets."""
+        logs = collect_logs() if include_logs else ""
         support_archive = None
         support_error = None
-        if self.support_switch.get_active():
+        if include_support:
             support_archive, support_error = create_support_report()
         GLib.idle_add(self._collection_done, logs, support_archive, support_error)
 
     def _collection_done(self, logs: str, support_archive: str | None, support_error: str | None):
+        """Populate the preview after background diagnostic collection finishes."""
         self._logs = logs
         self._support_archive = support_archive
         body = issue_body(
@@ -275,6 +292,10 @@ class FeedbackWindow(Adw.ApplicationWindow):
         return False
 
     def _open_github(self, *_args):
+        """Write the preview to a temporary file and start verified submission."""
+        if self._busy:
+            return
+
         body = self._text(self.preview).strip()
         if not body:
             return
@@ -282,37 +303,50 @@ class FeedbackWindow(Adw.ApplicationWindow):
         title = self.summary_entry.get_text().strip() or "Abora OS bug report"
         fd, body_path = tempfile.mkstemp(prefix="abora-feedback-", suffix=".md")
         os.close(fd)
-        Path(body_path).write_text(body)
+        Path(body_path).write_text(body, encoding="utf-8")
 
-        gh = shutil.which("gh")
-        if gh:
-            command = [
-                gh,
-                "issue",
-                "create",
-                "--repo",
-                ISSUE_REPO,
-                "--title",
-                title,
-                "--body-file",
-                body_path,
-                "--web",
-            ]
-            try:
-                subprocess.Popen(command)
-                self.status_row.set_title("GitHub issue opened")
-                self.status_row.set_subtitle(
-                    "Review the issue in your browser. Attach the support archive manually if you chose to create one."
-                )
-                return
-            except Exception:
-                pass
+        self._set_busy(True, "Opening GitHub issue…")
+        self.status_row.set_subtitle("Waiting for the issue flow to open successfully.")
+        threading.Thread(
+            target=self._submit_worker,
+            args=(title, body_path),
+            daemon=True,
+        ).start()
 
-        # Fall back to the existing Abora CLI, which already handles the case
-        # where gh is unavailable or unauthenticated and prints the issue URL.
+    def _submit_worker(self, title: str, body_path: str):
+        """Run the selected issue command, verify its result, and remove temp data."""
+        success = False
+        status_title = "Could not open GitHub"
+        status_subtitle = "The issue flow did not start."
+
         try:
-            subprocess.Popen(
-                [
+            gh = shutil.which("gh")
+            if gh:
+                command = [
+                    gh,
+                    "issue",
+                    "create",
+                    "--repo",
+                    ISSUE_REPO,
+                    "--title",
+                    title,
+                    "--body-file",
+                    body_path,
+                    "--web",
+                ]
+                rc, stdout, stderr = run_command(command, timeout=60)
+                if rc == 0:
+                    success = True
+                    status_title = "GitHub issue opened"
+                    status_subtitle = (
+                        "Review the issue in your browser. Attach the support archive manually "
+                        "if you chose to create one."
+                    )
+                else:
+                    detail = (stderr or stdout or f"gh exited with status {rc}").strip()
+                    status_subtitle = f"GitHub CLI failed: {detail}"
+            else:
+                command = [
                     "abora",
                     "bug-report",
                     "--github",
@@ -322,19 +356,41 @@ class FeedbackWindow(Adw.ApplicationWindow):
                     body_path,
                     "--web",
                 ]
-            )
-            self.status_row.set_title("Opening existing Abora bug-report flow")
-            self.status_row.set_subtitle("The GUI report body was passed to abora bug-report.")
-        except Exception as exc:
-            self.status_row.set_title("Could not open GitHub")
-            self.status_row.set_subtitle(str(exc))
+                rc, stdout, stderr = run_command(command, timeout=60)
+                if rc == 0:
+                    success = True
+                    status_title = "Abora bug-report opened"
+                    status_subtitle = "The GUI report body was passed to the existing Abora bug-report flow."
+                else:
+                    detail = (stderr or stdout or f"abora bug-report exited with status {rc}").strip()
+                    status_subtitle = f"Abora bug-report failed: {detail}"
+        finally:
+            try:
+                Path(body_path).unlink(missing_ok=True)
+            except OSError as exc:
+                if success:
+                    status_subtitle += f" Temporary report cleanup failed: {exc}"
+                else:
+                    status_subtitle += f" Temporary report cleanup also failed: {exc}"
+
+        GLib.idle_add(self._submission_done, success, status_title, status_subtitle)
+
+    def _submission_done(self, success: bool, title: str, subtitle: str):
+        """Update the GTK UI with the verified submission result."""
+        self.status_row.set_subtitle(subtitle)
+        self._set_busy(False, title)
+        if not success:
+            self.submit_btn.set_sensitive(True)
+        return False
 
 
 class FeedbackApp(Adw.Application):
     def __init__(self):
+        """Initialize the Abora Feedback application."""
         super().__init__(application_id="org.abora.Feedback")
 
     def do_activate(self):
+        """Present the existing feedback window or create it on first launch."""
         window = self.props.active_window
         if window is None:
             window = FeedbackWindow(self)
