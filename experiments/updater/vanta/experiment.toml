@@ -1,0 +1,30 @@
+# Abora Labs experiment: updater downgrade guard implemented in Vanta.
+# Reference: docs/labs/manifest.md
+
+name = "updater-vanta"
+description = "Downgrade guard (scripts/abora-update.sh) in Vanta: full spec, argv CLI, module import"
+area = "updater"
+implementation = "vanta"
+language = "vanta"
+status = "experimental"
+maintainer = "AnimatedGTVR"
+dependencies = []
+
+[commands]
+# Vanta is interpreted: no build stage. Needs a Vanta with lists, loops, ask/else,
+# @use, Env.Args and Process.Exit (the feature/updater-mvp branch or later).
+test = ["vanta", "run", "src/guard_test.vanta"]
+run = ["vanta", "run", "src/main.vanta"]
+
+[test]
+format = "labs"
+
+[safety]
+# Pure decision logic: reads the shared test vectors, prints a verdict. Touches nothing else.
+level = "safe"
+risks = []
+
+[metrics]
+# Interpreted: there is no native artifact to measure.
+artifacts = []
+startup = ["vanta", "run", "src/main.vanta", "4.0", "v4.1"]

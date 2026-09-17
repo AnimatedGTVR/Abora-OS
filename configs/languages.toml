@@ -1,0 +1,146 @@
+# The Abora Labs language pool.
+#
+# Nothing here ranks languages or restricts which area may use which one.
+# Each entry only tells the automation:
+#   extensions / filenames  which files count as source for line metrics
+#   requires                tools an experiment in this language needs by default
+#   scaffold                starting commands written by `abora-labs new`
+#                           ({name} is replaced with the experiment's binary name)
+#
+# Commands are argv lists, exec'd directly (strings run via `sh -c` but are
+# discouraged: shell is no longer Abora's primary language). Anything that
+# needs several steps, pipes or redirects goes in a Makefile or the build tool.
+#
+# Nix is deliberately not a language here: it is the system foundation.
+# Experiments opt into a Nix dev shell with `nix_shell` in experiment.toml.
+
+[c]
+display = "C"
+extensions = [".c", ".h"]
+requires = ["cc", "make"]
+[c.scaffold]
+build = ["make"]
+test = ["make", "test"]
+run = ["./build/{name}"]
+clean = ["make", "clean"]
+test_format = "tap"
+artifacts = ["build/{name}"]
+
+[cpp]
+display = "C++"
+extensions = [".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h"]
+requires = ["c++", "cmake"]
+[cpp.scaffold]
+# Configure + build in one process: needs a "labs" workflow preset in CMakePresets.json.
+build = ["cmake", "--workflow", "--preset", "labs"]
+test = ["ctest", "--test-dir", "build", "--output-on-failure"]
+run = ["./build/{name}"]
+clean = ["cmake", "-E", "rm", "-rf", "build"]
+artifacts = ["build/{name}"]
+
+[csharp]
+display = "C#"
+extensions = [".cs", ".csproj"]
+requires = ["dotnet"]
+[csharp.scaffold]
+build = ["dotnet", "build", "-c", "Release", "-o", "bin", "--nologo"]
+test = ["dotnet", "test", "--nologo"]
+run = ["./bin/{name}"]
+clean = ["dotnet", "clean", "--nologo"]
+artifacts = ["bin/{name}"]
+
+[rust]
+display = "Rust"
+extensions = [".rs"]
+filenames = ["Cargo.toml"]
+requires = ["cargo"]
+[rust.scaffold]
+build = ["cargo", "build", "--release"]
+test = ["cargo", "test"]
+run = ["./target/release/{name}"]
+clean = ["cargo", "clean"]
+test_format = "cargo"
+artifacts = ["target/release/{name}"]
+
+[zig]
+display = "Zig"
+extensions = [".zig", ".zon"]
+requires = ["zig"]
+[zig.scaffold]
+build = ["zig", "build", "-Doptimize=ReleaseSafe"]
+test = ["zig", "build", "test"]
+run = ["./zig-out/bin/{name}"]
+clean = ["rm", "-rf", "zig-out", ".zig-cache"]
+artifacts = ["zig-out/bin/{name}"]
+
+[go]
+display = "Go"
+extensions = [".go"]
+filenames = ["go.mod"]
+requires = ["go"]
+[go.scaffold]
+build = ["go", "build", "-trimpath", "-o", "bin/{name}", "."]
+test = ["go", "test", "-count=1", "-v", "./..."]
+run = ["./bin/{name}"]
+clean = ["rm", "-rf", "bin"]
+test_format = "go"
+artifacts = ["bin/{name}"]
+
+[ada]
+display = "Ada/SPARK"
+extensions = [".adb", ".ads", ".gpr"]
+requires = ["gprbuild"]
+[ada.scaffold]
+build = ["gprbuild", "-P", "{name}.gpr"]
+test = ["./bin/{name}_tests"]
+run = ["./bin/{name}"]
+clean = ["gprclean", "-P", "{name}.gpr"]
+test_format = "tap"
+artifacts = ["bin/{name}"]
+
+[vanta]
+display = "Vanta"
+extensions = [".vanta"]
+requires = ["vanta"]
+[vanta.scaffold]
+# Interpreted: no build stage. Modules (@use) resolve beside the entry file, so
+# the program and its tests both live in src/.
+test = ["vanta", "run", "src/main_test.vanta"]
+run = ["vanta", "run", "src/main.vanta"]
+test_format = "labs"
+
+[python]
+display = "Python"
+extensions = [".py"]
+filenames = ["pyproject.toml"]
+requires = ["python3"]
+[python.scaffold]
+test = ["python3", "-m", "unittest", "discover", "-v"]
+run = ["python3", "-m", "{name}"]
+
+[ruby]
+display = "Ruby"
+extensions = [".rb", ".rake"]
+filenames = ["Gemfile", "Rakefile"]
+requires = ["ruby"]
+[ruby.scaffold]
+test = ["ruby", "-Ilib", "-e", "Dir['test/**/*_test.rb'].each { |f| require_relative f }"]
+run = ["ruby", "bin/{name}"]
+
+[sql]
+display = "SQL"
+extensions = [".sql"]
+requires = ["sqlite3"]
+[sql.scaffold]
+test = ["sqlite3", ":memory:", ".read tests/main_test.sql"]
+test_format = "labs"
+
+[make]
+display = "Makefile"
+extensions = [".mk"]
+filenames = ["Makefile", "GNUmakefile"]
+requires = ["make"]
+[make.scaffold]
+build = ["make"]
+test = ["make", "test"]
+clean = ["make", "clean"]

@@ -211,7 +211,7 @@ installed_system_menu() {
         printf '  %bQEMU instructions:%b\n' "$WH" "$NC"
         printf '  1. Press 1 (or Enter) to power off this VM.\n'
         printf '  2. On your host, run:  %bmake qemu-disk%b\n' "$WH" "$NC"
-        printf '     (or:  ABORA_QEMU_BOOT=disk ./scripts/run-qemu.sh)\n'
+        printf '     (or:  ABORA_QEMU_BOOT=disk ./scripts/run-qemu.py)\n'
         printf '  That launches QEMU without the ISO — Abora boots from\n'
         printf '  the installed disk. No ISO to fight with.\n'
     else

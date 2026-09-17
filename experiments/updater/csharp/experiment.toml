@@ -1,0 +1,30 @@
+# Abora Labs experiment: updater downgrade guard implemented in C#.
+# Reference: docs/labs/manifest.md
+
+name = "updater-csharp"
+description = "Downgrade guard as a standalone .NET 10 console app, base class library only"
+area = "updater"
+implementation = "csharp"
+language = "csharp"
+status = "experimental"
+maintainer = "AnimatedGTVR"
+dependencies = []
+
+[commands]
+build = ["dotnet", "build", "DowngradeGuard.csproj", "-c", "Release", "-o", "bin", "--nologo"]
+test = ["dotnet", "run", "--project", "tests/GuardTests.csproj", "-c", "Release", "--nologo"]
+run = ["./bin/downgrade-guard"]
+clean = ["rm", "-rf", "bin", "obj", "tests/bin", "tests/obj"]
+
+[test]
+format = "labs"
+
+[safety]
+# Pure decision logic: reads two strings, prints a verdict. Touches nothing.
+level = "safe"
+risks = []
+
+[metrics]
+# The apphost is only a launcher; the managed code lives in the .dll.
+artifacts = ["bin/downgrade-guard", "bin/downgrade-guard.dll"]
+startup = ["./bin/downgrade-guard", "4.0", "v4.1"]

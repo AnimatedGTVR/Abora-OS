@@ -8,9 +8,9 @@ Use this when moving from VM testing to real machines.
 - verify the current checksum
 - write the ISO to known-good USB media
 - keep a second machine or phone nearby for notes, GitHub login, and recovery searches
-- run `./scripts/check-scripts.sh`
-- run `./scripts/check-all-files.sh`
-- run `./scripts/check-desktops.sh`
+- run `./scripts/check-scripts.py`
+- run `./scripts/check-all-files.py`
+- run `./scripts/check-desktops.py`
 - run `abora hardware-test --with-report` on the machine first when possible
 
 ## Quick Preflight

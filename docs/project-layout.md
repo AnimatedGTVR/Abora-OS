@@ -78,13 +78,13 @@ Important files:
 - `scripts/abora-desktop-profiles.sh`: supported desktop profile definitions
 - `scripts/abora-session-setup.sh`: first-session defaults
 - `scripts/abora-support-report.sh`: support archive generation
-- `scripts/check-scripts.sh`: repo script and runtime sanity checks
-- `scripts/check-all-files.sh`: broad syntax, links, YAML, JSON, and docs sweep
-- `scripts/check-desktops.sh`: evaluates every supported desktop profile
-- `scripts/build-iso.sh`: ISO-only build path
-- `scripts/package-tinypm.sh`: TinyPM release package path
-- `scripts/release-metadata.sh`: checksums, manifest, and release notes
-- `scripts/run-qemu.sh`: QEMU ISO, fresh-disk, disk-only, and serial helpers
+- `scripts/check-scripts.py`: repo script and runtime sanity checks
+- `scripts/check-all-files.py`: broad syntax, links, YAML, JSON, and docs sweep
+- `scripts/check-desktops.py`: evaluates every supported desktop profile
+- `scripts/build-iso.py`: ISO-only build path
+- `scripts/package-tinypm.py`: TinyPM release package path
+- `scripts/release-metadata.py`: checksums, manifest, and release notes
+- `scripts/run-qemu.py`: QEMU ISO, fresh-disk, disk-only, and serial helpers
 
 ### `vendor/`
 

@@ -1151,6 +1151,8 @@ check_install_environment() {
         /etc/abora/pkgs/moducpp-anix.nix
         /etc/abora/pkgs/abora-update-resolver.nix
         /etc/abora/pkgs/abora-update-resolver-deps.json
+        /etc/abora/pkgs/vanta.nix
+        /etc/abora/pkgs/abora-update.nix
         /etc/abora/pkgs/abora-plan-tool.nix
         /etc/abora/pkgs/abora-plan-tool-deps.json
         /etc/abora/tools/moducpp-anix
@@ -1164,6 +1166,7 @@ check_install_environment() {
         /etc/abora/tinypm/src/bin/grab.rs
         /etc/abora/update-resolver/AboraUpdateResolver.csproj
         /etc/abora/update-resolver/Program.cs
+        /etc/abora/abora-update/main.vanta
         /etc/abora/plan-tool/AboraPlanTool.csproj
         /etc/abora/plan-tool/Program.cs
         /etc/abora/vendor/modularity
@@ -2374,6 +2377,8 @@ write_branding_assets() {
     cp_required /etc/abora/pkgs/moducpp-anix.nix   "${root}/etc/nixos/abora/pkgs/moducpp-anix.nix"
     cp_required /etc/abora/pkgs/abora-update-resolver.nix "${root}/etc/nixos/abora/pkgs/abora-update-resolver.nix"
     cp_required /etc/abora/pkgs/abora-update-resolver-deps.json "${root}/etc/nixos/abora/pkgs/abora-update-resolver-deps.json"
+    cp_required /etc/abora/pkgs/vanta.nix "${root}/etc/nixos/abora/pkgs/vanta.nix"
+    cp_required /etc/abora/pkgs/abora-update.nix "${root}/etc/nixos/abora/pkgs/abora-update.nix"
     cp_required /etc/abora/pkgs/abora-plan-tool.nix "${root}/etc/nixos/abora/pkgs/abora-plan-tool.nix"
     cp_required /etc/abora/pkgs/abora-plan-tool-deps.json "${root}/etc/nixos/abora/pkgs/abora-plan-tool-deps.json"
     cp_required /etc/abora/target-flake.lock "${root}/etc/nixos/abora/target-flake.lock"
@@ -2408,6 +2413,11 @@ write_branding_assets() {
     if [[ -e /etc/abora/update-resolver ]]; then
         mkdir -p "${root}/etc/nixos/abora/update-resolver"
         cp -a /etc/abora/update-resolver/. "${root}/etc/nixos/abora/update-resolver/"
+    fi
+
+    if [[ -e /etc/abora/abora-update ]]; then
+        mkdir -p "${root}/etc/nixos/abora/abora-update"
+        cp -a /etc/abora/abora-update/. "${root}/etc/nixos/abora/abora-update/"
     fi
 
     if [[ -e /etc/abora/plan-tool ]]; then

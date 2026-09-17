@@ -66,9 +66,9 @@ That triggers the GitHub release workflow for the tagged version.
 Make sure these checks are done:
 
 - `make doctor`
-- `./scripts/check-scripts.sh`
-- `./scripts/check-all-files.sh`
-- `./scripts/check-desktops.sh`
+- `./scripts/check-scripts.py`
+- `./scripts/check-all-files.py`
+- `./scripts/check-desktops.py`
 - every edition ISO builds successfully
 - at least the default Cosmic live image boots
 - the installer completes one real install

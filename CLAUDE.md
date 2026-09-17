@@ -32,10 +32,10 @@ make metadata         # Refresh release metadata only (no ISO rebuild)
 
 Direct script equivalents (same as Make targets):
 ```sh
-./scripts/check-scripts.sh   # What `make check` runs
-./scripts/check-desktops.sh  # What `make check-desktops` runs
-./scripts/preflight.sh       # What `make preflight` runs
-./scripts/rebuild-vm.sh      # Rebuild in the VM workspace
+./scripts/check-scripts.py   # What `make check` runs
+./scripts/check-desktops.py  # What `make check-desktops` runs
+./scripts/preflight.py       # What `make preflight` runs
+./scripts/rebuild-vm.py      # Rebuild in the VM workspace
 ```
 
 Before pushing any change, run `make check` — it validates bash syntax, executability, required file presence, git tracking, nix flake evaluation, and several ANIX/release-metadata runtime behaviors.
@@ -46,7 +46,7 @@ Before pushing any change, run `make check` — it validates bash syntax, execut
 
 `flake.nix` is the Nix entrypoint. It pins `nixpkgs/nixos-26.05`, exposes `nixosModules` (installed-base, anix), and produces the `abora-live` ISO. The only NixOS configuration used at build time is `nix/profiles/live.nix`.
 
-`scripts/build-iso.sh` calls `nix build` targeting `#packages.x86_64-linux.iso` and copies the result to `out/iso/`.
+`scripts/build-iso.py` calls `nix build` targeting `#packages.x86_64-linux.iso-<edition>` and copies the result to `out/iso/`.
 
 Generated output goes in `out/` (never treat as source — it's gitignored).
 
@@ -72,25 +72,29 @@ Key scripts:
 | `abora-session-setup.sh` | First-session desktop defaults |
 | `anix.sh` | ANIX CLI — profile switching, rollback, snapshots, config management |
 | `abora-ui.sh` | Shared UI primitives (colors, `abora_banner`, `abora_kv`, etc.) sourced by all other scripts |
-| `build-iso.sh` | ISO build wrapper around `nix build` |
-| `release-metadata.sh` | Generates checksums, release manifest, and release notes into `out/release/` |
-| `run-qemu.sh` | QEMU runner — respects `ABORA_QEMU_FRESH`, `ABORA_QEMU_BOOT`, `ABORA_QEMU_NOGRAPHIC` |
+| `build-iso.py` | ISO build wrapper around `nix build` |
+| `release-metadata.py` | Generates checksums, release manifest, and release notes into `out/release/` |
+| `run-qemu.py` | QEMU runner — respects `ABORA_QEMU_FRESH`, `ABORA_QEMU_BOOT`, `ABORA_QEMU_NOGRAPHIC` |
 
 ### UI Library Convention
 
-All scripts source `abora-ui.sh` (or `/etc/abora/ui.sh` on-system) for shared primitives. The env var `ABORA_UI_LIB` overrides the path — `check-scripts.sh` tests scripts in isolation by passing a non-existent path and verifying the fallback inline UI activates correctly.
+All scripts source `abora-ui.sh` (or `/etc/abora/ui.sh` on-system) for shared primitives. The env var `ABORA_UI_LIB` overrides the path — the test suites run scripts in isolation by passing a non-existent path and verifying the fallback inline UI activates correctly.
 
 ### ANIX
 
 `scripts/anix.sh` reads config from `ANIX_SYSTEM_CONFIG` (defaults to `/etc/nixos`) and writes settings to `anix.nix` in that directory. Profile names map to flake output names (e.g., `anix switch nix gaming` → `nixos-rebuild switch --flake /etc/nixos#gaming`). `ANIX_NO_SUDO=1` and `ANIX_ASSUME_YES=1` env vars are used in tests to bypass sudo and prompts.
 
+### Vanta tools
+
+`tools/abora-update/` is the Vanta core of `abora update` (release channel resolution and the downgrade guard so far), called by `scripts/abora-update.sh` through the same CLI as the C# `tools/abora-update-resolver` it replaces, which stays as a fallback for now. It runs on the Vanta interpreter packaged in `nix/pkgs/vanta.nix` (pinned to a Vanta commit) and ships as `nix/pkgs/abora-update.nix`. Unit tests: `vanta run tools/abora-update/tests.vanta` (also run by `make check` when a new-enough Vanta is found).
+
 ### TinyPM
 
-`vendor/tinypm/` is a vendored copy of TinyPM v4. It provides `grab`, `search`, `term`, `start`, `supdate`, and Abora/ANIX/Nix bridge commands. Packaging happens via `scripts/package-tinypm.sh` → `out/packages/`.
+`vendor/tinypm/` is a vendored copy of TinyPM v4. It provides `grab`, `search`, `term`, `start`, `supdate`, and Abora/ANIX/Nix bridge commands. Packaging happens via `scripts/package-tinypm.py` → `out/packages/`.
 
 ### Desktop Profiles
 
-`scripts/abora-desktop-profiles.sh` is a sourced library (not a standalone script). It defines two functions per desktop: `abora_desktop_config_block` (NixOS service/session config) and `abora_desktop_package_block` (packages). The split is important — `check-scripts.sh` explicitly tests that config blocks do not contain `environment.systemPackages`.
+`scripts/abora-desktop-profiles.sh` is a sourced library (not a standalone script). It defines two functions per desktop: `abora_desktop_config_block` (NixOS service/session config) and `abora_desktop_package_block` (packages). The split is important — `scripts/config/tests/desktop.test.sh` explicitly tests that config blocks do not contain `environment.systemPackages`.
 
 ### Installed System Config
 
@@ -101,5 +105,5 @@ After installation, user-facing config lives in `/etc/nixos/abora-local.nix`. Th
 - All scripts use `set -euo pipefail` and locate the repo root via `CDPATH= cd -- "$(dirname -- "$0")/.." && pwd`.
 - The `out/` directory is generated — never commit files there.
 - `VERSION` file drives the version string used everywhere (build, ISO filename, release metadata).
-- Scripts must be executable (`chmod +x`) — `check-scripts.sh` enforces this.
+- Scripts must be executable (`chmod +x`) — `make check` enforces this.
 - Desktop profile additions require changes in `abora-desktop-profiles.sh` (the library), `abora-installer.sh` (installer menu), `anix.sh` (`valid_desktops` array), and `nix/modules/installed-base.nix`.

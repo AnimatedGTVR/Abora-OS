@@ -123,21 +123,26 @@ git_fetch_timeout="${ABORA_GIT_FETCH_TIMEOUT:-300}"
 build_timeout="${ABORA_BUILD_TIMEOUT:-3600}"
 switch_timeout="${ABORA_SWITCH_TIMEOUT:-1800}"
 # The channel/version decision logic in resolve_update_ref/
-# guard_against_accidental_downgrade below is a real Native AOT C# binary
-# (tools/abora-update-resolver) -- see its Program.cs for why: it's a
-# decision tree over version strings and tags that was nested bash case/
-# sort -V string manipulation, ported to a real, unit-tested language. This
-# script still owns every bit of I/O (git ls-remote, reading VERSION,
-# printing colored UI text) and just shells out for the decision itself.
+# guard_against_accidental_downgrade below is delegated to abora-update, the
+# Vanta core of the updater (tools/abora-update), which more of this script
+# moves into over time. It replaces the Native AOT C# abora-update-resolver,
+# kept as a fallback with the identical CLI until the Vanta path has shipped.
+# Both only decide: this script still owns every bit of I/O (git ls-remote,
+# reading VERSION, printing colored UI text) and shells out for the decision.
 # Defaults to relying on PATH (present via Nix systemPackages on any real
-# Abora system); source checkouts may also have the debug binary from
-# check-scripts.sh/dotnet build, which keeps `bash scripts/abora-update.sh
+# Abora system); source checkouts may also have the debug C# binary from
+# make check's dotnet build, which keeps `bash scripts/abora-update.sh
 # --check` useful before an ISO has shipped the new package.
 resolve_resolver_bin() {
     local candidate repo_dir
 
     if [[ -n "${ABORA_UPDATE_RESOLVER_BIN:-}" ]]; then
         printf '%s\n' "$ABORA_UPDATE_RESOLVER_BIN"
+        return 0
+    fi
+
+    if candidate="$(command -v abora-update 2>/dev/null)"; then
+        printf '%s\n' "$candidate"
         return 0
     fi
 
@@ -1025,6 +1030,13 @@ release_has_update_resolver() {
     ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
 }
 
+release_has_vanta_update() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "edge" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
+}
+
 release_has_plan_tool() {
     local selected_ref="$1"
     [[ "$selected_ref" == "edge" ]] && return 0
@@ -1152,6 +1164,14 @@ tools/abora-update-resolver/AboraUpdateResolver.csproj
 tools/abora-update-resolver/Program.cs
 nix/pkgs/abora-update-resolver.nix
 nix/pkgs/abora-update-resolver-deps.json
+EOF
+    fi
+
+    if release_has_vanta_update "$selected_ref"; then
+        cat <<'EOF'
+tools/abora-update/main.vanta
+nix/pkgs/vanta.nix
+nix/pkgs/abora-update.nix
 EOF
     fi
 
@@ -1463,6 +1483,18 @@ sync_abora_files() {
         rm -rf "$abora_dir/update-resolver"
         cp -R "$upstream_dir/tools/abora-update-resolver" "$abora_dir/update-resolver"
     fi
+    # The Vanta updater core. installed-base.nix only builds it once all three
+    # of these exist, so a partially synced tree never breaks evaluation.
+    if [[ -f "$upstream_dir/nix/pkgs/vanta.nix" ]]; then
+        copy_upstream_file "$upstream_dir/nix/pkgs/vanta.nix" "$abora_dir/pkgs/vanta.nix"
+    fi
+    if [[ -f "$upstream_dir/nix/pkgs/abora-update.nix" ]]; then
+        copy_upstream_file "$upstream_dir/nix/pkgs/abora-update.nix" "$abora_dir/pkgs/abora-update.nix"
+    fi
+    if [[ -d "$upstream_dir/tools/abora-update" ]]; then
+        rm -rf "$abora_dir/abora-update"
+        cp -R "$upstream_dir/tools/abora-update" "$abora_dir/abora-update"
+    fi
     if [[ -f "$upstream_dir/nix/pkgs/abora-plan-tool.nix" ]]; then
         copy_upstream_file "$upstream_dir/nix/pkgs/abora-plan-tool.nix" "$abora_dir/pkgs/abora-plan-tool.nix"
     fi
@@ -1644,7 +1676,7 @@ ensure_flake_layout() {
     repair_flake_layout_if_needed
 }
 
-# Hidden __test-* entry points let check-scripts.sh exercise these internal
+# Hidden __test-* entry points let scripts/support/tests/update.test.sh exercise these internal
 # functions directly (flake writing, upstream validation, channel/ref
 # resolution, pre-alpha confirmation) without going through the real
 # argument-parsing/re-exec-as-root/network-fetch path below.

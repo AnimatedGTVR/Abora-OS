@@ -17,7 +17,9 @@ on:
     paths:
       - ".github/workflows/publish-tinypm-package.yml"
       - "packaging/tinypm/**"
-      - "scripts/build-tinypm-image.sh"
+      - "scripts/build-tinypm-image.py"
+      - "scripts/release/build-tinypm-image.py"
+      - "scripts/release/abora_release.py"
       - "vendor/tinypm/**"
       - "VERSION"
 

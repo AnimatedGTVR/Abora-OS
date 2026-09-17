@@ -1,0 +1,40 @@
+# Abora Labs global settings.
+#
+# Machine-specific values (tool paths, longer timeouts) belong in
+# configs/labs.local.toml, which is gitignored and merged over this file.
+# A single tool can also be pointed at with ABORA_LABS_TOOL_<NAME>=/path.
+
+[defaults]
+# Per-command timeout. Experiments can override per stage in [timeouts].
+timeout_seconds = 900
+# How many times `startup` metrics run the startup command (median is reported).
+startup_runs = 5
+
+[source]
+# Directories never counted as source (build output, caches, vendored deps).
+exclude_dirs = [
+  ".git", "bin", "obj", "build", "target", "zig-out", ".zig-cache", "zig-cache",
+  "node_modules", "vendor", "__pycache__", ".venv", "result",
+]
+
+# Tools that are not on PATH, or that print their version unusually.
+#   path          executable to use (~ expanded); its directory is prepended to PATH
+#   version_args  arguments that print a version on the first line (default ["--version"])
+[tools.go]
+version_args = ["version"]
+
+[tools.dotnet]
+version_args = ["--version"]
+
+[tools.zig]
+version_args = ["version"]
+
+[tools.gnatmake]
+version_args = ["--version"]
+
+[tools.vanta]
+# Vanta 0.1 has no --version flag; running it with no arguments prints "Vanta 0.1.0".
+version_args = []
+# Set the interpreter location in configs/labs.local.toml, e.g.:
+#   [tools.vanta]
+#   path = "~/Work/Vanta/target/release/vanta"

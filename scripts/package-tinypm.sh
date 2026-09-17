@@ -1,1 +1,0 @@
-release/package-tinypm.sh

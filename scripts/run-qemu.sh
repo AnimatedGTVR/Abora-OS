@@ -1,1 +1,0 @@
-release/run-qemu.sh

@@ -4,7 +4,7 @@ set -euo pipefail
 # Standalone version of the same mango-config-path repair that
 # abora-installer.sh's install_mango_config_asset/rewrite_installed_mango_config_paths
 # and abora-update.sh's counterparts perform inline. Exists as its own script
-# (invoked via `abora repair --mango`, and by check-scripts.sh's pure-eval
+# (invoked via `abora repair --mango`, and by make check's pure-eval
 # test) so a system whose abora-options.nix/installed-base.nix/desktops/*.nix
 # still reference a live-ISO /nix/store path (breaking `nix flake` pure
 # evaluation) can be fixed after the fact, without needing a full

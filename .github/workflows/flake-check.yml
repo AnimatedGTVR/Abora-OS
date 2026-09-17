@@ -56,7 +56,8 @@ jobs:
             scripts/abora-gaming.sh \
             scripts/abora-installer.sh \
             scripts/abora-update.sh \
-            scripts/check-scripts.sh
+            scripts/release/bash-testlib.sh \
+            scripts/*/tests/*.test.sh
 
   flake-eval:
     name: Nix flake evaluation

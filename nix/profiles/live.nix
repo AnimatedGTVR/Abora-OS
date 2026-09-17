@@ -476,6 +476,7 @@ in
     # ── Abora installer toolchain ────────────────────────────────────────────
     tinypmPackage
     abora-update-resolver
+    abora-update
     abora-plan-tool
     abora-installer
     aboraApps
@@ -732,6 +733,8 @@ in
       "abora/pkgs/moducpp-anix.nix".source = ../pkgs/moducpp-anix.nix;
       "abora/pkgs/abora-update-resolver.nix".source = ../pkgs/abora-update-resolver.nix;
       "abora/pkgs/abora-update-resolver-deps.json".source = ../pkgs/abora-update-resolver-deps.json;
+      "abora/pkgs/vanta.nix".source = ../pkgs/vanta.nix;
+      "abora/pkgs/abora-update.nix".source = ../pkgs/abora-update.nix;
       "abora/pkgs/abora-plan-tool.nix".source = ../pkgs/abora-plan-tool.nix;
       "abora/pkgs/abora-plan-tool-deps.json".source = ../pkgs/abora-plan-tool-deps.json;
       "abora/tools/moducpp-anix" = {
@@ -740,6 +743,7 @@ in
       };
       "abora/tinypm".source = tinypmDir;
       "abora/update-resolver".source = ../../tools/abora-update-resolver;
+      "abora/abora-update".source = ../../tools/abora-update;
       "abora/plan-tool".source = ../../tools/abora-plan-tool;
       "abora/vendor/modularity".source = ../../vendor/modularity;
       "abora/docs".source = ../../docs;

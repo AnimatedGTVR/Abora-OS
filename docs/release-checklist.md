@@ -15,9 +15,9 @@ Use this after a local release build or after the GitHub ISO workflow succeeds.
 ## Repository Checks
 
 - run `make doctor` and fix any Nix daemon/store or nixpkgs source failures first
-- run `./scripts/check-scripts.sh`
-- run `./scripts/check-all-files.sh`
-- run `./scripts/check-desktops.sh`
+- run `./scripts/check-scripts.py`
+- run `./scripts/check-all-files.py`
+- run `./scripts/check-desktops.py`
 - confirm `docs/screenshots.md` matches the current installer flow
 - confirm the setup launcher files are tracked by Git so flakes can include them
 - confirm `make -n iso` builds the default Cosmic ISO

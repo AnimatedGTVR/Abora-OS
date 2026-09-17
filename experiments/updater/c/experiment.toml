@@ -1,0 +1,29 @@
+# Abora Labs experiment: updater downgrade guard implemented in C.
+# Reference: docs/labs/manifest.md
+
+name = "updater-c"
+description = "Downgrade guard (scripts/abora-update.sh) ported to C11, libc only"
+area = "updater"
+implementation = "c"
+language = "c"
+status = "experimental"
+maintainer = "AnimatedGTVR"
+dependencies = []
+
+[commands]
+build = ["make"]
+test = ["make", "test"]
+run = ["./build/downgrade-guard"]
+clean = ["make", "clean"]
+
+[test]
+format = "tap"
+
+[safety]
+# Pure decision logic: reads two strings, prints a verdict. Touches nothing.
+level = "safe"
+risks = []
+
+[metrics]
+artifacts = ["build/downgrade-guard"]
+startup = ["./build/downgrade-guard", "4.0", "v4.1"]

@@ -93,6 +93,12 @@ let
     if builtins.pathExists ./tinypm then ./tinypm else null;
   updateResolverDir =
     if builtins.pathExists ./update-resolver then ./update-resolver else null;
+  # The Vanta core of `abora update` and the interpreter it runs on.
+  aboraUpdateDir =
+    if builtins.pathExists ./abora-update
+      && builtins.pathExists ./pkgs/vanta.nix
+      && builtins.pathExists ./pkgs/abora-update.nix
+    then ./abora-update else null;
   planToolDir =
     if builtins.pathExists ./plan-tool then ./plan-tool else null;
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
@@ -385,6 +391,12 @@ in
         resolverSrc = updateResolverDir;
       };
     }
+    // lib.optionalAttrs (aboraUpdateDir != null) {
+      vanta = final.callPackage ./pkgs/vanta.nix {};
+      abora-update = final.callPackage ./pkgs/abora-update.nix {
+        updateSrc = aboraUpdateDir;
+      };
+    }
     // lib.optionalAttrs (planToolDir != null) {
       abora-plan-tool = final.callPackage ./pkgs/abora-plan-tool.nix {
         toolSrc = planToolDir;
@@ -587,6 +599,7 @@ in
     zsh
   ] ++ lib.optional (tinypmPackage != null) tinypmPackage
     ++ lib.optional (pkgs ? abora-update-resolver) pkgs.abora-update-resolver
+    ++ lib.optional (pkgs ? abora-update) pkgs.abora-update
     ++ lib.optional (pkgs ? abora-plan-tool) pkgs.abora-plan-tool
     ++ lib.optional (welcomeGuiScript != null) aboraWelcomeGui
     ++ lib.optional (configGuiScript != null) aboraConfigGui
@@ -1024,6 +1037,9 @@ in
     }
     // lib.optionalAttrs (updateResolverDir != null) {
       "abora/update-resolver".source = updateResolverDir;
+    }
+    // lib.optionalAttrs (aboraUpdateDir != null) {
+      "abora/abora-update".source = aboraUpdateDir;
     }
     // lib.optionalAttrs (planToolDir != null) {
       "abora/plan-tool".source = planToolDir;

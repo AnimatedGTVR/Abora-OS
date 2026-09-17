@@ -1,0 +1,29 @@
+# Abora Labs experiment: updater downgrade guard implemented in Go.
+# Reference: docs/labs/manifest.md
+
+name = "updater-go"
+description = "Downgrade guard (scripts/abora-update.sh) ported to Go, standard library only"
+area = "updater"
+implementation = "go"
+language = "go"
+status = "experimental"
+maintainer = "AnimatedGTVR"
+dependencies = []
+
+[commands]
+build = ["go", "build", "-trimpath", "-o", "bin/downgrade-guard", "."]
+test = ["go", "test", "-count=1", "-v", "./..."]
+run = ["./bin/downgrade-guard"]
+clean = ["rm", "-rf", "bin"]
+
+[test]
+format = "go"
+
+[safety]
+# Pure decision logic: reads two strings, prints a verdict. Touches nothing.
+level = "safe"
+risks = []
+
+[metrics]
+artifacts = ["bin/downgrade-guard"]
+startup = ["./bin/downgrade-guard", "4.0", "v4.1"]

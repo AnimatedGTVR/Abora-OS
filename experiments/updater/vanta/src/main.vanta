@@ -1,0 +1,27 @@
+module Main;
+@use Updater.Guard;
+
+# downgrade-guard [--allow-downgrade] <current-version> <selected-ref>
+# Prints `allow` (exit 0) or `block` (exit 1). Usage errors exit 2.
+func Start()::void {
+    let args = Env.Args();
+    mut allowDowngrade = false;
+    mut rest::list<string> = [];
+    for arg in args {
+        if arg == "--allow-downgrade" && List.Length(rest) == 0 && !allowDowngrade {
+            allowDowngrade = true;
+        } else {
+            rest = List.Push(rest, arg);
+        }
+    }
+    if List.Length(rest) != 2 {
+        emitError("usage: downgrade-guard [--allow-downgrade] <current-version> <selected-ref>");
+        Process.Exit(2);
+    }
+    if Guard.Allows(rest[0], rest[1], allowDowngrade) {
+        emit("allow");
+        return;
+    }
+    emit("block");
+    Process.Exit(1);
+}

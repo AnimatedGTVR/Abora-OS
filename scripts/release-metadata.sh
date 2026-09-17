@@ -1,1 +1,0 @@
-release/release-metadata.sh
