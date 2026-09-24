@@ -76,7 +76,7 @@ body:
     attributes:
       label: Abora version
       description: Output of `cat /etc/os-release | grep VERSION`, or the ISO filename you booted.
-      placeholder: "4.0.1"
+      placeholder: "4.1"
     validations:
       required: false
 
