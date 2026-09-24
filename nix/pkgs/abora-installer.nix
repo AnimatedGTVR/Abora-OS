@@ -4,7 +4,7 @@
 
 rustPlatform.buildRustPackage {
   pname = "abora-installer";
-  version = "4.0.1-alpha";
+  version = "4.1.0-alpha";
 
   src = ../../tools/abora-installer;
   cargoLock.lockFile = ../../tools/abora-installer/Cargo.lock;

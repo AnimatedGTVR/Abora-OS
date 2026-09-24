@@ -8,7 +8,7 @@ while [[ "$repo_dir" != "/" && ! -f "$repo_dir/flake.nix" ]]; do
 done
 [[ -f "$repo_dir/flake.nix" ]] || { echo "Could not find Abora repo root." >&2; exit 1; }
 version="$(tr -d '\n' < "$repo_dir/VERSION")"
-release_name="${ABORA_RELEASE_NAME:-Abora OS v4 Everest}"
+release_name="${ABORA_RELEASE_NAME:-Abora OS v4.1 Horizon}"
 out_dir="${ABORA_OUT_DIR:-$repo_dir/out}"
 iso_dir="${ABORA_ISO_DIR:-$out_dir/iso}"
 package_dir="${ABORA_PACKAGE_DIR:-$out_dir/packages}"

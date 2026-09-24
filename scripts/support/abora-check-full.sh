@@ -89,7 +89,8 @@ append_file() {
 
 redact_stream() {
     sed -E \
-        -e 's@(^|[^[:alnum:]_])(hashedPassword|password|passwd|secret|token|api[_-]?key)([[:space:]]*[:=][[:space:]]*)("[^"]*"|'\''[^'\'']*'\''|[^[:space:];]+)@\1\2\3"[redacted]"@Ig' \
+        -e 's@(^|[^[:alnum:]_])(hashedPassword|password|passwd|psk|secret|token|api[_-]?key)([[:space:]]*[:=][[:space:]]*)("[^"]*"|'\''[^'\'']*'\''|[^[:space:];]+)@\1\2\3"[redacted]"@Ig' \
+        -e 's@(^[[:space:]]*Authorization[[:space:]]*:[[:space:]]*)(Bearer|Basic)[[:space:]]+[^[:space:]]+@\1\2 [redacted]@Ig' \
         -e 's@(github\.com/[^[:space:]]+://)?([^[:space:]@/]+):([^[:space:]@]+)\@@\[redacted-user\]:[redacted]\@@g'
 }
 

@@ -5,7 +5,7 @@
 # TinyPM/ submodule -- like vendor/, it's third-party-shaped: a separate
 # repo with its own upstream conventions and its own CI) and validates each
 # by type, plus every extensionless-but-shebanged script (e.g.
-# tools/moducpp-anix) and every ANIX v2 source file (.anix/.mko/.moducpp) via
+# tools/moducpp-anix) and every ANIX v2 source file (.anix/.moducpp) via
 # `anix diff-plan`, so a new file that nobody registered anywhere still gets
 # checked.
 set -euo pipefail
@@ -36,7 +36,7 @@ else
     C_GREEN="" C_RED="" C_YELLOW="" C_ORANGE="" C_DIM="" C_CYAN="" C_BOLD="" C_NC=""
 fi
 
-# `anix diff-plan` (used below to validate every .anix/.mko/.moducpp file)
+# `anix diff-plan` (used below to validate every .anix/.moducpp file)
 # needs a real abora-plan-tool binary -- see scripts/anix.sh's
 # parse_and_validate_plan(). There's no bash fallback anymore, so build one
 # for this sweep the same way check-scripts.sh does (plain `dotnet build`,
@@ -471,15 +471,15 @@ check_markdown_code_blocks() {
 }
 
 # ── ANIX v2 plan sources ──────────────────────────────────────────────────────
-# .anix/.mko/.moducpp files are ANIX's own configuration languages, not
+# .anix/.moducpp files are ANIX's own configuration languages, not
 # scripts in the usual sense — but they're still executable specifications
 # with their own syntax to get wrong. `anix diff-plan <file>` resolves the
 # right language adapter, parses/compiles the source into Plan JSON, and
 # validates that JSON, all without applying anything (no nixos-rebuild, no
 # state written) — exactly the non-destructive check this sweep needs.
 #
-# If the adapter for a given language isn't installed on this machine (MKO
-# or ModuCPP toolchains are a separate install from Abora itself), that's an
+# If the adapter for a given language isn't installed on this machine (a
+# ModuCPP toolchain is a separate install from Abora itself), that's an
 # environment gap, not a broken plan file, so it's counted as skipped rather
 # than failed.
 
@@ -691,7 +691,7 @@ section "ANIX v2 plan sources (anix diff-plan, non-destructive)"
 if ! command -v jq >/dev/null 2>&1; then
     pass "jq unavailable (anix plan checks skipped)"
 fi
-for ext in anix mko moducpp; do
+for ext in anix moducpp; do
     while IFS= read -r f; do
         [[ -n "$f" ]] || continue
         check_anix_plan "$f"

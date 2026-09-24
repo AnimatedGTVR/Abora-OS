@@ -1039,6 +1039,13 @@ release_has_gaming_welcome_gui() {
     ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
 }
 
+release_has_labs() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "edge" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
+}
+
 required_upstream_paths() {
     local selected_ref="${1:-edge}"
     cat <<'EOF'
@@ -1113,6 +1120,12 @@ EOF
     if release_has_gaming_welcome_gui "$selected_ref"; then
         cat <<'EOF'
 scripts/abora-gaming-welcome-gui.py
+EOF
+    fi
+
+    if release_has_labs "$selected_ref"; then
+        cat <<'EOF'
+scripts/apps/abora-labs.sh
 EOF
     fi
 
@@ -1300,8 +1313,8 @@ rewrite_installed_mango_config_paths() {
         sed -i \
             -e "s|\"${bad_store}\"|./mango/config.conf|g" \
             -e "s|${bad_store}|./mango/config.conf|g" \
-            -e 's|../../assets/mango/config\.conf|./mango/config.conf|g' \
-            -e 's|../../../assets/mango/config\.conf|./mango/config.conf|g' \
+            -e 's|\.\./\.\./\.\./assets/mango/config\.conf|./mango/config.conf|g' \
+            -e 's|\.\./\.\./assets/mango/config\.conf|./mango/config.conf|g' \
             "$file"
     done
 
@@ -1310,8 +1323,8 @@ rewrite_installed_mango_config_paths() {
             sed -i \
                 -e "s|\"${bad_store}\"|../mango/config.conf|g" \
                 -e "s|${bad_store}|../mango/config.conf|g" \
-                -e 's|../../assets/mango/config\.conf|../mango/config.conf|g' \
-                -e 's|../../../assets/mango/config\.conf|../mango/config.conf|g' \
+                -e 's|\.\./\.\./\.\./assets/mango/config\.conf|../mango/config.conf|g' \
+                -e 's|\.\./\.\./assets/mango/config\.conf|../mango/config.conf|g' \
                 "$file"
         done < <(
             grep -RIlZ \
@@ -1355,6 +1368,9 @@ sync_abora_files() {
     if [[ -f "$upstream_dir/scripts/abora-gaming.sh" ]]; then
         copy_upstream_file "$upstream_dir/scripts/abora-gaming.sh" "$abora_dir/gaming.sh"
     fi
+    if [[ -f "$upstream_dir/scripts/apps/abora-labs.sh" ]]; then
+        copy_upstream_file "$upstream_dir/scripts/apps/abora-labs.sh" "$abora_dir/labs.sh"
+    fi
     if [[ -d "$upstream_dir/docs" ]]; then
         rm -rf "$abora_dir/docs"
         cp -R "$upstream_dir/docs" "$abora_dir/docs"
@@ -1366,6 +1382,10 @@ sync_abora_files() {
     copy_upstream_file "$upstream_dir/scripts/abora-doctor.sh" "$abora_dir/doctor.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-recovery.sh" "$abora_dir/recovery.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-welcome.sh" "$abora_dir/welcome.sh"
+    if [[ -f "$upstream_dir/scripts/support/abora-community.py" && -f "$upstream_dir/nix/modules/community.nix" ]]; then
+        copy_upstream_file "$upstream_dir/scripts/support/abora-community.py" "$abora_dir/community.py"
+        copy_upstream_file "$upstream_dir/nix/modules/community.nix" "$abora_dir/community.nix"
+    fi
     if [[ -f "$upstream_dir/scripts/abora-welcome-gui.py" ]]; then
         copy_upstream_file "$upstream_dir/scripts/abora-welcome-gui.py" "$abora_dir/welcome-gui.py"
     fi
@@ -1660,7 +1680,7 @@ if [[ "${1:-}" == "__test-validate-upstream" ]]; then
 fi
 
 if [[ "${1:-}" == "__test-resolve-ref" ]]; then
-    current_version="${2:-4.0}"
+    current_version="${2:-4.1}"
     channel="${3:-stable}"
     resolve_update_ref "$channel" "$current_version"
     guard_against_accidental_downgrade "$current_version" "$effective_ref"
@@ -1669,7 +1689,7 @@ if [[ "${1:-}" == "__test-resolve-ref" ]]; then
 fi
 
 if [[ "${1:-}" == "__test-resolve-fallback" ]]; then
-    current_version="${2:-4.0}"
+    current_version="${2:-4.1}"
     fallback_ref="${3:-v2.5.0}"
     fallback_mode=1
     allow_downgrade=1

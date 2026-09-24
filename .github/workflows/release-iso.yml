@@ -98,7 +98,7 @@ jobs:
         run: |
           set -euxo pipefail
           tag="${{ steps.version.outputs.tag }}"
-          title="Abora OS v4 Everest (${tag})"
+          title="Abora OS v4.1 Horizon (${tag})"
           notes_file="out/release/RELEASE_NOTES-${tag}.md"
           shopt -s nullglob
           # ISO is intentionally not attached to the GitHub Release — it is

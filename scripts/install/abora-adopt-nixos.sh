@@ -381,6 +381,8 @@ for pair in \
   "scripts/abora-setup.desktop:setup.desktop" \
   "scripts/abora-adopt-nixos.sh:adopt-nixos.sh" \
   "scripts/abora-welcome-gui.py:welcome-gui.py" \
+  "scripts/support/abora-community.py:community.py" \
+  "nix/modules/community.nix:community.nix" \
   "scripts/abora-config-gui.py:config-gui.py" \
   "scripts/abora-gaming-welcome-gui.py:gaming-welcome-gui.py"; do
   src="${pair%%:*}"

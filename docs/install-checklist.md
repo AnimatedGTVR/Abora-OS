@@ -43,8 +43,10 @@ Use this after building a release candidate ISO and after running one real insta
 - password mismatch recovery works
 - GitHub login can be skipped cleanly
 - generated config validation runs before `nixos-install`
+- preflight rejects a malformed or locally-pinned `/etc/abora/target-flake.lock`, or a bundled nixpkgs source whose NAR hash does not match it, before touching the selected disk
 - optional Gaming setup can be skipped cleanly
 - optional Desktop Gaming + Big Picture writes the expected gaming settings
+- optional Abora Labs is off by default, displays an experimental warning, and writes `abora.labs.enable = true` only when selected
 - install progress reaches the install phase
 - install completes without fatal errors
 - failed installs show useful recent log output
@@ -84,9 +86,8 @@ Use [Bug Report Template](bug-report-template.md) for full reports.
 
 ## ANIX Languages
 
-- `anix language list` shows ANIX Native, MAKO, and ModuCPP
+- `anix language list` shows ANIX Native and ModuCPP
 - `anix run examples/anix-v2/simple.anix --yes` works in a test config
-- `anix diff-plan examples/anix-v2/workstation.mko` resolves through MAKO when `mko` is installed
 - `anix diff-plan examples/anix-v2/workstation.moducpp` resolves through `moducpp-anix`
 
 ## Installed System
@@ -94,10 +95,13 @@ Use [Bug Report Template](bug-report-template.md) for full reports.
 - installed system boots without the ISO attached
 - bootloader starts without manual repair
 - login prompt starts
+- selected username exists and the live-media accounts (`liveuser`, `aboraos`) do not
 - networking is enabled and functional
+- Firefox is available without a separate Flatpak installation
 - `abora setup` launches the installed reconfiguration tool
 - `tinypm` and `grab` are available
 - `abora gaming status` and `abora gaming doctor` run after install
+- when Labs was enabled, `abora labs status` works without downloading or executing experimental code automatically
 - on GNOME installs, Abora wallpapers appear in `Settings -> Appearance`
 - on every supported desktop, first login starts on the Abora default wallpaper
 - on GNOME installs, picking an Abora wallpaper updates accent/style automatically

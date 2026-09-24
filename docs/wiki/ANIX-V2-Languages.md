@@ -1,11 +1,10 @@
 # ANIX v2 — choose your configuration language
 
 ANIX v2 will let each project choose the language used to describe system
-changes. The three built-in frontends will be:
+changes. The two built-in frontends are:
 
 1. **ANIX Native** — the short command language ANIX uses today
-2. **MAKO** — readable scripts and reusable configuration logic
-3. **ModuCPP** — a compiled C++-style frontend for native tooling
+2. **ModuCPP** — a compiled C++-style frontend for native tooling
 
 Additional languages can be installed as adapters. The language changes how a
 plan is written, not how ANIX validates or applies it.
@@ -14,8 +13,7 @@ plan is written, not how ANIX validates or applies it.
 
 ```text
 ANIX Native ─┐
-MAKO ────────┼─> ANIX Plan JSON ─> validate ─> diff/dry-build ─> apply
-ModuCPP ─────┤
+ModuCPP ─────┼─> ANIX Plan JSON ─> validate ─> diff/dry-build ─> apply
 Other ───────┘
 ```
 
@@ -39,12 +37,11 @@ The first working interface is:
 ```sh
 anix language list
 anix language use anix
-anix language use mako
 anix language use moducpp
-anix run workstation.mko
+anix run workstation.moducpp
 anix validate-plan plan.json
 anix apply-plan plan.json
-anix diff-plan workstation.mko
+anix diff-plan workstation.moducpp
 ```
 
 The selected default belongs in `.anix/config`; it is a tool preference, not
@@ -52,7 +49,7 @@ system state. A file extension or explicit `--language` flag may override it
 for one run.
 
 ANIX Native `.anix` files work now for `set`, `enable`, `disable`, `package
-add`, and `package remove`. They apply as one state transaction. MAKO, ModuCPP,
+add`, and `package remove`. They apply as one state transaction. ModuCPP
 and third-party execution becomes available when a matching adapter manifest
 and command are installed; `anix language list` reports readiness honestly.
 `anix diff-plan` compares any source or Plan JSON with current state and labels
@@ -65,7 +62,7 @@ Adapters write JSON to standard output and diagnostics to standard error:
 ```json
 {
   "planVersion": 1,
-  "language": "mako",
+  "language": "moducpp",
   "operations": [
     { "op": "set", "key": "hostname", "value": "everest" },
     { "op": "enable", "feature": "bluetooth" },
@@ -85,11 +82,10 @@ touching state. Plans cannot contain shell fragments. Commands for systemd
 units remain structured argv arrays and retain the v1 allowlists.
 
 The workstation examples in `examples/anix-v2/` show the same gaming-enabled
-plan in ANIX Native, MAKO, and ModuCPP:
+plan in ANIX Native and ModuCPP:
 
 ```sh
 anix run examples/anix-v2/workstation.anix
-anix run examples/anix-v2/workstation.mko
 anix run examples/anix-v2/workstation.moducpp
 ```
 
@@ -100,10 +96,10 @@ version:
 
 ```json
 {
-  "id": "mako",
-  "name": "MAKO",
-  "extensions": [".mko"],
-  "command": ["mko", "run"],
+  "id": "moducpp",
+  "name": "ModuCPP",
+  "extensions": [".moducpp", ".mcpp"],
+  "command": ["moducpp-anix"],
   "planVersion": 1
 }
 ```
@@ -120,15 +116,6 @@ The fastest path for direct system changes. Existing commands remain valid,
 and a file form will group them into one reviewable transaction. See
 `examples/anix-v2/simple.anix` for the smallest possible plan and
 `examples/anix-v2/workstation.anix` for a multi-operation one.
-
-### MAKO
-
-MAKO now exposes a small `ANIX` package that builds a plan. It is suitable for
-conditions, reusable functions, lists, and approachable automation without
-generating Nix syntax. End an adapter script with `ANIX.finish()` so its plan is
-written to the adapter output channel. See `examples/anix-v2/simple.mko` for
-the smallest possible plan and `examples/anix-v2/workstation.mko` for a
-multi-operation one.
 
 ### ModuCPP
 
@@ -182,18 +169,17 @@ the [complete guide](https://www.moduengine.xyz/docs/moducpp-guide) and
    dry-build-and-confirm closes the whole plan).
 3. **Done:** add `anix run`, `anix validate-plan`, and `anix apply-plan`.
 4. **Done:** ship the first ANIX Native file frontend.
-5. **Done:** ship the MAKO adapter and `using ANIX;` package.
-6. **Done:** ship the standalone ModuCPP plan module and adapter contract, and
+5. **Done:** ship the standalone ModuCPP plan module and adapter contract, and
    package `moducpp-anix` (`nix/pkgs/moducpp-anix.nix`) so it's on `PATH` on
    the live ISO and every installed system without a Modularity checkout.
-7. **Done:** `anix language list` reports readiness with a reason (missing
+6. **Done:** `anix language list` reports readiness with a reason (missing
    command, bad manifest, unsupported plan version), and `anix diff-plan`
    compares real current state instead of assuming every operation is new.
-8. **Done:** end-to-end coverage for `simple`/`workstation` examples across
-   all three frontends, plus failure-path tests proving invalid plans,
+7. **Done:** end-to-end coverage for `simple`/`workstation` examples across
+   both built-in frontends, plus failure-path tests proving invalid plans,
    malformed JSON, unresolvable languages, and failing adapters never
    mutate `anix.nix` (`scripts/check-scripts.sh`).
-9. Open third-party adapter discovery after the security boundary is tested.
+8. Open third-party adapter discovery after the security boundary is tested.
 
 ANIX v1 remains supported throughout v2. Existing commands become calls into
 the plan executor rather than being removed.

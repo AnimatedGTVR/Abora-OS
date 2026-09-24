@@ -33,6 +33,7 @@ bash_scripts=(
   "scripts/abora-gaming.sh"
   "scripts/abora-hardware-test.sh"
   "scripts/abora-installer.sh"
+  "scripts/abora-labs.sh"
   "scripts/abora-repair-flake-purity.sh"
   "scripts/abora-recovery.sh"
   "scripts/abora-session-setup.sh"
@@ -86,6 +87,7 @@ required_files=(
   "docs/wiki/Recovery.md"
   "docs/wiki/Updating-Abora.md"
   "docs/bug-report-template.md"
+  "scripts/apps/abora-labs.sh"
   "vendor/tinypm/Cargo.toml"
   "vendor/tinypm/src/main.rs"
   "vendor/tinypm/src/bin/grab.rs"
@@ -196,6 +198,29 @@ for file in "${bash_scripts[@]}"; do
     fail "not executable: $file"
   fi
 done
+
+# Labs must remain opt-in and detached from the critical install/update path.
+# This smoke test uses an empty temporary HOME and performs no network access.
+tmp_labs_home="$(mktemp -d)"
+_labs_status="$(HOME="$tmp_labs_home" XDG_DATA_HOME="$tmp_labs_home/data" bash scripts/abora-labs.sh status)"
+_labs_path="$(HOME="$tmp_labs_home" XDG_DATA_HOME="$tmp_labs_home/data" bash scripts/abora-labs.sh path)"
+_labs_cancel_rc=0
+printf 'no\n' | HOME="$tmp_labs_home" XDG_DATA_HOME="$tmp_labs_home/data" \
+  bash scripts/abora-labs.sh install >"$tmp_labs_home/cancel.out" 2>&1 || _labs_cancel_rc=$?
+if grep -q '^State: not downloaded$' <<<"$_labs_status" \
+  && [[ "$_labs_path" == "$tmp_labs_home/data/abora/labs" ]] \
+  && [[ "$_labs_cancel_rc" -eq 1 && ! -e "$tmp_labs_home/data/abora/labs" ]] \
+  && grep -q 'Cancelled\.' "$tmp_labs_home/cancel.out" \
+  && grep -q 'Type LABS to continue' scripts/apps/abora-labs.sh \
+  && grep -q 'abora.labs.enable = $(nix_bool "$labs_enabled");' scripts/abora-installer.sh \
+  && grep -q 'source = ../../scripts/apps/abora-labs.sh;' nix/profiles/live.nix \
+  && grep -q 'config.abora.labs.enable && labsScript != null' nix/modules/installed-base.nix \
+  && grep -q 'scripts/apps/abora-labs.sh' scripts/abora-update.sh; then
+  pass "runtime: Abora Labs is opt-in and wired through installer, ISO, installed system, and updater"
+else
+  fail "runtime: Abora Labs integration is incomplete"
+fi
+rm -rf "$tmp_labs_home"
 
 tmp_gnome_wallpaper_test="$(mktemp -d)"
 tmp_gnome_home="$tmp_gnome_wallpaper_test/home"
@@ -809,28 +834,28 @@ _old_branding_matches="$(
     2>/dev/null || true
 )"
 if [[ -z "$_old_branding_matches" ]] \
-  && grep -q 'Abora OS v4 Everest' RELEASE_NOTES.md \
-  && grep -q 'git tag v4.0' docs/wiki/Release-Guide.md \
-  && grep -q 'x86_64-v4.0.iso' RELEASE_NOTES.md \
-  && grep -q 'SHA256SUMS-v4.0.txt' RELEASE_NOTES.md \
+  && grep -q 'Abora OS v4.1 Horizon' RELEASE_NOTES.md \
+  && grep -q 'git tag v4.1' docs/wiki/Release-Guide.md \
+  && grep -q 'x86_64-v4.1.iso' RELEASE_NOTES.md \
+  && grep -q 'SHA256SUMS-v4.1.txt' RELEASE_NOTES.md \
   && grep -q 'abora_release_stage="${ABORA_RELEASE_STAGE:-alpha}"' scripts/abora-installer.sh \
   && grep -q 'abora_release_channel="${ABORA_RELEASE_CHANNEL:-unstable}"' scripts/abora-installer.sh \
-  && grep -q 'Abora OS v4 Everest' scripts/abora-installer.sh \
-  && grep -q 'ABORA OS  —  v4 Everest' scripts/abora-boot.sh \
+  && grep -q 'Abora OS v4.1 Horizon' scripts/abora-installer.sh \
+  && grep -q 'ABORA OS  —  v4.1 Horizon' scripts/abora-boot.sh \
   && grep -q 'ABORA_DEFAULT_CHANNEL:-unstable' scripts/abora-welcome.sh \
   && grep -q "ABORA_DEFAULT_CHANNEL', 'unstable'" scripts/abora-welcome-gui.py \
   && grep -q 'ABORA_DEFAULT_CHANNEL:-unstable' scripts/abora-doctor.sh \
-  && grep -q 'v4 Everest alpha default' docs/wiki/Updating-Abora.md \
-  && grep -q 'release_name="${ABORA_RELEASE_NAME:-Abora OS v4 Everest}"' scripts/abora-support-report.sh \
-  && grep -q "printf 'v4 Everest'" scripts/abora-ui.sh \
-  && grep -q 'release_short="v4 Everest"' scripts/check-desktops.sh \
-  && grep -q 'PRETTY_NAME = "Abora OS v4 Everest"' nix/profiles/live.nix \
-  && grep -q 'PRETTY_NAME = "Abora OS v4 Everest"' nix/modules/installed-base.nix \
-  && grep -q 'VERSION = "v4 Everest"' nix/profiles/live.nix \
-  && grep -q 'VERSION_ID = "4"' nix/modules/installed-base.nix; then
-  pass "runtime: v4 Everest branding is consistent"
+  && grep -q 'v4.1 Horizon alpha default' docs/wiki/Updating-Abora.md \
+  && grep -q 'release_name="${ABORA_RELEASE_NAME:-Abora OS v4.1 Horizon}"' scripts/abora-support-report.sh \
+  && grep -q "printf 'v4.1 Horizon'" scripts/abora-ui.sh \
+  && grep -q 'release_short="v4.1 Horizon"' scripts/check-desktops.sh \
+  && grep -q 'PRETTY_NAME = "Abora OS v4.1 Horizon"' nix/profiles/live.nix \
+  && grep -q 'PRETTY_NAME = "Abora OS v4.1 Horizon"' nix/modules/installed-base.nix \
+  && grep -q 'VERSION = "v4.1 Horizon"' nix/profiles/live.nix \
+  && grep -q 'VERSION_ID = "4.1"' nix/modules/installed-base.nix; then
+  pass "runtime: v4.1 Horizon branding is consistent"
 else
-  fail "runtime: v4 Everest branding is consistent"
+  fail "runtime: v4.1 Horizon branding is consistent"
   if [[ -n "$_old_branding_matches" ]]; then
     printf '%s\n' "$_old_branding_matches" | sed 's/^/              /'
   fi
@@ -1047,6 +1072,17 @@ else
   fail "runtime: installer preflight checks release lock and offline package assets"
 fi
 
+if grep -q 'jq -e' scripts/abora-installer.sh \
+  && grep -q 'locked.owner == "NixOS"' scripts/abora-installer.sh \
+  && grep -q 'original.ref == "nixos-unstable"' scripts/abora-installer.sh \
+  && grep -q "hash path --sri \"\$nixpkgs\"" scripts/abora-installer.sh \
+  && grep -q 'actual_nar.*!=.*expected_nar' scripts/abora-installer.sh \
+  && grep -q 'NAR hash mismatch' scripts/abora-installer.sh; then
+  pass "runtime: installer validates the bundled target lock and nixpkgs NAR hash before partitioning"
+else
+  fail "runtime: installer must validate its target lock and bundled nixpkgs before partitioning"
+fi
+
 if [[ -f tools/abora-installer/Cargo.toml ]] \
   && grep -q 'mod cli;' tools/abora-installer/src/main.rs \
   && grep -q 'mod install;' tools/abora-installer/src/main.rs \
@@ -1063,6 +1099,14 @@ if grep -Fq 'type = lib.types.enum [ "auto" "nouveau" "nvidia" "nvidia-open" "am
   pass "runtime: abora.gpu accepts legacy/batch auto values as a no-op"
 else
   fail "runtime: abora.gpu accepts legacy/batch auto values as a no-op"
+fi
+
+# xdg.desktopEntries only exists in home-manager; in a NixOS module it fails
+# evaluation, which a host without nix never notices before the ISO build.
+if ! grep -rnE '^[^#]*xdg\.desktopEntries[[:space:]]*=' nix/ >/dev/null 2>&1; then
+  pass "runtime: NixOS modules do not use the home-manager xdg.desktopEntries option"
+else
+  fail "runtime: NixOS modules must use pkgs.makeDesktopItem, not xdg.desktopEntries"
 fi
 
 if scripts/check-release-files.sh >/dev/null; then
@@ -1650,7 +1694,6 @@ if scripts/check-release-files.sh >/dev/null \
   && grep -q '^docs/wiki/ANIX-V2-Languages.md$' scripts/check-release-files.sh \
   && grep -q '^docs/wiki/Updating-Abora.md$' scripts/check-release-files.sh \
   && grep -q '^vendor/modularity$' scripts/check-release-files.sh \
-  && [[ -f assets/anix-languages/mako.json ]] \
   && [[ -f assets/anix-languages/moducpp.json ]] \
   && [[ -f nix/pkgs/moducpp-anix.nix ]] \
   && [[ -f tools/moducpp-anix ]] \
@@ -1865,20 +1908,17 @@ else
   printf '              bundle output: %s\n' "$gaming_bundle_out"
 fi
 
-if grep -q '"id": "mako"' assets/anix-languages/mako.json \
-  && grep -q '"extensions": \[".mko"\]' assets/anix-languages/mako.json \
-  && grep -q '"command": \["mko", "run"\]' assets/anix-languages/mako.json \
-  && grep -q '"id": "moducpp"' assets/anix-languages/moducpp.json \
+if grep -q '"id": "moducpp"' assets/anix-languages/moducpp.json \
   && grep -q '".moducpp"' assets/anix-languages/moducpp.json \
   && grep -q '".mcpp"' assets/anix-languages/moducpp.json \
   && grep -q '"command": \["moducpp-anix"\]' assets/anix-languages/moducpp.json \
-  && grep -q 'using ANIX;' examples/anix-v2/simple.mko \
-  && grep -q 'using ANIX;' examples/anix-v2/workstation.mko \
   && grep -q 'add ANIX;' examples/anix-v2/simple.moducpp \
-  && grep -q 'add ANIX;' examples/anix-v2/workstation.moducpp; then
-  pass "runtime: MAKO and ModuCPP manifests match shipped examples"
+  && grep -q 'add ANIX;' examples/anix-v2/workstation.moducpp \
+  && [[ ! -e assets/anix-languages/mako.json ]] \
+  && ! compgen -G 'examples/anix-v2/*.mko' >/dev/null; then
+  pass "runtime: ModuCPP manifest matches examples and MAKO is not shipped"
 else
-  fail "runtime: MAKO and ModuCPP manifests match shipped examples"
+  fail "runtime: ModuCPP manifest matches examples and MAKO is not shipped"
 fi
 
 if grep -q 'sudo abora update' docs/wiki/FAQ.md \
@@ -1911,7 +1951,7 @@ if grep -q 'sudo abora update' docs/wiki/FAQ.md \
   && grep -q 'current alpha release line' docs/wiki/Home.md \
   && grep -q 'ANIX v2 Languages](ANIX-V2-Languages.md)' docs/wiki/_Sidebar.md \
   && grep -q 'sudo abora rollback' docs/wiki/Updating-Abora.md \
-  && grep -q 'Abora OS v4 Everest' DISCORD_CHANGELOG.md \
+  && grep -q 'Abora OS v4.1 Horizon' DISCORD_CHANGELOG.md \
   && grep -q 'abora support-report' DISCORD_CHANGELOG.md \
   && grep -q 'abora hardware-test --with-report' DISCORD_CHANGELOG.md \
   && ! grep -q 'abora-support-report' DISCORD_CHANGELOG.md \
@@ -2102,12 +2142,15 @@ fi
 # anything) rather than re-deriving the regex, so the test exercises the
 # real source, not a hand-copied approximation of it.
 eval "$(printf '%s' "$redact_stream_check_full" | sed '1s/^redact_stream/_redact_stream_under_test/')"
-redact_probe_out="$(printf 'Generated: 2026-08-16T16:43:28-04:00\nport: talking to host:8080 now\nurl: https://user:pass@example.com/repo\n' \
+redact_probe_out="$(printf 'Generated: 2026-08-16T16:43:28-04:00\nport: talking to host:8080 now\nurl: https://user:pass@example.com/repo\npsk = "wireless secret";\nAuthorization: Bearer active-token\nAuthorization: Basic dXNlcjpwYXNz\n' \
   | _redact_stream_under_test)"
 if printf '%s' "$redact_probe_out" | grep -q '2026-08-16T16:43:28-04:00' \
   && printf '%s' "$redact_probe_out" | grep -q 'host:8080' \
   && printf '%s' "$redact_probe_out" | grep -q '\[redacted-user\]:\[redacted\]@example.com/repo' \
-  && ! printf '%s' "$redact_probe_out" | grep -q 'user:pass'; then
+  && printf '%s' "$redact_probe_out" | grep -q 'psk = "\[redacted\]";' \
+  && printf '%s' "$redact_probe_out" | grep -q 'Authorization: Bearer \[redacted\]' \
+  && printf '%s' "$redact_probe_out" | grep -q 'Authorization: Basic \[redacted\]' \
+  && ! printf '%s' "$redact_probe_out" | grep -Eq 'user:pass|wireless secret|active-token|dXNlcjpwYXNz'; then
   pass "runtime: redact_stream credential regex does not devour timestamps or host:port pairs"
 else
   fail "runtime: redact_stream credential regex does not devour timestamps or host:port pairs"
@@ -2212,8 +2255,8 @@ if ABORA_OUT_DIR="$tmp_anix_pkg_out" scripts/package-anix.sh >/dev/null; then
   anix_pkg_file="$(find "$tmp_anix_pkg_out/packages" -type f -name 'anix-*-abora-*.tar.gz' | head -n 1)"
   if [[ -n "$anix_pkg_file" ]] \
     && tar -tzf "$anix_pkg_file" > "$tmp_anix_pkg_list" \
-    && grep -q 'anix/share/anix/languages/mako.json' "$tmp_anix_pkg_list" \
     && grep -q 'anix/share/anix/languages/moducpp.json' "$tmp_anix_pkg_list" \
+    && ! grep -q 'anix/share/anix/languages/mako.json' "$tmp_anix_pkg_list" \
     && grep -q 'anix/share/anix/tools/moducpp-anix' "$tmp_anix_pkg_list" \
     && grep -q 'anix/share/anix/docs/wiki/ANIX-V2-Languages.md' "$tmp_anix_pkg_list" \
     && grep -q 'anix/share/anix/docs/wiki/Abora-Gaming.md' "$tmp_anix_pkg_list"; then
@@ -2282,7 +2325,7 @@ if grep -q 'out/iso/.*iso' .github/workflows/build-iso.yml \
   && grep -q 'out/packages/tinypm' .github/workflows/release-iso.yml \
   && grep -q 'out/packages/anix' .github/workflows/release-iso.yml \
   && grep -q 'out/release/RELEASE_NOTES' .github/workflows/release-iso.yml \
-  && grep -q 'Abora OS v4 Everest (${tag})' .github/workflows/release-iso.yml; then
+  && grep -q 'Abora OS v4.1 Horizon (${tag})' .github/workflows/release-iso.yml; then
   pass "runtime: GitHub workflows publish generated release bundle paths"
 else
   fail "runtime: GitHub workflows publish generated release bundle paths"
@@ -2840,8 +2883,8 @@ installed_anix_language_list_output="$(
     ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
     scripts/anix.sh language list 2>&1
 )"
-if printf '%s' "$installed_anix_language_list_output" | grep -q "MAKO" \
-  && printf '%s' "$installed_anix_language_list_output" | grep -q "ModuCPP" \
+if printf '%s' "$installed_anix_language_list_output" | grep -q "ModuCPP" \
+  && ! printf '%s' "$installed_anix_language_list_output" | grep -q "MAKO" \
   && grep -q 'builtins.pathExists ./anix-languages' nix/modules/installed-base.nix \
   && grep -q '"anix/languages".source = anixLanguagesDir' nix/modules/installed-base.nix; then
   pass "runtime: installed systems expose real ANIX language adapters"
@@ -2908,33 +2951,6 @@ if grep -Eq 'anix\.hostname[[:space:]]*=[[:space:]]*"everest-workstation"' "$tmp
   pass "runtime: e2e .anix workstation example applies through anix run"
 else
   fail "runtime: e2e .anix workstation example applies through anix run"
-fi
-
-if command -v mko >/dev/null 2>&1; then
-  tmp_anix_e2e_mko="$tmp_ok/anix-e2e-mko"
-  mkdir -p "$tmp_anix_e2e_mko"
-  anix_e2e_run "examples/anix-v2/simple.mko" "$tmp_anix_e2e_mko" || true
-  if grep -Eq 'anix\.hostname[[:space:]]*=[[:space:]]*"everest"' "$tmp_anix_e2e_mko/anix.nix" 2>/dev/null; then
-    pass "runtime: e2e .mko simple example applies through anix run"
-  else
-    fail "runtime: e2e .mko simple example applies through anix run"
-  fi
-
-  tmp_anix_e2e_mko_ws="$tmp_ok/anix-e2e-mko-workstation"
-  mkdir -p "$tmp_anix_e2e_mko_ws"
-  anix_e2e_run "examples/anix-v2/workstation.mko" "$tmp_anix_e2e_mko_ws" || true
-  if grep -Eq 'anix\.hostname[[:space:]]*=[[:space:]]*"everest-workstation"' "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null \
-    && grep -Eq 'anix\.services\.bluetooth[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null \
-    && grep -Eq 'anix\.gaming\.enable[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null \
-    && grep -Eq 'anix\.gaming\.bigPictureShortcut[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null \
-    && grep -q "firefox" "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null \
-    && grep -q "git" "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null; then
-    pass "runtime: e2e .mko workstation example applies through anix run"
-  else
-    fail "runtime: e2e .mko workstation example applies through anix run"
-  fi
-else
-  pass "mko unavailable (MAKO e2e tests skipped)"
 fi
 
 if command -v moducpp-anix >/dev/null 2>&1; then

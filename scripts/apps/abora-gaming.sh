@@ -708,23 +708,28 @@ case "${1:-status}" in
     ;;
   controllers|controller)
     shift
-    set_config_bool gaming.controllers "$(normalize_bool "${1:-}")"
+    value="$(normalize_bool "${1:-}")"
+    set_config_bool gaming.controllers "$value"
     ;;
   mangohud)
     shift
-    set_config_bool gaming.mangohud "$(normalize_bool "${1:-}")"
+    value="$(normalize_bool "${1:-}")"
+    set_config_bool gaming.mangohud "$value"
     ;;
   gamemode)
     shift
-    set_config_bool gaming.gamemode "$(normalize_bool "${1:-}")"
+    value="$(normalize_bool "${1:-}")"
+    set_config_bool gaming.gamemode "$value"
     ;;
   vulkan)
     shift
-    set_config_bool gaming.vulkan "$(normalize_bool "${1:-}")"
+    value="$(normalize_bool "${1:-}")"
+    set_config_bool gaming.vulkan "$value"
     ;;
   launchers)
     shift
-    set_config_bool gaming.launchers "$(normalize_bool "${1:-}")"
+    value="$(normalize_bool "${1:-}")"
+    set_config_bool gaming.launchers "$value"
     ;;
   autostart)
     shift

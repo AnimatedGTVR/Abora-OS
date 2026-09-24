@@ -12,7 +12,7 @@ cd "$repo_dir"
 # shellcheck source=/dev/null
 source "$repo_dir/scripts/abora-desktop-profiles.sh"
 
-release_short="v4 Everest"
+release_short="v4.1 Horizon"
 bootloader_background="$repo_dir/assets/bootloader/limine-background.png"
 tmpdir="$(mktemp -d)"
 staged_abora="$tmpdir/abora"

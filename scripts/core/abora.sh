@@ -32,6 +32,7 @@ Apps and extras:
   sudo abora apps bundle gaming       install a curated app bundle
   abora apps custom list              list standalone custom packages
   sudo abora apps custom update modularity-stable --zip ~/Downloads/Modularity.zip
+  abora labs status                    inspect the opt-in experimental workspace
 
 Gaming:
   abora gaming status                 show Steam, launchers, Wine, and helpers
@@ -82,6 +83,7 @@ Abora commands:
   abora desktop         view or switch desktop profiles
   abora dotfiles        import Hyprland, Sway, i3, shell, and app dotfiles
   abora gaming          gaming layer status and Steam Big Picture helper
+  abora labs            opt-in Abora Labs experimental workspace manager
   abora apps            install curated apps
   abora apps custom     update standalone custom packages
   abora config          view or edit installed-system settings
@@ -375,6 +377,15 @@ case "${1:-help}" in
             exec abora-gaming "$@"
         fi
         exec "$script_dir/abora-gaming.sh" "$@"
+        ;;
+    labs)
+        shift
+        if command -v abora-labs >/dev/null 2>&1; then
+            exec abora-labs "$@"
+        fi
+        printf 'Abora Labs was not enabled during installation.\n' >&2
+        printf 'Enable abora.labs.enable in /etc/nixos/abora-local.nix, then apply the configuration.\n' >&2
+        exit 1
         ;;
     doctor)
         shift

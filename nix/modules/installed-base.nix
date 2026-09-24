@@ -15,6 +15,8 @@ let
   aboraScript          = ./abora.sh;
   desktopScript        = ./desktop.sh;
   gamingScript         = ./gaming.sh;
+  labsScript =
+    if builtins.pathExists ./labs.sh then ./labs.sh else null;
   dotfilesImportScript = ./dotfiles-import.sh;
   doctorScript         = ./doctor.sh;
   checkFullScript      = ./check-full.sh;
@@ -138,6 +140,9 @@ let
   '';
   aboraGaming = pkgs.writeShellScriptBin "abora-gaming" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/gaming.sh "$@"
+  '';
+  aboraLabs = pkgs.writeShellScriptBin "abora-labs" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/labs.sh "$@"
   '';
   aboraDotfilesImport = pkgs.writeShellScriptBin "abora-dotfiles-import" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/dotfiles-import.sh "$@"
@@ -348,6 +353,7 @@ let
   '';
 in
 {
+  imports = lib.optional (builtins.pathExists ./community.nix && builtins.pathExists ./community.py) ./community.nix;
   system.nixos = {
     distroId = "abora";
     distroName = "Abora OS";
@@ -355,13 +361,13 @@ in
     vendorName = "Abora OS";
     label = version;
     variant_id = lib.mkDefault "system";
-    variantName = lib.mkDefault "Abora OS v4 Everest";
+    variantName = lib.mkDefault "Abora OS v4.1 Horizon";
     extraOSReleaseArgs = lib.mapAttrs (_: lib.mkDefault) {
       LOGO = "abora";
-      VERSION = "v4 Everest";
-      VERSION_ID = "4";
-      VERSION_CODENAME = "everest";
-      PRETTY_NAME = "Abora OS v4 Everest";
+      VERSION = "v4.1 Horizon";
+      VERSION_ID = "4.1";
+      VERSION_CODENAME = "horizon";
+      PRETTY_NAME = "Abora OS v4.1 Horizon";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
       BUG_REPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
@@ -559,6 +565,7 @@ in
     curl
     feh
     fastfetch
+    firefox
     git
     iw
     jq
@@ -592,6 +599,7 @@ in
     ++ lib.optional (configGuiScript != null) aboraConfigGui
     ++ lib.optional (gamingWelcomeGuiScript != null) aboraGamingWelcomeGui
     ++ lib.optional config.abora.gaming.enable aboraGamingWelcomeDesktopPkg
+    ++ lib.optional (config.abora.labs.enable && labsScript != null) aboraLabs
   ++ lib.optionals config.abora.extras.diagnostics (with pkgs; [
     dmidecode
     ethtool
@@ -719,6 +727,10 @@ in
         source = gamingScript;
         mode = "0755";
       };
+      "abora/labs.sh" = lib.mkIf (labsScript != null) {
+        source = labsScript;
+        mode = "0755";
+      };
       "abora/dotfiles-import.sh" = {
         source = dotfilesImportScript;
         mode = "0755";
@@ -802,7 +814,7 @@ in
         mode = "0755";
       };
       "motd".text = ''
-        Abora OS v4 Everest
+        Abora OS v4.1 Horizon
 
           grab <app>          install an app  (flatpak, nix, or snap)
           search <app>        find apps across all sources
@@ -954,10 +966,10 @@ in
         Opacity=0.84
       '';
       "issue".text = ''
-        Abora OS v4 Everest
+        Abora OS v4.1 Horizon
       '';
       "issue.net".text = ''
-        Abora OS v4 Everest
+        Abora OS v4.1 Horizon
       '';
     }
     // builtins.listToAttrs (

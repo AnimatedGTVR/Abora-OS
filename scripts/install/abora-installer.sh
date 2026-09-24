@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Abora OS Installer - Abora OS v4 Everest
+# Abora OS Installer - Abora OS v4.1 Horizon
 # Compact Omarchy-inspired TUI: large wordmark, boxed choices, simple prompts.
 
 set -uo pipefail
@@ -45,16 +45,18 @@ gaming_mangohud="${ABORA_GAMING_MANGOHUD:-yes}"
 gaming_gamemode="${ABORA_GAMING_GAMEMODE:-yes}"
 gaming_launchers="${ABORA_GAMING_LAUNCHERS:-yes}"
 anix_enabled="yes"
+labs_enabled="${ABORA_LABS_ENABLED:-no}"
 github_identity="Skipped"
 user_password_hash=""
 root_password_hash=""
 root_password_mode="same"
 version="${ABORA_VERSION:-}"
-release_name="${ABORA_RELEASE_NAME:-Abora OS v4 Everest}"
-release_short="${ABORA_RELEASE_SHORT:-v4 Everest}"
+release_name="${ABORA_RELEASE_NAME:-Abora OS v4.1 Horizon}"
+release_short="${ABORA_RELEASE_SHORT:-v4.1 Horizon}"
 reconfig_mode="${ABORA_RECONFIG:-0}"
 batch_mode=0
 batch_params_file=""
+target_lock_source_verified=0
 abora_edition="${ABORA_EDITION:-cosmic}"
 abora_default_desktop="${ABORA_DEFAULT_DESKTOP:-cosmic}"
 abora_release_stage="${ABORA_RELEASE_STAGE:-alpha}"
@@ -497,6 +499,9 @@ require_root() {
 }
 
 safe_identifier() { [[ "$1" =~ ^[a-z_][a-z0-9_-]*$ ]]; }
+safe_install_username() {
+    safe_identifier "$1" && [[ "$1" != "liveuser" && "$1" != "aboraos" ]]
+}
 safe_hostname()   { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,62}$ ]]; }
 safe_keymap()     { [[ "$1" =~ ^[A-Za-z0-9_+.-]+$ ]]; }
 safe_locale()     { [[ "$1" =~ ^[A-Za-z][A-Za-z0-9_.@-]*$ && "$1" == *.* ]]; }
@@ -1114,7 +1119,7 @@ check_install_environment() {
     local -a commands=(
         timeout
         wipefs parted partprobe udevadm mkfs.vfat mkfs.ext4 mount blkid
-        nix nixos-generate-config nixos-install openssl curl
+        nix nixos-generate-config nixos-install openssl curl jq
     )
     local -a required_paths=(
         /etc/abora/VERSION
@@ -1126,6 +1131,7 @@ check_install_environment() {
         /etc/abora/adopt-nixos.sh
         /etc/abora/desktop.sh
         /etc/abora/gaming.sh
+        /etc/abora/labs.sh
         /etc/abora/check-full.sh
         /etc/abora/doctor.sh
         /etc/abora/dotfiles-import.sh
@@ -1241,6 +1247,42 @@ check_install_environment() {
         fi
     done
 
+    if [[ -f /etc/abora/target-flake.lock ]] && command -v jq >/dev/null 2>&1; then
+        if ! jq -e '
+            (.nodes[.root].inputs.nixpkgs) as $input |
+            .version >= 7 and
+            (.root | type == "string") and
+            ($input | type == "string") and
+            (.nodes[$input].locked.type == "github") and
+            (.nodes[$input].locked.owner == "NixOS") and
+            (.nodes[$input].locked.repo == "nixpkgs") and
+            (.nodes[$input].locked.rev | type == "string" and length >= 7) and
+            (.nodes[$input].locked.narHash | type == "string" and startswith("sha256-")) and
+            (.nodes[$input].original.ref == "nixos-unstable")
+        ' /etc/abora/target-flake.lock >/dev/null 2>&1; then
+            err "Release target-flake.lock is invalid or does not pin nixos-unstable from NixOS/nixpkgs."
+            failed=1
+        elif [[ "$mode" == "detail" ]]; then
+            ok "Release target flake lock is structurally valid"
+        fi
+
+        if (( failed == 0 && target_lock_source_verified == 0 )) && [[ -n "$nixpkgs" ]]; then
+            local expected_nar actual_nar
+            expected_nar="$(jq -r '.nodes[.nodes[.root].inputs.nixpkgs].locked.narHash // empty' /etc/abora/target-flake.lock)"
+            actual_nar="$(timeout 120 nix --extra-experimental-features 'nix-command flakes' hash path --sri "$nixpkgs" 2>/dev/null || true)"
+            if [[ -z "$actual_nar" ]]; then
+                err "Could not hash the bundled nixpkgs source to verify target-flake.lock."
+                failed=1
+            elif [[ "$actual_nar" != "$expected_nar" ]]; then
+                err "Bundled nixpkgs does not match target-flake.lock (NAR hash mismatch)."
+                failed=1
+            else
+                target_lock_source_verified=1
+                [[ "$mode" == "detail" ]] && ok "Bundled nixpkgs matches the target lock"
+            fi
+        fi
+    fi
+
     for path in "${optional_paths[@]}"; do
         if [[ -e "$path" ]]; then
             [[ "$mode" == "detail" ]] && ok "Optional asset present: ${path}"
@@ -1263,7 +1305,7 @@ check_install_environment() {
         # else on the batch path re-checks them before they're baked into
         # generated Nix config or handed to wipefs/parted.
         safe_hostname "$hostname_value" || { err "Invalid hostname: ${hostname_value}"; failed=1; }
-        safe_identifier "$username_value" || { err "Invalid username: ${username_value}"; failed=1; }
+        safe_install_username "$username_value" || { err "Invalid or reserved username: ${username_value}"; failed=1; }
         [[ -n "$disk" && -b "$disk" ]] || { err "Invalid or missing installation disk: '${disk}'"; failed=1; }
     elif [[ "$mode" != "detail" ]]; then
         ok "Selected install values will be checked after disk and user setup"
@@ -1477,8 +1519,8 @@ step_identity() {
     while true; do
         local v; v="$(prompt_field "Username" "$username_value")"
         [[ -n "$v" ]] && username_value="$v"
-        if safe_identifier "$username_value"; then break; fi
-        warn "Lowercase letters, numbers, hyphens. Must start with a letter."
+        if safe_install_username "$username_value"; then break; fi
+        warn "Use lowercase letters, numbers, underscores, or hyphens. liveuser and aboraos are reserved for live media."
     done
 
     local v
@@ -1625,6 +1667,12 @@ step_options() {
         "Enable ANIX|Friendly NixOS commands — recommended" \
         "Disable ANIX|Bare Abora/NixOS — for plain nix users"
     if [[ "$MENU_RESULT" -eq 0 ]]; then anix_enabled="yes"; else anix_enabled="no"; fi
+
+    printf '\n'
+    menu "Abora Labs" \
+        "Skip Abora Labs|Recommended for normal systems" \
+        "Enable Abora Labs|Install an experimental workspace manager"
+    [[ "$MENU_RESULT" -eq 1 ]] && labs_enabled="yes" || labs_enabled="no"
 
     printf '\n'
     menu "GitHub CLI" \
@@ -1984,6 +2032,7 @@ _print_summary() {
         printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Gaming:" "$R" "off"
     fi
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "ANIX:"     "$R" "$anix_enabled"
+    printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Abora Labs:" "$R" "$labs_enabled"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Root:"     "$R" "$root_password_mode"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "GitHub:"   "$R" "$github_identity"
     printf '\n'
@@ -2314,8 +2363,8 @@ rewrite_installed_mango_config_paths() {
         sed -i \
             -e "s|\"${bad_store}\"|./mango/config.conf|g" \
             -e "s|${bad_store}|./mango/config.conf|g" \
-            -e 's|../../assets/mango/config\.conf|./mango/config.conf|g' \
-            -e 's|../../../assets/mango/config\.conf|./mango/config.conf|g' \
+            -e 's|\.\./\.\./\.\./assets/mango/config\.conf|./mango/config.conf|g' \
+            -e 's|\.\./\.\./assets/mango/config\.conf|./mango/config.conf|g' \
             "$file"
     done
 
@@ -2324,8 +2373,8 @@ rewrite_installed_mango_config_paths() {
             sed -i \
                 -e "s|\"${bad_store}\"|../mango/config.conf|g" \
                 -e "s|${bad_store}|../mango/config.conf|g" \
-                -e 's|../../assets/mango/config\.conf|../mango/config.conf|g' \
-                -e 's|../../../assets/mango/config\.conf|../mango/config.conf|g' \
+                -e 's|\.\./\.\./\.\./assets/mango/config\.conf|../mango/config.conf|g' \
+                -e 's|\.\./\.\./assets/mango/config\.conf|../mango/config.conf|g' \
                 "$file"
         done < <(
             grep -RIlZ \
@@ -2358,11 +2407,15 @@ write_branding_assets() {
               fastfetch-config.jsonc desktop-profiles.sh installed-base.nix \
               installer.sh setup-launcher.sh setup.desktop repair-flake-purity.sh \
               session-setup.sh dotfiles-import.sh theme-sync.sh update.sh welcome-gui.py config-gui.py \
-              gaming-welcome-gui.py; do
+              gaming-welcome-gui.py labs.sh; do
         cp_required "/etc/abora/${f}" "${root}/etc/nixos/abora/${f}"
     done
     [[ -f /etc/abora/Abora-LOGO.png ]] && \
         cp /etc/abora/Abora-LOGO.png "${root}/etc/nixos/abora/Abora-LOGO.png"
+    if [[ -f /etc/abora/community.nix && -f /etc/abora/community.py ]]; then
+        cp_required /etc/abora/community.py "${root}/etc/nixos/abora/community.py"
+        cp_required /etc/abora/community.nix "${root}/etc/nixos/abora/community.nix"
+    fi
     [[ -f /etc/abora/Abora-Text.png ]] && \
         cp /etc/abora/Abora-Text.png "${root}/etc/nixos/abora/Abora-Text.png"
     cp_required /etc/abora/plymouth/abora.plymouth "${root}/etc/nixos/abora/plymouth/abora.plymouth"
@@ -2651,6 +2704,7 @@ EOF
   abora.gaming.gamemode = ${gaming_gamemode_nix};
   abora.gaming.vulkanTools = ${gaming_vulkan_nix};
   abora.gaming.launchers = ${gaming_launchers_nix};
+  abora.labs.enable = $(nix_bool "$labs_enabled");
   abora.extras.diagnostics = false;
   abora.extras.virtualizationGuests = false;
   abora.extras.mobileBroadband = false;
@@ -2893,6 +2947,7 @@ validate_installed_system() {
             printf 'desktop=%s\n' "$desktop_profile"
             printf 'tinypm=present\n'
             printf 'anix=%s\n' "$anix_enabled"
+            printf 'labs=%s\n' "$labs_enabled"
         } > "${root}/etc/abora/INSTALLED"
         return 0
     fi
@@ -3631,6 +3686,9 @@ read_current_config() {
     v="$(sed -nE 's/^[[:space:]]*abora\.gaming\.launchers *= *(true|false).*/\1/p' "$f" | head -1)"
     [[ "$v" == "true" ]] && gaming_launchers="yes"
     [[ "$v" == "false" ]] && gaming_launchers="no"
+    v="$(sed -nE 's/^[[:space:]]*abora\.labs\.enable *= *(true|false).*/\1/p' "$f" | head -1)"
+    [[ "$v" == "true" ]] && labs_enabled="yes"
+    [[ "$v" == "false" ]] && labs_enabled="no"
 }
 
 read_anix_config() {
@@ -3695,6 +3753,7 @@ run_reconfig() {
         set_nix_bool_assignment "$abora_local" "abora.gaming.gamemode" "$gaming_gamemode"
         set_nix_bool_assignment "$abora_local" "abora.gaming.vulkanTools" "$gaming_vulkan"
         set_nix_bool_assignment "$abora_local" "abora.gaming.launchers" "$gaming_launchers"
+        set_nix_bool_assignment "$abora_local" "abora.labs.enable" "$labs_enabled"
         ok "abora-local.nix updated"
     fi
 
@@ -3933,8 +3992,8 @@ release_identity() {
         local v
         v="$(prompt_field "Username" "$username_value")"
         [[ -n "$v" ]] && username_value="$v"
-        safe_identifier "$username_value" && break
-        warn "Username must start with a lowercase letter and use lowercase letters, numbers, '_' or '-'."
+        safe_install_username "$username_value" && break
+        warn "Use lowercase letters, numbers, underscores, or hyphens. liveuser and aboraos are reserved for live media."
     done
 
     while true; do
@@ -4114,6 +4173,17 @@ release_gaming() {
     esac
 }
 
+release_labs() {
+    release_header "Abora Labs"
+    msg "Labs is an experimental workspace for prototypes and risky changes."
+    msg "It stays separate from normal Abora updates and downloads nothing during installation."
+    printf '\n'
+    menu "Install Abora Labs tools?" \
+        "Skip Abora Labs|Recommended for normal systems" \
+        "Enable Abora Labs|Adds the opt-in 'abora labs' workspace manager"
+    [[ "$MENU_RESULT" -eq 1 ]] && labs_enabled="yes" || labs_enabled="no"
+}
+
 release_preflight() {
     release_header "Preflight"
     msg "Checking disk, password, timezone, assets, tools, and Nix cache."
@@ -4168,6 +4238,7 @@ release_install_flow() {
     release_desktop
     step_gpu
     release_gaming
+    release_labs
     release_apps
     release_preflight
     release_review

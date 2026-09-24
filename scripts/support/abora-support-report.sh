@@ -3,8 +3,8 @@ set -euo pipefail
 
 export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
-version="${ABORA_VERSION:-4.0}"
-release_name="${ABORA_RELEASE_NAME:-Abora OS v4 Everest}"
+version="${ABORA_VERSION:-4.1}"
+release_name="${ABORA_RELEASE_NAME:-Abora OS v4.1 Horizon}"
 output_root="${ABORA_SUPPORT_OUTPUT_DIR:-/tmp}"
 timestamp="$(date +%Y%m%d-%H%M%S)"
 report_dir="${output_root}/abora-support-${timestamp}"
@@ -78,7 +78,8 @@ copy_if_exists() {
 
 redact_stream() {
     sed -E \
-        -e 's@(^|[^[:alnum:]_])(hashedPassword|password|passwd|secret|token|api[_-]?key)([[:space:]]*[:=][[:space:]]*)("[^"]*"|'\''[^'\'']*'\''|[^[:space:];]+)@\1\2\3"[redacted]"@Ig' \
+        -e 's@(^|[^[:alnum:]_])(hashedPassword|password|passwd|psk|secret|token|api[_-]?key)([[:space:]]*[:=][[:space:]]*)("[^"]*"|'\''[^'\'']*'\''|[^[:space:];]+)@\1\2\3"[redacted]"@Ig' \
+        -e 's@(^[[:space:]]*Authorization[[:space:]]*:[[:space:]]*)(Bearer|Basic)[[:space:]]+[^[:space:]]+@\1\2 [redacted]@Ig' \
         -e 's@(github\.com/[^[:space:]]+://)?([^[:space:]@/]+):([^[:space:]@]+)\@@\[redacted-user\]:[redacted]\@@g'
 }
 

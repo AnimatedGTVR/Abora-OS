@@ -59,8 +59,8 @@ rewrite_mango_path() {
     sed -i \
         -e "s|\"${bad_mango_store}\"|${replacement}|g" \
         -e "s|${bad_mango_store}|${replacement}|g" \
-        -e "s|../../assets/mango/config\\.conf|${replacement}|g" \
-        -e "s|../../../assets/mango/config\\.conf|${replacement}|g" \
+        -e "s|\\.\\./\\.\\./\\.\\./assets/mango/config\\.conf|${replacement}|g" \
+        -e "s|\\.\\./\\.\\./assets/mango/config\\.conf|${replacement}|g" \
         "$file"
 }
 

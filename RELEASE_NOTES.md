@@ -1,17 +1,20 @@
-# Abora OS v4 Everest
+# Abora OS v4.1 Horizon
 
-Abora OS v4 Everest is the multi-edition release: five ready-made ISOs, ANIX v2 with pluggable configuration languages, real GPU driver selection, an optional Abora Gaming layer, and a major audit-driven stability pass.
+Abora OS v4.1 Horizon is the reliability-focused follow-up to Everest: a safer installer, corrected update and configuration paths, improved diagnostics, built-in community and learning tools, and a smaller ANIX language surface.
 
-Everest builds on the DENALI 3.14 foundation while expanding how Abora can be installed, configured, updated, and used.
+Horizon builds on Everest 4.0 and the DENALI 3.14 foundation while expanding how Abora can be installed, configured, updated, and used.
 
-Since the last tagged Everest alpha, another **83 commits** have landed across new features, hardware support, installer work, tooling, and bug fixes.
+Horizon is currently under development; release validation and final artifact checks remain outstanding.
 
 ---
 # Highlights
 
 ![Highlights](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/highlights_converted.gif)
 
-Everest also introduces:
+Horizon includes the Everest feature set and adds:
+
+- An opt-in Abora Labs installer choice that adds a guarded workspace manager
+  without fetching or executing experimental code during system installation.
 
 - Non-destructive installation onto an existing partition
 - Abora adoption for existing NixOS systems
@@ -58,7 +61,7 @@ Existing NixOS users can now adopt Abora without reinstalling, via a new interac
 
 ## GPU Driver Support
 
-Everest adds the `abora.gpu` option with support for:
+The Everest foundation added the `abora.gpu` option with support for:
 
 ```text
 nouveau
@@ -85,18 +88,20 @@ abora config apply
 ANIX v2 introduces pluggable configuration languages. Supported adapters:
 
 - ANIX Native (`.anix`)
-- MKO (`.mko`)
 - ModuCPP (`.moducpp`)
+
+The previously bundled MAKO adapter has been removed. Existing third-party
+adapter discovery remains available through ANIX language manifests.
 
 Example:
 
 ```sh
 anix language list
 anix language use anix
-anix run workstation.mko
+anix run workstation.moducpp
 anix validate-plan plan.json
 anix apply-plan plan.json
-anix diff-plan workstation.mko
+anix diff-plan workstation.moducpp
 ```
 
 Each adapter resolves into the same underlying Plan JSON format. `anix diff-plan` labels settings as `ADD`, `CHANGE`, or `SAME`.
@@ -174,7 +179,7 @@ tinypm doctor
 
 ## MediaTek MT7902 Support
 
-Everest moves to Linux kernel 7.2, bringing upstream support for the MediaTek MT7902 Wi-Fi 6E and Bluetooth chipset via the in-tree `mt7921e` driver.
+The Everest foundation moved to Linux kernel 7.2, bringing upstream support for the MediaTek MT7902 Wi-Fi 6E and Bluetooth chipset via the in-tree `mt7921e` driver.
 
 ## Installer Improvements
 
@@ -186,7 +191,7 @@ The GTK installer now includes:
 - Consistent desktop ordering between the GUI and TUI
 - GPU selection alongside identity, desktop, and disk configuration
 
-Everest also continues to include Limine, Plymouth, Abora wallpapers, dark-first defaults, Papirus Dark, Fastfetch on first shell launch, zsh with Spaceship prompt, and Flathub setup after first boot.
+Horizon continues to include Limine, Plymouth, Abora wallpapers, light desktop defaults, Papirus, Fastfetch on first shell launch, zsh with Spaceship prompt, and Flathub setup after first boot.
 
 ---
 
@@ -275,7 +280,7 @@ Additional fixes included:
 - `abora build --from-source --ref` ignoring the requested ref on existing checkouts
 - A `flake.nix` issue breaking flake evaluation
 
-Validation for Everest includes:
+Validation for Horizon includes:
 
 ```sh
 make check
@@ -319,7 +324,7 @@ VirtualBox Guest Additions are now opt-in rather than default-on for the live IS
 
 ## Current Limits
 
-- Everest ISOs are larger than older releases because of broader firmware and hardware support.
+- Horizon ISOs are larger than older releases because of broader firmware and hardware support.
 - Flatpak and app bundle installation requires network access after first boot.
 - Steam and gaming launchers require network access.
 - Some gaming packages may require unfree package permission through normal NixOS/nixpkgs configuration.
@@ -366,24 +371,24 @@ before powering off.
 
 ![Download](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/download_converted.gif)
 
-Everest is available in five editions:
+Horizon is planned in five editions:
 
 | Release Asset | Edition |
 |---|---|
-| `abora-cosmic-<date>-x86_64-v4.0.iso` | COSMIC |
-| `abora-hyprland-<date>-x86_64-v4.0.iso` | Hyprland |
-| `abora-gnome-<date>-x86_64-v4.0.iso` | GNOME |
-| `abora-kde-<date>-x86_64-v4.0.iso` | KDE Plasma |
-| `abora-other-<date>-x86_64-v4.0.iso` | Other |
+| `abora-cosmic-<date>-x86_64-v4.1.iso` | COSMIC |
+| `abora-hyprland-<date>-x86_64-v4.1.iso` | Hyprland |
+| `abora-gnome-<date>-x86_64-v4.1.iso` | GNOME |
+| `abora-kde-<date>-x86_64-v4.1.iso` | KDE Plasma |
+| `abora-other-<date>-x86_64-v4.1.iso` | Other |
 
 Additional release assets:
 
 | File | Description |
 |---|---|
-| `tinypm-v0.8-abora-v4.0.tar.gz` | TinyPM v0.8 |
-| `anix-*-abora-v4.0.tar.gz` | ANIX standalone package |
-| `SHA256SUMS-v4.0.txt` | Checksums |
-| `RELEASE_MANIFEST-v4.0.txt` | Release manifest |
+| `tinypm-v0.8-abora-v4.1.tar.gz` | TinyPM v0.8 |
+| `anix-*-abora-v4.1.tar.gz` | ANIX standalone package |
+| `SHA256SUMS-v4.1.txt` | Checksums |
+| `RELEASE_MANIFEST-v4.1.txt` | Release manifest |
 
 Existing Abora installations can update with:
 
@@ -391,8 +396,8 @@ Existing Abora installations can update with:
 sudo abora update
 ```
 
-For the cleanest Everest experience, especially when upgrading from DENALI or older pre-release builds, a fresh installation is recommended.
+Horizon must support updates from Everest, but pre-release users should keep a backup and recovery media until that path passes the release checklist.
 
-**Five editions. 23 desktop profiles. ANIX v2. Abora Gaming. New hardware support. A safer installer. A repaired update path. 83 commits since the last Everest Alpha.**
+**Five editions. 23 desktop profiles. ANIX v2. Abora Gaming. Community tools. A safer installer and update path.**
 
-# Welcome to Everest.
+# Welcome to Horizon.

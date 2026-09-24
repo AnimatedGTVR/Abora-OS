@@ -248,6 +248,12 @@ in
         description = "Enable ModemManager for cellular/mobile broadband devices.";
       };
     };
+
+    labs.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Install the opt-in Abora Labs workspace manager. Labs code is never fetched or executed automatically.";
+    };
   };
 
   # ── Config ─────────────────────────────────────────────────────────────────

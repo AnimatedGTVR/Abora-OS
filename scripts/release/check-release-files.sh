@@ -44,6 +44,7 @@ scripts/abora-gaming.sh
 scripts/abora-welcome-gui.py
 scripts/abora-config-gui.py
 scripts/abora-gaming-welcome-gui.py
+scripts/apps/abora-labs.sh
 scripts/abora-doctor.sh
 scripts/abora-recovery.sh
 scripts/abora-welcome.sh

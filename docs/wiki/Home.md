@@ -21,9 +21,9 @@ Abora is a distro project built on top of NixOS with one main goal: make NixOS e
 
 ## Current Version
 
-**Abora OS v4 Everest** is the current alpha release line.
+**Abora OS v4.1 Horizon** is the current alpha release line.
 
-- Abora OS v4 Everest introduces multi-edition ISOs (Cosmic, Hyprland, GNOME, KDE, Other), ANIX v2 with pluggable configuration languages (Native, MKO, ModuCPP), and first-class GPU driver support (`abora.gpu`: nouveau/nvidia/nvidia-open/amdgpu/intel).
+- Abora OS v4.1 Horizon focuses on installer and update reliability, community tools, ANIX Native and ModuCPP, and first-class GPU driver support (`abora.gpu`: nouveau/nvidia/nvidia-open/amdgpu/intel).
 - DENALI 3.14 shipped the Omarchy-inspired TUI installer, stronger install validation, Abora branding across boot and desktop, ANIX v1, and TinyPM v0.8.
 - v2.5 delivered the installer reliability, NetworkManager, desktop matrix, QEMU helpers, and release-command cleanup work that v3 built on.
 
