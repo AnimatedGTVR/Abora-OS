@@ -125,6 +125,24 @@ run_as_root() {
     exit 1
 }
 
+# mktemp creates its file owned by the invoking user, and `mv` preserves that
+# owner. Moving a temp file into place therefore left apps.nix and apps.list
+# owned by whoever ran `abora apps` -- and apps.nix is imported by
+# configuration.nix, which a later root `nixos-rebuild` evaluates. Any local
+# user could edit the module between the two and have it evaluated as root.
+# `install` writes a fresh root-owned file instead of relabelling the temp one.
+install_generated_file() {
+    local tmp="$1" dest="$2"
+
+    if [[ "$(id -u)" -eq 0 || "${ABORA_NO_SUDO:-0}" != "1" ]]; then
+        run_as_root install -o root -g root -m 0644 "$tmp" "$dest"
+    else
+        # Unprivileged fixture runs cannot chown; keep the mode only.
+        install -m 0644 "$tmp" "$dest"
+    fi
+    rm -f "$tmp"
+}
+
 stage_config_for_flake() {
     if command -v git >/dev/null 2>&1 \
         && [[ -d "$config_dir" ]] \
@@ -184,7 +202,7 @@ write_selected_ids() {
     tmp="$(mktemp)"
     chmod 644 "$tmp"
     printf '%s\n' "$@" | awk 'NF && !seen[$0]++' > "$tmp"
-    run_as_root mv "$tmp" "$apps_list"
+    install_generated_file "$tmp" "$apps_list"
 }
 
 backup_app_state() {
@@ -270,7 +288,7 @@ render_apps_module() {
         printf '  ];\n'
         printf '}\n'
     } > "$tmp"
-    run_as_root mv "$tmp" "$apps_module"
+    install_generated_file "$tmp" "$apps_module"
 }
 
 rebuild_system() {

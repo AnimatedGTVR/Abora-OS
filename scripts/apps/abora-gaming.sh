@@ -706,6 +706,13 @@ case "${1:-status}" in
       set_config_bool gaming.gamescope false
     fi
     ;;
+  # normalize_bool exits 1 on a bad value, but an `exit` inside a command
+  # substitution only ends that subshell, and `set -e` does not trigger for a
+  # substitution used as an argument. Passing it inline meant `abora gaming
+  # mangohud bogus` handed set_config_bool an empty string, which wrote
+  # `abora.gaming.mangohud = ;` into abora-local.nix and broke every later
+  # rebuild. Assigning first -- as steam/gamescope/autostart already do --
+  # makes the failure propagate before anything is written.
   controllers|controller)
     shift
     value="$(normalize_bool "${1:-}")"

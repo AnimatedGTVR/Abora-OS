@@ -27,6 +27,29 @@ fi
 
 if [[ -d "$clone_dir/.git" ]]; then
     printf 'Using existing Abora OS checkout at %s\n' "$clone_dir"
+
+    # The `git reset --hard` below discards work in whatever repository
+    # happens to sit at $clone_dir, and this script is run straight off a
+    # curl pipe -- the user has had no chance to read it first. Refuse to
+    # touch a dirty tree unless they opt in explicitly.
+    #
+    # `git diff --quiet HEAD` is not enough: it ignores untracked files, and
+    # an untracked local file whose path also exists in the fetched ref is
+    # overwritten by the reset without warning. `status --porcelain` reports
+    # tracked and untracked alike, and still omits gitignored build output,
+    # so an ordinary checkout with a result/ symlink does not trip it.
+    if [[ "${ABORA_FORCE_RESET:-0}" != "1" ]] \
+        && [[ -n "$(git -C "$clone_dir" status --porcelain=v1 --untracked-files=all 2>/dev/null)" ]]; then
+        printf '\n'
+        printf 'The checkout at %s has uncommitted or untracked changes.\n' "$clone_dir" >&2
+        printf 'Refusing to discard them with a hard reset.\n\n' >&2
+        printf 'Commit or stash them, or use a different directory:\n' >&2
+        printf '  ABORA_CLONE_DIR=~/Abora-OS-fresh\n\n' >&2
+        printf 'To reset anyway and lose those changes:\n' >&2
+        printf '  ABORA_FORCE_RESET=1\n' >&2
+        exit 1
+    fi
+
     git -C "$clone_dir" fetch --depth=1 origin "$repo_ref"
     git -C "$clone_dir" checkout "$repo_ref"
     git -C "$clone_dir" reset --hard "origin/$repo_ref"

@@ -49,17 +49,29 @@ resolve_nixpkgs_path() {
     return 0
   fi
 
+  # This branch used to print the eval result without returning, so execution
+  # fell into the /nix/store loop below. On success that emitted a second path
+  # and the caller interpolated two newline-separated paths into a Nix
+  # expression; on failure the exhausted `for` loop returned non-zero even
+  # though a valid path had already been printed. Capture, then return only
+  # once something usable was found.
   if command -v nix >/dev/null 2>&1; then
     local nix_eval=(
       nix --extra-experimental-features "nix-command flakes"
       eval --raw --impure
       --expr "(builtins.getFlake \"path:${repo_dir}\").inputs.nixpkgs.outPath"
     )
+    local resolved=""
 
     if command -v timeout >/dev/null 2>&1; then
-      timeout "${ABORA_NIXPKGS_RESOLVE_TIMEOUT:-30}" "${nix_eval[@]}" 2>/dev/null
+      resolved="$(timeout "${ABORA_NIXPKGS_RESOLVE_TIMEOUT:-30}" "${nix_eval[@]}" 2>/dev/null || true)"
     else
-      "${nix_eval[@]}" 2>/dev/null
+      resolved="$("${nix_eval[@]}" 2>/dev/null || true)"
+    fi
+
+    if [[ -n "$resolved" && -d "$resolved" ]]; then
+      printf '%s\n' "$resolved"
+      return 0
     fi
   fi
 
@@ -71,6 +83,8 @@ resolve_nixpkgs_path() {
       return 0
     fi
   done
+
+  return 1
 }
 
 # Every desktop profile must be listed consistently across the CLI (anix.sh,

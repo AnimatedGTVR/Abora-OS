@@ -1255,8 +1255,8 @@ if grep -q '^[[:space:]]*rollback)' scripts/abora.sh \
   && grep -q 'exec abora-dotfiles-import' scripts/abora.sh \
   && grep -q '^[[:space:]]*network)' scripts/abora.sh \
   && grep -q 'exec abora-recovery network "$@"' scripts/abora.sh \
-  && grep -q 'exec "$script_dir/abora-recovery.sh" network "$@"' scripts/abora.sh \
-  && grep -q 'exec "$script_dir/abora-recovery.sh" "$@"' scripts/abora.sh \
+  && grep -q 'resolve_helper abora-recovery.sh' scripts/abora.sh \
+  && grep -q 'exec "$helper" network "$@"' scripts/abora.sh \
   && grep -q '^[[:space:]]*logs|log)' scripts/abora.sh \
   && grep -q 'show_logs "$@"' scripts/abora.sh \
   && grep -q 'ABORA_LOG_LINES' scripts/abora.sh \
@@ -1266,18 +1266,46 @@ if grep -q '^[[:space:]]*rollback)' scripts/abora.sh \
   && grep -q 'gh issue create --repo "$repo"' scripts/abora.sh \
   && grep -q '^[[:space:]]*build)' scripts/abora.sh \
   && grep -q 'command -v abora-build' scripts/abora.sh \
-  && grep -q 'exec "$script_dir/abora-build.sh"' scripts/abora.sh \
+  && grep -q 'resolve_helper abora-build.sh' scripts/abora.sh \
   && grep -q '^[[:space:]]*adopt-nixos|adopt)' scripts/abora.sh \
-  && grep -q 'exec "$script_dir/abora-adopt-nixos.sh"' scripts/abora.sh \
+  && grep -q 'resolve_helper abora-adopt-nixos.sh' scripts/abora.sh \
   && grep -q '^[[:space:]]*gaming)' scripts/abora.sh \
   && grep -q 'exec abora-gaming' scripts/abora.sh \
-  && grep -q 'exec "$script_dir/abora-gaming.sh"' scripts/abora.sh \
+  && grep -q 'resolve_helper abora-gaming.sh' scripts/abora.sh \
   && grep -q 'exec abora-update channel "$@"' scripts/abora.sh \
   && ! grep -q 'ABORA_UPDATE_COMMAND=nixos abora-update channel' scripts/abora.sh \
   && grep -q 'abora channel set <stable|demo|unstable>' scripts/abora-update.sh; then
   pass "runtime: abora command routes update, channel, rollback, network, logs, bug-report, dotfiles, gaming, and pre-alpha"
 else
   fail "runtime: abora command routes update, channel, rollback, network, logs, bug-report, dotfiles, gaming, and pre-alpha"
+fi
+
+# Regression test: abora.sh lives in scripts/core, but the helpers it falls
+# back to when the packaged command is missing were moved into scripts/apps,
+# scripts/install and scripts/support. The fallbacks still resolved
+# "$script_dir/<name>" -- i.e. scripts/core/<name> -- so every one of them
+# pointed at a file that does not exist, and the fallback path was dead for
+# apps, custom-packages, gaming, build, adopt-nixos and recovery alike.
+# Assert the resolver returns a real file for each, rather than only that
+# some string appears in the source.
+_resolve_helper_src="$(sed -n '/^resolve_helper() {/,/^}/p' scripts/core/abora.sh)"
+_resolve_helper_failures=""
+for _helper in abora-apps.sh abora-custom-packages.sh abora-gaming.sh \
+               abora-build.sh abora-adopt-nixos.sh abora-recovery.sh; do
+  _resolved="$(
+    script_dir="$repo_dir/scripts/core"
+    scripts_dir="$repo_dir/scripts"
+    eval "$_resolve_helper_src"
+    resolve_helper "$_helper" 2>/dev/null
+  )"
+  if [[ -z "$_resolved" || ! -f "$_resolved" ]]; then
+    _resolve_helper_failures="${_resolve_helper_failures} ${_helper}"
+  fi
+done
+if [[ -z "$_resolve_helper_failures" ]]; then
+  pass "runtime: abora.sh fallbacks resolve to real helper scripts outside scripts/core"
+else
+  fail "runtime: abora.sh fallbacks resolve to real helper scripts outside scripts/core (unresolved:${_resolve_helper_failures} )"
 fi
 
 # Regression test: `abora setup` was documented as "the installed
@@ -1647,6 +1675,53 @@ if printf '%s' "$adopt_wizard_out" | grep -q 'Abora NixOS Adoption Wizard' \
 else
   fail "runtime: adopt-nixos interactive wizard asks desktop/gaming and confirms before applying"
 fi
+
+# abora-adopt-bootstrap.sh runs `git reset --hard` on an existing checkout,
+# and it is executed straight off a curl pipe, so its refusal check is the
+# only thing standing between a user's local work and a silent overwrite.
+# `git diff --quiet HEAD` is not sufficient there: it ignores untracked
+# files, and an untracked local file whose path also exists in the fetched
+# ref gets overwritten by the reset with no warning. Builds the exact
+# scenario -- untracked local file, same path present upstream -- and checks
+# the script's own guard expression classifies it as dirty, while leaving a
+# genuinely clean tree (including gitignored build output) alone.
+tmp_bootstrap_guard="$(mktemp -d)"
+(
+  cd "$tmp_bootstrap_guard"
+  git init -q repo
+  cd repo
+  git config user.email guard@example.invalid
+  git config user.name guard
+  printf 'out/\n' > .gitignore
+  printf 'base\n' > README
+  git add -A
+  git commit -qm base
+) >/dev/null 2>&1
+_guard_repo="$tmp_bootstrap_guard/repo"
+_bootstrap_dirty() {
+  [[ -n "$(git -C "$1" status --porcelain=v1 --untracked-files=all 2>/dev/null)" ]]
+}
+_guard_clean_ok=0
+_bootstrap_dirty "$_guard_repo" || _guard_clean_ok=1
+mkdir -p "$_guard_repo/out" && printf 'artifact\n' > "$_guard_repo/out/build.log"
+_guard_ignored_ok=0
+_bootstrap_dirty "$_guard_repo" || _guard_ignored_ok=1
+printf 'local work\n' > "$_guard_repo/settings.nix"
+_guard_untracked_ok=0
+_bootstrap_dirty "$_guard_repo" && _guard_untracked_ok=1
+rm -f "$_guard_repo/settings.nix"
+printf 'modified\n' >> "$_guard_repo/README"
+_guard_tracked_ok=0
+_bootstrap_dirty "$_guard_repo" && _guard_tracked_ok=1
+if [[ "$_guard_clean_ok" -eq 1 && "$_guard_ignored_ok" -eq 1 \
+  && "$_guard_untracked_ok" -eq 1 && "$_guard_tracked_ok" -eq 1 ]] \
+  && grep -q 'status --porcelain=v1 --untracked-files=all' scripts/abora-adopt-bootstrap.sh \
+  && grep -q 'ABORA_FORCE_RESET' scripts/abora-adopt-bootstrap.sh; then
+  pass "runtime: adopt-bootstrap refuses a hard reset over untracked or modified local work"
+else
+  fail "runtime: adopt-bootstrap refuses a hard reset over untracked or modified local work"
+fi
+rm -rf "$tmp_bootstrap_guard"
 
 tmp_bad_upstream="$(mktemp -d)"
 mkdir -p "$tmp_bad_upstream"
@@ -2154,6 +2229,61 @@ if printf '%s' "$redact_probe_out" | grep -q '2026-08-16T16:43:28-04:00' \
   pass "runtime: redact_stream credential regex does not devour timestamps or host:port pairs"
 else
   fail "runtime: redact_stream credential regex does not devour timestamps or host:port pairs"
+fi
+
+# Two credential shapes the redactor used to leak straight into a support
+# archive, both reachable from files these scripts copy verbatim:
+#   - A Nix indented string (psk = ''passphrase''), the form NixOS uses for
+#     networking.wireless.networks.*.psk. The ordinary single-quote branch
+#     matched the leading '' as an empty value and left the passphrase in
+#     place.
+#   - A Digest authorization header, whose credentials live in later
+#     parameters (realm=, response=), past where a match ending at the first
+#     space could reach. dmesg and journalctl carry these.
+# Exercises the real extracted function, like the probe above.
+redact_creds_out="$(printf '%s\n' \
+  "  psk = ''correct horse battery staple'';" \
+  "  psk = ''unterminated indented string" \
+  'Authorization: Digest username="alice", realm="ex", response="sensitive-response"' \
+  'Authorization: Bearer ghp_bearer-secret' \
+  '  psk = "quoted-psk-secret";' \
+  'ordinary line mentioning a token ring network' \
+  | _redact_stream_under_test)"
+if ! printf '%s' "$redact_creds_out" | grep -q 'correct horse battery staple' \
+  && ! printf '%s' "$redact_creds_out" | grep -q 'unterminated indented string' \
+  && ! printf '%s' "$redact_creds_out" | grep -q 'sensitive-response' \
+  && ! printf '%s' "$redact_creds_out" | grep -q 'realm="ex"' \
+  && ! printf '%s' "$redact_creds_out" | grep -q 'ghp_bearer-secret' \
+  && ! printf '%s' "$redact_creds_out" | grep -q 'quoted-psk-secret' \
+  && printf '%s' "$redact_creds_out" | grep -q 'ordinary line mentioning a token ring network'; then
+  pass "runtime: redact_stream redacts Nix indented-string PSKs and full authorization headers"
+else
+  fail "runtime: redact_stream redacts Nix indented-string PSKs and full authorization headers"
+fi
+
+# The nastiest shape of the same leak: a Nix indented string spanning lines.
+#   psk = ''
+#     passphrase
+#   '';
+# A line-based redactor rewrites the opening line to "[redacted]" and leaves
+# the passphrase sitting on the next one, so the report reads as sanitised
+# while still carrying the secret. Also checks the collapse is scoped to
+# credential keys, so an ordinary extraConfig = '' ... '' block survives --
+# over-redaction would quietly gut the diagnostics these reports exist for.
+redact_multiline_out="$(printf '%s\n' \
+  "  psk = ''" \
+  "    supersecret-multiline-passphrase" \
+  "  '';" \
+  "  extraConfig = ''" \
+  "    keep-this-diagnostic-line" \
+  "  '';" \
+  | _redact_stream_under_test)"
+if ! printf '%s' "$redact_multiline_out" | grep -q 'supersecret-multiline-passphrase' \
+  && printf '%s' "$redact_multiline_out" | grep -q '\[redacted\]' \
+  && printf '%s' "$redact_multiline_out" | grep -q 'keep-this-diagnostic-line'; then
+  pass "runtime: redact_stream redacts multiline Nix indented-string credentials"
+else
+  fail "runtime: redact_stream redacts multiline Nix indented-string credentials"
 fi
 
 if grep -q 'redact_file "$tmp" >>"$report"' scripts/abora-check-full.sh \
@@ -4559,6 +4689,11 @@ _apps_render_stderr="$(mktemp)"
   apps_module="$abora_dir/apps.nix"
   run_as_root() { "$@"; }
   read_selected_ids() { grep -v '^[[:space:]]*$' "$apps_list" | grep -v '^[[:space:]]*#' || true; }
+  # render_apps_module places the generated file via install_generated_file
+  # (which root-owns it), so that helper has to come along too. ABORA_NO_SUDO
+  # selects its unprivileged branch -- this sandbox cannot chown to root.
+  export ABORA_NO_SUDO=1
+  eval "$(sed -n '/^install_generated_file() {/,/^}$/p' scripts/abora-apps.sh)"
   eval "$(sed -n '/^render_apps_module() {/,/^}$/p' scripts/abora-apps.sh)"
   render_apps_module
 ) >"$_apps_render_stdout" 2>"$_apps_render_stderr"
@@ -4587,6 +4722,10 @@ printf 'firefox\nstale-removed-app\n' > "$tmp_apps_remove_stale/abora/apps.list"
   apps_list="$abora_dir/apps.list"
   apps_module="$abora_dir/apps.nix"
   run_as_root() { "$@"; }
+  # write_selected_ids and render_apps_module both place their output through
+  # install_generated_file; ABORA_NO_SUDO picks its unprivileged branch.
+  export ABORA_NO_SUDO=1
+  eval "$(sed -n '/^install_generated_file() {/,/^}$/p' scripts/abora-apps.sh)"
   eval "$(sed -n '/^read_selected_ids() {/,/^}$/p' scripts/abora-apps.sh)"
   eval "$(sed -n '/^write_selected_ids() {/,/^}$/p' scripts/abora-apps.sh)"
   eval "$(sed -n '/^render_apps_module() {/,/^}$/p' scripts/abora-apps.sh)"
@@ -4802,6 +4941,14 @@ else
   printf '              exit status: %s, leaked: %s\n' "$_bugreport_status" "${_bugreport_leaked:-<none>}"
 fi
 
+# abora-build.sh and rebuild-vm.sh refuse to start without nix, and CI's
+# script-check job has none, so the git ref tests below would never reach
+# the code they cover. A failing stub gets past that guard and makes the
+# eventual build step fail harmlessly whether or not real nix is installed.
+fake_nix_dir="$(mktemp -d)"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$fake_nix_dir/nix"
+chmod +x "$fake_nix_dir/nix"
+
 # Regression test: abora-build.sh --from-source used to silently reuse an
 # already-cloned checkout at the default/--checkout location with no `git
 # fetch`/`checkout` at all -- the "Source ref: <requested>" status line
@@ -4839,7 +4986,7 @@ if command -v git >/dev/null 2>&1; then
   git clone -q --branch edge "$tmp_build_repo" "$tmp_build_checkout" >/dev/null 2>&1
   (
     cd /tmp
-    ABORA_SOURCE_DIR="$tmp_build_checkout" ABORA_REPO_URLS="$tmp_build_repo" \
+    PATH="$fake_nix_dir:$PATH" ABORA_SOURCE_DIR="$tmp_build_checkout" ABORA_REPO_URLS="$tmp_build_repo" \
       bash "$repo_dir/scripts/abora-build.sh" --from-source --ref main --target ".#doesnotexist" \
       >/dev/null 2>&1 || true
   )
@@ -4921,12 +5068,12 @@ if command -v git >/dev/null 2>&1; then
   rmdir "$tmp_vm_workspace"
   (
     cd /tmp
-    ABORA_VM_WORKSPACE="$tmp_vm_workspace" ABORA_REPO_URL="$tmp_vm_repo" ABORA_REPO_BRANCH="edge" \
+    PATH="$fake_nix_dir:$PATH" ABORA_VM_WORKSPACE="$tmp_vm_workspace" ABORA_REPO_URL="$tmp_vm_repo" ABORA_REPO_BRANCH="edge" \
       bash "$repo_dir/scripts/rebuild-vm.sh" >/dev/null 2>&1 || true
   )
   _vm_branch_after="$(git -C "$tmp_vm_workspace/abora-os" branch --show-current 2>/dev/null || true)"
   _vm_marker_after="$(cat "$tmp_vm_workspace/abora-os/MARKER.txt" 2>/dev/null || true)"
-  rm -rf "$tmp_vm_repo" "$tmp_vm_workspace"
+  rm -rf "$tmp_vm_repo" "$tmp_vm_workspace" "$fake_nix_dir"
   if [[ "$_vm_branch_after" == "edge" && "$_vm_marker_after" == "edge-fake" ]]; then
     pass "runtime: rebuild-vm.sh clones the requested branch on a fresh workspace"
   else

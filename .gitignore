@@ -24,3 +24,6 @@ __pycache__/
 *.img
 *.iso
 *.qcow2
+
+# Local checkout of the upstream TinyPM repo; the build uses vendor/tinypm.
+/TinyPM/
