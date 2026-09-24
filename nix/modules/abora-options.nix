@@ -103,6 +103,11 @@ in
         default = "";
         description = "Hashed password for the primary user. Generate with: mkpasswd";
       };
+      fullName = lib.mkOption {
+        type    = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Display name shown by login screens. Defaults to the account name.";
+      };
     };
 
     # ── Desktop ─────────────────────────────────────────────────────────────
@@ -286,7 +291,9 @@ in
 
         users.users.${cfg.user.name} = {
           isNormalUser = true;
-          description  = "Abora User";
+          # Greeters show this instead of the account name; a fixed
+          # "Abora User" read as a leftover live-media account.
+          description  = lib.mkDefault (if cfg.user.fullName != null then cfg.user.fullName else cfg.user.name);
           createHome   = true;
           shell        = pkgs.zsh;
           extraGroups  = [ "wheel" "networkmanager" "audio" "video" ];

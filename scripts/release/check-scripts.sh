@@ -1101,6 +1101,15 @@ else
   fail "runtime: abora.gpu accepts legacy/batch auto values as a no-op"
 fi
 
+# Greeters show the account description, so a hardcoded "Abora User" made
+# installed systems look like they still used a live-media account (#33).
+if ! grep -q 'description *= *"Abora User"' nix/modules/abora-options.nix \
+  && grep -q 'cfg.user.fullName != null then cfg.user.fullName else cfg.user.name' nix/modules/abora-options.nix; then
+  pass "runtime: installed account display name defaults to the chosen username"
+else
+  fail "runtime: installed account display name must default to the chosen username, not \"Abora User\""
+fi
+
 # xdg.desktopEntries only exists in home-manager; in a NixOS module it fails
 # evaluation, which a host without nix never notices before the ISO build.
 if ! grep -rnE '^[^#]*xdg\.desktopEntries[[:space:]]*=' nix/ >/dev/null 2>&1; then

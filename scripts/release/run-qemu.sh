@@ -88,11 +88,14 @@ for d in \
     /run/current-system/sw/share/OVMF \
     /nix/var/nix/profiles/system/sw/share/OVMF
 do
-    if [[ -f "$d/OVMF_CODE.fd" ]]; then
-        firmware_code="$d/OVMF_CODE.fd"
-        firmware_vars="$d/OVMF_VARS.fd"
-        break
-    fi
+    # Debian/Ubuntu (and Pop!_OS) ship only the 4M variants.
+    for suffix in "" "_4M"; do
+        if [[ -f "$d/OVMF_CODE${suffix}.fd" && -f "$d/OVMF_VARS${suffix}.fd" ]]; then
+            firmware_code="$d/OVMF_CODE${suffix}.fd"
+            firmware_vars="$d/OVMF_VARS${suffix}.fd"
+            break 2
+        fi
+    done
 done
 
 # Base QEMU arguments
@@ -114,7 +117,8 @@ fi
 
 # UEFI firmware
 if [[ -n "$firmware_code" && -f "${firmware_vars:-}" ]]; then
-    vars_copy="$qemu_dir/OVMF_VARS.fd"
+    # Named after the source so a 2M vars copy never pairs with 4M code.
+    vars_copy="$qemu_dir/$(basename "$firmware_vars")"
     if [[ ! -f "$vars_copy" ]]; then
         cp "$firmware_vars" "$vars_copy"
     fi

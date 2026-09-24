@@ -55,6 +55,29 @@ until it succeeds on a release candidate in the affected environment.
   install each release-candidate ISO in a VM. At least one whole-disk path and
   one existing-partition path must also pass on disposable real hardware.
 
+## Validation results
+
+Release candidate: `abora-cosmic-2026.09.23-x86_64-v4.1.iso`, built from
+`edge` at `0e6d0be`. The installs used QEMU/KVM with q35 and UEFI (OVMF 4M),
+8 GiB of RAM, 8 vCPUs, a 48 GiB virtio disk and virtio-vga. They ran the
+installer's `--batch` mode over the serial console with the Cosmic desktop.
+
+| Test | Result | Notes |
+|---|---|---|
+| Whole-disk install, then boot | Pass | Install took 284 s. The installed system reaches cosmic-greeter within 60 s and stays up. |
+| Existing-partition install, then boot | Pass | Install took 338 s. The pre-existing ext4 partition and a foreign `EFI/Other` directory on the reused ESP are intact. The installed system boots to the greeter. |
+| Installed login shows the chosen user, with no live account | Fixed after the RC | Only the chosen account exists, but every account was labelled "Abora User", which looked like a leftover live login (#33). `abora.user.fullName` now defaults the display name to the username. Needs recheck on the next RC. |
+| VirtualBox, with default graphics and without 3D | Not run | KVM holds VT-x on this host (`kvm.enable_virt_at_load=Y`), so `kvm_intel` must be unloaded before VirtualBox can start. |
+
+Observations to follow up:
+
+- Limine prints `device_cache_block(): set_pos(): Invalid argument` while
+  installing its BIOS stages on a UEFI install. The step still succeeds and
+  the system boots.
+- Limine is installed at the removable path `\EFI\BOOT\BOOTX64.EFI`. On a
+  shared ESP that replaces another OS's fallback loader. The other OS keeps
+  its own NVRAM entry, but dual-boot testing should cover this.
+
 ## Partitioning follow-up
 
 The current preservation mode formats one existing root partition and reuses an
