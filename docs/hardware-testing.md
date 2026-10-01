@@ -24,7 +24,7 @@ abora hardware-test --with-report
 From a development checkout, run:
 
 ```sh
-./scripts/abora-hardware-test.sh --with-report
+./scripts/support/abora-hardware-test.py --with-report
 ```
 
 This does not replace a real Abora boot, but it catches obvious problems:

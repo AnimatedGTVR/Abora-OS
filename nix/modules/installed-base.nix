@@ -16,6 +16,10 @@ let
   desktopScript        = ./desktop.sh;
   gamingScript         = ./gaming.sh;
   dotfilesImportScript = ./dotfiles-import.sh;
+  # doctor, check-full, recovery, welcome, support-report and hardware-test
+  # are Python (scripts/support/*.py) but keep their .sh names here: a 4.0
+  # system's `abora update` copies them under exactly these names before it
+  # hands over to the new updater, so renaming them would break that update.
   doctorScript         = ./doctor.sh;
   checkFullScript      = ./check-full.sh;
   recoveryScript       = ./recovery.sh;
@@ -149,16 +153,16 @@ let
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/dotfiles-import.sh "$@"
   '';
   aboraDoctor = pkgs.writeShellScriptBin "abora-doctor" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/doctor.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/doctor.sh "$@"
   '';
   aboraCheckFull = pkgs.writeShellScriptBin "abora-check-full" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/check-full.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/check-full.sh "$@"
   '';
   aboraRecovery = pkgs.writeShellScriptBin "abora-recovery" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/recovery.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/recovery.sh "$@"
   '';
   aboraWelcome = pkgs.writeShellScriptBin "abora-welcome" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/welcome.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/welcome.sh "$@"
   '';
   aboraGuiPython = pkgs.python3.withPackages (ps: with ps; [ pygobject3 ]);
   aboraGuiGiPath = lib.makeSearchPath "lib/girepository-1.0" (with pkgs; [
@@ -200,10 +204,10 @@ let
     exec env ANIX_SYSTEM_CONFIG=/etc/nixos ANIX_FLAKE_CONFIG_NAME=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/anix.sh "$@"
   '';
   aboraSupportReport = pkgs.writeShellScriptBin "abora-support-report" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/support-report.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/support-report.sh "$@"
   '';
   aboraHardwareTest = pkgs.writeShellScriptBin "abora-hardware-test" ''
-    exec env ABORA_SUPPORT_REPORT_SCRIPT=/etc/abora/support-report.sh ${pkgs.bashInteractive}/bin/bash /etc/abora/hardware-test.sh "$@"
+    exec env ABORA_SUPPORT_REPORT_SCRIPT=/etc/abora/support-report.sh ${pkgs.python3}/bin/python3 /etc/abora/hardware-test.sh "$@"
   '';
   aboraRepairFlakePurity = pkgs.writeShellScriptBin "abora-repair-flake-purity" ''
     exec env ABORA_SYSTEM_CONFIG=/etc/nixos ${pkgs.bashInteractive}/bin/bash /etc/abora/repair-flake-purity.sh "$@"

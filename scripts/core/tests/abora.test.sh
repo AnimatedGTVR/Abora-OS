@@ -216,7 +216,7 @@ fi
 
 # Security regression test: abora_wu_run (abora-ui.sh, the shared helper
 # behind `abora update`'s real progress UI, and mirrored in
-# abora-update.sh's own fallback copy) and abora-doctor.sh's ANIX-doctor
+# abora-update.sh's own fallback copy) and abora-doctor.py's ANIX-doctor
 # check all log to fixed, predictable /tmp paths by design -- so a failed
 # `abora update` can tell the user exactly where to look. A plain `>`
 # redirect to a predictable path in a world-writable directory is a

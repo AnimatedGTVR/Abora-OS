@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A friendly pre-flight check for anyone about to work on Abora OS itself.
 
-First-time contributors most of all. abora-doctor.sh diagnoses an *installed
+First-time contributors most of all. abora-doctor.py diagnoses an *installed
 Abora system*; this diagnoses *your dev machine*, before you've built
 anything, so a missing tool or disabled Nix feature shows up as one clear,
 actionable line instead of a cryptic failure five minutes into `make iso`.

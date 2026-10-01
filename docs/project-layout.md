@@ -77,7 +77,7 @@ Important files:
 - `scripts/abora-setup.desktop`: installed desktop entry
 - `scripts/abora-desktop-profiles.sh`: supported desktop profile definitions
 - `scripts/abora-session-setup.sh`: first-session defaults
-- `scripts/abora-support-report.sh`: support archive generation
+- `scripts/support/`: doctor, recovery, welcome, support report, full check, and hardware test (Python)
 - `scripts/check-scripts.py`: repo script and runtime sanity checks
 - `scripts/check-all-files.py`: broad syntax, links, YAML, JSON, and docs sweep
 - `scripts/check-desktops.py`: evaluates every supported desktop profile

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Behaviour tests for the Denali installer's disk, boot and flake logic (scripts/install/abora-installer.sh).
+# Behaviour tests for the installer's disk, boot and flake logic (scripts/install/abora-installer.sh).
 #
 # Run by scripts/check-scripts.py, one suite per Bash tool. These tests
 # exercise Bash code directly (running it in sandboxes, or sourcing

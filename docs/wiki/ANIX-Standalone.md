@@ -174,7 +174,7 @@ nix run github:AnimatedGTVR/Abora-OS#hardware-test
 nix run github:AnimatedGTVR/Abora-OS#hardware-test -- --with-report
 ```
 
-Or from a checkout: `./scripts/abora-hardware-test.sh`. `--with-report`
+Or from a checkout: `./scripts/support/abora-hardware-test.py`. `--with-report`
 bundles a full system-info archive via the companion
-`abora-support-report.sh`, dropped in `/tmp` by default (see
+`abora-support-report.py`, dropped in `/tmp` by default (see
 `ABORA_SUPPORT_OUTPUT_DIR`).
