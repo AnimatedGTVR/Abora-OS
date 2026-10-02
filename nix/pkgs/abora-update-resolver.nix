@@ -26,7 +26,11 @@ buildDotnetModule rec {
   pname = "abora-update-resolver";
   version = "1.0.0";
 
-  src = resolverSrc;
+  # builtins.path with a fixed name gives the source the SAME store path (and so the same derivation) wherever
+  # it is evaluated from: the repo's own flake (which built the live ISO) or the copy the installer puts in
+  # /etc/nixos. A plain path would be copied under its directory name, so the installed system would get a
+  # different derivation and rebuild this Native AOT package from source (slow, and it runs out of memory in VMs).
+  src = builtins.path { path = resolverSrc; name = "abora-update-resolver-src"; };
 
   projectFile = "AboraUpdateResolver.csproj";
   # Generated via `nuget-to-json` (nuget-to-nix's replacement in current
