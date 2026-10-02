@@ -186,6 +186,16 @@ let
   # this is a separate, dedicated app for games specifically -- your
   # gaming platforms at a glance, signing into Steam, and installing a
   # platform to get a game running through. See abora-gaming-welcome-gui.py.
+  # What the login autostart runs. Kept as a real script (not a long `sh -c '...'` inside the .desktop file)
+  # and called by absolute store path: Plasma 6 starts autostart entries through systemd, which has a smaller PATH
+  # (so a bare `abora-welcome-gui` was never found) and is strict about quoting in Exec= lines. GNOME ran the old
+  # entry fine, which is why only Plasma never opened the welcome app at first login.
+  aboraWelcomeAutostart = pkgs.writeShellScript "abora-welcome-autostart" ''
+    conf="''${XDG_CONFIG_HOME:-$HOME/.config}/abora/welcome.conf"
+    if [ -f "$conf" ] && ${pkgs.gnugrep}/bin/grep -qx "show_on_startup=false" "$conf"; then exit 0; fi
+    [ -f "$HOME/.cache/abora/welcome-seen" ] && exit 0
+    exec ${aboraWelcomeGui}/bin/abora-welcome-gui
+  '';
   aboraGamingWelcomeGui = pkgs.writeShellScriptBin "abora-gaming-welcome-gui" ''
     export GI_TYPELIB_PATH="${aboraGuiGiPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
     export LD_LIBRARY_PATH="${aboraGuiLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -1026,9 +1036,11 @@ in
         Type=Application
         Name=Abora Welcome
         Comment=First steps and update checks for Abora OS
-        Exec=sh -c 'conf="''${XDG_CONFIG_HOME:-$HOME/.config}/abora/welcome.conf"; if [ -f "$conf" ] && grep -qx "show_on_startup=false" "$conf"; then exit 0; fi; test -f "$HOME/.cache/abora/welcome-seen" || exec abora-welcome-gui'
+        Exec=${aboraWelcomeAutostart}
         Icon=distributor-logo
         X-GNOME-Autostart-enabled=true
+        X-KDE-autostart-after=panel
+        X-KDE-StartupNotify=false
         NoDisplay=true
       '';
     }
