@@ -627,18 +627,28 @@ set_nix_string_assignment() {
     rm -f "$tmp"
 }
 
-sync_xkb_layout() {
-    case "$keyboard_value" in
-        us) xkb_layout_value="us" ;;
-        uk) xkb_layout_value="gb" ;;
-        de) xkb_layout_value="de" ;;
-        fr) xkb_layout_value="fr" ;;
-        es) xkb_layout_value="es" ;;
-        it) xkb_layout_value="it" ;;
-        pt) xkb_layout_value="pt" ;;
-        ru) xkb_layout_value="ru" ;;
-        *)  xkb_layout_value="$keyboard_value" ;;
+# The console keymap and the graphical (XKB) layout have different names for
+# several keyboards: the Japanese console map is "jp106" but the layout is
+# "jp"; UK is "uk" vs "gb"; Turkish "trq" vs "tr"; and so on. Passing the
+# console name through as the layout leaves the desktop with an invalid layout.
+# Keep this in sync with KEYBOARDS in abora-installer-gui.py and with the copy
+# in abora-config.sh (scripts/install/tests/keyboard-layout.test.sh checks both).
+console_keymap_to_xkb() {
+    case "$1" in
+        uk)        echo gb ;;
+        jp106)     echo jp ;;
+        br-abnt2)  echo br ;;
+        sv-latin1) echo se ;;
+        trq)       echo tr ;;
+        # de-latin1, fr-latin1, pt-latin1, cz-lat2, ...: the suffix names an
+        # encoding of the console map and is not part of the layout name.
+        *-latin1|*-latin9|*-lat2) echo "${1%-*}" ;;
+        *)         echo "$1" ;;
     esac
+}
+
+sync_xkb_layout() {
+    xkb_layout_value="$(console_keymap_to_xkb "$keyboard_value")"
 }
 
 apply_language_defaults() {

@@ -137,6 +137,26 @@ detect_legacy_gpu() {
 # detect_legacy_gpu reverse-engineer desktop/GPU the same way
 # abora_detect_desktop_profile does), then rewrites abora-local.nix in the
 # new form -- backing up the original alongside it first.
+# The console keymap and the graphical (XKB) layout have different names for
+# several keyboards: the Japanese console map is "jp106" but the layout is
+# "jp"; UK is "uk" vs "gb"; Turkish "trq" vs "tr"; and so on. Passing the
+# console name through as the layout leaves the desktop with an invalid layout.
+# Keep this in sync with KEYBOARDS in abora-installer-gui.py and with the copy
+# in abora-config.sh (scripts/install/tests/keyboard-layout.test.sh checks both).
+console_keymap_to_xkb() {
+    case "$1" in
+        uk)        echo gb ;;
+        jp106)     echo jp ;;
+        br-abnt2)  echo br ;;
+        sv-latin1) echo se ;;
+        trq)       echo tr ;;
+        # de-latin1, fr-latin1, pt-latin1, cz-lat2, ...: the suffix names an
+        # encoding of the console map and is not part of the layout name.
+        *-latin1|*-latin9|*-lat2) echo "${1%-*}" ;;
+        *)         echo "$1" ;;
+    esac
+}
+
 migrate_legacy_config() {
     require_local_module
     is_options_format && return 0
@@ -164,7 +184,7 @@ migrate_legacy_config() {
     timezone="${timezone:-UTC}"
     locale="${locale:-en_US.UTF-8}"
     kb_console="${kb_console:-us}"
-    kb_xkb="${kb_xkb:-$kb_console}"
+    kb_xkb="${kb_xkb:-$(console_keymap_to_xkb "$kb_console")}"
     user_name="${user_name:-abora}"
     desktop="${desktop:-cosmic}"
     disk="${disk:-}"
