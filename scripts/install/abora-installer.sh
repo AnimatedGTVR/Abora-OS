@@ -375,15 +375,70 @@ pause() {
     printf '\n'
 }
 
+# Reads the end of an install log and prints one plain-language guess at why the install failed, or nothing
+# if no known pattern matches. Most install failures end in a wall of Nix output; this turns the common ones
+# (full disk, out of memory, wrong clock, a rejected signature, no network) into something a person can act on.
+# Used by die() below, and tested by scripts/install/tests/failure-hints.test.sh.
+install_failure_hint() {
+    local log="${1:-}" tail_text
+    [[ -r "$log" ]] || return 1
+    tail_text="$(tail -n 300 "$log" 2>/dev/null)" || return 1
+
+    if grep -qaiE 'no space left on device|disk quota exceeded' <<<"$tail_text"; then
+        echo "The disk ran out of space. Use a larger target disk or partition, or free memory if the live system's RAM-backed /tmp filled up."
+    elif grep -qaiE 'out of memory|oom-kill|cannot allocate memory|std::bad_alloc|killed process' <<<"$tail_text"; then
+        echo "The machine ran out of memory while building. Give it more RAM (a virtual machine usually needs at least 4 GB) and try again."
+    elif grep -qaiE 'certificate (is )?(not yet valid|has expired)|certificate verify failed|ssl certificate problem|peer certificate cannot be authenticated' <<<"$tail_text"; then
+        echo "A secure connection was refused, which usually means the computer's clock is wrong. Check it with 'date', fix it with 'timedatectl set-ntp true' (or set it in the BIOS), then try again."
+    elif grep -qaiE 'untrusted public key|lacks a valid signature|lacks a signature|not signed by any of the keys|cannot verify signature|signature .*(invalid|not trusted)' <<<"$tail_text"; then
+        echo "Nix refused a package because its signature was not trusted. Check the clock first ('date'; a wrong date is the most common cause), then try again. If it keeps happening, share the install log."
+    elif grep -qaiE 'could not resolve host|temporary failure in name resolution|network is unreachable|unable to download|couldn.?t connect|connection (timed out|refused|reset)|curl: \((6|7|28|35|56)\)' <<<"$tail_text"; then
+        echo "The network failed while downloading packages. Check the connection (run 'nmtui' to reconnect) and try again."
+    elif grep -qaiE 'hash mismatch|got:.*sha256|specified:.*sha256' <<<"$tail_text"; then
+        echo "A download did not match its expected hash. The file may have changed upstream or the download was cut off. Try again in a while, and report it if it repeats."
+    elif grep -qaiE 'input/output error|read-only file system|i/o error|ata[0-9]+.*error|medium error' <<<"$tail_text"; then
+        echo "The disk reported errors while writing. Check the disk and cables, or try another disk."
+    elif grep -qaiE 'max-silent-time|build timed out|timed out after' <<<"$tail_text"; then
+        echo "A build produced no output for a very long time and was stopped. This usually means a slow network or too little memory. Try again."
+    else
+        return 1
+    fi
+}
+
+# On a machine whose clock is far off (a flat CMOS battery is common on older hardware), connections to the
+# package cache fail with confusing certificate and key errors. Warn early, and try the harmless fix first.
+ensure_sane_clock() {
+    local now min=1735689600   # 2025-01-01: any date before this is certainly wrong
+    now="$(date +%s 2>/dev/null || echo 0)"
+    (( now >= min )) && return 0
+    warn "The system clock looks wrong ($(date 2>/dev/null)). Package downloads can fail with certificate errors when it is."
+    if command -v timedatectl >/dev/null 2>&1; then
+        timedatectl set-ntp true >/dev/null 2>&1 || true
+        local i
+        for i in 1 2 3 4 5 6 7 8; do
+            sleep 2
+            now="$(date +%s 2>/dev/null || echo 0)"
+            if (( now >= min )); then ok "Clock corrected over the network"; return 0; fi
+        done
+    fi
+    warn "Could not fix the clock automatically. If the install fails, set the date in the BIOS or run 'timedatectl set-time'."
+    return 0
+}
+
 die() {
     err "$*"
     printf 'INSTALL ERROR: %s\n' "$*" >>"$install_log" 2>/dev/null || true
+    local hint
+    hint="$(install_failure_hint "$install_log" 2>/dev/null || true)"
+    [[ -n "$hint" ]] && printf 'LIKELY CAUSE: %s\n' "$hint" >>"$install_log" 2>/dev/null
     # In batch mode, exit so automation can read the error from stdout/logs.
     if [[ "${batch_mode:-0}" -eq 1 ]]; then
         printf 'FATAL: %s\n' "$*" >&2
+        [[ -n "$hint" ]] && printf 'LIKELY CAUSE: %s\n' "$hint" >&2
         cleanup_target 2>/dev/null || true
         exit 1
     fi
+    [[ -n "$hint" ]] && printf '\n  %bLikely cause:%b %s\n' "${D}${CG}" "$R" "$hint"
     printf '\n  %bLog: %s%b\n\n' "${D}${CG}" "$install_log" "$R"
     # Unmount before handing off to a shell so nothing is left mounted.
     cleanup_target 2>/dev/null || true
@@ -3506,6 +3561,8 @@ run_install() {
         "cores = 2" \
         "max-substitution-jobs = 32" \
         "http-connections = 32")"
+
+    ensure_sane_clock
 
     msg "Locking target flake…"
     log_network_snapshot
