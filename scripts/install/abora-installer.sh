@@ -615,9 +615,22 @@ timezone_exists() {
 # users.users.<name>.hashedPassword expects, so the plaintext password
 # never gets written into the generated config.
 hash_password() {
-    local password="$1"
-    command -v openssl >/dev/null 2>&1 || return 1
-    openssl passwd -6 -stdin <<<"$password"
+    local password="$1" out=""
+    [[ -n "$password" ]] || return 1   # an empty password must never become a (valid-looking) hash
+    # The password goes in on stdin, never on the command line (where any user could see it in `ps`).
+    # openssl is the usual tool; mkpasswd (whois) and Python's crypt are fallbacks, so a missing or
+    # odd openssl on the live image doesn't stop the install at "could not hash password".
+    if command -v openssl >/dev/null 2>&1; then
+        out="$(openssl passwd -6 -stdin <<<"$password" 2>/dev/null)" || out=""
+    fi
+    if [[ "$out" != '$6$'* ]] && command -v mkpasswd >/dev/null 2>&1; then
+        out="$(mkpasswd -m sha-512 -s <<<"$password" 2>/dev/null)" || out=""
+    fi
+    if [[ "$out" != '$6$'* ]] && command -v python3 >/dev/null 2>&1; then
+        out="$(python3 -c 'import crypt,sys; print(crypt.crypt(sys.stdin.readline().rstrip("\n"), crypt.mksalt(crypt.METHOD_SHA512)))' <<<"$password" 2>/dev/null)" || out=""
+    fi
+    [[ "$out" == '$6$'* ]] || return 1
+    printf '%s\n' "$out"
 }
 
 # Escapes a value for safe interpolation into a Nix double-quoted string
@@ -1981,12 +1994,38 @@ step_disk() {
     menu "How should Abora use ${disk}?" \
         "Erase entire disk|Wipe everything and use the whole disk" \
         "Use an existing partition|Format only one partition; keep everything else (dual-boot)" \
+        "Edit partitions first|Open a partition editor (create, resize or delete), then choose a partition" \
         "Choose a different disk|Go back"
     case "$MENU_RESULT" in
         0) step_disk_confirm_erase ;;
         1) step_disk_existing_partition ;;
+        2) step_disk_edit_partitions ;;
         *) step_disk; return ;;
     esac
+}
+
+# Opens a partition editor on the chosen disk, then continues into the
+# "use an existing partition" picker so the new partitions can be used right away.
+# cfdisk ships with util-linux, so this works on every edition's live image.
+step_disk_edit_partitions() {
+    printf '\n'
+    if ! command -v cfdisk >/dev/null 2>&1; then
+        warn "No partition editor (cfdisk) is available on this live image."
+        printf '\n'
+        menu "OK" "Back|Choose a different disk or mode"
+        step_disk
+        return
+    fi
+    warn "The partition editor changes ${disk} as soon as you choose Write. Nothing is changed until then."
+    msg "Make an EFI System Partition (512 MB or more, type EFI System) if the disk has none, plus a partition for Abora. Quit when done."
+    printf '\n'
+    cfdisk "$disk" || true
+    # Let the kernel and udev notice the new partition table before listing it.
+    partprobe "$disk" 2>/dev/null || true
+    udevadm settle 2>/dev/null || true
+    sleep 1
+    install_disk_mode="existing"
+    step_disk_existing_partition
 }
 
 step_disk_confirm_erase() {

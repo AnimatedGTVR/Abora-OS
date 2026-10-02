@@ -524,14 +524,19 @@ def hash_password(pw: str) -> str:
     """Return a SHA-512 crypt hash, or '' on failure."""
     if not pw:
         return ''
-    try:
-        r = subprocess.run(
-            ['openssl', 'passwd', '-6', '--', pw],
-            capture_output=True, text=True, timeout=10
-        )
-        return r.stdout.strip() if r.returncode == 0 else ''
-    except Exception:
-        return ''
+    # The password is sent on stdin, not on the command line, so it can't be read from `ps`.
+    # Try openssl, then mkpasswd; the result must be a SHA-512 crypt string ($6$...) or it's rejected.
+    for cmd in (['openssl', 'passwd', '-6', '-stdin'], ['mkpasswd', '-m', 'sha-512', '-s']):
+        if not shutil.which(cmd[0]):
+            continue
+        try:
+            r = subprocess.run(cmd, input=pw + '\n', capture_output=True, text=True, timeout=10)
+        except Exception:
+            continue
+        out = r.stdout.strip()
+        if r.returncode == 0 and out.startswith('$6$'):
+            return out
+    return ''
 
 
 def _boot_media_disk_names() -> set[str]:
@@ -1010,6 +1015,15 @@ class DiskPage(Gtk.Box):
         self._grp = Adw.PreferencesGroup(title='Available Disks')
         inner.append(self._grp)
 
+        # Partition editor: lets people shrink, create or delete partitions before installing.
+        # The GUI install itself still uses the whole selected disk; to install onto one existing
+        # partition, use the text installer's "Use an existing partition" option.
+        if shutil.which('gparted'):
+            pe = Gtk.Button(label='Open partition editor (GParted)', halign=Gtk.Align.START)
+            pe.set_margin_top(12)
+            pe.connect('clicked', self._open_partition_editor)
+            inner.append(pe)
+
         self._empty_lbl = Gtk.Label(
             label='No suitable disks found. Make sure a disk is attached.',
             xalign=0, wrap=True
@@ -1026,6 +1040,23 @@ class DiskPage(Gtk.Box):
         self.append(sw)
 
         self._refresh()
+
+    def _open_partition_editor(self, _button):
+        """Runs GParted with root rights and refreshes the disk list when it closes."""
+        launcher = shutil.which('pkexec') or shutil.which('sudo')
+        cmd = ([launcher] if launcher else []) + ['gparted']
+        if launcher and launcher.endswith('sudo'):
+            cmd = [launcher, '-n', 'gparted']
+        try:
+            proc = subprocess.Popen(cmd)
+        except OSError:
+            return
+
+        def wait():
+            proc.wait()
+            GLib.idle_add(self._refresh)
+
+        threading.Thread(target=wait, daemon=True).start()
 
     def _refresh(self):
         for row in self._disk_group_rows:

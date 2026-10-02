@@ -531,6 +531,7 @@ in
     dosfstools  # mkfs.vfat
     e2fsprogs   # mkfs.ext4
     parted
+    gparted     # graphical partition editor, opened from the installer's disk step
     util-linux  # wipefs, lsblk, mount …
 
     # ── Boot management ──────────────────────────────────────────────────────
