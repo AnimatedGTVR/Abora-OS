@@ -491,13 +491,20 @@ in
     after           = [ "network-online.target" "flatpak.service" ];
     wants           = [ "network-online.target" ];
     wantedBy        = [ "multi-user.target" ];
+    # network-online.target can be reached before a VM's network really works, so the
+    # first attempt may fail. Retry until Flathub is added instead of giving up (and
+    # reporting success) after one try, which left systems with no Flathub remote.
+    unitConfig.StartLimitIntervalSec = 0;
     serviceConfig   = {
       Type            = "oneshot";
       RemainAfterExit = true;
+      TimeoutStartSec = "2min";
+      Restart         = "on-failure";
+      RestartSec      = "30s";
     };
     script = ''
       ${pkgs.flatpak}/bin/flatpak remote-add --system --if-not-exists flathub \
-        https://dl.flathub.org/repo/flathub.flatpakrepo || true
+        https://dl.flathub.org/repo/flathub.flatpakrepo
     '';
   };
 
