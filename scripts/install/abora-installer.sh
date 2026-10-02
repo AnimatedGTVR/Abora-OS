@@ -1347,7 +1347,12 @@ check_install_environment() {
         if (( failed == 0 && target_lock_source_verified == 0 )) && [[ -n "$nixpkgs" ]]; then
             local expected_nar actual_nar
             expected_nar="$(jq -r '.nodes[.nodes[.root].inputs.nixpkgs].locked.narHash // empty' /etc/abora/target-flake.lock)"
-            actual_nar="$(timeout 120 nix --extra-experimental-features 'nix-command flakes' hash path --sri "$nixpkgs" 2>/dev/null || true)"
+            # On the live image $nixpkgs is /etc/abora/nixpkgs, a symlink into the Nix store. `nix hash path`
+            # hashes a symlink as a symlink (not the tree it points to), which never equals the lock's narHash,
+            # so resolve it to the real store path first.
+            local nixpkgs_real
+            nixpkgs_real="$(readlink -f "$nixpkgs" 2>/dev/null || printf '%s' "$nixpkgs")"
+            actual_nar="$(timeout 120 nix --extra-experimental-features 'nix-command flakes' hash path --sri "$nixpkgs_real" 2>/dev/null || true)"
             if [[ -z "$actual_nar" ]]; then
                 err "Could not hash the bundled nixpkgs source to verify target-flake.lock."
                 failed=1
