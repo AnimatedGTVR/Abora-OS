@@ -4,7 +4,7 @@ Abora OS v4.1 Horizon is the reliability-focused follow-up to Everest: a safer i
 
 Horizon builds on Everest 4.0 and the DENALI 3.14 foundation while expanding how Abora can be installed, configured, updated, and used.
 
-Horizon is currently under development; release validation and final artifact checks remain outstanding.
+Released: **<RELEASE DATE>** · Tag: `v4.1` · Channel: `stable`
 
 ---
 # Highlights
@@ -26,6 +26,11 @@ Horizon includes the Everest feature set and adds:
 - Linux kernel 7.2
 - MediaTek MT7902 Wi-Fi 6E and Bluetooth support
 - C# implementations of ANIX and the updater version/channel resolver
+- A partition editor (GParted) right inside the installer
+- Plain-language explanations when an install fails
+- Abora Community: an optional survey, Learn Nix, and reminders
+- GTK feedback and bug-report apps
+- The installed login screen shows your own name
 - Expanded MINT installer support
 - A large audit across scripts, Nix modules, installer flows, and release tooling
 
@@ -50,6 +55,26 @@ Every bundle is optional.
 # What's New
 
 ![What's New](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/whatsnew_converted.gif)
+
+## Abora Labs
+
+Labs is an explicit opt-in in the installer. It adds a guarded workspace manager for trying experimental Abora work. Nothing experimental is downloaded, run, or used for normal system updates during installation, and the updater only touches Labs on releases that ship it.
+
+## Abora Community
+
+A new community module brings together an optional survey, a Learn Nix guide, and optional reminders. The survey has its own small GTK app, and everything in it is opt-in.
+
+## Feedback and Bug Reports
+
+A new GTK4 app collects feedback and bug reports. Bug reports carry the same redacted diagnostics as `abora support-report`, so you no longer need the terminal to file a useful report.
+
+## Installer: Partition Editor
+
+The TUI installer has an **Edit partitions** step that opens `cfdisk`, and the GUI installer has an **Open partition editor (GParted)** button. GParted ships on every live ISO. Make room for Abora, or set up dual boot, without leaving the installer.
+
+## Installer: Clearer Failures
+
+When an install fails, the installer now reads the end of its own log and explains the likely cause in plain language: a signature or key problem, a package that failed to build, a network drop, or a disk that ran out of space. It also checks the system clock before starting, because a wrong clock is a common hidden cause of download and signature failures.
 
 ## Non-Destructive Installation
 
@@ -233,6 +258,21 @@ Fixed:
 - Different desktop ordering between GUI and TUI
 - Hardware-readiness checks counting zram as real storage
 
+## Installer Reliability (issues #32 and #33)
+
+Fixed:
+
+- Japanese and other non-US keyboards: the console keymap (for example `jp106`) was passed straight to the graphical session, which needs `jp`. Console names are now mapped to the right desktop layout.
+- User passwords: password hashing could fail silently on some live environments. It now uses a hardened `openssl` path with fallbacks, and refuses an empty password instead of hashing it.
+- `target-flake.lock` failing with a nixpkgs mismatch: the bundled nixpkgs symlink is now resolved before it is checked against the lock.
+- Installs stalling for a long time at the .NET build step: the Native AOT tools now have a fixed source name, so the install reuses the already-built tools instead of rebuilding them.
+- Flathub setup now keeps retrying after first boot instead of giving up silently when the network is not ready yet.
+- The login screen showed every account as "Abora User", which looked like a leftover live account. The display name now defaults to your username and can be changed with `abora.user.fullName`.
+
+## Abora Welcome on KDE Plasma
+
+Fix the Abora Welcome app not opening on first login under KDE Plasma (it worked when launched by hand). It now starts once the Plasma panel is ready.
+
 ## Start Abora
 
 Fix the `.desktop` launcher showing **Install Abora OS** on systems that were already installed — the launcher itself already detected live vs. installed correctly, only the static label was wrong. Relabeled to **Start Abora**.
@@ -260,6 +300,19 @@ Fixed:
 - `abora-support-report` leaving its staging directory behind
 - `abora-custom-packages` leaking temporary files and directories
 - `abora bug-report --github` crashing before `gh` ran
+
+## Security
+
+Fixed:
+
+- Support reports and full checks redact Wi-Fi PSKs written as multi-line Nix strings, plus `Authorization` headers of every kind (Bearer, Basic, Token, Digest).
+- The Abora adoption downloader refuses a hard reset over untracked or modified local work unless you explicitly force it.
+- `abora build` fails closed when it cannot verify the checkout ref.
+- CI no longer keeps its GitHub token in the checkout.
+
+## Less Shell in the Core
+
+The support and release tooling has moved from Bash to Python, continuing the work to remove shell scripts from Abora's core. Commands and output stay the same.
 
 ## Audit Pass
 
@@ -322,6 +375,14 @@ line when reporting it.
 
 VirtualBox Guest Additions are now opt-in rather than default-on for the live ISO. If your live-ISO testing workflow relies on Guest Additions, enable them manually.
 
+## VirtualBox Installs
+
+Installing inside VirtualBox (issue #33) has not been fully validated yet. If an install fails there, try disabling 3D acceleration and attach `/tmp/abora-install.log` to your report.
+
+## Limine Message on UEFI
+
+On UEFI installs Limine may print `device_cache_block(): set_pos(): Invalid argument` while installing its BIOS stages. It is harmless: the install completes and the system boots. On a shared EFI partition, Limine also installs to the fallback path `\EFI\BOOT\BOOTX64.EFI`; other operating systems keep their own boot entries.
+
 ## Current Limits
 
 - Horizon ISOs are larger than older releases because of broader firmware and hardware support.
@@ -371,7 +432,7 @@ before powering off.
 
 ![Download](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/download_converted.gif)
 
-Horizon is planned in five editions:
+Horizon ships in five editions:
 
 | Release Asset | Edition |
 |---|---|
@@ -396,7 +457,7 @@ Existing Abora installations can update with:
 sudo abora update
 ```
 
-Horizon must support updates from Everest, but pre-release users should keep a backup and recovery media until that path passes the release checklist.
+Everest 4.0 systems can update in place with the command above. As with any major update, keep a backup, and remember `abora rollback` returns you to the previous generation if something goes wrong.
 
 **Five editions. 23 desktop profiles. ANIX v2. Abora Gaming. Community tools. A safer installer and update path.**
 

@@ -15,42 +15,52 @@
 
 ## What's New?
 
-Big one this time. 5 editions now instead of one giant ISO, real GPU driver picking so you're not stuck guessing what your NVIDIA card wants, and ANIX can finally read config written in something other than its own language (MKO or ModuCPP if you're into that). Also shipped our first two actual GUI apps, welcome screen and a settings editor, both just thin wrappers over the CLI so you're never locked into clicking buttons.
-
-Also quietly fixed a Wi-Fi bug that's been breaking installs on some laptops, a disk-safety issue in the installer, and a couple ANIX bugs that were more serious than they looked. Details below.
+Horizon is the "make it actually work" release. Most of 4.1 is fixes from your install reports (#32 and #33): the installer now tells you *why* it failed instead of dumping a wall of Nix, there's a partition editor built right in, and a bunch of things that broke on real machines got fixed. Plus a few new bits: opt-in Labs, a community app, and a GUI for sending feedback.
 
 ## Changelog:
 
-**Multi-edition ISOs**
-- 5 editions now: Cosmic, Hyprland, GNOME, KDE, and Other (console-first, all 23 desktops available at install)
-- every edition still has the full desktop matrix, the edition just picks what the live session boots into by default
-- `make iso-all` builds all of them at once
+**Installer**
+- partition editor built in: `cfdisk` in the TUI, a GParted button in the GUI
+- install onto an existing partition without wiping the whole disk
+- if an install fails it reads its own log and tells you the likely cause in plain English (bad signature, build failure, network drop, disk full)
+- checks your clock before starting, since a wrong clock quietly breaks downloads
+- Japanese/non-US keyboards: `jp106` no longer leaks into the desktop, you get `jp`
+- password hashing can't silently fail anymore, and empty passwords are refused
+- fixed the `target-flake.lock` nixpkgs mismatch
+- fixed installs sitting at the .NET build step for ages
+- login screen shows your name instead of "Abora User"
 
-**GPU driver support**
-- new `abora.gpu` option: nouveau, nvidia, nvidia-open, amdgpu, intel, or none
-- installer checks your GPU with lspci and picks sane defaults, NVIDIA cards default to nouveau (no license popup, just works)
-- change it later with `abora config set gpu nvidia && abora config apply`
+**New stuff**
+- Abora Labs: opt-in at install, a workspace manager for experimental stuff. nothing experimental runs during install
+- Abora Community: optional survey, Learn Nix, optional reminders
+- feedback + bug report GUI, with the same redacted diagnostics as `abora support-report`
+- adopt Abora on an existing NixOS install without reinstalling
 
-**ANIX v2**
-- configs can be written in ANIX Native, MKO, or ModuCPP now, all get turned into the same plan under the hood
-- `anix language list` / `anix run` / `anix diff-plan` / `anix apply-plan`
-- diff-plan tells you ADD/CHANGE/SAME per setting before you touch anything, no matter which language you wrote it in
+**Fixes**
+- Abora Welcome now actually opens on first login on KDE Plasma
+- Flathub setup keeps retrying after first boot instead of giving up
+- `abora update` with no args actually updates now (it was a no-op lol)
+- `abora rollback` actually rolls back now
+- Ventoy USBs boot again
+- thermald is opt-in, it was breaking rebuilds on some desktops
+- security: better redaction of Wi-Fi passwords and auth headers in support reports
 
-**First GUI apps**
-- `abora welcome-gui` — status card + update check + the same quick actions as the terminal version, opens once on first login
-- `abora config-gui` — settings editor for hostname, timezone, keyboard, desktop, wallpaper, GPU
-- both just call the existing CLI scripts, nothing GUI-only
-- `abora update --check` if you just want to know if there's an update without installing it
+**ANIX**
+- ANIX v2 configs: ANIX Native or ModuCPP. MKO got dropped
+- `anix diff-plan` still shows ADD/CHANGE/SAME before you touch anything
 
-**Carried over from 3.14**
-- 23 desktops, 7 starter app bundles, TinyPM v0.8, the TUI installer, Limine + Plymouth, NetworkManager/Bluetooth/firmware stuff, Flathub auto-added on first boot
+**Under the hood**
+- support + release tooling moved from Bash to Python, same commands
+- big audit pass across scripts, nix modules and the installer
 
-**Fixes since release**
-- live ISO Wi-Fi: a setting was quietly blocking wpa_supplicant from ever registering over D-Bus, some cards would just sit at "unavailable" forever. installed systems were never affected, just the live/installer environment
-- installer won't let you pick the boot USB itself as the install target anymore
-- `anix package remove` actually removes packages now (the regex was broken, it was silently a no-op)
-- every anix set/apply-plan/run is atomic now, either the whole plan lands or none of it does
-- fixed a leftover `denali` codename showing up in `/etc/os-release` on 4.0 builds, says everest now
+**Still from Everest**
+- 5 editions (Cosmic, Hyprland, GNOME, KDE, Other), GPU driver picking, Abora Gaming, TinyPM v0.8, all 23 desktops
+
+**Known stuff**
+- VirtualBox installs aren't fully validated yet. if one fails, try turning off 3D acceleration and send `/tmp/abora-install.log`
+- Limine might print a scary `set_pos(): Invalid argument` line on UEFI. it's harmless
+
+Update with `sudo abora update`. If anything goes sideways, `abora rollback`.
 
 ## 3.14
 
