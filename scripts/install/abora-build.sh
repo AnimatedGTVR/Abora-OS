@@ -26,6 +26,7 @@ EOF
 
 checkout="$default_checkout"
 checkout_explicit=0
+ref_explicit=0
 from_source=0
 
 while [[ $# -gt 0 ]]; do
@@ -48,6 +49,7 @@ while [[ $# -gt 0 ]]; do
     --ref|--branch)
       [[ -n "${2:-}" ]] || { printf 'abora build: --ref needs a branch or tag\n' >&2; exit 2; }
       repo_ref="$2"
+      ref_explicit=1
       shift 2
       ;;
     help|--help|-h)
@@ -129,7 +131,49 @@ update_existing_checkout() {
 }
 
 if [[ "$checkout_explicit" != 1 && -f flake.nix && -d .git ]]; then
+  # Building the checkout the user is standing in. This deliberately does not
+  # run update_existing_checkout: a hard `checkout -B` here would discard work
+  # in someone's own development tree. What it must not do is keep claiming
+  # the requested ref -- "Source ref: main" while building whatever branch is
+  # actually checked out is how this silently built the wrong revision.
   checkout="$PWD"
+  current_ref=""
+  if command -v git >/dev/null 2>&1; then
+    current_ref="$(git -C "$checkout" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+    [[ "$current_ref" != "HEAD" ]] || current_ref="$(git -C "$checkout" rev-parse HEAD 2>/dev/null || true)"
+  fi
+
+  # Compare what the names resolve to, not the names themselves. A branch
+  # name, a tag, and a full or abbreviated commit id can all denote the commit
+  # that is already checked out, and comparing the strings would reject
+  # `--ref "$(git rev-parse HEAD)"` even though it asks for this exact commit.
+  #
+  # The guard proceeds only on positive proof that the requested ref *is* the
+  # commit checked out here. Anything that leaves that unproven -- no git, an
+  # unresolvable ref, an unreadable checkout -- refuses. Testing
+  # `-n "$current_ref"` here instead would invert that: with git unavailable
+  # every variable is empty, the guard is skipped, and the build proceeds
+  # while labelling itself with the requested ref, which is the exact failure
+  # this code exists to prevent.
+  if [[ "$ref_explicit" == 1 ]]; then
+    requested_commit=""
+    head_commit=""
+    if command -v git >/dev/null 2>&1; then
+      requested_commit="$(git -C "$checkout" rev-parse --verify --quiet "${repo_ref}^{commit}" 2>/dev/null || true)"
+      head_commit="$(git -C "$checkout" rev-parse --verify --quiet 'HEAD^{commit}' 2>/dev/null || true)"
+    fi
+
+    if [[ -z "$requested_commit" || -z "$head_commit" || "$requested_commit" != "$head_commit" ]]; then
+      printf 'abora build: this checkout (%s) is on "%s", not the requested "%s".\n' \
+        "$checkout" "${current_ref:-unknown}" "$repo_ref" >&2
+      printf 'abora build: refusing to build a different ref than you asked for.\n' >&2
+      printf 'abora build: switch this checkout yourself (git checkout %s), or build\n' "$repo_ref" >&2
+      printf 'abora build: a managed copy instead: abora build --from-source --checkout ~/Abora-OS --ref %s\n' "$repo_ref" >&2
+      exit 1
+    fi
+  fi
+
+  [[ -z "$current_ref" ]] || repo_ref="$current_ref"
 elif [[ -d "$checkout/.git" && -f "$checkout/flake.nix" ]]; then
   # An existing checkout at this path used to just get reused as-is, with
   # no `git fetch`/`checkout` at all -- the "Source ref: <requested>" line

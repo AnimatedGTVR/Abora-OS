@@ -36,6 +36,7 @@ Use this after a local release build or after the GitHub ISO workflow succeeds.
 - confirm the Omarchy-inspired installer welcome screen renders correctly
 - confirm the wallpaper pack is present in the live image
 - confirm `abora gaming status` runs in the live shell
+- confirm the installer offers Abora Labs as disabled by default and clearly labels it experimental
 
 ## Install Test
 
@@ -44,6 +45,7 @@ Use this after a local release build or after the GitHub ISO workflow succeeds.
 - confirm preflight failure screens expose Network tools, Debug tools, Open terminal, and retry
 - confirm installer progress reaches the install phase
 - confirm generated config validation runs before `nixos-install`
+- confirm preflight validates the bundled target lock as a pinned `NixOS/nixpkgs` `nixos-unstable` GitHub input and verifies its NAR hash against the bundled source before partitioning
 - confirm install failure screens show `/tmp/abora-install.log`
 - confirm install failure screens can relaunch the installer without rebooting
 - remove the ISO or boot with `make qemu-disk`
@@ -56,12 +58,14 @@ Use this after a local release build or after the GitHub ISO workflow succeeds.
 - confirm `abora config` shows the installed GPU driver and `abora config set gpu <value>` updates it
 - confirm the installer can enable Desktop Gaming + Big Picture, then the installed config contains `abora.gaming.enable = true`, `abora.gaming.steam = true`, `abora.gaming.controllerSupport = true`, `abora.gaming.mangohud = true`, `abora.gaming.gamemode = true`, `abora.gaming.vulkanTools = true`, and `abora.gaming.launchers = true`
 - confirm `abora gaming status`, `abora gaming doctor`, and `abora gaming big-picture on` run on the installed system
+- with Labs disabled, confirm `abora labs status` explains how to enable it and no Labs workspace exists
+- with Labs enabled, confirm `abora labs status` reports `not downloaded`, declining `abora labs install` creates nothing, and typing `LABS` clones only into the user's data directory
+- modify the Labs checkout and confirm `abora labs update` refuses to overwrite local changes
 - capture the required docs/release screenshots from `docs/screenshots.md`
 
 ## ANIX Language Gate
 
-- confirm `anix language list` shows ANIX Native, MAKO, and ModuCPP
-- confirm `.mko` examples still use `using ANIX;`
+- confirm `anix language list` shows ANIX Native and ModuCPP, with no built-in MAKO adapter
 - confirm `.moducpp` examples still use `add ANIX;`
 - confirm `tools/moducpp-anix` is executable and included in the ANIX package
 - confirm the standalone ANIX package includes `docs/wiki/Abora-Gaming.md`

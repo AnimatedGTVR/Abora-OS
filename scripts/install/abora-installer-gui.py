@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Abora OS GUI Installer - legacy launcher for Abora OS v4 Everest."""
+"""Abora OS GUI Installer - legacy launcher for Abora OS v4.1 Horizon."""
 
 import gi
 gi.require_version('Gtk', '4.0')
@@ -22,7 +22,7 @@ from pathlib import Path
 # ── Runtime paths ──────────────────────────────────────────────────────────────
 INSTALLER_BIN  = os.environ.get('ABORA_INSTALLER', '/etc/abora/installer.sh')
 LOG_FILE       = '/tmp/abora-gui-installer.log'
-VERSION        = os.environ.get('ABORA_VERSION', 'v4 Everest')
+VERSION        = os.environ.get('ABORA_VERSION', 'v4.1 Horizon')
 LOGO_FILE      = os.environ.get('ABORA_LOGO', '/etc/abora/Abora-LOGO.png')
 EDITION        = os.environ.get('ABORA_EDITION', 'cosmic')
 ZONE_DIR       = Path('/usr/share/zoneinfo')
@@ -233,23 +233,24 @@ LOCALES = [
     ('vi_VN.UTF-8', 'Vietnamese (Tiếng Việt)'),
 ]
 
+# Console keymaps and XKB layouts use different names for several languages.
 KEYBOARDS = [
-    ('us',  'US English'),
-    ('gb',  'UK English'),
-    ('de',  'German'),
-    ('fr',  'French'),
-    ('es',  'Spanish'),
-    ('pt',  'Portuguese'),
-    ('it',  'Italian'),
-    ('nl',  'Dutch'),
-    ('pl',  'Polish'),
-    ('se',  'Swedish'),
-    ('ru',  'Russian'),
-    ('jp',  'Japanese'),
-    ('cn',  'Chinese'),
-    ('kr',  'Korean'),
-    ('tr',  'Turkish'),
-    ('br',  'Brazilian Portuguese'),
+    ('us',        'us', 'US English'),
+    ('uk',        'gb', 'UK English'),
+    ('de',        'de', 'German'),
+    ('fr',        'fr', 'French'),
+    ('es',        'es', 'Spanish'),
+    ('pt-latin1', 'pt', 'Portuguese'),
+    ('it',        'it', 'Italian'),
+    ('nl',        'nl', 'Dutch'),
+    ('pl',        'pl', 'Polish'),
+    ('sv-latin1', 'se', 'Swedish'),
+    ('ru',        'ru', 'Russian'),
+    ('jp106',     'jp', 'Japanese'),
+    ('us',        'cn', 'Chinese'),
+    ('us',        'kr', 'Korean'),
+    ('trq',       'tr', 'Turkish'),
+    ('br-abnt2',  'br', 'Brazilian Portuguese'),
 ]
 
 WALLPAPERS = [
@@ -523,14 +524,19 @@ def hash_password(pw: str) -> str:
     """Return a SHA-512 crypt hash, or '' on failure."""
     if not pw:
         return ''
-    try:
-        r = subprocess.run(
-            ['openssl', 'passwd', '-6', '--', pw],
-            capture_output=True, text=True, timeout=10
-        )
-        return r.stdout.strip() if r.returncode == 0 else ''
-    except Exception:
-        return ''
+    # The password is sent on stdin, not on the command line, so it can't be read from `ps`.
+    # Try openssl, then mkpasswd; the result must be a SHA-512 crypt string ($6$...) or it's rejected.
+    for cmd in (['openssl', 'passwd', '-6', '-stdin'], ['mkpasswd', '-m', 'sha-512', '-s']):
+        if not shutil.which(cmd[0]):
+            continue
+        try:
+            r = subprocess.run(cmd, input=pw + '\n', capture_output=True, text=True, timeout=10)
+        except Exception:
+            continue
+        out = r.stdout.strip()
+        if r.returncode == 0 and out.startswith('$6$'):
+            return out
+    return ''
 
 
 def _boot_media_disk_names() -> set[str]:
@@ -632,6 +638,7 @@ class State:
     password      = ''
     tz            = 'UTC'
     keyboard      = 'us'
+    xkb_layout    = 'us'
     locale        = 'en_US.UTF-8'
     locale_label  = 'English (United States)'
     desktop       = os.environ.get('ABORA_DEFAULT_DESKTOP', 'cosmic')
@@ -640,6 +647,7 @@ class State:
     apps          = 'favorites'
     gaming        = 'none'
     anix          = True
+    labs          = False
     wallpaper     = 'titlis-alps.jpg'
     dotfiles_url  = ''
 
@@ -784,7 +792,7 @@ class LanguagePage(Gtk.Widget):
         grp.add(self._tz_row)
 
         kb_model = Gtk.StringList()
-        for _, lbl in KEYBOARDS:
+        for _, _, lbl in KEYBOARDS:
             kb_model.append(lbl)
         self._kb_row = Adw.ComboRow(title='Keyboard Layout')
         self._kb_row.set_model(kb_model)
@@ -808,6 +816,7 @@ class LanguagePage(Gtk.Widget):
         self._state.locale_label = LOCALES[li][1]
         self._state.tz           = self._zones[ti]
         self._state.keyboard     = KEYBOARDS[ki][0]
+        self._state.xkb_layout   = KEYBOARDS[ki][1]
 
 
 class IdentityPage(Gtk.Widget):
@@ -864,6 +873,9 @@ class IdentityPage(Gtk.Widget):
         pw2 = self._pw2_row.get_text()
         if not re.fullmatch(r'[a-z][a-z0-9_-]{0,30}', un):
             self._err.set_label('Username: start with a letter, a-z 0-9 _ - only, max 31 chars.')
+            return False
+        if un in ('liveuser', 'aboraos'):
+            self._err.set_label('That username is reserved for the Abora live environment.')
             return False
         if not re.fullmatch(r'[a-z][a-z0-9-]{0,62}', hn):
             self._err.set_label('Hostname: start with a letter, a-z 0-9 - only, max 63 chars.')
@@ -1003,6 +1015,15 @@ class DiskPage(Gtk.Box):
         self._grp = Adw.PreferencesGroup(title='Available Disks')
         inner.append(self._grp)
 
+        # Partition editor: lets people shrink, create or delete partitions before installing.
+        # The GUI install itself still uses the whole selected disk; to install onto one existing
+        # partition, use the text installer's "Use an existing partition" option.
+        if shutil.which('gparted'):
+            pe = Gtk.Button(label='Open partition editor (GParted)', halign=Gtk.Align.START)
+            pe.set_margin_top(12)
+            pe.connect('clicked', self._open_partition_editor)
+            inner.append(pe)
+
         self._empty_lbl = Gtk.Label(
             label='No suitable disks found. Make sure a disk is attached.',
             xalign=0, wrap=True
@@ -1019,6 +1040,23 @@ class DiskPage(Gtk.Box):
         self.append(sw)
 
         self._refresh()
+
+    def _open_partition_editor(self, _button):
+        """Runs GParted with root rights and refreshes the disk list when it closes."""
+        launcher = shutil.which('pkexec') or shutil.which('sudo')
+        cmd = ([launcher] if launcher else []) + ['gparted']
+        if launcher and launcher.endswith('sudo'):
+            cmd = [launcher, '-n', 'gparted']
+        try:
+            proc = subprocess.Popen(cmd)
+        except OSError:
+            return
+
+        def wait():
+            proc.wait()
+            GLib.idle_add(self._refresh)
+
+        threading.Thread(target=wait, daemon=True).start()
 
     def _refresh(self):
         for row in self._disk_group_rows:
@@ -1188,6 +1226,22 @@ class OptionsPage(Gtk.Widget):
         anix_row.set_activatable_widget(self._anix_sw)
         sgrp.add(anix_row)
 
+        labs_row = Adw.ActionRow(
+            title='Enable Abora Labs',
+            subtitle='Experimental workspace manager; downloads nothing during installation',
+        )
+        self._labs_sw = Gtk.Switch(valign=Gtk.Align.CENTER, active=state.labs)
+        labs_row.add_suffix(self._labs_sw)
+        labs_row.set_activatable_widget(self._labs_sw)
+        sgrp.add(labs_row)
+
+        warning = Adw.ActionRow(
+            title='Experimental and unsupported',
+            subtitle='Labs stays separate from system updates. Review experiments before running them.',
+        )
+        warning.add_prefix(Gtk.Image.new_from_icon_name('dialog-warning-symbolic'))
+        sgrp.add(warning)
+
         wgrp = Adw.PreferencesGroup(title='Default Wallpaper')
         inner.append(wgrp)
 
@@ -1211,6 +1265,7 @@ class OptionsPage(Gtk.Widget):
 
     def collect(self):
         self._state.anix     = self._anix_sw.get_active()
+        self._state.labs     = self._labs_sw.get_active()
         wi = self._wp_row.get_selected()
         self._state.wallpaper = WALLPAPERS[wi][0]
 
@@ -1325,9 +1380,10 @@ class SummaryPage(Gtk.Widget):
             ('Gaming',     gaming_lbl),
             ('Locale',     state.locale_label),
             ('Timezone',   state.tz),
-            ('Keyboard',   state.keyboard),
+            ('Keyboard',   f'{state.keyboard} / {state.xkb_layout}'),
             ('Wallpaper',  wp_lbl),
             ('ANIX',       'Enabled' if state.anix else 'Disabled'),
+            ('Abora Labs', 'Enabled (experimental)' if state.labs else 'Disabled'),
         ] + ([('Dotfiles', state.dotfiles_url or '(skip)')] if EDITION in ('hyprland', 'other') else []):
             row = Adw.ActionRow(title=title)
             lbl = Gtk.Label(label=value, valign=Gtk.Align.CENTER, selectable=True)
@@ -1746,7 +1802,7 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
                 ('root_password_hash',      ''),
                 ('timezone_value',          self._state.tz),
                 ('keyboard_value',          self._state.keyboard),
-                ('xkb_layout_value',        self._state.keyboard),
+                ('xkb_layout_value',        self._state.xkb_layout),
                 ('locale_value',            self._state.locale),
                 ('language_label',          self._state.locale_label),
                 ('desktop_profile',         self._state.desktop),
@@ -1767,6 +1823,7 @@ class AboraInstallerWindow(Adw.ApplicationWindow):
                 ('gaming_launchers',        'yes' if gaming_enabled else 'no'),
                 ('install_gaming_during_setup', 'no'),
                 ('anix_enabled',            'yes' if self._state.anix else 'no'),
+                ('labs_enabled',            'yes' if self._state.labs else 'no'),
                 ('dotfiles_url',            self._state.dotfiles_url),
             ]:
                 f.write(f'{k}={shlex.quote(v)}\n')

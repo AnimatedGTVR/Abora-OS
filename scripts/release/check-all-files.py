@@ -6,7 +6,7 @@ actually on disk (skipping out/, .git/, vendor/ and the TinyPM/ submodule --
 like vendor/, third-party-shaped with its own conventions and CI) and
 validates each by type, plus every extensionless-but-shebanged shell script
 (e.g. tools/moducpp-anix), every wallpaper theme .conf (sourced as shell), and
-every ANIX v2 source file (.anix/.mko/.moducpp) via `anix diff-plan`, so a new
+every ANIX v2 source file (.anix/.moducpp) via `anix diff-plan`, so a new
 file that nobody registered anywhere still gets checked.
 
 Usage:
@@ -482,7 +482,7 @@ class Sweep:
         self.section("ANIX v2 plan sources (anix diff-plan, non-destructive)")
         if not self.has["jq"]:
             self.ok("jq unavailable (anix plan checks skipped)")
-        for ext in ("anix", "mko", "moducpp"):
+        for ext in ("anix", "moducpp"):
             for file in find_files(root, ext):
                 self.check_anix_plan(file)
 

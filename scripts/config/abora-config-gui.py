@@ -362,15 +362,29 @@ class ConfigWindow(Adw.ApplicationWindow):
         # throwaway test fixture), which could mean writing to the real
         # system by accident during testing.
         prefix = sudo_prefix() + ['env', f'ABORA_SYSTEM_CONFIG={CONFIG_DIR}']
-        for key, value in changed.items():
-            proc = subprocess.run(
-                prefix + [CONFIG_SCRIPT, 'set', key, value],
-                capture_output=True, text=True, timeout=30,
-            )
-            if proc.returncode != 0:
-                GLib.idle_add(self._on_apply_done, False, f'Setting {key}: {clean_cli_message(proc.stderr or proc.stdout)}')
-                return
-        proc = subprocess.run(prefix + [CONFIG_SCRIPT, 'apply'], capture_output=True, text=True, timeout=1800)
+        # This runs on a daemon thread, and only _on_apply_done re-enables the
+        # apply button. An exception escaping here -- TimeoutExpired while the
+        # user is still at the polkit prompt, FileNotFoundError on a dev run
+        # with no CONFIG_SCRIPT -- killed the thread with the status row stuck
+        # on "Applying changes..." and no way to retry short of restarting.
+        # The per-`set` budget also has to cover interactive authentication,
+        # not just the script run, so 30s was far too tight.
+        try:
+            for key, value in changed.items():
+                proc = subprocess.run(
+                    [*prefix, CONFIG_SCRIPT, 'set', key, value],
+                    capture_output=True, text=True, timeout=300,
+                )
+                if proc.returncode != 0:
+                    GLib.idle_add(self._on_apply_done, False, f'Setting {key}: {clean_cli_message(proc.stderr or proc.stdout)}')
+                    return
+            proc = subprocess.run([*prefix, CONFIG_SCRIPT, 'apply'], capture_output=True, text=True, timeout=1800)
+        except subprocess.TimeoutExpired:
+            GLib.idle_add(self._on_apply_done, False, 'Timed out waiting for the configuration script.')
+            return
+        except OSError as exc:
+            GLib.idle_add(self._on_apply_done, False, f'Could not run {CONFIG_SCRIPT}: {exc}')
+            return
         if proc.returncode != 0:
             GLib.idle_add(self._on_apply_done, False, clean_cli_message(proc.stderr)[-800:] or 'Rebuild failed.')
             return

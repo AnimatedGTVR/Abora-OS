@@ -52,11 +52,11 @@ The normal release bundle includes:
 
 ## Tagging A Release
 
-For the current Abora OS v4 Everest line:
+For the current Abora OS v4.1 Horizon line:
 
 ```sh
-git tag v4.0
-git push origin v4.0
+git tag v4.1
+git push origin v4.1
 ```
 
 That triggers the GitHub release workflow for the tagged version.

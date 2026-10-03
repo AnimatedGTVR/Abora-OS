@@ -74,12 +74,13 @@ usage() {
     printf '  %bsudo abora apps custom update modularity-stable --zip <file>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Install or update Modularity Stable from a downloaded Linux zip."
     printf '\n'
-    printf '  %bsudo abora apps custom update modularity-stable --url <url>%b\n' "$ABORA_CYAN" "$ABORA_NC"
-    abora_dim_line "  Download the zip first, then install it."
+    printf '  %bsudo abora apps custom update modularity-stable --url <url> --sha256 <digest>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Download the zip over HTTPS, verify it, then install it."
     printf '\n'
     printf '  %bOptions%b\n\n' "$ABORA_WHITE" "$ABORA_NC"
     printf '  %b--version <version>%b       Save the installed standalone package version.\n' "$ABORA_CYAN" "$ABORA_NC"
     printf '  %b--zip-root <folder>%b      Expected folder inside the zip. Defaults to Modularity-<version>-Linux.\n' "$ABORA_CYAN" "$ABORA_NC"
+    printf '  %b--sha256 <digest>%b        SHA-256 of the archive. Required with --url, optional with --zip.\n' "$ABORA_CYAN" "$ABORA_NC"
     printf '  %b--no-rebuild%b             Update files only; run abora apps rebuild later.\n' "$ABORA_CYAN" "$ABORA_NC"
     printf '  %b--dry-run%b                Validate inputs and print what would happen.\n' "$ABORA_CYAN" "$ABORA_NC"
     printf '\n'
@@ -176,16 +177,65 @@ show_info() {
     printf '\n'
 }
 
+require_https_url() {
+    local url="$1"
+
+    if [[ "$url" != https://* ]]; then
+        abora_error "Refusing to download over a non-HTTPS URL: ${url}"
+        abora_dim_line "Custom packages are installed with root privileges, so the download must be authenticated."
+        exit 1
+    fi
+}
+
+# The downloaded archive goes straight to `install -m 0755` under
+# /etc/nixos as root, so an unverified download is remote code execution
+# for anyone able to sit between here and the server. --proto '=https' and
+# --proto-redir keep curl on HTTPS across redirects; wget gets the same
+# restriction via --https-only.
 download_to_file() {
     local url="$1" output="$2"
+
+    require_https_url "$url"
+
     if command -v curl >/dev/null 2>&1; then
-        curl -fL "$url" -o "$output"
+        curl -fL --proto '=https' --proto-redir '=https' "$url" -o "$output"
     elif command -v wget >/dev/null 2>&1; then
-        wget -O "$output" "$url"
+        wget --https-only -O "$output" "$url"
     else
         abora_error "curl or wget is required to download custom packages."
         exit 1
     fi
+}
+
+verify_sha256() {
+    local file="$1" expected="$2" actual
+
+    [[ -n "$expected" ]] || return 0
+
+    if [[ ! "$expected" =~ ^[0-9a-fA-F]{64}$ ]]; then
+        abora_error "--sha256 needs a 64-character hex SHA-256 digest."
+        exit 2
+    fi
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        actual="$(sha256sum "$file" | awk '{print $1}')"
+    elif command -v shasum >/dev/null 2>&1; then
+        actual="$(shasum -a 256 "$file" | awk '{print $1}')"
+    else
+        abora_error "sha256sum or shasum is required to verify a download."
+        exit 1
+    fi
+
+    # Lowercase both sides so a digest pasted from a release page in either
+    # case still compares equal.
+    if [[ "${actual,,}" != "${expected,,}" ]]; then
+        abora_error "Checksum mismatch. Refusing to install this archive."
+        abora_dim_line "expected: ${expected,,}"
+        abora_dim_line "actual:   ${actual,,}"
+        exit 1
+    fi
+
+    abora_success "SHA-256 verified."
 }
 
 write_state() {
@@ -199,7 +249,15 @@ write_state() {
         printf 'CUSTOM_PACKAGE_UPDATED_AT=%q\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } > "$tmp"
     run_as_root mkdir -p "$state_dir"
-    run_as_root mv "$tmp" "$(state_file_for "$id")"
+    # show_info sources this file, and this script normally runs under sudo,
+    # so a state file left owned by the invoking user would be arbitrary code
+    # running as root. `mv` preserves the mktemp owner; `install` does not.
+    if [[ "$(id -u)" -eq 0 || "${ABORA_NO_SUDO:-0}" != "1" ]]; then
+        run_as_root install -o root -g root -m 0644 "$tmp" "$(state_file_for "$id")"
+    else
+        install -m 0644 "$tmp" "$(state_file_for "$id")"
+    fi
+    rm -f "$tmp"
 }
 
 install_modularity_zip() {
@@ -271,7 +329,7 @@ install_modularity_zip() {
 }
 
 update_package() {
-    local id="${1:-}" zip_path="" url="" version="7.0.0" zip_root="" no_rebuild=false dry_run=false
+    local id="${1:-}" zip_path="" url="" version="7.0.0" zip_root="" no_rebuild=false dry_run=false sha256=""
     [[ -n "$id" ]] || { usage; exit 1; }
     id="$(canonical_package_id "$id")"
     shift || true
@@ -290,6 +348,9 @@ update_package() {
             --zip-root)
                 shift; [[ $# -gt 0 ]] || { abora_error "--zip-root needs a folder name"; exit 2; }
                 zip_root="$1"; shift ;;
+            --sha256)
+                shift; [[ $# -gt 0 ]] || { abora_error "--sha256 needs a digest"; exit 2; }
+                sha256="$1"; shift ;;
             --no-rebuild) no_rebuild=true; shift ;;
             --dry-run) dry_run=true; no_rebuild=true; shift ;;
             -h|--help) usage; exit 0 ;;
@@ -302,13 +363,25 @@ update_package() {
 
     if [[ -n "$url" ]]; then
         local tmp_zip
+        # A downloaded archive is unpacked and installed as root. Without a
+        # digest to compare against there is nothing tying the bytes on the
+        # wire to the release the user asked for, so require one rather than
+        # trusting transport security alone.
+        if [[ -z "$sha256" ]]; then
+            abora_error "--url also needs --sha256 <digest>."
+            abora_dim_line "The archive is installed with root privileges, so it has to be verified first."
+            abora_dim_line "Take the digest from the release page, or compute it with: sha256sum <file>"
+            exit 2
+        fi
         tmp_zip="$(mktemp)"
         _custom_pkg_register_cleanup "$tmp_zip"
         abora_step "Downloading custom package"
         download_to_file "$url" "$tmp_zip"
+        verify_sha256 "$tmp_zip" "$sha256"
         zip_path="$tmp_zip"
         install_modularity_zip "$zip_path" "$version" "$zip_root" "$url" "$no_rebuild" "$dry_run"
     elif [[ -n "$zip_path" ]]; then
+        verify_sha256 "$zip_path" "$sha256"
         install_modularity_zip "$zip_path" "$version" "$zip_root" "$zip_path" "$no_rebuild" "$dry_run"
     else
         abora_error "Provide --zip <file> or --url <url>."

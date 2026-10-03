@@ -336,6 +336,8 @@ let
   '';
 in
 {
+  imports = [ ../modules/community.nix ];
+  abora.community.reminders = false;
   system.stateVersion = "26.05";
   nixpkgs.config.allowUnfree = true;
   networking.hostName = "abora";
@@ -389,10 +391,10 @@ in
     label = version;
     extraOSReleaseArgs = {
       LOGO = "abora";
-      VERSION = "v4 Everest";
-      VERSION_ID = "4";
-      VERSION_CODENAME = "everest";
-      PRETTY_NAME = "Abora OS v4 Everest";
+      VERSION = "v4.1 Horizon";
+      VERSION_ID = "4.1";
+      VERSION_CODENAME = "horizon";
+      PRETTY_NAME = "Abora OS v4.1 Horizon";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
       BUG_REPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
@@ -530,6 +532,7 @@ in
     dosfstools  # mkfs.vfat
     e2fsprogs   # mkfs.ext4
     parted
+    gparted     # graphical partition editor, opened from the installer's disk step
     util-linux  # wipefs, lsblk, mount …
 
     # ── Boot management ──────────────────────────────────────────────────────
@@ -624,6 +627,10 @@ in
         source = ../../scripts/apps/abora-gaming.sh;
         mode = "0755";
       };
+      "abora/labs.sh" = {
+        source = ../../scripts/apps/abora-labs.sh;
+        mode = "0755";
+      };
       "abora/dotfiles-import.sh" = {
         source = ../../scripts/config/abora-dotfiles-import.sh;
         mode = "0755";
@@ -691,10 +698,10 @@ in
       "xdg/fastfetch/config.jsonc".source = ../../assets/fastfetch-config.jsonc;
       "xdg/fastfetch/abora-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "issue".text = ''
-        Abora OS v4 Everest
+        Abora OS v4.1 Horizon
       '';
       "issue.net".text = ''
-        Abora OS v4 Everest
+        Abora OS v4.1 Horizon
       '';
       "profile.d/abora-live.sh".text = ''
         # Only greet on real TTY sessions (not COSMIC/graphical login shells)

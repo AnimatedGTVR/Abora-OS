@@ -168,13 +168,23 @@ def main() -> int:
         args += ["-cpu", "qemu64"]
 
     # UEFI firmware (optional — mirrors real hardware better).
-    firmware = next((Path(d) for d in FIRMWARE_DIRS if (Path(d) / "OVMF_CODE.fd").is_file()), None)
-    if firmware is not None and (firmware / "OVMF_VARS.fd").is_file():
-        vars_copy = qemu_dir / "OVMF_VARS.fd"
+    # Debian/Ubuntu (and Pop!_OS) ship only the 4M variants, so try both suffixes in each directory.
+    firmware_code = firmware_vars = None
+    for d in FIRMWARE_DIRS:
+        for suffix in ("", "_4M"):
+            code, vars_ = Path(d) / f"OVMF_CODE{suffix}.fd", Path(d) / f"OVMF_VARS{suffix}.fd"
+            if code.is_file() and vars_.is_file():
+                firmware_code, firmware_vars = code, vars_
+                break
+        if firmware_code is not None:
+            break
+    if firmware_code is not None and firmware_vars is not None:
+        # Named after the source so a 2M vars copy never pairs with 4M code.
+        vars_copy = qemu_dir / firmware_vars.name
         if not vars_copy.is_file():
-            shutil.copyfile(firmware / "OVMF_VARS.fd", vars_copy)
+            shutil.copyfile(firmware_vars, vars_copy)
         args += [
-            "-drive", f"if=pflash,format=raw,readonly=on,file={firmware / 'OVMF_CODE.fd'}",
+            "-drive", f"if=pflash,format=raw,readonly=on,file={firmware_code}",
             "-drive", f"if=pflash,format=raw,file={vars_copy}",
         ]
 

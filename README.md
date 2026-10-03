@@ -108,15 +108,16 @@ Examples include:
 3.0
 3.14
 4.0 / v4 Everest
+4.1 / v4.1 Horizon
 ```
 
-This is what final releases track by default, and what most people should run once v4 graduates from alpha.
+This is what final releases track by default, and what most people should run once Horizon graduates from alpha.
 
 ### Edge
 
 Tracks `edge` directly, no waiting for a tag. Same deal as `nixos-unstable`: newest installer work, desktop changes, ANIX changes, and fixes land here first, before anything's been fully vetted. Things can and do break.
 
-Abora OS v4 Everest alpha installs default to this line so they can receive alpha fixes from `edge`.
+Abora OS v4.1 Horizon alpha installs default to this line so they can receive alpha fixes from `edge`.
 
 New installer work, desktop changes, ANIX changes, and fixes arrive here first. Edge may contain unfinished features or bugs.
 
@@ -198,6 +199,19 @@ abora gaming repair-cache
 ```
 
 It can add Steam, Wine, Winetricks, GameMode, MangoHud, Vulkan tools, controller support, launchers, and an optional Gamescope Big Picture session. Steam-related commands enable the required parent options automatically, so `abora gaming big-picture on` also turns on the Steam support it needs. If Nix reports a local fetch-cache disk I/O error during a Gaming install, `abora gaming repair-cache` clears the stale per-user cache files.
+
+## Abora Labs
+
+The installer can optionally add the Abora Labs workspace manager. Labs remains
+separate from system updates and does not download or execute experiments during
+installation.
+
+    abora labs status
+    abora labs install
+    abora labs update
+
+Labs is experimental and unsupported. Review an experiment before running it,
+and never replace the installed system flake with the Labs checkout.
 
 ---
 

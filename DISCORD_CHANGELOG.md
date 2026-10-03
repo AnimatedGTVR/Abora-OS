@@ -1,4 +1,4 @@
-# Abora OS v4 Everest
+# Abora OS v4.1 Horizon
 
 ## Screenshots
 

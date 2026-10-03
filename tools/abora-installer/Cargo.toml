@@ -1,6 +1,6 @@
 [package]
 name = "abora-installer"
-version = "4.0.1-alpha"
+version = "4.1.0-alpha"
 edition = "2021"
 description = "Abora OS installer front controller"
 license = "MIT"

@@ -137,6 +137,26 @@ detect_legacy_gpu() {
 # detect_legacy_gpu reverse-engineer desktop/GPU the same way
 # abora_detect_desktop_profile does), then rewrites abora-local.nix in the
 # new form -- backing up the original alongside it first.
+# The console keymap and the graphical (XKB) layout have different names for
+# several keyboards: the Japanese console map is "jp106" but the layout is
+# "jp"; UK is "uk" vs "gb"; Turkish "trq" vs "tr"; and so on. Passing the
+# console name through as the layout leaves the desktop with an invalid layout.
+# Keep this in sync with KEYBOARDS in abora-installer-gui.py and with the copy
+# in abora-config.sh (scripts/install/tests/keyboard-layout.test.sh checks both).
+console_keymap_to_xkb() {
+    case "$1" in
+        uk)        echo gb ;;
+        jp106)     echo jp ;;
+        br-abnt2)  echo br ;;
+        sv-latin1) echo se ;;
+        trq)       echo tr ;;
+        # de-latin1, fr-latin1, pt-latin1, cz-lat2, ...: the suffix names an
+        # encoding of the console map and is not part of the layout name.
+        *-latin1|*-latin9|*-lat2) echo "${1%-*}" ;;
+        *)         echo "$1" ;;
+    esac
+}
+
 migrate_legacy_config() {
     require_local_module
     is_options_format && return 0
@@ -164,7 +184,7 @@ migrate_legacy_config() {
     timezone="${timezone:-UTC}"
     locale="${locale:-en_US.UTF-8}"
     kb_console="${kb_console:-us}"
-    kb_xkb="${kb_xkb:-$kb_console}"
+    kb_xkb="${kb_xkb:-$(console_keymap_to_xkb "$kb_console")}"
     user_name="${user_name:-abora}"
     desktop="${desktop:-cosmic}"
     disk="${disk:-}"
@@ -272,6 +292,39 @@ normalize_bool() {
             exit 1
             ;;
     esac
+}
+
+# do_set used to write string keys with a bare `sed -i` and then report
+# success unconditionally. When abora.<key> was not present in the module --
+# an older install, or a key this CLI learned about after the file was
+# generated -- sed matched nothing, the setting was silently dropped, and the
+# next rebuild quietly kept the old value. Mirror write_bool_option: replace
+# in place when the key exists, otherwise insert it.
+write_string_option() {
+    local key="$1" value="$2" escaped_key escaped_value tmp
+    escaped_key="${key//./\\.}"
+
+    if grep -Eq "^[[:space:]]*abora\\.${escaped_key}[[:space:]]*=" "$local_module"; then
+        # Escape the sed replacement metacharacters so a value containing a
+        # backslash, an ampersand, or the `|` delimiter is written literally.
+        escaped_value="$value"
+        escaped_value="${escaped_value//\\/\\\\}"
+        escaped_value="${escaped_value//&/\\&}"
+        escaped_value="${escaped_value//|/\\|}"
+        run_as_root sed -i -E \
+            "s|^[[:space:]]*abora\\.${escaped_key}[[:space:]]*=.*|  abora.${key} = \"${escaped_value}\";|" \
+            "$local_module"
+        return 0
+    fi
+
+    tmp="$(mktemp)"
+    awk -v line="  abora.${key} = \"${value}\";" '
+        /^[[:space:]]*}[[:space:]]*$/ && !done { print line; done=1 }
+        { print }
+        END { if (!done) print line }
+    ' "$local_module" > "$tmp"
+    run_as_root cp "$tmp" "$local_module"
+    rm -f "$tmp"
 }
 
 write_bool_option() {
@@ -645,11 +698,7 @@ do_set() {
             ;;
     esac
 
-    # Write the new value — one sed pass, works for all keys.
-    local escaped_key="${key//./\\.}"
-    run_as_root sed -i -E \
-        "s|^([[:space:]]*abora\\.${escaped_key}[[:space:]]*=[[:space:]]*)\"[^\"]*\";|\\1\"${value}\";|" \
-        "$local_module"
+    write_string_option "$key" "$value"
 
     abora_success "'abora.${key}' set to '${value}'"
     abora_dim_line "Run 'abora config apply' to rebuild the system."

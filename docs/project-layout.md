@@ -1,6 +1,6 @@
 # Project Layout
 
-This is the quick map of the Abora OS repo for the Abora OS v4 Everest release.
+This is the quick map of the Abora OS repo for the Abora OS v4.1 Horizon release.
 
 ## Top Level
 

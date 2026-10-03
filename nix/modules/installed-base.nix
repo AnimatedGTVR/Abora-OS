@@ -15,6 +15,8 @@ let
   aboraScript          = ./abora.sh;
   desktopScript        = ./desktop.sh;
   gamingScript         = ./gaming.sh;
+  labsScript =
+    if builtins.pathExists ./labs.sh then ./labs.sh else null;
   dotfilesImportScript = ./dotfiles-import.sh;
   # doctor, check-full, recovery, welcome, support-report and hardware-test
   # are Python (scripts/support/*.py) but keep their .sh names here: a 4.0
@@ -149,6 +151,9 @@ let
   aboraGaming = pkgs.writeShellScriptBin "abora-gaming" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/gaming.sh "$@"
   '';
+  aboraLabs = pkgs.writeShellScriptBin "abora-labs" ''
+    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/labs.sh "$@"
+  '';
   aboraDotfilesImport = pkgs.writeShellScriptBin "abora-dotfiles-import" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/dotfiles-import.sh "$@"
   '';
@@ -191,6 +196,16 @@ let
   # this is a separate, dedicated app for games specifically -- your
   # gaming platforms at a glance, signing into Steam, and installing a
   # platform to get a game running through. See abora-gaming-welcome-gui.py.
+  # What the login autostart runs. Kept as a real script (not a long `sh -c '...'` inside the .desktop file)
+  # and called by absolute store path: Plasma 6 starts autostart entries through systemd, which has a smaller PATH
+  # (so a bare `abora-welcome-gui` was never found) and is strict about quoting in Exec= lines. GNOME ran the old
+  # entry fine, which is why only Plasma never opened the welcome app at first login.
+  aboraWelcomeAutostart = pkgs.writeShellScript "abora-welcome-autostart" ''
+    conf="''${XDG_CONFIG_HOME:-$HOME/.config}/abora/welcome.conf"
+    if [ -f "$conf" ] && ${pkgs.gnugrep}/bin/grep -qx "show_on_startup=false" "$conf"; then exit 0; fi
+    [ -f "$HOME/.cache/abora/welcome-seen" ] && exit 0
+    exec ${aboraWelcomeGui}/bin/abora-welcome-gui
+  '';
   aboraGamingWelcomeGui = pkgs.writeShellScriptBin "abora-gaming-welcome-gui" ''
     export GI_TYPELIB_PATH="${aboraGuiGiPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
     export LD_LIBRARY_PATH="${aboraGuiLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -358,6 +373,7 @@ let
   '';
 in
 {
+  imports = lib.optional (builtins.pathExists ./community.nix && builtins.pathExists ./community.py) ./community.nix;
   system.nixos = {
     distroId = "abora";
     distroName = "Abora OS";
@@ -365,13 +381,13 @@ in
     vendorName = "Abora OS";
     label = version;
     variant_id = lib.mkDefault "system";
-    variantName = lib.mkDefault "Abora OS v4 Everest";
+    variantName = lib.mkDefault "Abora OS v4.1 Horizon";
     extraOSReleaseArgs = lib.mapAttrs (_: lib.mkDefault) {
       LOGO = "abora";
-      VERSION = "v4 Everest";
-      VERSION_ID = "4";
-      VERSION_CODENAME = "everest";
-      PRETTY_NAME = "Abora OS v4 Everest";
+      VERSION = "v4.1 Horizon";
+      VERSION_ID = "4.1";
+      VERSION_CODENAME = "horizon";
+      PRETTY_NAME = "Abora OS v4.1 Horizon";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
       BUG_REPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
@@ -501,13 +517,20 @@ in
     after           = [ "network-online.target" "flatpak.service" ];
     wants           = [ "network-online.target" ];
     wantedBy        = [ "multi-user.target" ];
+    # network-online.target can be reached before a VM's network really works, so the
+    # first attempt may fail. Retry until Flathub is added instead of giving up (and
+    # reporting success) after one try, which left systems with no Flathub remote.
+    unitConfig.StartLimitIntervalSec = 0;
     serviceConfig   = {
       Type            = "oneshot";
       RemainAfterExit = true;
+      TimeoutStartSec = "2min";
+      Restart         = "on-failure";
+      RestartSec      = "30s";
     };
     script = ''
       ${pkgs.flatpak}/bin/flatpak remote-add --system --if-not-exists flathub \
-        https://dl.flathub.org/repo/flathub.flatpakrepo || true
+        https://dl.flathub.org/repo/flathub.flatpakrepo
     '';
   };
 
@@ -575,6 +598,7 @@ in
     curl
     feh
     fastfetch
+    firefox
     git
     iw
     jq
@@ -609,6 +633,7 @@ in
     ++ lib.optional (configGuiScript != null) aboraConfigGui
     ++ lib.optional (gamingWelcomeGuiScript != null) aboraGamingWelcomeGui
     ++ lib.optional config.abora.gaming.enable aboraGamingWelcomeDesktopPkg
+    ++ lib.optional (config.abora.labs.enable && labsScript != null) aboraLabs
   ++ lib.optionals config.abora.extras.diagnostics (with pkgs; [
     dmidecode
     ethtool
@@ -736,6 +761,10 @@ in
         source = gamingScript;
         mode = "0755";
       };
+      "abora/labs.sh" = lib.mkIf (labsScript != null) {
+        source = labsScript;
+        mode = "0755";
+      };
       "abora/dotfiles-import.sh" = {
         source = dotfilesImportScript;
         mode = "0755";
@@ -819,7 +848,7 @@ in
         mode = "0755";
       };
       "motd".text = ''
-        Abora OS v4 Everest
+        Abora OS v4.1 Horizon
 
           grab <app>          install an app  (flatpak, nix, or snap)
           search <app>        find apps across all sources
@@ -971,10 +1000,10 @@ in
         Opacity=0.84
       '';
       "issue".text = ''
-        Abora OS v4 Everest
+        Abora OS v4.1 Horizon
       '';
       "issue.net".text = ''
-        Abora OS v4 Everest
+        Abora OS v4.1 Horizon
       '';
     }
     // builtins.listToAttrs (
@@ -1024,9 +1053,11 @@ in
         Type=Application
         Name=Abora Welcome
         Comment=First steps and update checks for Abora OS
-        Exec=sh -c 'conf="''${XDG_CONFIG_HOME:-$HOME/.config}/abora/welcome.conf"; if [ -f "$conf" ] && grep -qx "show_on_startup=false" "$conf"; then exit 0; fi; test -f "$HOME/.cache/abora/welcome-seen" || exec abora-welcome-gui'
+        Exec=${aboraWelcomeAutostart}
         Icon=distributor-logo
         X-GNOME-Autostart-enabled=true
+        X-KDE-autostart-after=panel
+        X-KDE-StartupNotify=false
         NoDisplay=true
       '';
     }
