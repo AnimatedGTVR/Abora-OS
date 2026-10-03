@@ -15,28 +15,28 @@ def branding(ctx: Context) -> None:
         "README.md", "RELEASE_NOTES.md", "docs", "scripts", "nix",
     )
     passed = not old_branding and Check(
-        "runtime: v4 Everest branding is consistent",
-        grep("-q", "Abora OS v4 Everest", "RELEASE_NOTES.md"),
-        grep("-q", "git tag v4.0", "docs/wiki/Release-Guide.md"),
-        grep("-q", "x86_64-v4.0.iso", "RELEASE_NOTES.md"),
-        grep("-q", "SHA256SUMS-v4.0.txt", "RELEASE_NOTES.md"),
+        "runtime: v4.1 Horizon branding is consistent",
+        grep("-q", "Abora OS v4.1 Horizon", "RELEASE_NOTES.md"),
+        grep("-q", "git tag v4.1", "docs/wiki/Release-Guide.md"),
+        grep("-q", "x86_64-v4.1.iso", "RELEASE_NOTES.md"),
+        grep("-q", "SHA256SUMS-v4.1.txt", "RELEASE_NOTES.md"),
         grep("-q", 'abora_release_stage="${ABORA_RELEASE_STAGE:-alpha}"', "scripts/abora-installer.sh"),
         grep("-q", 'abora_release_channel="${ABORA_RELEASE_CHANNEL:-unstable}"', "scripts/abora-installer.sh"),
-        grep("-q", "Abora OS v4 Everest", "scripts/abora-installer.sh"),
-        grep("-q", "ABORA OS  —  v4 Everest", "scripts/abora-boot.sh"),
+        grep("-q", "Abora OS v4.1 Horizon", "scripts/abora-installer.sh"),
+        grep("-q", "ABORA OS  —  v4.1 Horizon", "scripts/abora-boot.sh"),
         grep("-qF", 'os.environ.get("ABORA_DEFAULT_CHANNEL") or "unstable"', "scripts/support/abora-welcome.py"),
         grep("-q", "ABORA_DEFAULT_CHANNEL', 'unstable'", "scripts/abora-welcome-gui.py"),
         grep("-qF", 'os.environ.get("ABORA_DEFAULT_CHANNEL") or "unstable"', "scripts/support/abora-doctor.py"),
-        grep("-q", "v4 Everest alpha default", "docs/wiki/Updating-Abora.md"),
-        grep("-qF", 'os.environ.get("ABORA_RELEASE_NAME") or "Abora OS v4 Everest"', "scripts/support/abora-support-report.py"),
-        grep("-q", "printf 'v4 Everest'", "scripts/abora-ui.sh"),
-        grep("-q", 'RELEASE_SHORT = "v4 Everest"', "scripts/check-desktops.py"),
-        grep("-q", 'PRETTY_NAME = "Abora OS v4 Everest"', "nix/profiles/live.nix"),
-        grep("-q", 'PRETTY_NAME = "Abora OS v4 Everest"', "nix/modules/installed-base.nix"),
-        grep("-q", 'VERSION = "v4 Everest"', "nix/profiles/live.nix"),
-        grep("-q", 'VERSION_ID = "4"', "nix/modules/installed-base.nix"),
+        grep("-q", "v4.1 Horizon alpha default", "docs/wiki/Updating-Abora.md"),
+        grep("-qF", 'os.environ.get("ABORA_RELEASE_NAME") or "Abora OS v4.1 Horizon"', "scripts/support/abora-support-report.py"),
+        grep("-q", "printf 'v4.1 Horizon'", "scripts/abora-ui.sh"),
+        grep("-q", 'RELEASE_SHORT = "v4.1 Horizon"', "scripts/check-desktops.py"),
+        grep("-q", 'PRETTY_NAME = "Abora OS v4.1 Horizon"', "nix/profiles/live.nix"),
+        grep("-q", 'PRETTY_NAME = "Abora OS v4.1 Horizon"', "nix/modules/installed-base.nix"),
+        grep("-q", 'VERSION = "v4.1 Horizon"', "nix/profiles/live.nix"),
+        grep("-q", 'VERSION_ID = "4.1"', "nix/modules/installed-base.nix"),
     ).conditions_hold(ctx)
-    ctx.result(passed, "runtime: v4 Everest branding is consistent")
+    ctx.result(passed, "runtime: v4.1 Horizon branding is consistent")
     if not passed and old_branding:
         ctx.detail(old_branding)
 

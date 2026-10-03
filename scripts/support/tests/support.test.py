@@ -274,6 +274,42 @@ def _():
     assert not differing, f"UI block differs from abora-doctor.py in: {differing}"
 
 
+@check("runtime: redaction handles Nix indented-string PSKs and full authorization headers")
+def _():
+    # Two credential shapes the redactor used to leak into a support archive, both reachable from files these tools
+    # copy verbatim: a Nix indented string (psk = ''passphrase''), which the single-quote branch matched as an empty
+    # value, and a Digest authorization header, whose credentials sit in later parameters past the first space.
+    redact = load("abora-support-report").redact
+    text = "\n".join([
+        "  psk = ''correct horse battery staple'';",
+        "  psk = ''unterminated indented string",
+        'Authorization: Digest username="alice", realm="ex", response="sensitive-response"',
+        "Authorization: Bearer ghp_bearer-secret",
+        "Authorization: Basic dXNlcjpwYXNz",
+        '  psk = "quoted-psk-secret";',
+        "ordinary line mentioning a token ring network",
+    ])
+    out = redact(text)
+    for secret in ("correct horse battery staple", "unterminated indented string", "sensitive-response", 'realm="ex"',
+                   "ghp_bearer-secret", "dXNlcjpwYXNz", "quoted-psk-secret"):
+        assert secret not in out, f"{secret!r} leaked: {out!r}"
+    expect(out, "Authorization: Bearer [redacted]", "Authorization: Basic [redacted]", "ordinary line mentioning a token ring network")
+
+
+@check("runtime: redaction handles multiline Nix indented-string credentials without gutting ordinary blocks")
+def _():
+    # psk = ''\n  passphrase\n''; -- a line-based redactor rewrote the opening line and left the passphrase on the next
+    # one, so the report read as sanitised while still carrying the secret. The collapse must stay scoped to credential
+    # keys: an ordinary extraConfig = '' ... '' block has to survive.
+    redact = load("abora-support-report").redact
+    out = redact("\n".join([
+        "  psk = ''", "    supersecret-multiline-passphrase", "  '';",
+        "  extraConfig = ''", "    keep-this-diagnostic-line", "  '';",
+    ]))
+    assert "supersecret-multiline-passphrase" not in out, out
+    expect(out, "[redacted]", "keep-this-diagnostic-line")
+
+
 @check("runtime: redaction hides credentials without devouring timestamps or host:port pairs")
 def _():
     redact = load("abora-support-report").redact

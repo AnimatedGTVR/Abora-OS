@@ -171,6 +171,13 @@ fi
 # script twice against a real local two-branch git repo (no network) and
 # confirms the second run, which asks for the other branch, actually
 # switches to it.
+# abora-build.sh and rebuild-vm.sh refuse to start without nix, and CI's script-check job has none, so the git ref
+# tests below would never reach the code they cover. A failing stub gets past that guard and makes the
+# eventual build step fail harmlessly whether or not real nix is installed.
+fake_nix_dir="$(mktemp -d)"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$fake_nix_dir/nix"
+chmod +x "$fake_nix_dir/nix"
+
 if command -v git >/dev/null 2>&1; then
   tmp_build_repo="$(mktemp -d)"
   tmp_build_checkout="$(mktemp -d)"
@@ -196,7 +203,7 @@ if command -v git >/dev/null 2>&1; then
   git clone -q --branch edge "$tmp_build_repo" "$tmp_build_checkout" >/dev/null 2>&1
   (
     cd /tmp
-    ABORA_SOURCE_DIR="$tmp_build_checkout" ABORA_REPO_URLS="$tmp_build_repo" \
+    PATH="$fake_nix_dir:$PATH" ABORA_SOURCE_DIR="$tmp_build_checkout" ABORA_REPO_URLS="$tmp_build_repo" \
       bash "$repo_dir/scripts/abora-build.sh" --from-source --ref main --target ".#doesnotexist" \
       >/dev/null 2>&1 || true
   )
@@ -304,5 +311,29 @@ else
 fi
 
 rm -rf "$_log_summary_dir"
+
+# Regression test: abora.sh lives in scripts/core, but the helpers it falls back to when the packaged command is
+# missing were moved into scripts/apps, scripts/install and scripts/support. The fallbacks still resolved
+# "$script_dir/<name>" -- i.e. scripts/core/<name> -- so every one of them pointed at a file that does not exist.
+# Assert the resolver returns a real file for each, rather than only that some string appears in the source.
+_resolve_helper_src="$(sed -n '/^resolve_helper() {/,/^}/p' scripts/core/abora.sh)"
+_resolve_helper_failures=""
+for _helper in abora-apps.sh abora-custom-packages.sh abora-gaming.sh \
+               abora-build.sh abora-adopt-nixos.sh abora-recovery.sh; do
+  _resolved="$(
+    script_dir="$repo_dir/scripts/core"
+    scripts_dir="$repo_dir/scripts"
+    eval "$_resolve_helper_src"
+    resolve_helper "$_helper" 2>/dev/null
+  )"
+  if [[ -z "$_resolved" || ! -f "$_resolved" ]]; then
+    _resolve_helper_failures="${_resolve_helper_failures} ${_helper}"
+  fi
+done
+if [[ -z "$_resolve_helper_failures" ]]; then
+  pass "runtime: abora.sh fallbacks resolve to real helper scripts outside scripts/core"
+else
+  fail "runtime: abora.sh fallbacks resolve to real helper scripts outside scripts/core (unresolved:${_resolve_helper_failures} )"
+fi
 
 testlib_finish

@@ -89,6 +89,11 @@ def not_(condition: Condition) -> Condition:
     return lambda ctx: not condition(ctx)
 
 
+def no_match(pattern: str) -> Condition:
+    """Bash `! compgen -G pattern`: true when nothing in the repo matches the glob."""
+    return lambda ctx: not any(ctx.repo.glob(pattern))
+
+
 def test(flag: str, path: str) -> Condition:
     """Bash `[[ flag path ]]` for -f, -d, -e, -x, -s (all follow symlinks)."""
 

@@ -8,7 +8,9 @@ BRE/ERE meaning. Generated from the former scripts/check-scripts.sh.
 
 from __future__ import annotations
 
-from .core import Check, grep, not_, test
+import re
+
+from .core import Check, grep, no_match, not_, test
 
 CHECKS: tuple[Check, ...] = (
     Check(
@@ -108,8 +110,8 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'exec abora-dotfiles-import', 'scripts/abora.sh'),
         grep('-q', '^[[:space:]]*network)', 'scripts/abora.sh'),
         grep('-q', 'exec abora-recovery network "$@"', 'scripts/abora.sh'),
-        grep('-q', 'exec "$script_dir/abora-recovery.sh" network "$@"', 'scripts/abora.sh'),
-        grep('-q', 'exec "$script_dir/abora-recovery.sh" "$@"', 'scripts/abora.sh'),
+        grep('-q', 'resolve_helper abora-recovery.sh', 'scripts/abora.sh'),
+        grep('-q', 'exec "$helper" network "$@"', 'scripts/abora.sh'),
         grep('-q', '^[[:space:]]*logs|log)', 'scripts/abora.sh'),
         grep('-q', 'show_logs "$@"', 'scripts/abora.sh'),
         grep('-q', 'ABORA_LOG_LINES', 'scripts/abora.sh'),
@@ -119,12 +121,12 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'gh issue create --repo "$repo"', 'scripts/abora.sh'),
         grep('-q', '^[[:space:]]*build)', 'scripts/abora.sh'),
         grep('-q', 'command -v abora-build', 'scripts/abora.sh'),
-        grep('-q', 'exec "$script_dir/abora-build.sh"', 'scripts/abora.sh'),
+        grep('-q', 'resolve_helper abora-build.sh', 'scripts/abora.sh'),
         grep('-q', '^[[:space:]]*adopt-nixos|adopt)', 'scripts/abora.sh'),
-        grep('-q', 'exec "$script_dir/abora-adopt-nixos.sh"', 'scripts/abora.sh'),
+        grep('-q', 'resolve_helper abora-adopt-nixos.sh', 'scripts/abora.sh'),
         grep('-q', '^[[:space:]]*gaming)', 'scripts/abora.sh'),
         grep('-q', 'exec abora-gaming', 'scripts/abora.sh'),
-        grep('-q', 'exec "$script_dir/abora-gaming.sh"', 'scripts/abora.sh'),
+        grep('-q', 'resolve_helper abora-gaming.sh', 'scripts/abora.sh'),
         grep('-q', 'exec abora-update channel "$@"', 'scripts/abora.sh'),
         not_(grep('-q', 'ABORA_UPDATE_COMMAND=nixos abora-update channel', 'scripts/abora.sh')),
         grep('-q', 'abora channel set <stable|demo|unstable>', 'scripts/abora-update.sh'),
@@ -138,18 +140,33 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'sudo ABORA_REPO_REF=<branch> abora update', 'scripts/abora-update.sh'),
     ),
     Check(
-        'runtime: MAKO and ModuCPP manifests match shipped examples',
-        grep('-q', '"id": "mako"', 'assets/anix-languages/mako.json'),
-        grep('-q', '"extensions": \\[".mko"\\]', 'assets/anix-languages/mako.json'),
-        grep('-q', '"command": \\["mko", "run"\\]', 'assets/anix-languages/mako.json'),
+        # Greeters show the account description, so a hardcoded "Abora User" made installed systems look like they
+        # still used a live-media account (#33).
+        'runtime: installed account display name defaults to the chosen username',
+        not_(grep('-q', 'description *= *"Abora User"', 'nix/modules/abora-options.nix')),
+        grep('-q', 'cfg.user.fullName != null then cfg.user.fullName else cfg.user.name', 'nix/modules/abora-options.nix'),
+        fail_name='runtime: installed account display name must default to the chosen username, not "Abora User"',
+    ),
+    Check(
+        # xdg.desktopEntries only exists in home-manager; in a NixOS module it fails evaluation, which a host without
+        # nix never notices before the ISO build.
+        'runtime: NixOS modules do not use the home-manager xdg.desktopEntries option',
+        lambda ctx: not any(
+            re.search(r'^[^#]*xdg\.desktopEntries\s*=', f.read_text(errors="replace"), re.M)
+            for f in (ctx.repo / "nix").rglob("*.nix")
+        ),
+        fail_name='runtime: NixOS modules must use pkgs.makeDesktopItem, not xdg.desktopEntries',
+    ),
+    Check(
+        'runtime: ModuCPP manifest matches examples and MAKO is not shipped',
         grep('-q', '"id": "moducpp"', 'assets/anix-languages/moducpp.json'),
         grep('-q', '".moducpp"', 'assets/anix-languages/moducpp.json'),
         grep('-q', '".mcpp"', 'assets/anix-languages/moducpp.json'),
         grep('-q', '"command": \\["moducpp-anix"\\]', 'assets/anix-languages/moducpp.json'),
-        grep('-q', 'using ANIX;', 'examples/anix-v2/simple.mko'),
-        grep('-q', 'using ANIX;', 'examples/anix-v2/workstation.mko'),
         grep('-q', 'add ANIX;', 'examples/anix-v2/simple.moducpp'),
         grep('-q', 'add ANIX;', 'examples/anix-v2/workstation.moducpp'),
+        not_(test('-e', 'assets/anix-languages/mako.json')),
+        no_match('examples/anix-v2/*.mko'),
     ),
     Check(
         'runtime: release docs describe multi-edition, ANIX, and gaming flow',
@@ -183,7 +200,7 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'current alpha release line', 'docs/wiki/Home.md'),
         grep('-q', 'ANIX v2 Languages](ANIX-V2-Languages.md)', 'docs/wiki/_Sidebar.md'),
         grep('-q', 'sudo abora rollback', 'docs/wiki/Updating-Abora.md'),
-        grep('-q', 'Abora OS v4 Everest', 'DISCORD_CHANGELOG.md'),
+        grep('-q', 'Abora OS v4.1 Horizon', 'DISCORD_CHANGELOG.md'),
         grep('-q', 'abora support-report', 'DISCORD_CHANGELOG.md'),
         grep('-q', 'abora hardware-test --with-report', 'DISCORD_CHANGELOG.md'),
         not_(grep('-q', 'abora-support-report', 'DISCORD_CHANGELOG.md')),

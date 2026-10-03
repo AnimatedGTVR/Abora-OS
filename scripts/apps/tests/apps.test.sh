@@ -62,6 +62,10 @@ _apps_render_stderr="$(mktemp)"
   apps_module="$abora_dir/apps.nix"
   run_as_root() { "$@"; }
   read_selected_ids() { grep -v '^[[:space:]]*$' "$apps_list" | grep -v '^[[:space:]]*#' || true; }
+  # render_apps_module places the generated file via install_generated_file (which root-owns it), so that helper
+  # has to come along too. ABORA_NO_SUDO selects its unprivileged branch -- this sandbox cannot chown to root.
+  export ABORA_NO_SUDO=1
+  eval "$(sed -n '/^install_generated_file() {/,/^}$/p' scripts/abora-apps.sh)"
   eval "$(sed -n '/^render_apps_module() {/,/^}$/p' scripts/abora-apps.sh)"
   render_apps_module
 ) >"$_apps_render_stdout" 2>"$_apps_render_stderr"
@@ -96,6 +100,10 @@ printf 'firefox\nstale-removed-app\n' > "$tmp_apps_remove_stale/abora/apps.list"
   apps_list="$abora_dir/apps.list"
   apps_module="$abora_dir/apps.nix"
   run_as_root() { "$@"; }
+  # write_selected_ids and render_apps_module both place their output through install_generated_file;
+  # ABORA_NO_SUDO picks its unprivileged branch.
+  export ABORA_NO_SUDO=1
+  eval "$(sed -n '/^install_generated_file() {/,/^}$/p' scripts/abora-apps.sh)"
   eval "$(sed -n '/^read_selected_ids() {/,/^}$/p' scripts/abora-apps.sh)"
   eval "$(sed -n '/^write_selected_ids() {/,/^}$/p' scripts/abora-apps.sh)"
   eval "$(sed -n '/^render_apps_module() {/,/^}$/p' scripts/abora-apps.sh)"
@@ -312,5 +320,28 @@ if command -v zip >/dev/null 2>&1 && command -v unzip >/dev/null 2>&1; then
 else
   pass "zip/unzip unavailable (custom-packages temp-cleanup test skipped)"
 fi
+
+# Labs must remain opt-in and detached from the critical install/update path.
+# This smoke test uses an empty temporary HOME and performs no network access.
+tmp_labs_home="$(mktemp -d)"
+_labs_status="$(HOME="$tmp_labs_home" XDG_DATA_HOME="$tmp_labs_home/data" bash scripts/abora-labs.sh status)"
+_labs_path="$(HOME="$tmp_labs_home" XDG_DATA_HOME="$tmp_labs_home/data" bash scripts/abora-labs.sh path)"
+_labs_cancel_rc=0
+printf 'no\n' | HOME="$tmp_labs_home" XDG_DATA_HOME="$tmp_labs_home/data" \
+  bash scripts/abora-labs.sh install >"$tmp_labs_home/cancel.out" 2>&1 || _labs_cancel_rc=$?
+if grep -q '^State: not downloaded$' <<<"$_labs_status" \
+  && [[ "$_labs_path" == "$tmp_labs_home/data/abora/labs" ]] \
+  && [[ "$_labs_cancel_rc" -eq 1 && ! -e "$tmp_labs_home/data/abora/labs" ]] \
+  && grep -q 'Cancelled\.' "$tmp_labs_home/cancel.out" \
+  && grep -q 'Type LABS to continue' scripts/apps/abora-labs.sh \
+  && grep -q 'abora.labs.enable = $(nix_bool "$labs_enabled");' scripts/install/abora-installer.sh \
+  && grep -q 'source = ../../scripts/apps/abora-labs.sh;' nix/profiles/live.nix \
+  && grep -q 'config.abora.labs.enable && labsScript != null' nix/modules/installed-base.nix \
+  && grep -q 'scripts/apps/abora-labs.sh' scripts/support/abora-update.sh; then
+  pass "runtime: Abora Labs is opt-in and wired through installer, ISO, installed system, and updater"
+else
+  fail "runtime: Abora Labs integration is incomplete"
+fi
+rm -rf "$tmp_labs_home"
 
 testlib_finish
