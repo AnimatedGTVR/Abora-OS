@@ -1,5 +1,8 @@
 # Abora OS v4.1 Horizon
 
+![Abora OS v4.1 Horizon](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/Images/v4.1-horizon-banner.png)
+
+
 Abora OS v4.1 Horizon is the reliability-focused follow-up to Everest: a safer installer, corrected update and configuration paths, improved diagnostics, built-in community and learning tools, and a smaller ANIX language surface.
 
 Horizon builds on Everest 4.0 and the DENALI 3.14 foundation while expanding how Abora can be installed, configured, updated, and used.
