@@ -1,0 +1,140 @@
+module Update.Resolver;
+@use Update.Version;
+
+# The channel decision behind `abora update`, replacing
+# tools/abora-update-resolver/UpdateResolver.cs. All I/O (git ls-remote for tags
+# and branches) stays with the caller: this only makes the decision.
+
+#! `^v?` + current version as a line match, where "." in the version matches any
+#! character: exactly how the original awk filter (and its C# port) treated it.
+#! Versions contain only letters, digits, ".", "_" and "-" (see ValidVersionPattern).
+func MatchesVersionLine(let tag::string, let currentVersion::string)::bool {
+    if MatchesAt(tag, currentVersion, 0) {
+        return true;
+    }
+    return String.StartsWith(tag, "v") && MatchesAt(tag, currentVersion, 1);
+}
+
+func MatchesAt(let tag::string, let pattern::string, let offset::int)::bool {
+    let length = String.Length(pattern);
+    if offset + length > String.Length(tag) {
+        return false;
+    }
+    for index in 0..length {
+        let expected = String.Substring(pattern, index, 1);
+        if expected != "." && expected != String.Substring(tag, offset + index, 1) {
+            return false;
+        }
+    }
+    return true;
+}
+
+#! True when `version` can be used as a version-line pattern: letters, digits,
+#! ".", "_" and "-". Anything else would have been a regex operator originally.
+pub func ValidVersionPattern(let version::string)::bool {
+    let allowed = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ._-";
+    let length = String.Length(version);
+    for index in 0..length {
+        if !String.Contains(allowed, String.Substring(version, index, 1)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+func MatchingVersionLine(let tags::list<string>, let currentVersion::string)::list<string> {
+    mut matching::list<string> = [];
+    for tag in tags {
+        if tag != "" && MatchesVersionLine(tag, currentVersion) {
+            matching = List.Push(matching, tag);
+        }
+    }
+    return matching;
+}
+
+func DemoTags(let tags::list<string>)::list<string> {
+    mut demo::list<string> = [];
+    for tag in tags {
+        if Version.IsDemoReleaseTag(tag) {
+            demo = List.Push(demo, tag);
+        }
+    }
+    return demo;
+}
+
+func Found(let ref::string, let reason::string)::list<string> {
+    return [ref, reason];
+}
+
+func DemoChannel(let tags::list<string>, let currentVersion::string)::list<string> {
+    let demo = DemoTags(tags);
+    mut tag = Version.LatestTag(MatchingVersionLine(demo, currentVersion));
+    if tag == "" {
+        tag = Version.LatestTag(demo);
+    }
+    if tag == "" {
+        return [];
+    }
+    return Found(tag, "demo channel selected latest demo/dev tag");
+}
+
+func StableChannel(let tags::list<string>, let currentVersion::string, let edgeExists::bool)::list<string> {
+    if List.Length(tags) == 0 && edgeExists {
+        return Found("edge", "stable channel could not read release tags; using edge");
+    }
+
+    mut finalTags::list<string> = [];
+    mut notOlder::list<string> = [];
+    for tag in tags {
+        if Version.IsFinalReleaseTag(tag) {
+            finalTags = List.Push(finalTags, tag);
+            if !Version.VersionLessThan(Version.TagBaseVersion(tag), currentVersion) {
+                notOlder = List.Push(notOlder, tag);
+            }
+        }
+    }
+
+    let finalTag = Version.LatestTag(notOlder);
+    if finalTag != "" {
+        return Found(finalTag, "stable channel selected latest final tag not older than installed version");
+    }
+
+    let demoTag = Version.LatestTag(MatchingVersionLine(DemoTags(tags), currentVersion));
+    if demoTag != "" {
+        return Found(demoTag, "stable channel found no final tag for this release line; using matching demo/dev tag");
+    }
+
+    if List.Length(finalTags) > 0 {
+        return Found("edge", "stable channel has no final tag newer than installed version; using edge");
+    }
+    return [];
+}
+
+#! [effective ref, reason], or an empty list when no ref can be resolved.
+pub func Resolve(
+    let channel::string,
+    let currentVersion::string,
+    let tags::list<string>,
+    let edgeExists::bool,
+    let fallbackMode::bool,
+    let fallbackRef::string,
+    let preAlphaRef::string
+)::list<string> {
+    if fallbackMode {
+        return Found(fallbackRef, "explicit fallback requested");
+    }
+    if channel == "pre-alpha" || channel == "prealpha" {
+        return Found(preAlphaRef, "pre-alpha build requested explicitly");
+    }
+    if channel == "unstable" {
+        return Found("edge", "unstable channel tracks edge");
+    }
+    if channel == "demo" || channel == "dev" {
+        return DemoChannel(tags, currentVersion);
+    }
+    if channel == "stable" || channel == "" {
+        return StableChannel(tags, currentVersion, edgeExists);
+    }
+    # The caller prints the "Unknown channel" warning: that's UI, not a decision.
+    return Found("edge", "unknown channel fallback to edge");
+}

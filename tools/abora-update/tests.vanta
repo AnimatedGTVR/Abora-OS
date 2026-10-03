@@ -1,0 +1,95 @@
+module Tests;
+@use Update.Version;
+@use Update.Resolver;
+@use Update.Guard;
+
+# Unit tests for the abora-update core. Run: vanta run tools/abora-update/tests.vanta
+# Prints one "ok"/"FAIL" line per check; exits 1 if any fail.
+
+func Check(let ok::bool, let name::string)::int {
+    if ok {
+        emit("ok   {name}");
+        return 0;
+    }
+    emit("FAIL {name}");
+    return 1;
+}
+
+func Same(let got::string, let want::string, let name::string)::int {
+    return Check(got == want, "{name}: got \"{got}\", want \"{want}\"");
+}
+
+func RefOf(let result::list<string>)::string {
+    if List.Length(result) == 0 {
+        return "<none>";
+    }
+    return result[0];
+}
+
+func ReasonOf(let result::list<string>)::string {
+    if List.Length(result) == 0 {
+        return "";
+    }
+    return result[1];
+}
+
+func Start()::void {
+    mut failures = 0;
+    let none::list<string> = [];
+
+    # ── Version ──
+    failures = failures + Same(Version.TagBaseVersion("v4.1-DEMO2"), "4.1", "TagBaseVersion demo suffix");
+    failures = failures + Same(Version.TagBaseVersion("v3.14"), "3.14", "TagBaseVersion final");
+    failures = failures + Same(Version.TagBaseVersion("4.0"), "4.0", "TagBaseVersion without v");
+    failures = failures + Same(Version.TagBaseVersion("v4.0-EVEREST-ALPHA"), "4.0", "TagBaseVersion alpha suffix");
+    failures = failures + Same(Version.TagBaseVersion("edge"), "edge", "TagBaseVersion branch unchanged");
+
+    failures = failures + Check(Version.IsFinalReleaseTag("v4.0"), "IsFinalReleaseTag v4.0");
+    failures = failures + Check(Version.IsFinalReleaseTag("v3.14"), "IsFinalReleaseTag v3.14");
+    failures = failures + Check(!Version.IsFinalReleaseTag("v4.0-EVEREST-ALPHA"), "IsFinalReleaseTag rejects alpha");
+    failures = failures + Check(!Version.IsFinalReleaseTag("edge"), "IsFinalReleaseTag rejects edge");
+    failures = failures + Check(!Version.IsFinalReleaseTag("4.0"), "IsFinalReleaseTag needs the leading v");
+
+    failures = failures + Check(Version.IsDemoReleaseTag("v4.0-EVEREST-ALPHA"), "IsDemoReleaseTag alpha");
+    failures = failures + Check(Version.IsDemoReleaseTag("v4.1-DEMO2"), "IsDemoReleaseTag demo");
+    failures = failures + Check(Version.IsDemoReleaseTag("v4.1-rc1"), "IsDemoReleaseTag rc");
+    failures = failures + Check(!Version.IsDemoReleaseTag("v3.14"), "IsDemoReleaseTag rejects final");
+    failures = failures + Check(!Version.IsDemoReleaseTag("edge"), "IsDemoReleaseTag rejects edge");
+
+    failures = failures + Check(Version.VersionLessThan("3.14", "4.0"), "3.14 < 4.0");
+    failures = failures + Check(!Version.VersionLessThan("4.0", "3.14"), "not 4.0 < 3.14");
+    failures = failures + Check(!Version.VersionLessThan("4.0", "4.0"), "not 4.0 < 4.0");
+    failures = failures + Check(Version.VersionLessThan("4.9", "4.10"), "4.9 < 4.10, numerically");
+    failures = failures + Check(!Version.VersionLessThan("test-prealpha", "4.0"), "non-numeric refs never sort as older");
+    failures = failures + Check(Version.VersionLessThan("4.0", "test-prealpha"), "numeric sorts before non-numeric");
+
+    failures = failures + Same(Version.LatestTag(["v2.5.0", "v3.14"]), "v3.14", "LatestTag picks the highest final tag");
+    failures = failures + Same(Version.LatestTag(none), "", "LatestTag of nothing");
+
+    # ── Resolver ──
+    failures = failures + Same(RefOf(Resolver.Resolve("stable", "3.14", ["v2.5.0", "v3.14"], false, false, "", "edge")), "v3.14", "stable keeps the installed version's tag");
+    failures = failures + Same(RefOf(Resolver.Resolve("stable", "3.14", ["v2.5.0"], false, false, "", "edge")), "edge", "stable uses edge rather than an older tag");
+    let noTags = Resolver.Resolve("stable", "4.0", none, true, false, "", "edge");
+    failures = failures + Same(RefOf(noTags), "edge", "stable uses edge when tags are unreadable");
+    failures = failures + Check(String.Contains(ReasonOf(noTags), "could not read release tags"), "stable explains unreadable tags");
+    failures = failures + Same(RefOf(Resolver.Resolve("stable", "4.0", none, false, false, "", "edge")), "<none>", "stable resolves nothing without tags or edge");
+    failures = failures + Same(RefOf(Resolver.Resolve("demo", "4.0", ["v4.0-EVEREST-ALPHA", "v3.14"], false, false, "", "edge")), "v4.0-EVEREST-ALPHA", "demo picks the current line's demo tag");
+    failures = failures + Same(RefOf(Resolver.Resolve("stable", "4.0", ["v4.0-EVEREST-ALPHA"], false, false, "", "edge")), "v4.0-EVEREST-ALPHA", "stable uses the line's demo tag without a final tag");
+    failures = failures + Same(RefOf(Resolver.Resolve("unstable", "4.0", ["v99.0"], false, false, "", "edge")), "edge", "unstable always tracks edge");
+    failures = failures + Same(RefOf(Resolver.Resolve("pre-alpha", "4.0", none, false, false, "", "some-branch")), "some-branch", "pre-alpha uses the configured ref");
+    failures = failures + Same(RefOf(Resolver.Resolve("stable", "3.14", none, false, true, "v2.5.0", "edge")), "v2.5.0", "fallback mode uses the fallback ref");
+    failures = failures + Same(RefOf(Resolver.Resolve("bogus", "4.0", none, false, false, "", "edge")), "edge", "unknown channel falls back to edge");
+    failures = failures + Same(RefOf(Resolver.Resolve("stable", "3.14", ["v2.5.0", "v3.14-DEMO", "v3.14"], false, false, "", "edge")), "v3.14", "stable prefers the final tag over a demo tag");
+
+    # ── Guard ──
+    failures = failures + Check(!Guard.Allows("4.0", "v3.14", false), "guard blocks an older tag");
+    failures = failures + Check(Guard.Allows("4.0", "v3.14", true), "guard allows an older tag when asked to");
+    failures = failures + Check(Guard.Allows("4.0", "edge", false), "guard always allows edge");
+    failures = failures + Check(Guard.Allows("3.14", "v4.0", false), "guard allows a newer tag");
+    failures = failures + Check(Guard.Allows("4.0", "test-prealpha", false), "guard allows a non-numeric ref");
+
+    if failures > 0 {
+        emitError("{failures} check(s) failed");
+        Process.Exit(1);
+    }
+}

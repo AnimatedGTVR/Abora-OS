@@ -1,1 +1,0 @@
-release/package-anix.sh

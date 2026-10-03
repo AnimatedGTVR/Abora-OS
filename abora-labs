@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+"""Abora Labs launcher: runs the controller in automation/ from this checkout.
+
+ABORA_LABS_PYTHON picks a different interpreter; ABORA_LABS_ROOT a different checkout.
+"""
+
+import os
+import runpy
+import sys
+from pathlib import Path
+
+root = Path(__file__).resolve().parent
+automation = str(root / "automation")
+os.environ.setdefault("ABORA_LABS_ROOT", str(root))
+
+python = os.environ.get("ABORA_LABS_PYTHON")
+if python:
+    os.environ["PYTHONPATH"] = os.pathsep.join(filter(None, [automation, os.environ.get("PYTHONPATH")]))
+    os.execvp(python, [python, "-m", "abora_labs", *sys.argv[1:]])
+
+sys.path.insert(0, automation)
+runpy.run_module("abora_labs", run_name="__main__", alter_sys=True)

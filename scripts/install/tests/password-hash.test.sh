@@ -5,7 +5,7 @@
 set -uo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 fn="$(sed -n '/^hash_password() {/,/^}/p' "$root/scripts/install/abora-installer.sh")"
-[[ -n "$fn" ]] || { echo "FAIL: hash_password not found"; exit 1; }
+[[ -n "$fn" ]] || { echo "[fail] hash_password not found"; exit 1; }
 eval "$fn"
 
 failures=0

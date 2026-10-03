@@ -1,0 +1,15 @@
+# current	selected_ref	allow_downgrade	expected
+4.0	v3.14	no	block
+4.0	v3.14	yes	allow
+4.0	edge	no	allow
+3.14	v4.0	no	allow
+4.0	test-prealpha	no	allow
+4.0	v4.0	no	allow
+4.0.1	v4.0	no	block
+4.0	v4.0.0	no	allow
+4.0	v4.0-EVEREST-ALPHA	no	allow
+4.1	v4.0-DEMO2	no	block
+4.10	v4.9	no	block
+4.9	v4.10	no	allow
+10.0	v9.99	no	block
+4.0	v99999999999.0	no	allow

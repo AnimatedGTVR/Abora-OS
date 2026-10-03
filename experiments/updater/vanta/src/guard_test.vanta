@@ -1,0 +1,69 @@
+module GuardTest;
+@use Updater.Guard;
+
+# Runs every case in ../shared (relative to the implementation directory, where
+# Abora Labs runs the test stage) and reports in the Labs line format.
+
+func Report(let ok::bool, let name::string)::int {
+    if ok {
+        emit("LABS-TEST: PASS {name}");
+        return 0;
+    }
+    emit("LABS-TEST: FAIL {name}");
+    return 1;
+}
+
+#! The rows of a shared tab-separated vector file, each with exactly `fields` columns.
+func ReadCases(let file::string, let fields::int)::list<list<string>> {
+    let path = "../shared/" + file;
+    let text = ask File.ReadText(path) else {
+        emitError("cannot open shared cases: {error}");
+        Process.Exit(1);
+    };
+    mut cases::list<list<string>> = [];
+    mut lineNumber = 0;
+    for line in String.Split(text, "\n") {
+        lineNumber = lineNumber + 1;
+        if String.Trim(line) != "" && !String.StartsWith(line, "#") {
+            let row = String.Split(line, "\t");
+            if List.Length(row) != fields {
+                emitError("{path}:{lineNumber}: expected {fields} tab-separated fields");
+                Process.Exit(1);
+            }
+            cases = List.Push(cases, row);
+        }
+    }
+    if List.Length(cases) == 0 {
+        emitError("{path} has no cases");
+        Process.Exit(1);
+    }
+    return cases;
+}
+
+func Start()::void {
+    mut failures = 0;
+
+    for row in ReadCases("tag-base-cases.tsv", 2) {
+        let tag = row[0];
+        let want = row[1];
+        let got = Guard.TagBaseVersion(tag);
+        failures = failures + Report(got == want, "TagBaseVersion(\"{tag}\") = \"{got}\", want \"{want}\"");
+    }
+
+    for row in ReadCases("downgrade-cases.tsv", 4) {
+        let current = row[0];
+        let selectedRef = row[1];
+        let flag = row[2];
+        let want = row[3] == "allow";
+        let allowed = Guard.Allows(current, selectedRef, flag == "yes");
+        mut verdict = "block";
+        if allowed {
+            verdict = "allow";
+        }
+        failures = failures + Report(allowed == want, "{current} -> {selectedRef} allow_downgrade={flag}: {verdict}");
+    }
+
+    if failures > 0 {
+        Process.Exit(1);
+    }
+}

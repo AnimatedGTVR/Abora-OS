@@ -789,7 +789,7 @@ EOF
 
 # Deliberately separate from abora_desktop_config_block above: this only
 # ever emits package names for `environment.systemPackages`'s package list,
-# never a NixOS option/service line. check-scripts.sh asserts the config
+# never a NixOS option/service line. scripts/config/tests/desktop.test.sh asserts the config
 # block contains no `environment.systemPackages` precisely so the two can't
 # get mixed together by a future edit.
 abora_desktop_package_block() {

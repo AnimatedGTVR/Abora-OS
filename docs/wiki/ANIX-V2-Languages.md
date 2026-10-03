@@ -178,7 +178,7 @@ the [complete guide](https://www.moduengine.xyz/docs/moducpp-guide) and
 7. **Done:** end-to-end coverage for `simple`/`workstation` examples across
    both built-in frontends, plus failure-path tests proving invalid plans,
    malformed JSON, unresolvable languages, and failing adapters never
-   mutate `anix.nix` (`scripts/check-scripts.sh`).
+   mutate `anix.nix` (`scripts/core/tests/anix.test.sh`).
 8. Open third-party adapter discovery after the security boundary is tested.
 
 ANIX v1 remains supported throughout v2. Existing commands become calls into

@@ -71,28 +71,28 @@ let
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/dotfiles-import.sh "$@"
   '';
   aboraDoctor = pkgs.writeShellScriptBin "abora-doctor" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/doctor.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/doctor.sh "$@"
   '';
   aboraCheckFull = pkgs.writeShellScriptBin "abora-check-full" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/check-full.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/check-full.sh "$@"
   '';
   aboraRecovery = pkgs.writeShellScriptBin "abora-recovery" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/recovery.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/recovery.sh "$@"
   '';
   aboraRepairFlakePurity = pkgs.writeShellScriptBin "abora-repair-flake-purity" ''
     exec env ABORA_SYSTEM_CONFIG=/etc/nixos ${pkgs.bashInteractive}/bin/bash /etc/abora/repair-flake-purity.sh "$@"
   '';
   aboraWelcome = pkgs.writeShellScriptBin "abora-welcome" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/welcome.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/welcome.sh "$@"
   '';
   anixCommand = pkgs.writeShellScriptBin "anix" ''
     exec env ANIX_SYSTEM_CONFIG=/etc/nixos ANIX_FLAKE_CONFIG_NAME=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/anix.sh "$@"
   '';
   aboraSupportReport = pkgs.writeShellScriptBin "abora-support-report" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/support-report.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/support-report.sh "$@"
   '';
   aboraHardwareTest = pkgs.writeShellScriptBin "abora-hardware-test" ''
-    exec env ABORA_SUPPORT_REPORT_SCRIPT=/etc/abora/support-report.sh ${pkgs.bashInteractive}/bin/bash /etc/abora/hardware-test.sh "$@"
+    exec env ABORA_SUPPORT_REPORT_SCRIPT=/etc/abora/support-report.sh ${pkgs.python3}/bin/python3 /etc/abora/hardware-test.sh "$@"
   '';
   # The Rust front controller is the public installer binary; it delegates to
   # the legacy Bash backend while the installer is migrated module by module.
@@ -478,6 +478,7 @@ in
     # ── Abora installer toolchain ────────────────────────────────────────────
     tinypmPackage
     abora-update-resolver
+    abora-update
     abora-plan-tool
     abora-installer
     aboraApps
@@ -635,19 +636,19 @@ in
         mode = "0755";
       };
       "abora/doctor.sh" = {
-        source = ../../scripts/support/abora-doctor.sh;
+        source = ../../scripts/support/abora-doctor.py;
         mode = "0755";
       };
       "abora/check-full.sh" = {
-        source = ../../scripts/support/abora-check-full.sh;
+        source = ../../scripts/support/abora-check-full.py;
         mode = "0755";
       };
       "abora/recovery.sh" = {
-        source = ../../scripts/support/abora-recovery.sh;
+        source = ../../scripts/support/abora-recovery.py;
         mode = "0755";
       };
       "abora/welcome.sh" = {
-        source = ../../scripts/support/abora-welcome.sh;
+        source = ../../scripts/support/abora-welcome.py;
         mode = "0755";
       };
       "abora/repair-flake-purity.sh" = {
@@ -684,11 +685,11 @@ in
       "abora/mango/config.conf".source = ../../assets/mango/config.conf;
       "assets/mango/config.conf".source = ../../assets/mango/config.conf;
       "abora/support-report.sh" = {
-        source = ../../scripts/support/abora-support-report.sh;
+        source = ../../scripts/support/abora-support-report.py;
         mode = "0755";
       };
       "abora/hardware-test.sh" = {
-        source = ../../scripts/support/abora-hardware-test.sh;
+        source = ../../scripts/support/abora-hardware-test.py;
         mode = "0755";
       };
       "abora/plymouth/abora.plymouth".source = ../../assets/plymouth/abora.plymouth;
@@ -739,6 +740,8 @@ in
       "abora/pkgs/moducpp-anix.nix".source = ../pkgs/moducpp-anix.nix;
       "abora/pkgs/abora-update-resolver.nix".source = ../pkgs/abora-update-resolver.nix;
       "abora/pkgs/abora-update-resolver-deps.json".source = ../pkgs/abora-update-resolver-deps.json;
+      "abora/pkgs/vanta.nix".source = ../pkgs/vanta.nix;
+      "abora/pkgs/abora-update.nix".source = ../pkgs/abora-update.nix;
       "abora/pkgs/abora-plan-tool.nix".source = ../pkgs/abora-plan-tool.nix;
       "abora/pkgs/abora-plan-tool-deps.json".source = ../pkgs/abora-plan-tool-deps.json;
       "abora/tools/moducpp-anix" = {
@@ -747,6 +750,7 @@ in
       };
       "abora/tinypm".source = tinypmDir;
       "abora/update-resolver".source = ../../tools/abora-update-resolver;
+      "abora/abora-update".source = ../../tools/abora-update;
       "abora/plan-tool".source = ../../tools/abora-plan-tool;
       "abora/vendor/modularity".source = ../../vendor/modularity;
       "abora/docs".source = ../../docs;

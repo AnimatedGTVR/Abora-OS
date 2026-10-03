@@ -16,6 +16,17 @@
 /vendor/modularity/bin/
 /vendor/modularity/lib/
 
+# Abora Labs: machine-specific config and per-experiment build output
+/configs/labs.local.toml
+/experiments/*/*/build/
+/experiments/*/*/bin/
+/experiments/*/*/obj/
+/experiments/*/*/tests/bin/
+/experiments/*/*/tests/obj/
+/experiments/*/*/target/
+/experiments/*/*/zig-out/
+/experiments/*/*/.zig-cache/
+
 # Python cache
 __pycache__/
 *.pyc

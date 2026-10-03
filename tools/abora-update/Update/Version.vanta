@@ -1,0 +1,193 @@
+module Update.Version;
+
+# Version and release-tag helpers for abora update, replacing
+# tools/abora-update-resolver/VersionUtil.cs. Semantics follow
+# experiments/updater/shared/README.md: a version part is plain decimal digits
+# that fit a signed 32-bit int.
+
+func MaxPart()::int {
+    return 2147483647;
+}
+
+func CharAt(let text::string, let index::int)::string {
+    return String.Substring(text, index, 1);
+}
+
+func IsDigit(let character::string)::bool {
+    return String.Length(character) == 1 && String.Contains("0123456789", character);
+}
+
+func StartsWithDigit(let text::string)::bool {
+    return String.Length(text) > 0 && IsDigit(CharAt(text, 0));
+}
+
+func AllDigits(let text::string)::bool {
+    let length = String.Length(text);
+    if length == 0 {
+        return false;
+    }
+    for index in 0..length {
+        if !IsDigit(CharAt(text, index)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+#! "4.0" -> "4.0" and "v4.0" -> "4.0"; only one leading "v" is removed.
+pub func StripV(let tag::string)::string {
+    if String.StartsWith(tag, "v") {
+        return String.Substring(tag, 1, String.Length(tag) - 1);
+    }
+    return tag;
+}
+
+#! Strips one leading "v" and any non-numeric suffix ("v4.1-DEMO2" -> "4.1").
+#! A value that doesn't start with a digit is returned unchanged ("edge").
+pub func TagBaseVersion(let tag::string)::string {
+    let stripped = StripV(tag);
+    let length = String.Length(stripped);
+    if !StartsWithDigit(stripped) {
+        return stripped;
+    }
+    # Keep [0-9]+(\.[0-9]+)*: a dot only counts when a digit follows it.
+    mut accepted = 0;
+    for index in 0..length {
+        let character = CharAt(stripped, index);
+        if IsDigit(character) {
+            accepted = index + 1;
+        } else {
+            if character != "." || index + 1 >= length {
+                return String.Substring(stripped, 0, accepted);
+            }
+            if !IsDigit(CharAt(stripped, index + 1)) {
+                return String.Substring(stripped, 0, accepted);
+            }
+        }
+    }
+    return String.Substring(stripped, 0, accepted);
+}
+
+#! Dotted digits with no empty part ("4", "4.0.1"); no size limit.
+func IsDottedDigits(let text::string)::bool {
+    if text == "" {
+        return false;
+    }
+    for part in String.Split(text, ".") {
+        if !AllDigits(part) {
+            return false;
+        }
+    }
+    return true;
+}
+
+#! Non-empty, and every dot-separated part is a decimal 32-bit int.
+pub func IsNumeric(let version::string)::bool {
+    if !IsDottedDigits(version) {
+        return false;
+    }
+    for part in String.Split(version, ".") {
+        # Longer than any 32-bit int: also keeps String.ToInt far from 64-bit overflow.
+        if String.Length(part) > 10 {
+            return false;
+        }
+        if String.ToInt(part) > MaxPart() {
+            return false;
+        }
+    }
+    return true;
+}
+
+func PartAt(let parts::list<string>, let index::int)::int {
+    if index < List.Length(parts) {
+        return String.ToInt(parts[index]);
+    }
+    return 0;
+}
+
+#! Numeric versions sort before non-numeric refs, which compare byte-wise.
+#! Numeric versions compare part by part, missing parts counting as 0.
+pub func Compare(let a::string, let b::string)::int {
+    let aNumeric = IsNumeric(a);
+    let bNumeric = IsNumeric(b);
+    if aNumeric != bNumeric {
+        if aNumeric {
+            return -1;
+        }
+        return 1;
+    }
+    if !aNumeric {
+        return String.Compare(a, b);
+    }
+    let aParts = String.Split(a, ".");
+    let bParts = String.Split(b, ".");
+    mut count = List.Length(aParts);
+    if List.Length(bParts) > count {
+        count = List.Length(bParts);
+    }
+    for index in 0..count {
+        let av = PartAt(aParts, index);
+        let bv = PartAt(bParts, index);
+        if av < bv {
+            return -1;
+        }
+        if av > bv {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+pub func VersionLessThan(let a::string, let b::string)::bool {
+    return a != b && Compare(a, b) < 0;
+}
+
+#! A final release tag: "v" followed by dotted digits ("v4.0", "v3.14").
+pub func IsFinalReleaseTag(let tag::string)::bool {
+    return String.StartsWith(tag, "v") && IsDottedDigits(StripV(tag));
+}
+
+func DemoMarkers()::list<string> {
+    return ["ALPHA", "Alpha", "alpha", "DEMO", "Demo", "demo", "Dev", "dev", "Pre", "pre", "RC", "Rc", "rC", "rc"];
+}
+
+#! A development release tag: an optional "v", a digit, then somewhere after that
+#! digit one of the markers (ALPHA, DEMO, Dev, Pre, RC in their spelled variants).
+pub func IsDemoReleaseTag(let tag::string)::bool {
+    mut rest = tag;
+    if String.StartsWith(tag, "v") && StartsWithDigit(StripV(tag)) {
+        rest = StripV(tag);
+    }
+    if !StartsWithDigit(rest) {
+        return false;
+    }
+    let afterFirstDigit = String.Substring(rest, 1, String.Length(rest) - 1);
+    for marker in DemoMarkers() {
+        if String.Contains(afterFirstDigit, marker) {
+            return true;
+        }
+    }
+    return false;
+}
+
+#! Orders tags by base version, then byte-wise to break ties.
+func CompareTags(let a::string, let b::string)::int {
+    let byVersion = Compare(TagBaseVersion(a), TagBaseVersion(b));
+    if byVersion != 0 {
+        return byVersion;
+    }
+    return String.Compare(a, b);
+}
+
+#! The newest tag ("" when there are none). The first of equal tags wins.
+pub func LatestTag(let tags::list<string>)::string {
+    mut best = "";
+    mut found = false;
+    for tag in tags {
+        if !found || CompareTags(tag, best) > 0 {
+            best = tag;
+            found = true;
+        }
+    }
+    return best;
+}

@@ -18,6 +18,10 @@ let
   labsScript =
     if builtins.pathExists ./labs.sh then ./labs.sh else null;
   dotfilesImportScript = ./dotfiles-import.sh;
+  # doctor, check-full, recovery, welcome, support-report and hardware-test
+  # are Python (scripts/support/*.py) but keep their .sh names here: a 4.0
+  # system's `abora update` copies them under exactly these names before it
+  # hands over to the new updater, so renaming them would break that update.
   doctorScript         = ./doctor.sh;
   checkFullScript      = ./check-full.sh;
   recoveryScript       = ./recovery.sh;
@@ -95,6 +99,12 @@ let
     if builtins.pathExists ./tinypm then ./tinypm else null;
   updateResolverDir =
     if builtins.pathExists ./update-resolver then ./update-resolver else null;
+  # The Vanta core of `abora update` and the interpreter it runs on.
+  aboraUpdateDir =
+    if builtins.pathExists ./abora-update
+      && builtins.pathExists ./pkgs/vanta.nix
+      && builtins.pathExists ./pkgs/abora-update.nix
+    then ./abora-update else null;
   planToolDir =
     if builtins.pathExists ./plan-tool then ./plan-tool else null;
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
@@ -148,16 +158,16 @@ let
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/dotfiles-import.sh "$@"
   '';
   aboraDoctor = pkgs.writeShellScriptBin "abora-doctor" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/doctor.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/doctor.sh "$@"
   '';
   aboraCheckFull = pkgs.writeShellScriptBin "abora-check-full" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/check-full.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/check-full.sh "$@"
   '';
   aboraRecovery = pkgs.writeShellScriptBin "abora-recovery" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/recovery.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/recovery.sh "$@"
   '';
   aboraWelcome = pkgs.writeShellScriptBin "abora-welcome" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/welcome.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/welcome.sh "$@"
   '';
   aboraGuiPython = pkgs.python3.withPackages (ps: with ps; [ pygobject3 ]);
   aboraGuiGiPath = lib.makeSearchPath "lib/girepository-1.0" (with pkgs; [
@@ -209,10 +219,10 @@ let
     exec env ANIX_SYSTEM_CONFIG=/etc/nixos ANIX_FLAKE_CONFIG_NAME=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/anix.sh "$@"
   '';
   aboraSupportReport = pkgs.writeShellScriptBin "abora-support-report" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/support-report.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/support-report.sh "$@"
   '';
   aboraHardwareTest = pkgs.writeShellScriptBin "abora-hardware-test" ''
-    exec env ABORA_SUPPORT_REPORT_SCRIPT=/etc/abora/support-report.sh ${pkgs.bashInteractive}/bin/bash /etc/abora/hardware-test.sh "$@"
+    exec env ABORA_SUPPORT_REPORT_SCRIPT=/etc/abora/support-report.sh ${pkgs.python3}/bin/python3 /etc/abora/hardware-test.sh "$@"
   '';
   aboraRepairFlakePurity = pkgs.writeShellScriptBin "abora-repair-flake-purity" ''
     exec env ABORA_SYSTEM_CONFIG=/etc/nixos ${pkgs.bashInteractive}/bin/bash /etc/abora/repair-flake-purity.sh "$@"
@@ -399,6 +409,12 @@ in
     // lib.optionalAttrs (updateResolverDir != null) {
       abora-update-resolver = final.callPackage ./pkgs/abora-update-resolver.nix {
         resolverSrc = updateResolverDir;
+      };
+    }
+    // lib.optionalAttrs (aboraUpdateDir != null) {
+      vanta = final.callPackage ./pkgs/vanta.nix {};
+      abora-update = final.callPackage ./pkgs/abora-update.nix {
+        updateSrc = aboraUpdateDir;
       };
     }
     // lib.optionalAttrs (planToolDir != null) {
@@ -611,6 +627,7 @@ in
     zsh
   ] ++ lib.optional (tinypmPackage != null) tinypmPackage
     ++ lib.optional (pkgs ? abora-update-resolver) pkgs.abora-update-resolver
+    ++ lib.optional (pkgs ? abora-update) pkgs.abora-update
     ++ lib.optional (pkgs ? abora-plan-tool) pkgs.abora-plan-tool
     ++ lib.optional (welcomeGuiScript != null) aboraWelcomeGui
     ++ lib.optional (configGuiScript != null) aboraConfigGui
@@ -1055,6 +1072,9 @@ in
     }
     // lib.optionalAttrs (updateResolverDir != null) {
       "abora/update-resolver".source = updateResolverDir;
+    }
+    // lib.optionalAttrs (aboraUpdateDir != null) {
+      "abora/abora-update".source = aboraUpdateDir;
     }
     // lib.optionalAttrs (planToolDir != null) {
       "abora/plan-tool".source = planToolDir;

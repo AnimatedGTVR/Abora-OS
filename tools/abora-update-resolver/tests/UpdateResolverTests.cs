@@ -53,7 +53,7 @@ public class VersionUtilTests
 
 public class UpdateResolverTests
 {
-    // Mirrors check-scripts.sh's "runtime: resolver keeps 3.14 on v3.14"
+    // Mirrors update.test.sh's "runtime: resolver keeps 3.14 on v3.14"
     [Fact]
     public void Stable_KeepsInstalledVersionWhenItsTagIsLatestFinal()
     {

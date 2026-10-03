@@ -1,0 +1,185 @@
+module Main;
+@use Update.Guard;
+@use Update.Resolver;
+
+# abora-update: the Vanta core of `abora update`. scripts/abora-update.sh calls it
+# for decisions and keeps doing the I/O (git, files, UI); pieces move here over time.
+#
+#   resolve-ref --channel <c> --current-version <v> [--tags "<space separated>"]
+#               [--edge-exists] [--fallback-mode] [--fallback-ref <ref>]
+#               [--pre-alpha-ref <ref>]
+#       exit 0: prints "<effective ref>\t<reason>"
+#       exit 1: no ref could be resolved for the channel; prints nothing
+#
+#   guard-downgrade --current-version <v> --selected-ref <ref> [--allow-downgrade]
+#       exit 0: the update may proceed; exit 2: blocked, it would be a downgrade
+#
+# Usage errors exit 64 (EX_USAGE), matching the C# resolver this replaces.
+
+func UsageError(let message::string)::void {
+    emitError(message);
+    Process.Exit(64);
+}
+
+func IsSwitch(let flag::string)::bool {
+    return flag == "--edge-exists" || flag == "--fallback-mode" || flag == "--allow-downgrade";
+}
+
+#! The value of `--name value` (the last one given), or "" when absent.
+func FlagValue(let args::list<string>, let name::string)::string {
+    mut value = "";
+    mut expectValue = false;
+    mut current = "";
+    for arg in args {
+        if expectValue {
+            if current == name {
+                value = arg;
+            }
+            expectValue = false;
+        } else {
+            if !IsSwitch(arg) {
+                current = arg;
+                expectValue = true;
+            }
+        }
+    }
+    return value;
+}
+
+#! Whether `--name value` was given at all.
+func HasValueFlag(let args::list<string>, let name::string)::bool {
+    mut expectValue = false;
+    mut found = false;
+    for arg in args {
+        if expectValue {
+            expectValue = false;
+        } else {
+            if !IsSwitch(arg) {
+                if arg == name {
+                    found = true;
+                }
+                expectValue = true;
+            }
+        }
+    }
+    return found;
+}
+
+func HasSwitch(let args::list<string>, let name::string)::bool {
+    mut expectValue = false;
+    for arg in args {
+        if expectValue {
+            expectValue = false;
+        } else {
+            if arg == name {
+                return true;
+            }
+            if !IsSwitch(arg) {
+                expectValue = true;
+            }
+        }
+    }
+    return false;
+}
+
+#! Rejects anything that isn't `--flag`, `--switch` or `--flag value`, exactly like the C# parser.
+func ValidateFlags(let args::list<string>)::void {
+    mut expectValue = false;
+    mut current = "";
+    for arg in args {
+        if expectValue {
+            expectValue = false;
+        } else {
+            if !String.StartsWith(arg, "--") {
+                UsageError("Unexpected argument: {arg}");
+            }
+            if !IsSwitch(arg) {
+                current = arg;
+                expectValue = true;
+            }
+        }
+    }
+    if expectValue {
+        UsageError("Missing value for {current}");
+    }
+}
+
+func Require(let args::list<string>, let name::string)::string {
+    if !HasValueFlag(args, name) {
+        UsageError("Missing required option: {name}");
+    }
+    return FlagValue(args, name);
+}
+
+func SplitTags(let text::string)::list<string> {
+    let spaced = String.Replace(String.Replace(String.Replace(text, "\t", " "), "\n", " "), "\r", " ");
+    mut tags::list<string> = [];
+    for tag in String.Split(spaced, " ") {
+        if tag != "" {
+            tags = List.Push(tags, tag);
+        }
+    }
+    return tags;
+}
+
+func ResolveRef(let args::list<string>)::void {
+    ValidateFlags(args);
+    let channel = Require(args, "--channel");
+    let currentVersion = Require(args, "--current-version");
+    if !Resolver.ValidVersionPattern(currentVersion) {
+        UsageError("Unsupported characters in --current-version: {currentVersion}");
+    }
+    mut preAlphaRef = "edge";
+    if HasValueFlag(args, "--pre-alpha-ref") {
+        preAlphaRef = FlagValue(args, "--pre-alpha-ref");
+    }
+    let result = Resolver.Resolve(
+        channel,
+        currentVersion,
+        SplitTags(FlagValue(args, "--tags")),
+        HasSwitch(args, "--edge-exists"),
+        HasSwitch(args, "--fallback-mode"),
+        FlagValue(args, "--fallback-ref"),
+        preAlphaRef
+    );
+    if List.Length(result) == 0 {
+        Process.Exit(1);
+    }
+    let ref = result[0];
+    let reason = result[1];
+    emit("{ref}\t{reason}");
+}
+
+func GuardDowngrade(let args::list<string>)::void {
+    ValidateFlags(args);
+    let currentVersion = Require(args, "--current-version");
+    let selectedRef = Require(args, "--selected-ref");
+    if !Guard.Allows(currentVersion, selectedRef, HasSwitch(args, "--allow-downgrade")) {
+        Process.Exit(2);
+    }
+}
+
+func Start()::void {
+    let args = Env.Args();
+    if List.Length(args) == 0 {
+        UsageError("Usage: abora-update <resolve-ref|guard-downgrade> [options]");
+    }
+    mut rest::list<string> = [];
+    mut index = 0;
+    for arg in args {
+        if index > 0 {
+            rest = List.Push(rest, arg);
+        }
+        index = index + 1;
+    }
+    let command = args[0];
+    if command == "resolve-ref" {
+        ResolveRef(rest);
+        return;
+    }
+    if command == "guard-downgrade" {
+        GuardDowngrade(rest);
+        return;
+    }
+    UsageError("Unknown command: {command}");
+}

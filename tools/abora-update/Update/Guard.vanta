@@ -1,0 +1,13 @@
+module Update.Guard;
+@use Update.Version;
+
+# guard_against_accidental_downgrade() from scripts/abora-update.sh, replacing
+# tools/abora-update-resolver/DowngradeGuard.cs.
+
+#! Whether updating from `currentVersion` to `selectedRef` may proceed.
+pub func Allows(let currentVersion::string, let selectedRef::string, let allowDowngrade::bool)::bool {
+    if selectedRef == "edge" || allowDowngrade {
+        return true;
+    }
+    return !Version.VersionLessThan(Version.TagBaseVersion(selectedRef), currentVersion);
+}

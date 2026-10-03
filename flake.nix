@@ -17,6 +17,8 @@
         modularity = final.callPackage ./nix/pkgs/modularity.nix {};
         moducpp-anix = final.callPackage ./nix/pkgs/moducpp-anix.nix {};
         abora-update-resolver = final.callPackage ./nix/pkgs/abora-update-resolver.nix {};
+        vanta = final.callPackage ./nix/pkgs/vanta.nix {};
+        abora-update = final.callPackage ./nix/pkgs/abora-update.nix {};
         abora-plan-tool = final.callPackage ./nix/pkgs/abora-plan-tool.nix {};
         abora-desktop-preview = final.callPackage ./nix/pkgs/desktop-preview.nix {};
         abora-hardware-test = final.callPackage ./nix/pkgs/hardware-test.nix {};
@@ -98,6 +100,8 @@
         abora-hardware-test = pkgs.abora-hardware-test;
         abora-installer = pkgs.abora-installer;
         abora-update-resolver = pkgs.abora-update-resolver;
+        vanta = pkgs.vanta;
+        abora-update = pkgs.abora-update;
         abora-plan-tool = pkgs.abora-plan-tool;
 
         default = self.nixosConfigurations.abora-live-cosmic.config.system.build.isoImage;

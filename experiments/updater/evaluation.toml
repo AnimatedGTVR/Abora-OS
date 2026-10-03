@@ -1,0 +1,15 @@
+# Human evaluation for the updater area. Nothing in this file is measured.
+# `abora-labs report updater` prints it separately from measured metrics.
+
+question = "What should Abora use for updater?"
+
+# Capabilities every implementation is judged against.
+features = []
+
+# One table per implementation directory, e.g.:
+# [implementations.go]
+# reviewer = "your-name"
+# reviewed = 2026-01-31
+# scores = { maintainability = 3, readability = 4 }   # 1-5
+# features = { "some feature" = "done" }              # done | partial | missing | n/a
+# notes = "Free-form observations."

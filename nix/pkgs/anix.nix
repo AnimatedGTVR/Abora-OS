@@ -29,7 +29,7 @@ let
     doCheck = false;
   };
 in
-# The flake-native equivalent of package-anix.sh's standalone tarball: same
+# The flake-native equivalent of package-anix.py's standalone tarball: same
 # share/anix/ layout and same ANIX_* env vars anix.sh reads for its
 # docs/languages/tinypm/wallpaper paths, but wired via makeWrapper (--set/
 # --prefix PATH) instead of a generated shell wrapper script, so a plain

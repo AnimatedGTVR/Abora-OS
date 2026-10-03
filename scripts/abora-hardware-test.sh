@@ -1,1 +1,1 @@
-support/abora-hardware-test.sh
+support/abora-hardware-test.py

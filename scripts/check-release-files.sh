@@ -1,1 +1,0 @@
-release/check-release-files.sh

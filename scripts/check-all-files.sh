@@ -1,1 +1,0 @@
-release/check-all-files.sh

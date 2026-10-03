@@ -50,7 +50,7 @@ fi
 
 # Every path ANIX reads or writes is a variable with an ANIX_* environment
 # override, defaulting to the real installed-system location. That's what
-# lets check-scripts.sh and the e2e tests point a whole ANIX invocation at a
+# lets the test suites and the e2e tests point a whole ANIX invocation at a
 # throwaway temp directory instead of the real /etc/nixos, without any of
 # the functions below needing to know they're under test.
 config_dir="${ANIX_SYSTEM_CONFIG:-/etc/nixos}"
