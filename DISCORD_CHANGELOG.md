@@ -1,3 +1,17 @@
+# Abora OS v4.1.1
+
+small one, but it matters for 4.2. `abora update` was copying a fixed list of files from your *old* version, so new files never showed up and removed ones never went away. that's fixed now.
+
+**Changelog:**
+- updates now install every file the new release needs, not just the ones your old version knew about
+- files a release drops or renames get cleaned up on the next update
+- only files the updater put there are ever removed. your own files, `apps.nix` and `apps.list` are never touched
+- your first update just records what's installed, nothing gets removed
+
+**How to update:** `sudo abora update`. on 4.0, run it twice (the first run brings in the new updater, the second uses it)
+
+---
+
 # Abora OS v4.1 Horizon
 
 ## Screenshots
