@@ -996,7 +996,7 @@ copy_upstream_dir() {
 apply_installed_manifest() {
     local abora_dir="$config_dir/abora"
     local manifest="$abora_dir/$installed_manifest_name"
-    local new_list old_path target parent abora_real dir
+    local new_list new_path old_path target parent abora_real dir
     local removed=0
 
     new_list="$(printf '%s\n' "${installed_paths[@]}" | sed '/^$/d' | LC_ALL=C sort -u)"
@@ -1006,6 +1006,14 @@ apply_installed_manifest() {
             case "$old_path" in
                 ""|/*|..|../*|*/..|*/../*|.|./*|*/.|*/./*|apps.nix|apps.list|"$installed_manifest_name") continue ;;
             esac
+            # Ownership of a directory also covers its descendants. Preserve
+            # old ancestors of newly installed paths as well.
+            while IFS= read -r new_path; do
+                [[ -n "$new_path" ]] || continue
+                if [[ "$old_path" == "$new_path/"* || "$new_path" == "$old_path/"* ]]; then
+                    continue 2
+                fi
+            done <<< "$new_list"
             target="$abora_dir/$old_path"
             # A path that is now a folder belongs to this release (or to the user), not to the old one.
             [[ -d "$target" ]] && continue

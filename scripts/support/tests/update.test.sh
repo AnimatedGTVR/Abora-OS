@@ -192,6 +192,44 @@ else
   pass "runtime: pre-alpha warning rejects non-exact phrase"
 fi
 
+# Exercise manifest ownership directly, including directory entries from older
+# manifests. Shared text prefixes must not count as shared path components.
+tmp_manifest_overlap="$(mktemp -d)"
+testlib_cleanup_paths+=("$tmp_manifest_overlap")
+sed -n '/^apply_installed_manifest() {/,/^}$/p' scripts/support/abora-update.sh > "$tmp_manifest_overlap/functions.sh"
+check_manifest_overlap() {
+  local old_path="$1" new_path="$2" expected="$3"
+  local config_dir="$tmp_manifest_overlap/config"
+  rm -rf "$config_dir"
+  mkdir -p "$config_dir/abora/$(dirname -- "$old_path")"
+  printf 'installed\n' > "$config_dir/abora/$old_path"
+  printf '%s\n' "$old_path" > "$config_dir/abora/.abora-installed-files"
+  if ! (
+    source "$tmp_manifest_overlap/functions.sh"
+    installed_manifest_name=".abora-installed-files"
+    installed_paths=("$new_path")
+    abora_info() { :; }
+    apply_installed_manifest
+  ); then
+    fail "runtime: manifest cleanup failed for $old_path -> $new_path"
+  elif [[ "$expected" == retained && -f "$config_dir/abora/$old_path" ]] \
+    || [[ "$expected" == removed && ! -e "$config_dir/abora/$old_path" ]]; then
+    pass "runtime: manifest $old_path -> $new_path is $expected"
+  else
+    fail "runtime: manifest $old_path -> $new_path should be $expected"
+  fi
+  if [[ "$(cat "$config_dir/abora/.abora-installed-files")" != "$new_path" ]]; then
+    fail "runtime: manifest cleanup did not record the new ownership list"
+  fi
+}
+check_manifest_overlap exact exact retained
+check_manifest_overlap bundle/old.txt bundle retained
+check_manifest_overlap old-parent old-parent/new.txt retained
+check_manifest_overlap 'space [*]/old.txt' 'space [*]' retained
+check_manifest_overlap bundle-old/old.txt bundle removed
+check_manifest_overlap bundle bundle-new/new.txt removed
+check_manifest_overlap obsolete.txt '' removed
+
 # Regression test: abora-update.sh's sync_abora_files() used to never copy
 # check-full.sh, installer.sh, setup-launcher.sh, or setup.desktop into
 # $abora_dir, even though it also copies installed-base.nix, which
