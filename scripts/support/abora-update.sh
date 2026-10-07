@@ -891,11 +891,20 @@ explain_step_failure() {
 installed_paths=()
 installed_manifest_name=".abora-installed-files"
 
+# Records one installed path. A directory is recorded as the files inside it, so a later update only
+# ever removes single files the updater put there, never a folder with something else in it.
 record_installed() {
     local path="$1"
     local abora_dir="$config_dir/abora"
+    local file
     [[ "$path" == "$abora_dir/"* ]] || return 0
-    installed_paths+=("${path#"$abora_dir/"}")
+    if [[ -d "$path" && ! -L "$path" ]]; then
+        while IFS= read -r file; do
+            installed_paths+=("${file#"$abora_dir/"}")
+        done < <(find "$path" \( -type f -o -type l \) -print)
+    else
+        installed_paths+=("${path#"$abora_dir/"}")
+    fi
 }
 
 copy_upstream_file() {
@@ -979,29 +988,40 @@ copy_upstream_dir() {
     record_installed "$destination"
 }
 
-# Removes what the previous update installed and this one did not (a file or directory the new release
-# dropped or renamed), then records this run's list for the next update. Without a previous list (the
-# first update by this updater) nothing is removed. Only plain relative paths inside $config_dir/abora are
-# ever touched.
+# Removes the files the previous update installed and this one did not (files the new release dropped or
+# renamed), then records this run's list for the next update. Without a previous list (the first update
+# by this updater) nothing is removed. Only single files are removed, and only when they really sit inside
+# $config_dir/abora (no "..", absolute paths or symlinked folders); a folder is removed only once it is
+# empty, so anything else kept in it stays.
 apply_installed_manifest() {
     local abora_dir="$config_dir/abora"
     local manifest="$abora_dir/$installed_manifest_name"
-    local new_list old_path
+    local new_list old_path target parent abora_real dir
+    local removed=0
 
-    new_list="$(printf '%s\n' "${installed_paths[@]}" | sed '/^$/d' | sort -u)"
+    new_list="$(printf '%s\n' "${installed_paths[@]}" | sed '/^$/d' | LC_ALL=C sort -u)"
     if [[ -f "$manifest" ]]; then
+        abora_real="$(realpath -e -- "$abora_dir")" || return 1
         while IFS= read -r old_path; do
-            [[ -n "$old_path" ]] || continue
             case "$old_path" in
-                /*|..|../*|*/..|*/../*|.|./*|apps.nix|apps.list|"$installed_manifest_name") continue ;;
+                ""|/*|..|../*|*/..|*/../*|.|./*|*/.|*/./*|apps.nix|apps.list|"$installed_manifest_name") continue ;;
             esac
-            grep -qxF -- "$old_path" <<<"$new_list" && continue
-            # A file that now lives inside a directory this release installed is not stale.
-            if [[ -e "$abora_dir/$old_path" || -L "$abora_dir/$old_path" ]]; then
-                abora_info "Removing ${old_path} (no longer part of Abora)."
-                rm -rf -- "${abora_dir:?}/$old_path"
-            fi
-        done < "$manifest"
+            target="$abora_dir/$old_path"
+            # A path that is now a folder belongs to this release (or to the user), not to the old one.
+            [[ -d "$target" ]] && continue
+            [[ -f "$target" || -L "$target" ]] || continue
+            parent="$(realpath -e -- "$(dirname -- "$target")" 2>/dev/null)" || continue
+            [[ "$parent" == "$abora_real" || "$parent" == "$abora_real/"* ]] || continue
+            rm -f -- "$target"
+            removed=$((removed + 1))
+            dir="$(dirname -- "$target")"
+            while [[ "$dir" == "$abora_dir/"* ]] && rmdir -- "$dir" 2>/dev/null; do
+                dir="$(dirname -- "$dir")"
+            done
+        done < <(LC_ALL=C comm -23 <(sed '/^$/d' "$manifest" | LC_ALL=C sort -u) <(printf '%s\n' "$new_list"))
+        if (( removed > 0 )); then
+            abora_info "Removed ${removed} old Abora file(s) this release no longer ships."
+        fi
     fi
     printf '%s\n' "$new_list" > "$manifest.tmp"
     mv "$manifest.tmp" "$manifest"

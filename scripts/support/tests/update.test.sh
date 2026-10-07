@@ -322,19 +322,33 @@ if command -v python3 >/dev/null 2>&1; then
     manifest_ok=0
     printf '              user-owned apps.nix/apps.list were recorded as installed\n'
   fi
-  # Pretend the previous release also shipped these (since renamed or removed).
-  mkdir -p "$manifest_dir/tools/old-folder"
+  # Pretend the previous release also shipped these (since renamed or
+  # removed). old-folder also holds a file the updater never installed;
+  # linked/ is a symlink to a folder outside abora/; docs (now a folder)
+  # was once recorded as a single file.
+  mkdir -p "$manifest_dir/tools/old-folder" "$manifest_dir/tools/gone-folder/deeper" "$tmp_manifest_target/outside-dir"
   printf 'old\n' > "$manifest_dir/tools/old-name.sh"
   printf 'old\n' > "$manifest_dir/tools/old-folder/inside.sh"
-  printf '%s\n' tools/old-name.sh tools/old-folder apps.nix apps.list ../outside.txt /etc/passwd \
+  printf 'mine\n' > "$manifest_dir/tools/old-folder/mine.txt"
+  printf 'old\n' > "$manifest_dir/tools/gone-folder/deeper/a.sh"
+  printf 'victim\n' > "$tmp_manifest_target/outside-dir/victim.txt"
+  ln -s "$tmp_manifest_target/outside-dir" "$manifest_dir/linked"
+  printf '%s\n' tools/old-name.sh tools/old-folder/inside.sh tools/gone-folder/deeper/a.sh linked/victim.txt \
+    docs apps.nix apps.list ../outside.txt /etc/passwd \
     >> "$manifest_dir/.abora-installed-files"
   if [[ "$manifest_ok" -eq 1 ]] && run_update_install "$tmp_manifest_target" >/dev/null 2>&1; then
-    for gone in tools/old-name.sh tools/old-folder; do
+    for gone in tools/old-name.sh tools/old-folder/inside.sh tools/gone-folder; do
       if [[ -e "$manifest_dir/$gone" ]]; then
         manifest_ok=0
         printf '              not removed: abora/%s\n' "$gone"
       fi
     done
+    [[ "$(cat "$manifest_dir/tools/old-folder/mine.txt" 2>/dev/null)" == "mine" ]] \
+      || { manifest_ok=0; printf '              unlisted file inside a dropped folder was removed\n'; }
+    [[ -f "$tmp_manifest_target/outside-dir/victim.txt" ]] \
+      || { manifest_ok=0; printf '              removal followed a symlinked folder out of abora/\n'; }
+    [[ -n "$(ls -A "$manifest_dir/docs" 2>/dev/null)" ]] \
+      || { manifest_ok=0; printf '              docs folder was emptied\n'; }
     [[ "$(cat "$manifest_dir/my-notes.txt" 2>/dev/null)" == "my notes" ]] \
       || { manifest_ok=0; printf '              user file my-notes.txt was touched\n'; }
     [[ "$(cat "$manifest_dir/apps.list" 2>/dev/null)" == "user apps" ]] \
@@ -343,7 +357,7 @@ if command -v python3 >/dev/null 2>&1; then
       || { manifest_ok=0; printf '              apps.nix was touched\n'; }
     [[ -f "$tmp_manifest_target/outside.txt" ]] \
       || { manifest_ok=0; printf '              a path outside abora/ was removed\n'; }
-    if grep -qxE 'tools/old-name\.sh|tools/old-folder' "$manifest_dir/.abora-installed-files"; then
+    if grep -qxE 'tools/old-name\.sh|tools/old-folder/inside\.sh|docs' "$manifest_dir/.abora-installed-files"; then
       manifest_ok=0
       printf '              removed paths are still in the installed-files list\n'
     fi
