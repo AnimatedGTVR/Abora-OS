@@ -1,3 +1,42 @@
+# Abora OS v4.1.1
+
+A small update to Horizon that fixes how `abora update` handles files.
+
+Released: **<RELEASE DATE>** · Tag: `v4.1.1` · Channel: `stable`
+
+## Why this update
+
+Until now, `abora update` copied a fixed list of files, and that list came from the version you already had
+installed. If a new release added a file, it never reached your system. If a release removed or renamed a
+file, the old copy stayed behind. That blocks the cleanup planned for v4.2, which adds, moves and removes
+files. 4.1.1 fixes the updater first so v4.2 can arrive safely.
+
+## What changed
+
+- **New files arrive.** After `abora update` downloads a release, it switches to that release's updater, which
+  now installs everything the release needs, including files your old updater didn't know about. Nothing is
+  downloaded twice.
+- **Old files are cleaned up.** Each update keeps a list of the files it installed in
+  `/etc/nixos/abora/.abora-installed-files`. The next update removes anything on that list that the new release
+  no longer ships.
+- **Your files are safe.** Only files on that list are ever removed. Files you created, `apps.nix`, `apps.list`
+  and anything outside `/etc/nixos/abora` are never touched. Your first update after 4.1.1 only writes the list
+  and removes nothing.
+
+## Updating
+
+```
+sudo abora update
+```
+
+- **On 4.1:** one update is enough.
+- **On 4.0:** run `sudo abora update` twice. The 4.0 updater can't switch to the newer updater mid-update, so
+  the first run installs 4.1.1's updater and the second run uses it.
+
+No reinstall is needed, and the ISOs are only refreshed with the new version number.
+
+---
+
 # Abora OS v4.1 Horizon
 
 ![Abora OS v4.1 Horizon](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/Images/v4.1-horizon-banner.png)

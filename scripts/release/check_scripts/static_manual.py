@@ -99,7 +99,7 @@ def updater_sync(ctx: Context) -> None:
         grep("-q", '"abora/Abora-LOGO.png".source = ../../assets/Abora-LOGO.png', "nix/profiles/live.nix"),
         grep("-q", '"abora/Abora-Text.png".source = ../../assets/Abora-Text.png', "nix/profiles/live.nix"),
         grep("-q", "vendor/modularity", "scripts/abora-update.sh"),
-        grep("-q", 'cp -R "$upstream_dir/vendor/modularity" "$abora_dir/vendor/modularity"', "scripts/abora-update.sh"),
+        grep("-q", 'copy_upstream_dir "$upstream_dir/vendor/modularity" "$abora_dir/vendor/modularity"', "scripts/abora-update.sh"),
         grep("-q", "docs/wiki/ANIX-V2-Languages.md", "scripts/abora-update.sh"),
         grep("-q", "docs/wiki/Updating-Abora.md", "scripts/abora-update.sh"),
         grep("-q", "Check your internet connection, then run: sudo abora update", "scripts/abora-update.sh"),
@@ -109,7 +109,7 @@ def updater_sync(ctx: Context) -> None:
         grep("-q", 'copy_upstream_file "$upstream_dir/scripts/abora-dotfiles-import.sh" "$abora_dir/dotfiles-import.sh"', "scripts/abora-update.sh"),
         grep("-q", 'copy_upstream_file "$upstream_dir/assets/Abora-LOGO.png" "$abora_dir/Abora-LOGO.png"', "scripts/abora-update.sh"),
         grep("-q", 'copy_upstream_file "$upstream_dir/assets/Abora-Text.png" "$abora_dir/Abora-Text.png"', "scripts/abora-update.sh"),
-        grep("-q", 'cp -R "$upstream_dir/docs" "$abora_dir/docs"', "scripts/abora-update.sh"),
+        grep("-q", 'copy_upstream_dir "$upstream_dir/docs" "$abora_dir/docs"', "scripts/abora-update.sh"),
     ).run(ctx)
 
 
