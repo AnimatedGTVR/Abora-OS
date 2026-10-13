@@ -651,6 +651,8 @@ in
         source = ../../scripts/support/abora-welcome.py;
         mode = "0755";
       };
+      # The support tools' shared core (UI, redaction); they import it from /etc/abora.
+      "abora/abora_core.py".source = ../../scripts/support/abora_core.py;
       "abora/repair-flake-purity.sh" = {
         source = ../../scripts/config/abora-repair-flake-purity.sh;
         mode = "0755";

@@ -2519,7 +2519,7 @@ write_branding_assets() {
               fastfetch-config.jsonc desktop-profiles.sh installed-base.nix \
               installer.sh setup-launcher.sh setup.desktop repair-flake-purity.sh \
               session-setup.sh dotfiles-import.sh theme-sync.sh update.sh welcome-gui.py config-gui.py \
-              gaming-welcome-gui.py labs.sh; do
+              gaming-welcome-gui.py labs.sh abora_core.py; do
         cp_required "/etc/abora/${f}" "${root}/etc/nixos/abora/${f}"
     done
     [[ -f /etc/abora/Abora-LOGO.png ]] && \

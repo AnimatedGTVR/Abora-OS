@@ -68,3 +68,4 @@ assets/wallpapers/collection
 assets/wallpapers/collection/aurora-lofoten.jpg
 assets/wallpaper-themes
 vendor/modularity
+scripts/support/abora_core.py

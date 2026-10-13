@@ -1133,6 +1133,13 @@ release_has_gaming_welcome_gui() {
     ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
 }
 
+release_has_abora_core() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "edge" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.2"
+}
+
 release_has_labs() {
     local selected_ref="$1"
     [[ "$selected_ref" == "edge" ]] && return 0
@@ -1220,6 +1227,12 @@ EOF
     if release_has_labs "$selected_ref"; then
         cat <<'EOF'
 scripts/apps/abora-labs.sh
+EOF
+    fi
+
+    if release_has_abora_core "$selected_ref"; then
+        cat <<'EOF'
+scripts/support/abora_core.py
 EOF
     fi
 
@@ -1492,6 +1505,9 @@ install_abora_files() {
     copy_upstream_file "$upstream_dir/scripts/abora-doctor.sh" "$abora_dir/doctor.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-recovery.sh" "$abora_dir/recovery.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-welcome.sh" "$abora_dir/welcome.sh"
+    if [[ -f "$upstream_dir/scripts/support/abora_core.py" ]]; then
+        copy_upstream_file "$upstream_dir/scripts/support/abora_core.py" "$abora_dir/abora_core.py"
+    fi
     if [[ -f "$upstream_dir/scripts/support/abora-community.py" && -f "$upstream_dir/nix/modules/community.nix" ]]; then
         copy_upstream_file "$upstream_dir/scripts/support/abora-community.py" "$abora_dir/community.py"
         copy_upstream_file "$upstream_dir/nix/modules/community.nix" "$abora_dir/community.nix"

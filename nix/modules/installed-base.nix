@@ -26,6 +26,9 @@ let
   checkFullScript      = ./check-full.sh;
   recoveryScript       = ./recovery.sh;
   welcomeScript        = ./welcome.sh;
+  # The support tools' shared core (UI, redaction), new in 4.2; they import it from /etc/abora.
+  aboraCoreModule =
+    if builtins.pathExists ./abora_core.py then ./abora_core.py else null;
   # New in this release; optional so systems mid-update (new installed-base.nix
   # synced before the new .py files finish copying) don't fail evaluation.
   welcomeGuiScript =
@@ -1063,6 +1066,9 @@ in
     }
     // lib.optionalAttrs (configGuiScript != null) {
       "abora/config-gui.py".source = configGuiScript;
+    }
+    // lib.optionalAttrs (aboraCoreModule != null) {
+      "abora/abora_core.py".source = aboraCoreModule;
     }
     // lib.optionalAttrs (gamingWelcomeGuiScript != null) {
       "abora/gaming-welcome-gui.py".source = gamingWelcomeGuiScript;

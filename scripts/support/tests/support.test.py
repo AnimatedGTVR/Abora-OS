@@ -258,20 +258,34 @@ def _():
     expect(unknown.stdout, "unknown argument: --bogus", "abora support-report [--output-dir DIR]")
 
 
-@check("runtime: redaction is identical in abora-check-full.py and abora-support-report.py")
+@check("runtime: the support tools share abora_core.py instead of each carrying a copy of its code")
 def _():
-    # Each tool must be self-contained (see the block's own comment), so
-    # nothing else keeps the two copies from drifting apart.
-    report = block("abora-support-report", "# ── redaction", "# ── end redaction")
-    check_full = block("abora-check-full", "# ── redaction", "# ── end redaction")
-    assert report == check_full, "the redaction blocks differ"
+    # They used to carry identical copies of the UI and redaction code, kept in step by this file.
+    for tool in TOOLS:
+        text = (SUPPORT / f"{tool}.py").read_text(encoding="utf-8")
+        assert "from abora_core import" in text, f"{tool}.py doesn't import abora_core"
+        for marker in ("# ── UI", "# ── redaction", "def redact_line(", "def brand_header("):
+            assert marker not in text, f"{tool}.py carries its own copy again ({marker!r})"
 
 
-@check("runtime: the UI block is identical in every support tool that has one")
+@check("runtime: every way the support tools reach a system also brings abora_core.py")
 def _():
-    copies = {tool: block(tool, "# ── UI", "# ── end UI") for tool in ("abora-doctor", "abora-recovery", "abora-welcome", "abora-hardware-test")}
-    differing = [tool for tool, text in copies.items() if text != copies["abora-doctor"]]
-    assert not differing, f"UI block differs from abora-doctor.py in: {differing}"
+    # A tool without the core beside it (or in /etc/abora) dies on its first import.
+    places = {
+        "nix/profiles/live.nix (the live ISO's /etc/abora)": ('"abora/abora_core.py".source = ../../scripts/support/abora_core.py',),
+        "nix/modules/installed-base.nix (an installed system's /etc/abora)": ("./abora_core.py", '"abora/abora_core.py".source = aboraCoreModule'),
+        "scripts/install/abora-installer.sh (live ISO to the new system)": ("labs.sh abora_core.py; do",),
+        "scripts/install/abora-adopt-nixos.sh (adopting a NixOS install)": ('"scripts/support/abora_core.py:abora_core.py"',),
+        "scripts/support/abora-update.sh (updates)": (
+            "scripts/support/abora_core.py\nEOF",
+            'copy_upstream_file "$upstream_dir/scripts/support/abora_core.py" "$abora_dir/abora_core.py"',
+        ),
+        "nix/pkgs/hardware-test.nix (the standalone package)": ('"$src/scripts/support/abora_core.py"',),
+    }
+    for place, needles in places.items():
+        text = (REPO / place.split(" (")[0]).read_text(encoding="utf-8")
+        for needle in needles:
+            assert needle in text, f"{place} doesn't bring abora_core.py ({needle!r})"
 
 
 @check("runtime: redaction handles Nix indented-string PSKs and full authorization headers")

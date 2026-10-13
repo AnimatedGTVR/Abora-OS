@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import os
 import pwd
-import re
 import shlex
 import shutil
 import signal
@@ -60,72 +59,10 @@ NETWORK_AND_BLUETOOTH = (
     "rfkill list 2>/dev/null || true"
 )
 
-# ── redaction ─────────────────────────────────────────────────────────────────
-# Obvious secrets: `key = value` / `key: value` credential pairs, and
-# user:password@ URLs. Ported from the sed script these tools used, keeping
-# its POSIX longest-match semantics where Python's first-match would differ.
-# abora-support-report.py and abora-check-full.py carry this same block, and
-# tests/support.test.py keeps the copies identical.
-
-# The key list has to cover networking.wireless.networks.*.psk: NixOS stores the plaintext Wi-Fi passphrase
-# there, and configuration.nix is copied into these reports verbatim. The '' alternative catches Nix indented
-# strings (psk = ''secret''): without it the ordinary single-quote branch matches the leading '' as an empty value
-# and leaves the passphrase in the report. It redacts to end of line so an unterminated indented string still fails
-# closed. The authorization rule is separate because a header puts the credential after a scheme word
-# ("Bearer <token>"), which the key=value rule cannot reach -- dmesg and journalctl carry those routinely. It also
-# runs to end of line, because a Digest header keeps credentials in later parameters (realm=, response=) well past
-# the first space.
-SECRET_KEY = re.compile(r"(^|[^A-Za-z0-9_])(hashedPassword|password|passwd|psk|pskRaw|preSharedKey|secret|token|api[_-]?key)(\s*[:=]\s*)", re.IGNORECASE)
-SECRET_VALUES = (re.compile(r'"[^"]*"'), re.compile(r"''.*"), re.compile(r"'[^']*'"), re.compile(r"[^\s;]+"))
-AUTHORIZATION = re.compile(r"((?:proxy-)?authorization\s*:\s*)((?:bearer|basic|token|digest)\s+)?.*", re.IGNORECASE)
-# The trailing "@" is what makes this a credential URL: without it any bare
-# "word:word" (timestamps, host:port) would be redacted too.
-CREDENTIAL_URL = re.compile(r"(github\.com/\S+://)?([^\s@/]+):([^\s@]+)@")
-
-# A Nix indented string spanning several lines --
-#   psk = ''
-#     passphrase
-#   '';
-# -- would have its opening line redacted while the passphrase sat untouched on the next line, which reads as
-# sanitised and is not. So credential blocks are collapsed first (the opening line stays, the body and closing
-# line are dropped). A block opens only on a credential key, so an ordinary indented string such as
-# extraConfig = '' ... '' passes through intact.
-CREDENTIAL_BLOCK_OPEN = re.compile(r"(hashedpassword|password|passwd|psk|pskraw|presharedkey|secret|token|api[_-]?key)[ \t]*[:=][ \t]*''")
-
-
-def collapse_credential_blocks(text: str) -> str:
-    out, in_block = [], False
-    for line in text.split("\n"):
-        if in_block:
-            if line.count("''") > 0:
-                in_block = False
-            continue
-        if CREDENTIAL_BLOCK_OPEN.search(line.lower()) and line.count("''") == 1 and re.search(r"''[ \t]*$", line):
-            in_block = True
-        out.append(line)
-    return "\n".join(out)
-
-
-def redact_line(line: str) -> str:
-    out, pos = [], 0
-    search_from = 0
-    while (key := SECRET_KEY.search(line, search_from)) is not None:
-        # sed takes the longest of the value alternatives, not the first.
-        value_end = max((m.end() for p in SECRET_VALUES if (m := p.match(line, key.end()))), default=None)
-        if value_end is None:
-            search_from = key.start() + 1
-            continue
-        out.append(line[pos:key.end()] + '"[redacted]"')
-        pos = search_from = value_end
-    out.append(line[pos:])
-    line = AUTHORIZATION.sub(lambda m: m.group(1) + (m.group(2) or "") + "[redacted]", "".join(out))
-    return CREDENTIAL_URL.sub("[redacted-user]:[redacted]@", line)
-
-
-def redact(text: str) -> str:
-    return "\n".join(redact_line(line) for line in collapse_credential_blocks(text).split("\n"))
-
-# ── end redaction ─────────────────────────────────────────────────────────────
+# Abora's shared core (abora_core.py): beside this tool in a checkout, on the live ISO and in the
+# hardware-test package; in /etc/abora on an installed system, where each tool is its own Nix store file.
+sys.path[:0] = [str(Path(__file__).resolve().parent), "/etc/abora"]
+from abora_core import redact
 
 
 def run_with_timeout(argv: list[str]) -> tuple[str, int]:
