@@ -23,8 +23,7 @@ fresh ISO whenever possible so the screenshots match what users see.
 - `abora welcome` or welcome GUI, showing the Home and System tabs
 - Abora Gaming Welcome (`abora gaming welcome`) showing the platform list and Steam sign-in card
 - `abora config` or config GUI
-- `anix language list` showing ANIX Native, MAKO, and ModuCPP
-- `anix diff-plan examples/anix-v2/workstation.mko`
+- `anix language list` showing ANIX Native and ModuCPP
 - `anix diff-plan examples/anix-v2/workstation.moducpp`
 
 ## Naming
@@ -40,7 +39,6 @@ installer-network-tools.png
 installer-preflight-failed.png
 installer-install-failed.png
 anix-language-list.png
-anix-mako-diff.png
 anix-moducpp-diff.png
 ```
 

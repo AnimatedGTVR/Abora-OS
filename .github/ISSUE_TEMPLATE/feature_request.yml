@@ -1,0 +1,45 @@
+name: Feature request
+description: Suggest something Abora OS should do.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the situation you hit, not just the feature you want. It often points at a simpler fix.
+      placeholder: After installing I have to manually enable my controller every time, because...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should Abora do instead?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of Abora?
+      options:
+        - Installer
+        - Desktop / editions
+        - Gaming layer
+        - Apps and packages
+        - Updates and rollback
+        - ANIX config layer
+        - TinyPM
+        - Documentation
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Anything you already tried
+      description: Workarounds you are using today, or other approaches you considered.
+    validations:
+      required: false

@@ -6,7 +6,7 @@ SHA256SUMS-<tag>.txt, RELEASE_MANIFEST-<tag>.txt and RELEASE_NOTES-<tag>.md,
 then prints the version tag.
 
 Environment overrides (empty counts as unset):
-  ABORA_RELEASE_NAME   release title (default "Abora OS v4 Everest")
+  ABORA_RELEASE_NAME   release title (default "Abora OS v4.1 Horizon")
   ABORA_OUT_DIR        output root (default <repo>/out)
   ABORA_ISO_DIR        default $ABORA_OUT_DIR/iso
   ABORA_PACKAGE_DIR    default $ABORA_OUT_DIR/packages
@@ -28,7 +28,7 @@ from pathlib import Path
 
 from abora_release import as_tag, env, repo_root, sanitize
 
-DEFAULT_RELEASE_NAME = "Abora OS v4 Everest"
+DEFAULT_RELEASE_NAME = "Abora OS v4.1 Horizon"
 IEC_UNITS = ("K", "M", "G", "T", "P", "E", "Z", "Y")
 
 

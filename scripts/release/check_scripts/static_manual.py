@@ -15,28 +15,28 @@ def branding(ctx: Context) -> None:
         "README.md", "RELEASE_NOTES.md", "docs", "scripts", "nix",
     )
     passed = not old_branding and Check(
-        "runtime: v4 Everest branding is consistent",
-        grep("-q", "Abora OS v4 Everest", "RELEASE_NOTES.md"),
-        grep("-q", "git tag v4.0", "docs/wiki/Release-Guide.md"),
-        grep("-q", "x86_64-v4.0.iso", "RELEASE_NOTES.md"),
-        grep("-q", "SHA256SUMS-v4.0.txt", "RELEASE_NOTES.md"),
+        "runtime: v4.1 Horizon branding is consistent",
+        grep("-q", "Abora OS v4.1 Horizon", "RELEASE_NOTES.md"),
+        grep("-q", "git tag v4.1", "docs/wiki/Release-Guide.md"),
+        grep("-q", "x86_64-v4.1.iso", "RELEASE_NOTES.md"),
+        grep("-q", "SHA256SUMS-v4.1.txt", "RELEASE_NOTES.md"),
         grep("-q", 'abora_release_stage="${ABORA_RELEASE_STAGE:-alpha}"', "scripts/abora-installer.sh"),
         grep("-q", 'abora_release_channel="${ABORA_RELEASE_CHANNEL:-unstable}"', "scripts/abora-installer.sh"),
-        grep("-q", "Abora OS v4 Everest", "scripts/abora-installer.sh"),
-        grep("-q", "ABORA OS  —  v4 Everest", "scripts/abora-boot.sh"),
-        grep("-q", "ABORA_DEFAULT_CHANNEL:-unstable", "scripts/abora-welcome.sh"),
+        grep("-q", "Abora OS v4.1 Horizon", "scripts/abora-installer.sh"),
+        grep("-q", "ABORA OS  —  v4.1 Horizon", "scripts/abora-boot.sh"),
+        grep("-qF", 'os.environ.get("ABORA_DEFAULT_CHANNEL") or "unstable"', "scripts/support/abora-welcome.py"),
         grep("-q", "ABORA_DEFAULT_CHANNEL', 'unstable'", "scripts/abora-welcome-gui.py"),
-        grep("-q", "ABORA_DEFAULT_CHANNEL:-unstable", "scripts/abora-doctor.sh"),
-        grep("-q", "v4 Everest alpha default", "docs/wiki/Updating-Abora.md"),
-        grep("-q", 'release_name="${ABORA_RELEASE_NAME:-Abora OS v4 Everest}"', "scripts/abora-support-report.sh"),
-        grep("-q", "printf 'v4 Everest'", "scripts/abora-ui.sh"),
-        grep("-q", 'RELEASE_SHORT = "v4 Everest"', "scripts/check-desktops.py"),
-        grep("-q", 'PRETTY_NAME = "Abora OS v4 Everest"', "nix/profiles/live.nix"),
-        grep("-q", 'PRETTY_NAME = "Abora OS v4 Everest"', "nix/modules/installed-base.nix"),
-        grep("-q", 'VERSION = "v4 Everest"', "nix/profiles/live.nix"),
-        grep("-q", 'VERSION_ID = "4"', "nix/modules/installed-base.nix"),
+        grep("-qF", 'os.environ.get("ABORA_DEFAULT_CHANNEL") or "unstable"', "scripts/support/abora-doctor.py"),
+        grep("-q", "v4.1 Horizon alpha default", "docs/wiki/Updating-Abora.md"),
+        grep("-qF", 'os.environ.get("ABORA_RELEASE_NAME") or "Abora OS v4.1 Horizon"', "scripts/support/abora-support-report.py"),
+        grep("-q", "printf 'v4.1 Horizon'", "scripts/abora-ui.sh"),
+        grep("-q", 'RELEASE_SHORT = "v4.1 Horizon"', "scripts/check-desktops.py"),
+        grep("-q", 'PRETTY_NAME = "Abora OS v4.1 Horizon"', "nix/profiles/live.nix"),
+        grep("-q", 'PRETTY_NAME = "Abora OS v4.1 Horizon"', "nix/modules/installed-base.nix"),
+        grep("-q", 'VERSION = "v4.1 Horizon"', "nix/profiles/live.nix"),
+        grep("-q", 'VERSION_ID = "4.1"', "nix/modules/installed-base.nix"),
     ).conditions_hold(ctx)
-    ctx.result(passed, "runtime: v4 Everest branding is consistent")
+    ctx.result(passed, "runtime: v4.1 Horizon branding is consistent")
     if not passed and old_branding:
         ctx.detail(old_branding)
 
@@ -99,7 +99,7 @@ def updater_sync(ctx: Context) -> None:
         grep("-q", '"abora/Abora-LOGO.png".source = ../../assets/Abora-LOGO.png', "nix/profiles/live.nix"),
         grep("-q", '"abora/Abora-Text.png".source = ../../assets/Abora-Text.png', "nix/profiles/live.nix"),
         grep("-q", "vendor/modularity", "scripts/abora-update.sh"),
-        grep("-q", 'cp -R "$upstream_dir/vendor/modularity" "$abora_dir/vendor/modularity"', "scripts/abora-update.sh"),
+        grep("-q", 'copy_upstream_dir "$upstream_dir/vendor/modularity" "$abora_dir/vendor/modularity"', "scripts/abora-update.sh"),
         grep("-q", "docs/wiki/ANIX-V2-Languages.md", "scripts/abora-update.sh"),
         grep("-q", "docs/wiki/Updating-Abora.md", "scripts/abora-update.sh"),
         grep("-q", "Check your internet connection, then run: sudo abora update", "scripts/abora-update.sh"),
@@ -109,7 +109,7 @@ def updater_sync(ctx: Context) -> None:
         grep("-q", 'copy_upstream_file "$upstream_dir/scripts/abora-dotfiles-import.sh" "$abora_dir/dotfiles-import.sh"', "scripts/abora-update.sh"),
         grep("-q", 'copy_upstream_file "$upstream_dir/assets/Abora-LOGO.png" "$abora_dir/Abora-LOGO.png"', "scripts/abora-update.sh"),
         grep("-q", 'copy_upstream_file "$upstream_dir/assets/Abora-Text.png" "$abora_dir/Abora-Text.png"', "scripts/abora-update.sh"),
-        grep("-q", 'cp -R "$upstream_dir/docs" "$abora_dir/docs"', "scripts/abora-update.sh"),
+        grep("-q", 'copy_upstream_dir "$upstream_dir/docs" "$abora_dir/docs"', "scripts/abora-update.sh"),
     ).run(ctx)
 
 

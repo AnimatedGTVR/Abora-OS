@@ -934,7 +934,7 @@ do_set() {
     # 'x\"; services.openssh.enable = true; anix.timezone = \"x'" writes
     # that second statement as real, unquoted Nix source into anix.nix. This
     # is also the path apply-plan/anix run use for every "set" operation, so
-    # it's reachable from an external .mko/.moducpp language adapter's Plan
+    # it's reachable from an external language adapter's Plan
     # JSON output, not just direct interactive use.
     if [[ "$value" == *'"'* || "$value" == *'\'* || "$value" == *'${'* ]]; then
         abora_error "Invalid value '${value}' — it cannot contain '\"', '\\', or '\${'."
@@ -3254,10 +3254,10 @@ usage() {
     abora_dim_line "  Rebuild the system using the ANIX layer."
     printf '\n'
     printf '  %banix language list%b / %banix language use <id>%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
-    abora_dim_line "  See or choose the default frontend for 'anix run' (anix, mako, moducpp, ...)."
+    abora_dim_line "  See or choose the default frontend for 'anix run' (anix, moducpp, ...)."
     printf '\n'
     printf '  %banix run <file> [--language <id>] [--yes]%b\n' "$ABORA_CYAN" "$ABORA_NC"
-    abora_dim_line "  Turn a .anix/.mko/.moducpp file into a Plan and apply it as one transaction."
+    abora_dim_line "  Turn a .anix/.moducpp file into a Plan and apply it as one transaction."
     printf '\n'
     printf '  %banix validate-plan <plan.json>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Check a Plan JSON file without touching system state."
@@ -3312,8 +3312,8 @@ do_learn() {
     printf '\n'
 
     abora_card_start "ANIX v2 Languages"
-    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix language list" "$ABORA_NC" "show .anix, MAKO, ModuCPP, and custom adapters"
-    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix run workstation.mko" "$ABORA_NC" "run a frontend file as one ANIX transaction"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix language list" "$ABORA_NC" "show .anix, ModuCPP, and custom adapters"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix run workstation.moducpp" "$ABORA_NC" "run a frontend file as one ANIX transaction"
     printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix diff-plan plan.json" "$ABORA_NC" "preview a plan before applying it"
     abora_card_end
     printf '\n'

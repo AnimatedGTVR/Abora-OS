@@ -628,7 +628,7 @@ installed_anix_language_list_output="$(
     scripts/anix.sh language list 2>&1
 )"
 
-if printf '%s' "$installed_anix_language_list_output" | grep -q "MAKO" \
+if ! printf '%s' "$installed_anix_language_list_output" | grep -q "MAKO" \
   && printf '%s' "$installed_anix_language_list_output" | grep -q "ModuCPP" \
   && grep -q 'builtins.pathExists ./anix-languages' nix/modules/installed-base.nix \
   && grep -q '"anix/languages".source = anixLanguagesDir' nix/modules/installed-base.nix; then
@@ -640,7 +640,7 @@ fi
 # ── ANIX v2 end-to-end: real example files through real adapters ───────────
 # Each example is run through the actual `anix run`, with the real adapter
 # manifests in assets/anix-languages, against an isolated config dir. This
-# exercises the whole path (adapter resolution -> real mko/moducpp-anix
+# exercises the whole path (adapter resolution -> real moducpp-anix
 # process -> plan validation -> transactional write), not just the plan
 # engine in isolation like the tests above. Skips per-frontend when the
 # frontend's own tool isn't installed, matching the existing `command -v
@@ -704,33 +704,6 @@ if grep -Eq 'anix\.hostname[[:space:]]*=[[:space:]]*"everest-workstation"' "$tmp
   pass "runtime: e2e .anix workstation example applies through anix run"
 else
   fail "runtime: e2e .anix workstation example applies through anix run"
-fi
-
-if command -v mko >/dev/null 2>&1; then
-  tmp_anix_e2e_mko="$tmp_ok/anix-e2e-mko"
-  mkdir -p "$tmp_anix_e2e_mko"
-  anix_e2e_run "examples/anix-v2/simple.mko" "$tmp_anix_e2e_mko" || true
-  if grep -Eq 'anix\.hostname[[:space:]]*=[[:space:]]*"everest"' "$tmp_anix_e2e_mko/anix.nix" 2>/dev/null; then
-    pass "runtime: e2e .mko simple example applies through anix run"
-  else
-    fail "runtime: e2e .mko simple example applies through anix run"
-  fi
-
-  tmp_anix_e2e_mko_ws="$tmp_ok/anix-e2e-mko-workstation"
-  mkdir -p "$tmp_anix_e2e_mko_ws"
-  anix_e2e_run "examples/anix-v2/workstation.mko" "$tmp_anix_e2e_mko_ws" || true
-  if grep -Eq 'anix\.hostname[[:space:]]*=[[:space:]]*"everest-workstation"' "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null \
-    && grep -Eq 'anix\.services\.bluetooth[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null \
-    && grep -Eq 'anix\.gaming\.enable[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null \
-    && grep -Eq 'anix\.gaming\.bigPictureShortcut[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null \
-    && grep -q "firefox" "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null \
-    && grep -q "git" "$tmp_anix_e2e_mko_ws/anix.nix" 2>/dev/null; then
-    pass "runtime: e2e .mko workstation example applies through anix run"
-  else
-    fail "runtime: e2e .mko workstation example applies through anix run"
-  fi
-else
-  pass "mko unavailable (MAKO e2e tests skipped)"
 fi
 
 if command -v moducpp-anix >/dev/null 2>&1; then

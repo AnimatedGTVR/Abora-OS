@@ -11,6 +11,7 @@ Security updates are provided for the current stable release of Abora OS.
 | Version                 | Supported |
 | :---------------------- | :-------: |
 | `2026.7.x (v4 Everest)` |     ✅    |
+| `v4.1 Horizon`          |     ✅    |
 | `3.x (Denali)`          |     ✅    |
 | `2.x`                   |     ❌    |
 | `1.x`                   |     ❌    |

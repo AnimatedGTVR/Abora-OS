@@ -75,11 +75,11 @@ The update helper:
 
 ## Channels
 
-Abora OS v4 Everest is currently an alpha release line, so new installs
+Abora OS v4.1 Horizon is currently an alpha release line, so new installs
 default to `unstable`, which tracks the `edge` branch. `stable` remains
 available for final tagged releases and older installed systems.
 
-The Abora channel controls Abora project files. Abora v4 alpha tracks
+The Abora channel controls Abora project files. Abora v4.1 alpha tracks
 NixOS's rolling `nixos-unstable` package branch so desktop environments,
 drivers, and regular Nix apps move forward with `sudo abora update`.
 
@@ -105,7 +105,7 @@ sudo abora channel set unstable
 
 - `stable` tracks the latest tagged Abora release
 - `demo` tracks tagged demo/dev builds for the installed release line
-- `unstable` tracks the `edge` branch and is the v4 Everest alpha default
+- `unstable` tracks the `edge` branch and is the v4.1 Horizon alpha default
 
 Abora's development branch is `edge`. If an older config or test command asks
 for `main`, use `edge` instead:
