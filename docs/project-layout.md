@@ -82,7 +82,6 @@ Important files:
 - `scripts/check-all-files.py`: broad syntax, links, YAML, JSON, and docs sweep
 - `scripts/check-desktops.py`: evaluates every supported desktop profile
 - `scripts/build-iso.py`: ISO-only build path
-- `scripts/package-tinypm.py`: TinyPM release package path
 - `scripts/release-metadata.py`: checksums, manifest, and release notes
 - `scripts/run-qemu.py`: QEMU ISO, fresh-disk, disk-only, and serial helpers
 
@@ -90,7 +89,6 @@ Important files:
 
 Vendored external code that Abora uses directly.
 
-- `vendor/tinypm/`: TinyPM v0.8 Rust crate source, built into the `tinypm` and `grab` binaries shipped system-wide
 
 ## Generated Output
 
@@ -101,7 +99,7 @@ Generated build output. Do not treat this as source.
 It can contain:
 
 - `out/iso/`: built ISO files
-- `out/packages/`: TinyPM release tarballs and other generated packages
+- `out/packages/`: the ANIX release tarball and other generated packages
 - `out/release/`: checksum files, release manifests, and generated release notes
 - `out/qemu/`: QEMU disks and firmware state
 - `out/logs/`: QEMU serial logs and build logs

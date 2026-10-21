@@ -172,7 +172,7 @@ anix rollback nix
 - `anix save`: local `/etc/nixos` snapshot
 - `anix diff nix <profile>`: preview profile changes
 - `anix test nix <profile>`: test-activate a profile
-- `tinypm providers`: show app/package provider status
+- `anix package upgrade`: upgrade packages installed with `anix package install`
 
 ## Notes
 

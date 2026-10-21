@@ -313,7 +313,7 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', '/etc/abora/docs/wiki/ANIX-V2-Languages.md', 'scripts/abora-installer.sh'),
         grep('-q', '/etc/abora/docs/wiki/Abora-Gaming.md', 'scripts/abora-installer.sh'),
         grep('-q', '/etc/abora/docs/wiki/Updating-Abora.md', 'scripts/abora-installer.sh'),
-        grep('-q', 'for doc in ANIX-V1 ANIX-V2-Languages TinyPM Abora-Tools Abora-Gaming Recovery Updating-Abora', 'scripts/abora-installer.sh'),
+        grep('-q', 'for doc in ANIX-V1 ANIX-V2-Languages Packages Abora-Tools Abora-Gaming Recovery Updating-Abora', 'scripts/abora-installer.sh'),
     ),
     Check(
         'runtime: diagnostics include dotfiles import log',

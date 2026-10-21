@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""abora check-full: collect full ANIX, TinyPM, desktop, driver, and Nix logs.
+"""abora check-full: collect full ANIX, package, desktop, driver, and Nix logs.
 
 Writes one redacted log under $ABORA_CHECK_FULL_DIR (default
 ~/abora-check-full) and prints its path. Every section runs with a timeout
@@ -142,9 +142,7 @@ def main() -> int:
     report.section("ANIX doctor", ["anix", "doctor"])
     report.section("ANIX profiles", ["anix", "profiles"])
     report.section("ANIX generations", ["anix", "generations"])
-    report.optional_command("TinyPM version", ["tinypm", "--version"])
-    report.optional_command("TinyPM package check", ["tinypm", "check", "firefox"])
-    report.optional_command("TinyPM doctor", ["tinypm", "doctor"])
+    report.optional_command("ANIX packages", ["anix", "package", "list"])
     report.section("Abora desktop", ["abora", "desktop", "list"])
     report.section("Display services", ["sh", "-lc", "systemctl --no-pager --failed; systemctl --no-pager status display-manager 2>/dev/null || true"])
     report.section("Network and Bluetooth", ["sh", "-lc", NETWORK_AND_BLUETOOTH])

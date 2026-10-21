@@ -313,7 +313,6 @@ Open an issue before starting a large change so it can be discussed first. Small
 - [`docs/`](docs/) contains documentation, release notes, validation information, and roadmap files.
 - [`nix/`](nix/) contains the live image configuration.
 - [`scripts/`](scripts/) contains installer logic, boot flow, build helpers, and release tooling.
-- [`vendor/tinypm/`](vendor/tinypm/) contains the vendored TinyPM v4 project.
 - [`docs/project-layout.md`](docs/project-layout.md) contains a more detailed repository layout guide.
 
 ## Contributing

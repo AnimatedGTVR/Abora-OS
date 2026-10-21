@@ -79,7 +79,6 @@ def packages_and_metadata(ctx: Context, tag: str) -> None:
             (out / directory).mkdir(parents=True)
         for edition in ("cosmic", "hyprland", "gnome", "kde", "other"):
             (out / "iso" / f"abora-{edition}-test-x86_64-{tag}.iso").touch()
-        (out / "packages" / f"tinypm-v0.0.0-abora-{tag}.tar.gz").touch()
         (out / "packages" / f"anix-v0.0.0-abora-{tag}.tar.gz").touch()
         sums = out / "release" / f"SHA256SUMS-{tag}.txt"
         generated = subprocess.run(["scripts/release-metadata.py"], cwd=ctx.repo, env=_env(ABORA_OUT_DIR=str(out), ABORA_RELEASE_STAMP="test"), stdout=subprocess.DEVNULL)
@@ -89,7 +88,6 @@ def packages_and_metadata(ctx: Context, tag: str) -> None:
             and (out / "release" / f"RELEASE_MANIFEST-{tag}.txt").is_file()
             and (out / "release" / f"RELEASE_NOTES-{tag}.md").is_file()
             and all(ctx.grep("-q", f"abora-{edition}-test-x86_64-{tag}.iso", str(sums)) for edition in ("cosmic", "hyprland", "gnome", "kde", "other"))
-            and ctx.grep("-q", f"tinypm-v0.0.0-abora-{tag}.tar.gz", str(sums))
             and ctx.grep("-q", f"anix-v0.0.0-abora-{tag}.tar.gz", str(sums)),
             "runtime: release-metadata checksum generation includes every edition",
         )
@@ -123,24 +121,18 @@ def workflows(ctx: Context) -> None:
         "runtime: GitHub workflows publish generated release bundle paths",
         grep("-q", "out/iso/.*iso", ".github/workflows/build-iso.yml"),
         lambda c: c.grep("-q", "edge", stdin=c.grep_output("-A2", "branches:", ".github/workflows/build-iso.yml")),
-        lambda c: c.grep("-q", "edge", stdin=c.grep_output("-A2", "branches:", ".github/workflows/publish-tinypm-package.yml")),
         grep("-q", "edge only", ".github/workflows/flake-check.yml"),
-        grep("-q", "vendor/tinypm/Cargo.toml", ".github/workflows/publish-tinypm-package.yml"),
-        grep("-q", "out/packages/tinypm", ".github/workflows/build-iso.yml"),
         grep("-q", "out/packages/anix", ".github/workflows/build-iso.yml"),
         grep("-q", "out/release/SHA256SUMS", ".github/workflows/build-iso.yml"),
-        grep("-q", "out/packages/tinypm", ".github/workflows/release-iso.yml"),
         grep("-q", "out/packages/anix", ".github/workflows/release-iso.yml"),
         grep("-q", "out/release/RELEASE_NOTES", ".github/workflows/release-iso.yml"),
         grep("-q", "Abora OS v4.1 Horizon (${tag})", ".github/workflows/release-iso.yml"),
     ).run(ctx)
     Check(
-        "runtime: TinyPM container builds the real Rust binaries",
-        grep("-q", "COPY --from=build /build/target/release/tinypm /usr/local/bin/tinypm", "packaging/tinypm/Dockerfile"),
-        grep("-q", "COPY --from=build /build/target/release/grab /usr/local/bin/grab", "packaging/tinypm/Dockerfile"),
-        grep("-q", "cargo build --release --locked", "packaging/tinypm/Dockerfile"),
-        test("-f", "vendor/tinypm/Cargo.toml"),
-        test("-f", "vendor/tinypm/src/bin/grab.rs"),
+        "runtime: TinyPM is gone from the build, packaging and workflows (removed in 4.2)",
+        lambda c: not (c.repo / "vendor/tinypm").exists(),
+        lambda c: not (c.repo / ".github/workflows/publish-tinypm-package.yml").exists(),
+        lambda c: not c.grep("-qi", "tinypm", ".github/workflows/build-iso.yml", ".github/workflows/release-iso.yml", "Makefile"),
     ).run(ctx)
 
 

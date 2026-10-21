@@ -99,7 +99,7 @@ Use [Bug Report Template](bug-report-template.md) for full reports.
 - networking is enabled and functional
 - Firefox is available without a separate Flatpak installation
 - `abora setup` launches the installed reconfiguration tool
-- `tinypm` and `grab` are available
+- `anix package install hello` installs `hello` without a rebuild
 - `abora gaming status` and `abora gaming doctor` run after install
 - when Labs was enabled, `abora labs status` works without downloading or executing experimental code automatically
 - on GNOME installs, Abora wallpapers appear in `Settings -> Appearance`

@@ -98,8 +98,6 @@ let
   # update (new installed-base.nix synced before the corresponding new
   # directory finishes copying) must not fail evaluation just because one
   # of these hasn't landed yet.
-  tinypmDir =
-    if builtins.pathExists ./tinypm then ./tinypm else null;
   updateResolverDir =
     if builtins.pathExists ./update-resolver then ./update-resolver else null;
   # The Vanta core of `abora update` and the interpreter it runs on.
@@ -111,25 +109,6 @@ let
   planToolDir =
     if builtins.pathExists ./plan-tool then ./plan-tool else null;
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
-  # TinyPM was rewritten from a bash multicall tree to a real Rust crate
-  # (see TinyPM's own CLAUDE.md: "the old Bash runtime was removed"). The
-  # installer copies the vendored source to /etc/nixos/abora/tinypm
-  # (tinypmDir above), and this builds it the same way
-  # nix/profiles/live.nix's tinypmPackage does for the live ISO. Only two
-  # binaries exist now -- tinypm and grab -- replacing the old mkGrabCmd
-  # multicall wrapper's much longer alias list (tiny/Parcel/search/term/
-  # start/supdate/grab-add-repo/grab-de/syspm), none of which have a Rust
-  # equivalent.
-  tinypmPackage =
-    if tinypmDir != null then
-      pkgs.rustPlatform.buildRustPackage {
-        pname = "tinypm";
-        version = "0.8.1-alpha";
-        src = tinypmDir;
-        cargoLock.lockFile = tinypmDir + "/Cargo.lock";
-        doCheck = false;
-      }
-    else null;
   aboraApps = pkgs.writeShellScriptBin "abora-apps" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/apps.sh "$@"
   '';
@@ -628,8 +607,7 @@ in
     zenity
     swaybg
     zsh
-  ] ++ lib.optional (tinypmPackage != null) tinypmPackage
-    ++ lib.optional (pkgs ? abora-update-resolver) pkgs.abora-update-resolver
+  ] ++ lib.optional (pkgs ? abora-update-resolver) pkgs.abora-update-resolver
     ++ lib.optional (pkgs ? abora-update) pkgs.abora-update
     ++ lib.optional (pkgs ? abora-plan-tool) pkgs.abora-plan-tool
     ++ lib.optional (welcomeGuiScript != null) aboraWelcomeGui
@@ -646,10 +624,6 @@ in
     modemmanager
   ]);
 
-  # Purely a desktop notification nudge (--notify --quiet); does not install
-  # anything itself. Silently no-ops via `command -v` if TinyPM was never
-  # installed for this user (anix tinypm install), so this timer is safe to
-  # ship unconditionally on every desktop profile.
   systemd.user.services.abora-session-setup = {
     description = "Apply Abora desktop session defaults";
     wantedBy = [ "graphical-session.target" ];
@@ -658,24 +632,6 @@ in
     serviceConfig = {
       Type = "oneshot";
       ExecStart = "${aboraSessionSetup}/bin/abora-session-setup";
-    };
-  };
-
-  systemd.user.services.tinypm-update-check = {
-    description = "Check for TinyPM updates";
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = "${pkgs.bashInteractive}/bin/bash -lc 'command -v tinypm >/dev/null 2>&1 && tinypm check-update --notify --quiet || true'";
-    };
-  };
-
-  systemd.user.timers.tinypm-update-check = {
-    description = "Notify when TinyPM updates are available";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnBootSec = "10min";
-      OnUnitActiveSec = "6h";
-      Persistent = true;
     };
   };
 
@@ -853,10 +809,9 @@ in
       "motd".text = ''
         Abora OS v4.1 Horizon
 
-          grab <app>          install an app  (flatpak, nix, or snap)
-          search <app>        find apps across all sources
-          term <app>          remove an installed app
-          supdate             upgrade all installed apps
+          anix package install <pkg>   install a Nix package now, no rebuild
+          anix package search <word>   find packages in nixpkgs
+          abora apps                   Flatpak apps from Flathub
 
           abora welcome       first steps and quick actions
           abora gaming        gaming layer status and Steam Big Picture helper
@@ -1072,9 +1027,6 @@ in
     }
     // lib.optionalAttrs (gamingWelcomeGuiScript != null) {
       "abora/gaming-welcome-gui.py".source = gamingWelcomeGuiScript;
-    }
-    // lib.optionalAttrs (tinypmDir != null) {
-      "abora/tinypm".source = tinypmDir;
     }
     // lib.optionalAttrs (updateResolverDir != null) {
       "abora/update-resolver".source = updateResolverDir;

@@ -63,5 +63,5 @@ def first_quoted_value(path: Path, line_pattern: str) -> str:
 
 
 def component_tag(path: Path, line_pattern: str) -> str:
-    """A component's own version tag (TinyPM, ANIX), "vunknown" if it cannot be read."""
+    """A component's own version tag (e.g. ANIX), "vunknown" if it cannot be read."""
     return as_tag(sanitize(first_quoted_value(path, line_pattern) or "unknown") or "unknown")

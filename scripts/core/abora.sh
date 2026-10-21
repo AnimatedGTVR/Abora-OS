@@ -88,7 +88,7 @@ Abora commands:
   abora welcome         first-boot welcome and quick actions
   abora welcome-gui     graphical first-steps and update-check app
   abora doctor          check Abora system health
-  abora check-full      collect full ANIX, TinyPM, desktop, driver, and Nix logs
+  abora check-full      collect full ANIX, package, desktop, driver, and Nix logs
   abora build --from-source
                         clone/use source and build Abora with Nix
   abora adopt-nixos     add Abora to an existing NixOS install without wiping

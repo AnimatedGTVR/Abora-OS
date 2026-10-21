@@ -13,7 +13,7 @@ Abora is a distro project built on top of NixOS with one main goal: make NixOS e
 - [Abora Tools](Abora-Tools.md)
 - [Abora Gaming](Abora-Gaming.md)
 - [Recovery](Recovery.md)
-- [TinyPM v0.8](TinyPM.md)
+- [Packages](Packages.md)
 - [ANIX v1](ANIX-V1.md)
 - [ANIX v2 Languages](ANIX-V2-Languages.md)
 - [ANIX standalone](ANIX-Standalone.md)
@@ -33,14 +33,14 @@ Abora is a distro project built on top of NixOS with one main goal: make NixOS e
 - a guided installer with network setup, desktop selection, and GPU driver selection
 - branded bootloader, Plymouth, wallpaper, and Fastfetch defaults
 - installed commands for welcome, doctor, recovery, config, desktop selection, setup, and updates
-- TinyPM app commands: `tinypm` (search/info/check/doctor) and `grab` (install/remove/update)
+- `anix package` to install any nixpkgs package without a rebuild, and `abora apps` for Flatpak
 - ANIX helper workflows for snapshots, rollback, profile switching, and pluggable configuration languages
 
 ## Tool Split
 
 - Abora commands handle distro setup, recovery, health checks, and installed-system configuration.
 - ANIX handles NixOS profiles, snapshots, rebuild previews, rollback, and friendly system settings.
-- TinyPM handles apps, package sources, and bridges into Abora/ANIX when useful.
+- `anix package` handles Nix packages; `abora apps` handles Flatpak apps.
 
 ## Useful Links
 

@@ -1,4 +1,4 @@
-.PHONY: help iso iso-all iso-cosmic iso-hyprland iso-gnome iso-kde iso-other iso-local build-vm run qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc doctor desktop-preview check check-desktops check-all preflight metadata release tinypm-package anix-package tinypm-image test-installer test-installer-tty test-installer-kitty test-welcome test-config
+.PHONY: help iso iso-all iso-cosmic iso-hyprland iso-gnome iso-kde iso-other iso-local build-vm run qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc doctor desktop-preview check check-desktops check-all preflight metadata release anix-package test-installer test-installer-tty test-installer-kitty test-welcome test-config
 
 help:
 	@echo "Usage: make <target>"
@@ -12,10 +12,8 @@ help:
 	@echo "  iso-kde          - Build only the KDE Plasma ISO"
 	@echo "  iso-other        - Build only the Other Desktops ISO"
 	@echo "  metadata         - Generate release notes, manifest, and checksums"
-	@echo "  tinypm-package   - Build the TinyPM release tarball"
 	@echo "  anix-package     - Build the ANIX standalone tarball"
-	@echo "  tinypm-image     - Build the TinyPM GHCR container image locally"
-	@echo "  release          - Build the ISO, TinyPM package, ANIX package, and refresh the release bundle"
+	@echo "  release          - Build the ISO, ANIX package, and refresh the release bundle"
 	@echo "  build-vm         - Clean-checkout ISO build for a dedicated build VM (clones/pulls a fresh copy, ignores local changes)"
 	@echo "  qemu             - Boot the latest ISO in QEMU (graphical window)"
 	@echo "  run              - Alias for qemu"
@@ -60,16 +58,10 @@ iso-other:
 metadata:
 	./scripts/release-metadata.py
 
-tinypm-package:
-	./scripts/package-tinypm.py
-
 anix-package:
 	./scripts/package-anix.py
 
-tinypm-image:
-	./scripts/build-tinypm-image.py
-
-release: iso-all tinypm-package anix-package metadata
+release: iso-all anix-package metadata
 
 build-vm:
 	./scripts/rebuild-vm.py

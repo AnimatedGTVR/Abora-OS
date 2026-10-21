@@ -75,7 +75,7 @@ If you just want the CLI in your current profile:
 nix profile install github:AnimatedGTVR/Abora-OS#anix
 ```
 
-That installs the standalone `anix` command with bundled docs, the `tinypm`/`grab` binaries on `PATH`, and the ANIX module at:
+That installs the standalone `anix` command with bundled docs and the ANIX module at:
 
 ```text
 share/anix/anix-module.nix
@@ -93,10 +93,7 @@ The tarball includes:
 
 - `bin/anix`
 - `share/anix/anix-module.nix`
-- ANIX and TinyPM docs
-
-TinyPM itself is a separate Rust CLI with its own release archives -- see
-the bundled `TinyPM.md` doc for how to install `tinypm`/`grab` alongside it.
+- ANIX and package docs
 
 You can unpack the ANIX tarball and run:
 

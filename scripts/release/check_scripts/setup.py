@@ -58,8 +58,6 @@ PYTHON_SCRIPTS = (
     "scripts/release/abora_release.py",
     "scripts/release/tarball.py",
     "scripts/package-anix.py",
-    "scripts/build-tinypm-image.py",
-    "scripts/package-tinypm.py",
     "scripts/preflight.py",
     "scripts/check-release-files.py",
     "scripts/release/abora_ui.py",
@@ -86,15 +84,12 @@ REQUIRED_FILES = (
     "scripts/abora-setup.desktop",
     "docs/wiki/ANIX-V1.md",
     "docs/wiki/ANIX-V2-Languages.md",
-    "docs/wiki/TinyPM.md",
+    "docs/wiki/Packages.md",
     "docs/wiki/Abora-Tools.md",
     "docs/wiki/Abora-Gaming.md",
     "docs/wiki/Recovery.md",
     "docs/wiki/Updating-Abora.md",
     "docs/bug-report-template.md",
-    "vendor/tinypm/Cargo.toml",
-    "vendor/tinypm/src/main.rs",
-    "vendor/tinypm/src/bin/grab.rs",
 )
 
 NIX_UNAVAILABLE = (

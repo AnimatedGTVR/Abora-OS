@@ -43,7 +43,7 @@ abora doctor
 anix status
 anix learn
 anix --gui
-tinypm providers
+anix package list
 abora apps custom list
 sudo abora update
 ```
@@ -185,13 +185,15 @@ incoming dotfiles to overwrite files already in your home folder.
 
 ## App Layer
 
-Use TinyPM for apps:
+Install packages with ANIX (no rebuild) or Flatpak apps with `abora apps`:
 
 ```sh
-grab firefox
-tinypm search krita
-tinypm providers
+anix package install firefox
+anix package search krita
+abora apps
 ```
+
+See [Packages](Packages.md) for declared vs. installed packages.
 
 Use ANIX or Abora config for system-level changes.
 
@@ -259,5 +261,4 @@ Run health checks:
 ```sh
 abora doctor
 anix doctor
-tinypm doctor
 ```

@@ -14,24 +14,10 @@
 , nix
 , procps
 , util-linux
-, rustPlatform
 }:
-let
-  tinypmDir = ../../vendor/tinypm;
-  # See nix/profiles/live.nix for the same derivation and the rationale:
-  # TinyPM is a real Rust crate now (tinypm + grab binaries), not a
-  # per-user bash install -- it just needs to be on PATH.
-  tinypmPackage = rustPlatform.buildRustPackage {
-    pname = "tinypm";
-    version = "0.8.1-alpha";
-    src = tinypmDir;
-    cargoLock.lockFile = tinypmDir + "/Cargo.lock";
-    doCheck = false;
-  };
-in
 # The flake-native equivalent of package-anix.py's standalone tarball: same
 # share/anix/ layout and same ANIX_* env vars anix.sh reads for its
-# docs/languages/tinypm/wallpaper paths, but wired via makeWrapper (--set/
+# docs/languages/wallpaper paths, but wired via makeWrapper (--set/
 # --prefix PATH) instead of a generated shell wrapper script, so a plain
 # `nix profile install github:.../Abora-OS#anix` (or importing
 # abora.nixosModules.anix) gets a working `anix` command with no separate
@@ -55,7 +41,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     install -Dm0644 "$src/nix/modules/anix.nix" "$out/share/anix/anix-module.nix"
 
     install -Dm0644 "$src/docs/wiki/ANIX-V1.md" "$out/share/anix/docs/wiki/ANIX-V1.md"
-    install -Dm0644 "$src/docs/wiki/TinyPM.md" "$out/share/anix/docs/wiki/TinyPM.md"
+    install -Dm0644 "$src/docs/wiki/Packages.md" "$out/share/anix/docs/wiki/Packages.md"
     install -Dm0644 "$src/docs/wiki/Abora-Tools.md" "$out/share/anix/docs/wiki/Abora-Tools.md"
     install -Dm0644 "$src/docs/wiki/Recovery.md" "$out/share/anix/docs/wiki/Recovery.md"
     install -Dm0644 "$src/docs/wiki/ANIX-V2-Languages.md" "$out/share/anix/docs/wiki/ANIX-V2-Languages.md"
@@ -92,7 +78,6 @@ stdenvNoCC.mkDerivation (finalAttrs: {
         nix
         procps
         util-linux
-        tinypmPackage
       ]}" \
       --set ANIX_UI_LIB "$out/share/anix/abora-ui.sh" \
       --set ANIX_DOCS_DIR "$out/share/anix/docs/wiki" \

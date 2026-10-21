@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate release checksums, manifest and notes into out/release/.
 
-Reads ISOs from out/iso/ and TinyPM/ANIX packages from out/packages/, writes
+Reads ISOs from out/iso/ and the ANIX package from out/packages/, writes
 SHA256SUMS-<tag>.txt, RELEASE_MANIFEST-<tag>.txt and RELEASE_NOTES-<tag>.md,
 then prints the version tag.
 
@@ -90,7 +90,7 @@ def newest_iso_stamp(iso_dir: Path, tag: str) -> str | None:
 
 def package_files(package_dir: Path, tag: str) -> list[Path]:
     found = []
-    for name in ("tinypm", "anix"):
+    for name in ("anix",):
         pattern = re.compile(rf"{name}-.*-abora-{re.escape(tag)}\.tar\.gz")
         found += [p for p in visible_files(package_dir) if pattern.fullmatch(p.name)]
     return found

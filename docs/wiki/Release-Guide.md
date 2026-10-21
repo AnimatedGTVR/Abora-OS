@@ -32,7 +32,7 @@ make release
 ```
 
 Use this when preparing a full release bundle. It builds all five edition ISOs,
-the TinyPM package, the ANIX package, checksums, manifest, and generated release
+the ANIX package, checksums, manifest, and generated release
 notes.
 
 ## What To Publish
@@ -44,7 +44,6 @@ The normal release bundle includes:
 - `abora-gnome-<date>-x86_64-<version>.iso`
 - `abora-kde-<date>-x86_64-<version>.iso`
 - `abora-other-<date>-x86_64-<version>.iso`
-- `tinypm-*-abora-<version>.tar.gz`
 - `anix-*-abora-<version>.tar.gz`
 - `SHA256SUMS-<version>.txt`
 - `RELEASE_MANIFEST-<version>.txt`

@@ -34,6 +34,6 @@ This roadmap tracks Abora OS v4.1 Horizon and its reliability, installer, and gr
 ## Release Direction
 
 - keep GitHub releases as the primary public ISO distribution path
-- attach ISO, checksums, manifest, release notes, and TinyPM package to release bundles
+- attach ISO, checksums, manifest, release notes, and the ANIX package to release bundles
 - require `make check`, `make check-desktops`, one full VM install, and one installed-system boot before publishing
 - use `make iso` for fast ISO-only iteration, `make iso-all` before a release, `make release` only for full release bundles

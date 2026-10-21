@@ -167,22 +167,6 @@ let
   '';
   wallpaperDir = ../../assets/wallpapers/collection;
   wallpaperThemeDir = ../../assets/wallpaper-themes;
-  tinypmDir = ../../vendor/tinypm;
-  # TinyPM was rewritten from a bash multicall tree to a real Rust crate
-  # (see TinyPM's own CLAUDE.md: "the old Bash runtime was removed").
-  # Two real binaries now exist -- tinypm (inspection/diagnostics) and
-  # grab (install-first) -- replacing the old mkGrabCmd multicall
-  # wrapper's much longer alias list (tiny/Parcel/search/term/start/
-  # supdate/grab-add-repo/grab-de/syspm), none of which have a Rust
-  # equivalent; TinyPM's own CLI --help is the source of truth for what
-  # commands actually exist now.
-  tinypmPackage = pkgs.rustPlatform.buildRustPackage {
-    pname = "tinypm";
-    version = "0.8.1-alpha";
-    src = tinypmDir;
-    cargoLock.lockFile = tinypmDir + "/Cargo.lock";
-    doCheck = false;
-  };
   mintPackage = pkgs.buildGoModule {
     pname = "mint";
     version = version;
@@ -476,7 +460,6 @@ in
 
   environment.systemPackages = (with pkgs; [
     # ── Abora installer toolchain ────────────────────────────────────────────
-    tinypmPackage
     abora-update-resolver
     abora-update
     abora-plan-tool
@@ -750,7 +733,6 @@ in
         source = ../../tools/moducpp-anix;
         mode = "0755";
       };
-      "abora/tinypm".source = tinypmDir;
       "abora/update-resolver".source = ../../tools/abora-update-resolver;
       "abora/abora-update".source = ../../tools/abora-update;
       "abora/plan-tool".source = ../../tools/abora-plan-tool;

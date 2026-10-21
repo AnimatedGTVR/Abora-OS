@@ -1245,9 +1245,6 @@ check_install_environment() {
         /etc/abora/abora-options.nix
         /etc/abora/anix.sh
         /etc/abora/anix-module.nix
-        /etc/abora/tinypm/Cargo.toml
-        /etc/abora/tinypm/src/main.rs
-        /etc/abora/tinypm/src/bin/grab.rs
         /etc/abora/update-resolver/AboraUpdateResolver.csproj
         /etc/abora/update-resolver/Program.cs
         /etc/abora/abora-update/main.vanta
@@ -1268,7 +1265,7 @@ check_install_environment() {
     local -a optional_paths=(
         /etc/abora/docs/wiki/ANIX-V1.md
         /etc/abora/docs/wiki/ANIX-V2-Languages.md
-        /etc/abora/docs/wiki/TinyPM.md
+        /etc/abora/docs/wiki/Packages.md
         /etc/abora/docs/wiki/Abora-Tools.md
         /etc/abora/docs/wiki/Abora-Gaming.md
         /etc/abora/docs/wiki/Recovery.md
@@ -1720,7 +1717,7 @@ step_apps() {
         "Developer|IDEs, containers, terminal tools, Git" \
         "Gaming|Steam, Lutris, Wine, gaming helpers" \
         "System Tools|Monitoring, backup, system management" \
-        "None|Start clean — add apps later with grab"
+        "None|Start clean — add apps later with abora apps or anix package"
     case "$MENU_RESULT" in
         0) starter_apps_bundle="favorites";  starter_apps_label="Fan Favorites" ;;
         1) starter_apps_bundle="essentials"; starter_apps_label="Essentials" ;;
@@ -2416,7 +2413,7 @@ render_apps_nix() {
 write_docs_fallback() {
     local docs_dir="$1"
     mkdir -p "$docs_dir/wiki"
-    for doc in ANIX-V1 ANIX-V2-Languages TinyPM Abora-Tools Abora-Gaming Recovery Updating-Abora; do
+    for doc in ANIX-V1 ANIX-V2-Languages Packages Abora-Tools Abora-Gaming Recovery Updating-Abora; do
         [[ -f "$docs_dir/wiki/${doc}.md" ]] && continue
         cat > "$docs_dir/wiki/${doc}.md" <<EOF
 # ${doc}
@@ -2429,8 +2426,7 @@ Useful commands:
 abora doctor
 anix status
 anix doctor
-tinypm doctor
-tinypm providers
+anix package help
 \`\`\`
 EOF
     done
@@ -2563,14 +2559,6 @@ write_branding_assets() {
         cp -a /etc/abora/anix-languages/. "${root}/etc/nixos/abora/anix-languages/"
     fi
     rewrite_installed_mango_config_paths "$root"
-
-    if [[ -e /etc/abora/tinypm ]]; then
-        mkdir -p "${root}/etc/nixos/abora/tinypm"
-        # -a preserves modes (including executable bits) and copies relative
-        # symlinks as symlinks.  No -L so we never follow absolute symlinks
-        # that may exist in older live ISOs.
-        cp -a /etc/abora/tinypm/. "${root}/etc/nixos/abora/tinypm/"
-    fi
 
     if [[ -e /etc/abora/update-resolver ]]; then
         mkdir -p "${root}/etc/nixos/abora/update-resolver"
@@ -3064,7 +3052,6 @@ validate_installed_system() {
             printf 'installed_at=%s\n' "$(date -Iseconds 2>/dev/null || date)"
             printf 'root_label=ABORA_ROOT\n'
             printf 'desktop=%s\n' "$desktop_profile"
-            printf 'tinypm=present\n'
             printf 'anix=%s\n' "$anix_enabled"
             printf 'labs=%s\n' "$labs_enabled"
         } > "${root}/etc/abora/INSTALLED"

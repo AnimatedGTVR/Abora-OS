@@ -841,7 +841,7 @@ fi
 
 # Regression test: anix.sh's "ANIX Control Center" terminal menus had the
 # same bug, but worse -- do_set/do_toggle/do_switch/do_rollback/do_save/
-# do_tool_config/do_tinypm/do_package/do_doctor/do_apply all call `exit`
+# do_tool_config/do_package/do_doctor/do_apply all call `exit`
 # (not `return`) on failure, so even a subshell-less `|| true` at the call
 # site couldn't have caught it; each call needed wrapping in its own `(
 # ... )` subshell so the exit only ends that subshell. Reproduced directly:
@@ -879,7 +879,7 @@ if [[ "$_anix_menu_status" -eq 0 && "$_anix_menu_renders" -ge 3 ]] \
   && grep -q '( do_rollback ) || true' scripts/anix.sh \
   && grep -q '( do_save "\${message:-anix: local config snapshot}" ) || true' scripts/anix.sh \
   && grep -q '( do_tool_config show ) || true' scripts/anix.sh \
-  && grep -q '( do_tinypm install ) || true' scripts/anix.sh \
+  && grep -q '( do_package install "\$pkg" ) || true' scripts/anix.sh \
   && grep -q '( do_package add "\$pkg" ) || true' scripts/anix.sh \
   && grep -q '( do_doctor ) || true' scripts/anix.sh \
   && grep -q '( do_apply ) || true' scripts/anix.sh; then
@@ -921,5 +921,101 @@ else
 fi
 
 rm -rf "$tmp_thermald_render"
+
+# anix package install/uninstall/try (4.2, replacing TinyPM): a fake nix
+# records every call and keeps a one-line-per-package "profile", so these
+# check the real commands ANIX hands to nix, not just what it prints.
+tmp_pkg_cfg="$(mktemp -d)"
+tmp_pkg_bin="$(mktemp -d)"
+testlib_cleanup_paths+=("$tmp_pkg_cfg" "$tmp_pkg_bin")
+printf '{}\n' > "$tmp_pkg_cfg/flake.lock"
+printf '{ ... }:\n{\n  anix.allowUnfree = true;\n  anix.packages = with pkgs; [ git ];\n}\n' > "$tmp_pkg_cfg/anix.nix"
+cat > "$tmp_pkg_bin/nix" <<'FAKENIX'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FAKE_NIX_LOG"
+profile="$FAKE_NIX_PROFILE"
+touch "$profile"
+case "$1 $2" in
+  "profile add") exit 0 ;;
+  "profile install")
+    for a in "$@"; do [[ "$a" == nixpkgs#* ]] && printf '%s\n' "${a#nixpkgs#}" >> "$profile"; done
+    [[ "$*" == *nixpkgs#nosuchpkg* ]] && { echo "error: flake 'flake:nixpkgs' does not provide attribute 'nosuchpkg'" >&2; exit 1; }
+    exit 0 ;;
+  "profile remove") grep -vFx -- "$3" "$profile" > "$profile.new" || true; mv "$profile.new" "$profile"; exit 0 ;;
+  "profile list")
+    printf '{"version":3,"elements":{'; sep=""
+    while read -r n; do printf '%s"%s":{}' "$sep" "$n"; sep=","; done < "$profile"
+    printf '}}\n'; exit 0 ;;
+esac
+exit 0
+FAKENIX
+chmod +x "$tmp_pkg_bin/nix"
+# `profile add --help` must fail so this fake looks like an older nix that
+# only knows `profile install`.
+sed -i 's/^  "profile add") exit 0 ;;/  "profile add") exit 1 ;;/' "$tmp_pkg_bin/nix"
+
+pkg_env=(env ANIX_SYSTEM_CONFIG="$tmp_pkg_cfg" ANIX_NO_SUDO=1 ANIX_ASSUME_YES=1
+  ANIX_NIX_BIN="$tmp_pkg_bin/nix" FAKE_NIX_LOG="$tmp_pkg_bin/log" FAKE_NIX_PROFILE="$tmp_pkg_bin/profile"
+  PATH="$tmp_pkg_bin:$PATH" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh")
+
+"${pkg_env[@]}" bash scripts/anix.sh package install htop >/dev/null 2>&1 || true
+if grep -qx 'profile install --inputs-from '"$tmp_pkg_cfg"' --impure nixpkgs#htop' "$tmp_pkg_bin/log" \
+  && grep -qx htop "$tmp_pkg_bin/profile" \
+  && ! grep -q htop "$tmp_pkg_cfg/anix.nix"; then
+  pass "runtime: anix package install uses the system's pinned nixpkgs and leaves anix.nix alone"
+else
+  fail "runtime: anix package install uses the system's pinned nixpkgs and leaves anix.nix alone"
+  cat "$tmp_pkg_bin/log" 2>/dev/null | sed 's/^/              /'
+fi
+
+_pkg_list="$("${pkg_env[@]}" bash scripts/anix.sh package list 2>&1 || true)"
+if grep -q 'git' <<<"$_pkg_list" && grep -q 'htop' <<<"$_pkg_list"; then
+  pass "runtime: anix package list shows declared and installed packages"
+else
+  fail "runtime: anix package list shows declared and installed packages"
+fi
+
+_pkg_missing_rc=0
+_pkg_missing="$("${pkg_env[@]}" bash scripts/anix.sh package install nosuchpkg 2>&1)" || _pkg_missing_rc=$?
+if [[ "$_pkg_missing_rc" -ne 0 ]] && grep -q 'nixpkgs has no package by that name' <<<"$_pkg_missing"; then
+  pass "runtime: anix package install explains a missing package"
+else
+  fail "runtime: anix package install explains a missing package"
+fi
+
+_pkg_bad_rc=0
+"${pkg_env[@]}" bash scripts/anix.sh package install -- --impure >/dev/null 2>&1 || _pkg_bad_rc=$?
+"${pkg_env[@]}" bash scripts/anix.sh package install '../x' >/dev/null 2>&1 || _pkg_bad_rc=$((_pkg_bad_rc + $?))
+if [[ "$_pkg_bad_rc" -ne 0 ]] && ! grep -q -- 'nixpkgs#--impure\|nixpkgs#\.\./x' "$tmp_pkg_bin/log"; then
+  pass "runtime: anix package install rejects option-like and path-like names"
+else
+  fail "runtime: anix package install rejects option-like and path-like names"
+fi
+
+_pkg_un="$("${pkg_env[@]}" bash scripts/anix.sh package uninstall git 2>&1 || true)"
+"${pkg_env[@]}" bash scripts/anix.sh package uninstall htop >/dev/null 2>&1 || true
+if grep -q 'comes from anix.packages' <<<"$_pkg_un" \
+  && grep -qx 'profile remove htop' "$tmp_pkg_bin/log" \
+  && ! grep -qx htop "$tmp_pkg_bin/profile"; then
+  pass "runtime: anix package uninstall removes one-off installs and points declared ones at anix.nix"
+else
+  fail "runtime: anix package uninstall removes one-off installs and points declared ones at anix.nix"
+fi
+
+"${pkg_env[@]}" bash scripts/anix.sh package keep ripgrep >/dev/null 2>&1 || true
+if grep -Eq 'anix.packages = with pkgs; \[ git +ripgrep \];' "$tmp_pkg_cfg/anix.nix"; then
+  pass "runtime: anix package keep declares the package in anix.nix"
+else
+  fail "runtime: anix package keep declares the package in anix.nix"
+fi
+
+_pkg_tinypm_rc=0
+_pkg_tinypm="$("${pkg_env[@]}" bash scripts/anix.sh tinypm status 2>&1)" || _pkg_tinypm_rc=$?
+if [[ "$_pkg_tinypm_rc" -ne 0 ]] && grep -q 'TinyPM was removed' <<<"$_pkg_tinypm" \
+  && grep -q 'anix package install' <<<"$_pkg_tinypm"; then
+  pass "runtime: anix tinypm says TinyPM is gone and where packages come from now"
+else
+  fail "runtime: anix tinypm says TinyPM is gone and where packages come from now"
+fi
 
 testlib_finish

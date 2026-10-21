@@ -63,7 +63,7 @@ anix_tool_config="${ANIX_TOOL_CONFIG:-$anix_state_dir/config}"
 docs_dir="${ANIX_DOCS_DIR:-/etc/abora/docs/wiki}"
 sound_file="${ANIX_SOUND_FILE:-/etc/abora/effects/v3StartingAbora.mp3}"
 anix_doc_file="${ANIX_DOC_FILE:-$docs_dir/ANIX-V1.md}"
-tinypm_doc_file="${ANIX_TINYPM_DOC_FILE:-$docs_dir/TinyPM.md}"
+packages_doc_file="${ANIX_PACKAGES_DOC_FILE:-$docs_dir/Packages.md}"
 abora_tools_doc_file="${ANIX_ABORA_TOOLS_DOC_FILE:-$docs_dir/Abora-Tools.md}"
 recovery_doc_file="${ANIX_RECOVERY_DOC_FILE:-$docs_dir/Recovery.md}"
 
@@ -232,7 +232,7 @@ explain_nix_failure() {
     elif grep -qi "unfree" "$log_file"; then
         abora_warn "This looks like an unfree package block."
         abora_dim_line "ANIX normally sets 'anix.allowUnfree = true;'. Run: anix enable allowUnfree"
-        abora_dim_line "Then retry the command. For one TinyPM install: NIXPKGS_ALLOW_UNFREE=1 grab --nix discord"
+        abora_dim_line "Then retry the command. A one-off install (anix package install) follows the same setting."
     elif grep -q "syntax error" "$log_file"; then
         line="$(grep -m1 -B2 -A3 "syntax error" "$log_file" || true)"
         abora_warn "This looks like a Nix syntax error."
@@ -748,11 +748,6 @@ render_template() {
   ## Command: anix set shell zsh
   anix.shell = "zsh";
 
-  ## TinyPM ships system-wide as an ordinary package; this option is
-  ## historical and no longer does anything (see anix.tinypm.enable docs).
-  ## Command: anix tinypm status
-  anix.tinypm.enable = true;
-
   ## System services.
   ## Commands: anix enable bluetooth ; anix disable openssh
   anix.services.bluetooth = true;
@@ -879,11 +874,6 @@ show_config() {
     abora_card_end
 
     abora_card_start "Services"
-    if tinypm_available; then
-        abora_kv "TinyPM"  "yes (system, $(tinypm_version))"
-    else
-        abora_kv "TinyPM"  "not found on PATH"
-    fi
     abora_kv "Bluetooth"   "${bluetooth:-—}"
     abora_kv "Flatpak"     "${flatpak:-—}"
     abora_kv "Audio"       "${audio:-—}"
@@ -1148,13 +1138,39 @@ do_toggle() {
     printf '\n'
 }
 
+package_usage() {
+    cat <<'USAGE'
+Usage:
+  anix package add <pkg>          declare it in anix.nix (arrives with anix apply)
+  anix package remove <pkg>       take it out of anix.nix
+  anix package install <pkg>...   install it now, no config edit or rebuild
+  anix package uninstall <pkg>... remove a package installed that way
+  anix package list               show declared and installed packages
+  anix package search <word>...   search the system's nixpkgs
+  anix package upgrade [<pkg>...] upgrade installed packages (all by default)
+  anix package try <pkg> [-- cmd] open a shell with it, install nothing
+  anix package keep <pkg>         move an installed package into anix.nix
+USAGE
+}
+
 do_package() {
     local action="${1:-}"
     local pkg="${2:-}"
     local file=""
 
-    if [[ -z "$action" || -z "$pkg" ]]; then
-        abora_error "Usage: anix package add <pkg> OR anix package remove <pkg>"
+    case "$action" in
+        install|get) shift; do_package_install "$@"; return ;;
+        uninstall) shift; do_package_uninstall "$@"; return ;;
+        list|ls|"") shift || true; do_package_list "$@"; return ;;
+        search|find) shift; do_package_search "$@"; return ;;
+        upgrade|update) shift; do_package_upgrade "$@"; return ;;
+        try|shell) shift; do_package_try "$@"; return ;;
+        keep) shift; do_package_keep "$@"; return ;;
+        help|--help|-h) package_usage; return ;;
+    esac
+
+    if [[ -z "$pkg" ]]; then
+        package_usage >&2
         exit 1
     fi
     if [[ ! "$pkg" =~ ^[A-Za-z0-9._+-]+$ ]]; then
@@ -1207,7 +1223,7 @@ do_package() {
             abora_success "Removed package if present: ${pkg}"
             ;;
         *)
-            abora_error "Usage: anix package add <pkg> OR anix package remove <pkg>"
+            package_usage >&2
             exit 1
             ;;
     esac
@@ -1390,74 +1406,252 @@ do_status() {
     abora_kv "push" "$(anix_config_get "snapshots.push" "false")"
     abora_card_end
 
-    abora_card_start "TinyPM"
-    if tinypm_available; then
-        abora_kv "installed" "yes (system-wide)"
-        abora_kv "version" "$(tinypm_version)"
+    abora_card_start "Packages"
+    abora_kv "declared" "$(declared_packages | wc -w | tr -d ' ') in anix.packages"
+    abora_kv "installed" "$(profile_package_names 2>/dev/null | wc -l | tr -d ' ') with anix package install"
+    abora_card_end
+    printf '\n'
+}
+
+# ANIX packages (4.2 Solstice, replacing TinyPM). Two ways to get a program:
+#
+#   declared   `anix package add/remove` edits anix.packages in anix.nix; it
+#              arrives with the next `anix apply` and is part of every
+#              generation, so a rollback takes it away again.
+#   installed  `anix package install/uninstall` puts it in the user's own Nix
+#              profile right away: no anix.nix or flake.nix edit and no
+#              rebuild. `anix package keep` turns one into a declared package.
+#
+# Installs resolve `nixpkgs` through --inputs-from the system flake, so they
+# use the exact nixpkgs revision the system is pinned to (flake.lock) and
+# reuse what's already in the store, instead of whatever the registry's
+# nixpkgs-unstable happens to be today. TinyPM wrapped Flatpak, Snap and Nix
+# behind one command; Flatpak stays `abora apps`, and this is the Nix part.
+nix_bin="${ANIX_NIX_BIN:-nix}"
+
+validate_package_name() {
+    local pkg="$1"
+    # Attribute paths like python3Packages.requests are fine; a leading '-'
+    # would be read by nix as an option, and '..' is never a real attribute.
+    if [[ ! "$pkg" =~ ^[A-Za-z0-9_+][A-Za-z0-9._+-]*$ || "$pkg" == *..* ]]; then
+        abora_error "Invalid package name: ${pkg}"
+        exit 1
+    fi
+}
+
+declared_packages() {
+    [[ -f "$anix_file" ]] || return 0
+    sed -nE 's|^[[:space:]]*anix\.packages[[:space:]]*=[[:space:]]*with pkgs; \[(.*)\];.*|\1|p' "$anix_file" \
+        | head -n1 | tr -s '[:space:]' '\n' | sed '/^$/d'
+}
+
+# Fills the global nixpkgs_args with the flags that pin `nixpkgs` to the
+# system's own lock. Without a flake.lock (plain NixOS, or before the first
+# rebuild) nix falls back to the registry's nixpkgs, which NixOS also points
+# at the system's nixpkgs on flake-based installs.
+nixpkgs_args=()
+resolve_nixpkgs_args() {
+    nixpkgs_args=()
+    if [[ -f "$config_dir/flake.lock" ]]; then
+        nixpkgs_args=(--inputs-from "$config_dir")
+    fi
+    # Same rule as the system config: if anix.allowUnfree is on, a one-off
+    # install of an unfree package should work too. nix only reads
+    # NIXPKGS_ALLOW_UNFREE in impure mode.
+    if [[ "$(read_anix_bool_option allowUnfree)" == "true" ]]; then
+        export NIXPKGS_ALLOW_UNFREE=1
+        nixpkgs_args+=(--impure)
+    fi
+}
+
+# `nix profile install` was renamed `add` in Nix 2.26; older Nix (the 26.05
+# default is newer, but a standalone ANIX may sit on anything) only knows
+# install, and newer Nix still accepts install as an alias.
+nix_profile_add_verb() {
+    if "$nix_bin" profile add --help >/dev/null 2>&1; then
+        printf 'add'
     else
-        abora_kv "installed" "no — not found on PATH"
+        printf 'install'
+    fi
+}
+
+# Names of the packages in the user's profile, one per line. `nix profile
+# list --json` keys elements by name since Nix 2.20 (an object); older Nix
+# returns a list without names, so fall back to the attribute path's last part.
+profile_package_names() {
+    local json=""
+    json="$("$nix_bin" profile list --json 2>/dev/null)" || return 1
+    [[ -n "$json" ]] || return 0
+    jq -r '
+        .elements
+        | if type == "object" then keys[]
+          else .[] | (.attrPath // "") | split(".") | last
+          end' <<<"$json" 2>/dev/null | sed '/^$/d'
+}
+
+package_in_profile() {
+    profile_package_names 2>/dev/null | grep -Fxq -- "$1"
+}
+
+# Runs nix with its progress still on screen, keeping a copy of stderr so a
+# failure can be explained in a sentence instead of a Nix trace.
+run_nix_package_command() {
+    local log_file="" rc=0
+    log_file="$(mktemp "${TMPDIR:-/tmp}/anix-package.XXXXXX")"
+    "$nix_bin" "$@" 2> >(tee "$log_file" >&2) || rc=$?
+    # Let tee finish writing before the log is read or removed. Bash doesn't
+    # always set $! for a process substitution used in a redirection.
+    if [[ -n "${!:-}" ]]; then
+        wait "$!" 2>/dev/null || true
+    fi
+    if [[ "$rc" -eq 0 ]]; then
+        rm -f "$log_file"
+        return 0
+    fi
+    printf '\n'
+    if grep -qi "unfree" "$log_file"; then
+        abora_error "That package is unfree and anix.allowUnfree is off."
+        abora_dim_line "Run 'anix enable allowUnfree', then 'anix apply', and try again."
+    elif grep -qE "does not provide attribute|flake '.*' does not provide" "$log_file"; then
+        abora_error "nixpkgs has no package by that name."
+        abora_dim_line "Search for it: anix package search <word>"
+    elif grep -qiE "unable to download|Could not resolve host|Connection timed out" "$log_file"; then
+        abora_error "Nix couldn't download the package. Check the network: abora network"
+    else
+        abora_error "Nix failed. Last lines:"
+        tail -n 8 "$log_file" | sed 's/^/    /'
+    fi
+    rm -f "$log_file"
+    return 1
+}
+
+do_package_install() {
+    local pkg="" verb=""
+    [[ $# -gt 0 ]] || { abora_error "Usage: anix package install <pkg>..."; exit 1; }
+    require_command "$nix_bin"
+    resolve_nixpkgs_args
+    verb="$(nix_profile_add_verb)"
+    for pkg in "$@"; do
+        validate_package_name "$pkg"
+        if package_in_profile "$pkg"; then
+            abora_warn "${pkg} is already installed. Update it with: anix package upgrade"
+            continue
+        fi
+        if declared_packages | grep -Fxq -- "$pkg"; then
+            abora_dim_line "${pkg} is also in anix.packages; installing a second copy for this user."
+        fi
+        abora_step "Installing ${pkg} from the system's nixpkgs"
+        run_nix_package_command profile "$verb" "${nixpkgs_args[@]}" "nixpkgs#${pkg}" || exit 1
+        abora_success "Installed ${pkg}. It's ready now, no rebuild needed."
+    done
+    abora_dim_line "Keep it in your system config too: anix package keep <pkg>"
+    printf '\n'
+}
+
+do_package_uninstall() {
+    local pkg=""
+    [[ $# -gt 0 ]] || { abora_error "Usage: anix package uninstall <pkg>..."; exit 1; }
+    require_command "$nix_bin"
+    for pkg in "$@"; do
+        validate_package_name "$pkg"
+        if ! package_in_profile "$pkg"; then
+            if declared_packages | grep -Fxq -- "$pkg"; then
+                abora_warn "${pkg} comes from anix.packages, not a one-off install."
+                abora_dim_line "Remove it from the config instead: anix package remove ${pkg} && anix apply"
+            else
+                abora_warn "${pkg} isn't installed."
+            fi
+            continue
+        fi
+        run_nix_package_command profile remove "$pkg" || exit 1
+        abora_success "Uninstalled ${pkg}."
+    done
+    printf '\n'
+}
+
+do_package_list() {
+    local declared="" installed=""
+    declared="$(declared_packages)"
+    installed="$(profile_package_names 2>/dev/null || true)"
+
+    abora_banner "ANIX Packages" "Declared in anix.nix, and installed without a rebuild."
+    abora_card_start "Declared (anix.packages)"
+    if [[ -n "$declared" ]]; then
+        printf '%s\n' "$declared" | sed 's/^/  /'
+    else
+        abora_dim_line "none. Add one with: anix package add <pkg>"
+    fi
+    abora_card_end
+    abora_card_start "Installed (anix package install)"
+    if [[ -n "$installed" ]]; then
+        printf '%s\n' "$installed" | sed 's/^/  /'
+    else
+        abora_dim_line "none. Try one with: anix package install <pkg>"
     fi
     abora_card_end
     printf '\n'
 }
 
-# TinyPM was rewritten from a bash multicall tree (with its own per-user
-# "flavor" installer) into a real Rust crate that ships system-wide via
-# nix/profiles/live.nix's tinypmPackage — the same as any other
-# environment.systemPackages entry. There is no per-user install step
-# anymore: `tinypm`/`grab` are just on PATH once the system is built.
-tinypm_available() {
-    command -v tinypm >/dev/null 2>&1
+do_package_search() {
+    [[ $# -gt 0 ]] || { abora_error "Usage: anix package search <word>..."; exit 1; }
+    require_command "$nix_bin"
+    resolve_nixpkgs_args
+    run_nix_package_command search "${nixpkgs_args[@]}" nixpkgs "$@" || exit 1
 }
 
-tinypm_version() {
-    local ver=""
-    ver="$(tinypm --version 2>/dev/null | head -1 || true)"
-    printf '%s' "${ver:-unknown}"
+do_package_upgrade() {
+    require_command "$nix_bin"
+    resolve_nixpkgs_args
+    if [[ $# -eq 0 ]]; then
+        run_nix_package_command profile upgrade "${nixpkgs_args[@]}" --all || exit 1
+        abora_success "Upgraded every installed package."
+    else
+        local pkg=""
+        for pkg in "$@"; do
+            validate_package_name "$pkg"
+            run_nix_package_command profile upgrade "${nixpkgs_args[@]}" "$pkg" || exit 1
+            abora_success "Upgraded ${pkg}."
+        done
+    fi
+    abora_dim_line "Declared packages update with the system: abora update"
+    printf '\n'
 }
 
-do_tinypm() {
-    local sub="${1:-status}"
-    shift 2>/dev/null || true
+# A throwaway shell with the package in it; nothing is installed.
+do_package_try() {
+    local pkg="${1:-}"
+    [[ -n "$pkg" ]] || { abora_error "Usage: anix package try <pkg> [-- command...]"; exit 1; }
+    shift
+    validate_package_name "$pkg"
+    require_command "$nix_bin"
+    resolve_nixpkgs_args
+    [[ "${1:-}" == "--" ]] && shift
+    if [[ $# -gt 0 ]]; then
+        exec "$nix_bin" shell "${nixpkgs_args[@]}" "nixpkgs#${pkg}" --command "$@"
+    fi
+    abora_dim_line "Starting a shell with ${pkg}. Type 'exit' to leave; nothing stays installed."
+    exec "$nix_bin" shell "${nixpkgs_args[@]}" "nixpkgs#${pkg}"
+}
 
-    case "$sub" in
-        status)
-            abora_banner "TinyPM" "Abora Package Manager"
-            abora_card_start "Status"
-            if tinypm_available; then
-                abora_kv "installed" "yes (system-wide)"
-                abora_kv "version"   "$(tinypm_version)"
-                abora_kv "commands"  "tinypm  grab"
-            else
-                abora_kv "installed" "no — not found on PATH"
-                abora_dim_line "TinyPM ships as a system package on Abora; if it's"
-                abora_dim_line "missing, rebuild the system (sudo abora update)."
-            fi
-            abora_card_end
-            printf '\n'
-            ;;
-        install|setup|reinstall)
-            if tinypm_available; then
-                abora_success "TinyPM is already installed system-wide ($(tinypm_version))."
-                abora_dim_line "It ships with Abora itself — there's no separate install step."
-            else
-                abora_warn "TinyPM was not found on PATH."
-                abora_dim_line "It should ship system-wide with Abora; try: sudo abora update"
-            fi
-            printf '\n'
-            ;;
-        *)
-            abora_error "Usage: anix tinypm [status|install]"
-            exit 1
-            ;;
-    esac
+# Moves a one-off install into anix.packages, so it survives a reinstall
+# and is part of the system generation. The profile copy stays until the
+# next `anix apply` has the declared one in place.
+do_package_keep() {
+    local pkg="${1:-}"
+    [[ -n "$pkg" ]] || { abora_error "Usage: anix package keep <pkg>"; exit 1; }
+    validate_package_name "$pkg"
+    do_package add "$pkg"
+    if package_in_profile "$pkg"; then
+        abora_dim_line "After 'anix apply', drop the one-off copy: anix package uninstall ${pkg}"
+        printf '\n'
+    fi
 }
 
 do_docs() {
     abora_banner "ANIX Docs" "Local documentation for ANIX and optional companion tools."
     abora_card_start "Docs"
     abora_kv "ANIX" "$anix_doc_file"
-    abora_kv "TinyPM" "$tinypm_doc_file"
+    abora_kv "Packages" "$packages_doc_file"
     abora_kv "Abora tools" "$abora_tools_doc_file"
     abora_kv "Recovery" "$recovery_doc_file"
     abora_card_end
@@ -1649,7 +1843,7 @@ gui_pick_feature_action() {
 gui_pick_doc_file() {
     gui_choose_action "ANIX Docs" "Choose a local document to view." \
         "$anix_doc_file" "ANIX guide" \
-        "$tinypm_doc_file" "TinyPM guide" \
+        "$packages_doc_file" "Packages guide" \
         "$abora_tools_doc_file" "Abora tools guide" \
         "$recovery_doc_file" "Recovery guide" \
         "back" "Return to the main menu"
@@ -1791,14 +1985,26 @@ gui_packages_menu() {
     local action pkg
 
     while true; do
-        action="$(gui_choose_action "ANIX Packages" "Check TinyPM and edit simple package lists." \
-            "tinypm-status" "Show TinyPM status" \
+        action="$(gui_choose_action "ANIX Packages" "Install packages now, or declare them in anix.nix." \
+            "package-list" "Show declared and installed packages" \
+            "package-install" "Install a package now (no rebuild)" \
+            "package-uninstall" "Uninstall a package installed that way" \
             "package-add" "Add a package to anix.packages" \
             "package-remove" "Remove a package from anix.packages" \
             "back" "Return to the main menu")"
 
         case "$action" in
-            tinypm-status) gui_capture "TinyPM Status" do_tinypm status ;;
+            package-list) gui_capture "ANIX Packages" do_package list ;;
+            package-install)
+                pkg="$(gui_prompt_text "Install Package" "nixpkgs package to install now")"
+                [[ -n "$pkg" ]] || continue
+                gui_capture "ANIX Package Install" do_package install "$pkg"
+                ;;
+            package-uninstall)
+                pkg="$(gui_prompt_text "Uninstall Package" "Installed package to remove")"
+                [[ -n "$pkg" ]] || continue
+                gui_capture "ANIX Package Uninstall" do_package uninstall "$pkg"
+                ;;
             package-add)
                 pkg="$(gui_prompt_text "Add Package" "Package name to add to anix.packages")"
                 [[ -n "$pkg" ]] || continue
@@ -2038,22 +2244,27 @@ terminal_packages_menu() {
     local choice pkg
 
     while true; do
-        abora_banner "ANIX Packages" "Manage TinyPM and anix.packages."
-        printf '  1  TinyPM status\n'
-        printf '  2  Install TinyPM\n'
-        printf '  3  Add package\n'
-        printf '  4  Remove package\n'
+        abora_banner "ANIX Packages" "Install packages now, or declare them in anix.nix."
+        printf '  1  List packages\n'
+        printf '  2  Install a package now (no rebuild)\n'
+        printf '  3  Add package to anix.packages\n'
+        printf '  4  Remove package from anix.packages\n'
+        printf '  5  Uninstall a package installed now\n'
         printf '  0  Back\n\n'
         printf '  Select: '
         read -r choice || choice="0"
-        # Subshell + `|| true`-guarded: do_tinypm/do_package exit on
+        # Subshell + `|| true`-guarded: do_package exits on
         # failure (e.g. an unknown package name -- a very plausible typo
         # here), which would otherwise kill this whole interactive menu on
         # `set -e`. See the identical do_set fix in terminal_settings_menu
         # above.
         case "$choice" in
-            1) ( do_tinypm status ) || true ;;
-            2) ( do_tinypm install ) || true ;;
+            1) ( do_package list ) || true ;;
+            2)
+                printf '  Package to install: '
+                read -r pkg || pkg=""
+                if [[ -n "$pkg" ]]; then ( do_package install "$pkg" ) || true; fi
+                ;;
             3)
                 printf '  Package to add: '
                 read -r pkg || pkg=""
@@ -2063,6 +2274,11 @@ terminal_packages_menu() {
                 printf '  Package to remove: '
                 read -r pkg || pkg=""
                 if [[ -n "$pkg" ]]; then ( do_package remove "$pkg" ) || true; fi
+                ;;
+            5)
+                printf '  Package to uninstall: '
+                read -r pkg || pkg=""
+                if [[ -n "$pkg" ]]; then ( do_package uninstall "$pkg" ) || true; fi
                 ;;
             0|"") return 0 ;;
             *) abora_warn "Choose a menu number."; printf '\n'; continue ;;
@@ -2110,7 +2326,7 @@ terminal_docs_menu() {
     while true; do
         abora_banner "ANIX Docs" "Open local documentation in terminal mode."
         printf '  1  ANIX guide\n'
-        printf '  2  TinyPM guide\n'
+        printf '  2  Packages guide\n'
         printf '  3  Abora tools guide\n'
         printf '  4  Recovery guide\n'
         printf '  0  Back\n\n'
@@ -2118,7 +2334,7 @@ terminal_docs_menu() {
         read -r choice || choice="0"
         case "$choice" in
             1) gui_show_doc "$anix_doc_file" ;;
-            2) gui_show_doc "$tinypm_doc_file" ;;
+            2) gui_show_doc "$packages_doc_file" ;;
             3) gui_show_doc "$abora_tools_doc_file" ;;
             4) gui_show_doc "$recovery_doc_file" ;;
             0|"") return 0 ;;
@@ -2172,10 +2388,10 @@ do_gui() {
         action="$(gui_choose_action "ANIX v${anix_version}" "Choose an ANIX workspace." \
             "overview" "Show status, config, flake, and snapshot state" \
             "settings" "Change hostname, timezone, desktop, wallpaper, shell, and more" \
-            "features" "Toggle Bluetooth, Flatpak, TinyPM, GC, and other feature flags" \
+            "features" "Toggle Bluetooth, Flatpak, GC, and other feature flags" \
             "profiles" "Inspect, build, test, boot, switch, or rollback profiles" \
             "snapshots" "Save local config snapshots and control push behavior" \
-            "packages" "Install TinyPM and edit anix.packages" \
+            "packages" "Install packages now or declare them in anix.packages" \
             "maintenance" "Run quickstart, doctor, repair, and apply flows" \
             "docs" "Read local ANIX and Abora documentation" \
             "exit" "Close ANIX GUI")"
@@ -3179,7 +3395,7 @@ usage() {
     abora_dim_line "  Create the ANIX config and prepare local snapshots."
     printf '\n'
     printf '  %banix docs%b\n' "$ABORA_CYAN" "$ABORA_NC"
-    abora_dim_line "  Show local docs paths for ANIX, TinyPM, and Abora."
+    abora_dim_line "  Show local docs paths for ANIX, packages, and Abora."
     printf '\n'
     printf '  %banix profiles%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  List flake profiles under nixosConfigurations."
@@ -3268,8 +3484,8 @@ usage() {
     printf '  %banix diff-plan <file>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Show ADD/CHANGE/REMOVE/SAME for a source or Plan JSON file, including implied gaming changes."
     printf '\n'
-    printf '  %banix tinypm [status|install]%b\n' "$ABORA_CYAN" "$ABORA_NC"
-    abora_dim_line "  Check TinyPM, the system-wide package manager frontend."
+    printf '  %banix package install|uninstall|search|try <pkg>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Use any nixpkgs package right away, without editing the config or rebuilding."
     printf '\n'
 }
 
@@ -3298,6 +3514,8 @@ do_learn() {
     abora_card_start "Packages"
     printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix package add fastfetch" "$ABORA_NC" "add a Nix package"
     printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix pkg remove fastfetch" "$ABORA_NC" "remove a Nix package"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix package install htop" "$ABORA_NC" "install now, no rebuild"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix package try cowsay" "$ABORA_NC" "try one without installing"
     printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix apply" "$ABORA_NC" "rebuild after ANIX changes"
     abora_card_end
     printf '\n'
@@ -3370,7 +3588,12 @@ main() {
         config) shift || true; do_tool_config "$@" ;;
         gc|clean) shift || true; do_gc "$@" ;;
         doctor) shift || true; do_doctor "$@" ;;
-        tinypm) shift || true; do_tinypm "$@" ;;
+        tinypm|grab)
+            abora_warn "TinyPM was removed in Abora OS 4.2. Packages now come from: anix package"
+            printf '\n'
+            package_usage
+            exit 1
+            ;;
         help|--help|-h) usage ;;
         *)
             abora_error "Unknown ANIX command: ${command}"

@@ -5,7 +5,7 @@
   # Two possible locations depending on whether this is evaluated from the
   # repo's own flake.nix (../../tools/...) or from an installed system's
   # copy under /etc/nixos/abora (../plan-tool) -- same dual-path pattern
-  # nix/modules/installed-base.nix uses for mango/modularity/tinypm.
+  # nix/modules/installed-base.nix uses for mango/modularity.
 , toolSrc ?
     if builtins.pathExists ../../tools/abora-plan-tool
     then ../../tools/abora-plan-tool

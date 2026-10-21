@@ -26,7 +26,7 @@ make qemu-serial      # Headless QEMU, output in terminal
 make check            # Run repo script checks (syntax + runtime tests)
 make check-desktops   # Validate all desktop profiles against nixpkgs
 make preflight        # Full release preflight checks
-make release          # Build ISO + TinyPM package + checksums + release notes
+make release          # Build ISO + ANIX package + checksums + release notes
 make metadata         # Refresh release metadata only (no ISO rebuild)
 ```
 
@@ -88,9 +88,9 @@ All shell scripts source `abora-ui.sh` (or `/etc/abora/ui.sh` on-system) for sha
 
 `tools/abora-update/` is the Vanta core of `abora update` (release channel resolution and the downgrade guard so far), called by `scripts/abora-update.sh` through the same CLI as the C# `tools/abora-update-resolver` it replaces, which stays as a fallback for now. It runs on the Vanta interpreter packaged in `nix/pkgs/vanta.nix` (pinned to a Vanta commit) and ships as `nix/pkgs/abora-update.nix`. Unit tests: `vanta run tools/abora-update/tests.vanta` (also run by `make check` when a new-enough Vanta is found).
 
-### TinyPM
+### Packages (TinyPM was removed in 4.2)
 
-`vendor/tinypm/` is a vendored copy of TinyPM v4. It provides `grab`, `search`, `term`, `start`, `supdate`, and Abora/ANIX/Nix bridge commands. Packaging happens via `scripts/package-tinypm.py` → `out/packages/`.
+`anix package install/uninstall/search/upgrade/try/keep` installs nixpkgs packages into the user's Nix profile with `--inputs-from /etc/nixos`, so they use the system's pinned nixpkgs and need no config edit or rebuild. `anix package add/remove` stays the declarative path (`anix.packages` in `anix.nix`). Tests use `ANIX_NIX_BIN` to point at a fake `nix`. `anix.tinypm.*` options remain as no-ops so pre-4.2 `anix.nix` files still evaluate. Docs: `docs/wiki/Packages.md`.
 
 ### Desktop Profiles
 

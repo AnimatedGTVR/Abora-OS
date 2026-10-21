@@ -96,7 +96,6 @@ STAGED_FLAT_DIRS = (
 STAGED_TREES = (
     ("nix/modules/desktops", "desktops"),
     ("vendor/modularity", "vendor/modularity"),
-    ("vendor/tinypm", "tinypm"),
     ("tools/abora-update", "abora-update"),
 )
 

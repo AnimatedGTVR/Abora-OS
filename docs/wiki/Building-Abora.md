@@ -125,7 +125,6 @@ make release
 `make release` builds:
 
 - all five edition ISOs
-- the TinyPM release tarball
 - the ANIX standalone tarball
 - checksums
 - release manifest

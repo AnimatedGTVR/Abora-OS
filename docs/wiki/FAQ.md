@@ -6,7 +6,7 @@ Abora OS is a distro project built on top of NixOS with a focus on a simpler fir
 
 ## Is Abora just NixOS?
 
-Abora is still NixOS-based, but it adds its own live image flow, installer experience, branding, update path, desktop profiles, support tools, ANIX workflows, and TinyPM-flavored app commands.
+Abora is still NixOS-based, but it adds its own live image flow, installer experience, branding, update path, desktop profiles, support tools, and ANIX workflows, including `anix package` for installing nixpkgs packages without a rebuild.
 
 ## What is Abora OS v4.1 Horizon?
 
@@ -169,11 +169,12 @@ After install, boot the virtual disk with:
 make qemu-disk
 ```
 
-## Does TinyPM v0.8 install permanent NixOS system packages?
+## What happened to TinyPM?
 
-TinyPM is part of the Abora ecosystem, but it is not a full replacement for declarative NixOS configuration.
-
-In Abora it provides two commands: `grab` for installing/removing/updating packages, and `tinypm` for search, info, checks, and diagnostics such as `tinypm doctor` and `tinypm providers`.
+TinyPM was removed in Abora OS 4.2 Solstice. `anix package install <pkg>` installs any nixpkgs package
+right away, from the same nixpkgs revision as your system and without editing `flake.nix`;
+`anix package add <pkg>` makes it part of the system config instead. Flatpak apps are `abora apps`. See
+[Packages](Packages.md) for the full TinyPM-to-ANIX mapping.
 
 ## Is Modularity available in Abora?
 
@@ -182,7 +183,8 @@ Yes. Modularity is a game engine editor by Tareno Labs and is included in the De
 Install it after setup:
 
 ```sh
-grab modularity
+anix package add modularity
+anix apply
 ```
 
 Or select it from the Developer bundle during installation.
