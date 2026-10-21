@@ -809,18 +809,19 @@ in
       "motd".text = ''
         Abora OS v4.1 Horizon
 
+          anix learn                   the short command cheat sheet
+          anix welcome                 first steps and quick actions
+          anix doctor                  check system health
           anix package install <pkg>   install a Nix package now, no rebuild
           anix package search <word>   find packages in nixpkgs
-          abora apps                   Flatpak apps from Flathub
+          anix apps                    Flatpak apps from Flathub
+          anix gaming                  gaming layer status and Steam Big Picture helper
+          anix gaming doctor           Gaming config/GPU/Vulkan/disk checks
+          anix gaming repair-cache     fix local Nix fetch-cache errors
+          anix recovery                rollback and repair tools
+          sudo anix update             rebuild and switch the system
 
-          abora welcome       first steps and quick actions
-          abora gaming        gaming layer status and Steam Big Picture helper
-          abora gaming doctor Gaming config/GPU/Vulkan/disk checks
-          abora gaming repair-cache
-                              fix local Nix fetch-cache errors
-          abora doctor        check system health
-          abora recovery      rollback and repair tools
-          sudo abora update   rebuild and switch the system
+          'abora' is the old name for anix: abora update = anix update.
       '';
       "profile.d/abora-welcome.sh".text = ''
         abora_welcome_conf="''${XDG_CONFIG_HOME:-''${HOME}/.config}/abora/welcome.conf"

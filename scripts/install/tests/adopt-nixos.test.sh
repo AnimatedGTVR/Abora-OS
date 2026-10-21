@@ -13,7 +13,7 @@ adopt_help_out="$(scripts/abora-adopt-nixos.sh --help 2>&1)"
 
 if printf '%s' "$adopt_help_out" | grep -q 'abora adopt-nixos' \
   && printf '%s' "$adopt_help_out" | grep -q 'without erasing /home' \
-  && ./abora --help | grep -q 'abora adopt-nixos' \
+  && ./abora --help | grep -q 'anix adopt-nixos' \
   && grep -q 'abora.user.name = null;' scripts/abora-adopt-nixos.sh \
   && grep -q 'desktop="none"' scripts/abora-adopt-nixos.sh \
   && grep -q 'abora-backups' scripts/abora-adopt-nixos.sh \

@@ -23,6 +23,24 @@ resolve_helper() {
     return 1
 }
 
+# Since 4.2, `anix` is the one Abora command and `abora` is its old name.
+# This file still carries the Abora system commands (anix routes them here),
+# and hands everything else, including help and learn, to anix. On the
+# installed system `anix` is a wrapper that sets ANIX_SYSTEM_CONFIG, so
+# prefer it over running anix.sh directly.
+forward_to_anix() {
+    if [[ -n "${ABORA_FROM_ANIX:-}" ]]; then
+        return 1
+    fi
+    if command -v anix >/dev/null 2>&1; then
+        exec anix "$@"
+    fi
+    if [[ -f "$script_dir/anix.sh" ]]; then
+        exec bash "$script_dir/anix.sh" "$@"
+    fi
+    return 1
+}
+
 show_learn() {
     cat <<'EOF'
 Abora quick start
@@ -363,7 +381,7 @@ EOF
 
 case "${1:-help}" in
     learn|cheatsheet|commands)
-        show_learn
+        forward_to_anix learn || show_learn
         ;;
     apps)
         shift
@@ -542,9 +560,11 @@ EOF
         exec abora-update install "$@"
         ;;
     help|--help|-h|"")
-        show_help
+        forward_to_anix help || show_help
         ;;
     *)
+        # anix status, anix set, anix apply, ... all work as abora <command>.
+        forward_to_anix "$@" || true
         printf 'Unknown Abora command: %s\n' "$1" >&2
         exit 1
         ;;

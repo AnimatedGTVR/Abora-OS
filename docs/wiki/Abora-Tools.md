@@ -1,8 +1,22 @@
 # Abora Tools
 
-Abora includes a small command layer for distro-specific tasks.
+Abora includes a small command layer for distro-specific tasks: health, setup, recovery, desktop selection,
+updates, support reports, and system configuration.
 
-Use these commands for Abora health, setup, recovery, desktop selection, updates, support reports, and system configuration.
+## `anix` and `abora`
+
+Since 4.2 Solstice, `anix` is the one command for Abora, and `abora` is its old name. Every command below
+works with either: `anix update` and `abora update` are the same thing. The tables use `abora` because
+that's what earlier releases and most guides use.
+
+Two names mean slightly different things under each:
+
+| Command | Under `anix` | Under `abora` |
+| --- | --- | --- |
+| `config` | system settings; `config set snapshots.push` is ANIX's own setting | system settings |
+| `install` | `anix install <pkg>` installs a package; `anix install pre-alpha` as before | `abora install pre-alpha` |
+
+`anix rollback` and `abora rollback` both go back to the previous system generation.
 
 ## Main Commands
 

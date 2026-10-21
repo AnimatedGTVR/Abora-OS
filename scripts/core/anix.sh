@@ -3487,6 +3487,24 @@ usage() {
     printf '  %banix package install|uninstall|search|try <pkg>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Use any nixpkgs package right away, without editing the config or rebuilding."
     printf '\n'
+    if abora_backend >/dev/null; then
+        printf '  %bAbora OS%b\n\n' "$ABORA_WHITE" "$ABORA_NC"
+        printf '  %banix update%b | %banix channel%b | %banix fallback%b | %banix install pre-alpha%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
+        abora_dim_line "  Update Abora, pick the update channel, or move to an older release. 'anix rollback' undoes an update."
+        printf '  %banix welcome%b | %banix setup%b | %banix config%b | %banix desktop%b | %banix dotfiles%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
+        abora_dim_line "  First steps, the setup wizard, system settings, desktop profiles, and dotfile import."
+        printf '  %banix apps%b | %banix gaming%b | %banix labs%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
+        abora_dim_line "  Flatpak app bundles and custom packages, the gaming layer, and opt-in Labs."
+        printf '  %banix doctor%b | %banix recovery%b | %banix network%b | %banix repair%b | %banix hardware-test%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
+        abora_dim_line "  Health checks, recovery menu, network diagnostics, repairs, and hardware readiness."
+        printf '  %banix logs%b | %banix check-full%b | %banix support-report%b | %banix bug-report%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
+        abora_dim_line "  Installer logs, full diagnostics, a redacted support archive, and bug reports."
+        printf '  %banix build --from-source%b | %banix adopt-nixos%b | %banix welcome-gui%b | %banix config-gui%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
+        abora_dim_line "  Build Abora from source, add Abora to an existing NixOS install, and the graphical apps."
+        printf '\n'
+        abora_dim_line "'abora' is the same command under its old name: 'abora update' = 'anix update'."
+        printf '\n'
+    fi
 }
 
 do_learn() {
@@ -3535,6 +3553,21 @@ do_learn() {
     printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix diff-plan plan.json" "$ABORA_NC" "preview a plan before applying it"
     abora_card_end
     printf '\n'
+    if abora_backend >/dev/null; then
+        abora_card_start "Abora OS"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix welcome" "$ABORA_NC" "first steps and quick actions"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix doctor" "$ABORA_NC" "check what is broken"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix network" "$ABORA_NC" "diagnose Wi-Fi, DNS, and update connectivity"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "sudo anix update" "$ABORA_NC" "update Abora"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix rollback nix --now" "$ABORA_NC" "undo the last update or rebuild"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix apps catalog" "$ABORA_NC" "Flatpak app bundles"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix gaming status" "$ABORA_NC" "Steam, launchers, Wine, and helpers"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix recovery" "$ABORA_NC" "rollback, repair, and support tools"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix support-report" "$ABORA_NC" "make a redacted support archive"
+        abora_card_end
+        abora_dim_line "Every 'abora <command>' still works and does the same thing."
+        printf '\n'
+    fi
 }
 
 show_wallpapers() {
@@ -3549,6 +3582,70 @@ show_wallpapers() {
     abora_card_end
 
     printf '\n'
+}
+
+# Abora OS system commands. Since 4.2, `anix` is the one command for Abora
+# and `abora` is a compatibility name for it. These commands keep their own
+# implementations (separate tools like abora-update and abora-apps on an
+# installed system, plus abora.sh's logs/bug-report helpers), so anix only
+# routes them. abora.sh sits next to anix.sh everywhere both ship: in
+# /etc/abora on the live ISO and installed systems, and in scripts/ in a
+# checkout. The standalone ANIX package for plain NixOS has no abora.sh,
+# and there these commands say they're Abora-only.
+abora_system_commands=(
+    update channel fallback apps custom-packages desktop dotfiles gaming labs
+    check-full logs log bug-report bug build adopt-nixos adopt recovery network
+    repair setup welcome welcome-gui config-gui hardware-test support-report
+)
+
+is_abora_system_command() {
+    local name="$1" known
+    for known in "${abora_system_commands[@]}"; do
+        [[ "$name" == "$known" ]] && return 0
+    done
+    return 1
+}
+
+abora_backend() {
+    local candidate
+    for candidate in "${ANIX_ABORA_BACKEND:-}" "$script_dir/abora.sh" /etc/abora/abora.sh; do
+        if [[ -n "$candidate" && -f "$candidate" ]]; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+run_abora_system_command() {
+    local backend=""
+    if ! backend="$(abora_backend)"; then
+        abora_error "'anix $1' is part of Abora OS and isn't available on this system."
+        abora_dim_line "Here, ANIX manages your NixOS config: see 'anix help'."
+        exit 1
+    fi
+    # ABORA_FROM_ANIX stops abora.sh from handing a command it doesn't know
+    # back to anix, so a typo can never bounce between the two.
+    ABORA_FROM_ANIX=1 exec bash "$backend" "$@"
+}
+
+# `anix config` was ANIX's own tool settings (only snapshots.push) and
+# `abora config` the installed system's settings (abora-local.nix). Now that
+# both are `anix config`, the system settings win, and keys under
+# snapshots. still go to the tool settings. Without Abora's config tool
+# (plain NixOS), it's only the tool settings, as before.
+do_config() {
+    local sub="${1:-show}"
+    if [[ "$sub" == "tool" ]]; then
+        shift
+        do_tool_config "$@"
+        return
+    fi
+    if [[ "${2:-}" == snapshots.* ]] || ! abora_backend >/dev/null || ! command -v abora-config >/dev/null 2>&1; then
+        do_tool_config "$@"
+        return
+    fi
+    run_abora_system_command config "$@"
 }
 
 main() {
@@ -3585,7 +3682,16 @@ main() {
         switch) shift || true; do_switch "$@" ;;
         rollback) shift || true; do_rollback "$@" ;;
         save) shift || true; do_save "$@" ;;
-        config) shift || true; do_tool_config "$@" ;;
+        config) shift || true; do_config "$@" ;;
+        install)
+            # `anix install pre-alpha` was `abora install pre-alpha`; any
+            # other name is a package, like `anix package install`.
+            if [[ "${2:-}" == "pre-alpha" ]]; then
+                run_abora_system_command "$@"
+            fi
+            shift; do_package_install "$@" ;;
+        uninstall) shift; do_package_uninstall "$@" ;;
+        search) shift; do_package_search "$@" ;;
         gc|clean) shift || true; do_gc "$@" ;;
         doctor) shift || true; do_doctor "$@" ;;
         tinypm|grab)
@@ -3596,6 +3702,9 @@ main() {
             ;;
         help|--help|-h) usage ;;
         *)
+            if is_abora_system_command "$command"; then
+                run_abora_system_command "$@"
+            fi
             abora_error "Unknown ANIX command: ${command}"
             printf '\n'
             usage

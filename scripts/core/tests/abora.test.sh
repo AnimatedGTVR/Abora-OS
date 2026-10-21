@@ -33,7 +33,7 @@ fi
 build_help_out="$(scripts/abora-build.sh --help 2>&1)"
 
 if printf '%s' "$build_help_out" | grep -q 'abora build --from-source' \
-  && ./abora --help | grep -q 'abora build --from-source' \
+  && ./abora --help | grep -q 'anix build --from-source' \
   && grep -q 'abora = mkLive "cosmic";' flake.nix \
   && grep -q 'nixosConfigurations.abora.config.system.build.toplevel' scripts/abora-build.sh \
   && grep -q 'nixosConfigurations.abora-live-cosmic.config.system.build.toplevel' scripts/abora-build.sh \
@@ -97,9 +97,12 @@ anix_help_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/anix.sh --
 
 anix_learn_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/anix.sh learn 2>&1)"
 
-if printf '%s' "$abora_help_out" | grep -q 'abora learn' \
-  && printf '%s' "$abora_learn_out" | grep -q 'Abora quick start' \
-  && printf '%s' "$abora_learn_out" | grep -q 'anix learn' \
+# Since 4.2 `abora help`/`abora learn` are anix's, which list the Abora
+# system commands too.
+if printf '%s' "$abora_help_out" | grep -q 'anix learn' \
+  && printf '%s' "$abora_help_out" | grep -q 'anix update' \
+  && printf '%s' "$abora_learn_out" | grep -q 'ANIX quick start' \
+  && printf '%s' "$abora_learn_out" | grep -q 'anix welcome' \
   && printf '%s' "$anix_help_out" | grep -q 'anix learn' \
   && printf '%s' "$anix_learn_out" | grep -q 'ANIX quick start' \
   && printf '%s' "$anix_learn_out" | grep -q 'anix package add fastfetch' \
@@ -334,6 +337,54 @@ if [[ -z "$_resolve_helper_failures" ]]; then
   pass "runtime: abora.sh fallbacks resolve to real helper scripts outside scripts/core"
 else
   fail "runtime: abora.sh fallbacks resolve to real helper scripts outside scripts/core (unresolved:${_resolve_helper_failures} )"
+fi
+
+# 4.2: anix is the one Abora command. It hands Abora's system commands to
+# abora.sh, abora hands everything else to anix, and neither can bounce an
+# unknown command back to the other.
+tmp_route="$(mktemp -d)"
+testlib_cleanup_paths+=("$tmp_route")
+printf '#!/usr/bin/env bash\nprintf "backend:%%s from_anix=%%s\\n" "$*" "${ABORA_FROM_ANIX:-}"\n' > "$tmp_route/abora.sh"
+_route_out="$(ANIX_ABORA_BACKEND="$tmp_route/abora.sh" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/anix.sh gaming status 2>&1 || true)"
+_route_update="$(ANIX_ABORA_BACKEND="$tmp_route/abora.sh" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/anix.sh update rollback 2>&1 || true)"
+_route_prealpha="$(ANIX_ABORA_BACKEND="$tmp_route/abora.sh" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/anix.sh install pre-alpha 2>&1 || true)"
+if [[ "$_route_out" == "backend:gaming status from_anix=1" \
+  && "$_route_update" == "backend:update rollback from_anix=1" \
+  && "$_route_prealpha" == "backend:install pre-alpha from_anix=1" ]]; then
+  pass "runtime: anix routes Abora system commands to abora.sh"
+else
+  fail "runtime: anix routes Abora system commands to abora.sh"
+  printf '              got: %s | %s | %s\n' "$_route_out" "$_route_update" "$_route_prealpha"
+fi
+
+_route_cfg_tool="$(ANIX_ABORA_BACKEND="$tmp_route/abora.sh" ANIX_SYSTEM_CONFIG="$tmp_route/cfg" ANIX_NO_SUDO=1 \
+  PATH="$tmp_route/bin:$PATH" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/anix.sh config set snapshots.push true 2>&1 || true)"
+mkdir -p "$tmp_route/bin"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$tmp_route/bin/abora-config"
+chmod +x "$tmp_route/bin/abora-config"
+_route_cfg_sys="$(ANIX_ABORA_BACKEND="$tmp_route/abora.sh" PATH="$tmp_route/bin:$PATH" \
+  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/anix.sh config set timezone UTC 2>&1 || true)"
+if grep -q 'snapshots.push=true' "$tmp_route/cfg/.anix/config" 2>/dev/null \
+  && ! grep -q backend <<<"$_route_cfg_tool" \
+  && [[ "$_route_cfg_sys" == "backend:config set timezone UTC from_anix=1" ]]; then
+  pass "runtime: anix config sends snapshots.* to ANIX's own settings and the rest to the system config"
+else
+  fail "runtime: anix config sends snapshots.* to ANIX's own settings and the rest to the system config"
+fi
+
+_fwd_status="$(env -u ABORA_FROM_ANIX PATH="/usr/bin:/bin" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
+  ANIX_SYSTEM_CONFIG="$tmp_route/cfg" bash scripts/abora.sh status 2>&1 || true)"
+_loop_rc=0
+_loop_out="$(timeout 10 env PATH="/usr/bin:/bin" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora.sh no-such-command 2>&1)" || _loop_rc=$?
+_back_rc=0
+ABORA_FROM_ANIX=1 bash scripts/abora.sh status >/dev/null 2>&1 || _back_rc=$?
+if grep -q 'ANIX Status' <<<"$_fwd_status" \
+  && [[ "$_loop_rc" -eq 1 ]] && grep -q 'Unknown ANIX command: no-such-command' <<<"$_loop_out" \
+  && [[ "$_back_rc" -eq 1 ]]; then
+  pass "runtime: abora forwards ANIX commands to anix without looping"
+else
+  fail "runtime: abora forwards ANIX commands to anix without looping"
+  printf '              loop rc=%s back rc=%s\n' "$_loop_rc" "$_back_rc"
 fi
 
 testlib_finish

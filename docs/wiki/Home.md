@@ -38,9 +38,14 @@ Abora is a distro project built on top of NixOS with one main goal: make NixOS e
 
 ## Tool Split
 
-- Abora commands handle distro setup, recovery, health checks, and installed-system configuration.
-- ANIX handles NixOS profiles, snapshots, rebuild previews, rollback, and friendly system settings.
-- `anix package` handles Nix packages; `abora apps` handles Flatpak apps.
+Since 4.2 Solstice, **`anix` is the one Abora command**. It covers what used to be split between two:
+
+- system tasks: `anix update`, `anix doctor`, `anix recovery`, `anix welcome`, `anix apps`, `anix gaming`, `anix config`, ...
+- NixOS config: profiles, snapshots, rebuild previews, rollback, `anix set` / `anix enable`
+- packages: `anix package install` (no rebuild), `anix package add` (in the config), `anix apps` for Flatpak
+
+`abora` still works as the old name for the same command, so `abora update` and `anix update` do the same
+thing and existing scripts and habits keep working. See [Abora Tools](Abora-Tools.md).
 
 ## Useful Links
 
