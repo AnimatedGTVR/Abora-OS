@@ -105,6 +105,35 @@ Or run the bash installer directly, bypassing the MINT/backend choice entirely:
 abora-installer
 ```
 
+### Typing a timezone
+
+The bash installer (`abora-installer`, and `abora-install --batch`) asks for the timezone as text. It accepts
+`UTC`, or an IANA `Region/City` name such as `Europe/Berlin`, `America/New_York` or `Asia/Tokyo`, in any
+capitalization. The common US abbreviations (`EST`, `PST`, `Eastern`, ...) work too. A city on its own, such
+as `Berlin` or `new york`, lists the matching names to choose from instead of being rejected.
+
+## If The Install Fails
+
+The installer stops, says why in plain language ("Likely cause"), and shows a **What failed** block with
+the exact failing build, the path whose hash didn't match, and the expected and actual hashes. The same
+lines, plus the build log of the failed package (`nix log`), go into `/tmp/abora-install.log`.
+
+`/tmp` is lost when the live system reboots, so keep the log first:
+
+- **Save logs to a USB drive** in the failure menu copies the install log, the config log and a redacted
+  support report onto any FAT, exFAT, NTFS or ext4 USB stick (not the Abora install stick itself).
+- If the target disk was already mounted, a copy is also written to its root as
+  `abora-install-failed-<date>.log`.
+- From the live shell: `abora support-report --output-dir /path/to/usb`.
+
+A hash mismatch can mean three different things, and the "Likely cause" line says which:
+
+| What the log says | What it usually means | What to do |
+| --- | --- | --- |
+| `hash mismatch importing path`, `NAR hash mismatch in input 'path:/nix/store/...'`, `is corrupt` | a package copied from the USB stick (or the cache) was damaged | check the ISO against `SHA256SUMS`, write the USB stick again or use another, run a memory test |
+| `hash mismatch in fixed-output derivation`, or a `github:` input | a pinned download changed upstream, or something on the network altered it | try again on another network; report it with the log if it repeats |
+| `NAR hash mismatch in input path:/mnt/etc/nixos` | an installer bug | report it with the log |
+
 ## Existing NixOS Systems
 
 If you already run NixOS and want Abora without wiping the machine, use the

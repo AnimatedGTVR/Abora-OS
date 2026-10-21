@@ -394,8 +394,14 @@ install_failure_hint() {
         echo "Nix refused a package because its signature was not trusted. Check the clock first ('date'; a wrong date is the most common cause), then try again. If it keeps happening, share the install log."
     elif grep -qaiE 'could not resolve host|temporary failure in name resolution|network is unreachable|unable to download|couldn.?t connect|connection (timed out|refused|reset)|curl: \((6|7|28|35|56)\)' <<<"$tail_text"; then
         echo "The network failed while downloading packages. Check the connection (run 'nmtui' to reconnect) and try again."
-    elif grep -qaiE 'hash mismatch|got:.*sha256|specified:.*sha256' <<<"$tail_text"; then
-        echo "A download did not match its expected hash. The file may have changed upstream or the download was cut off. Try again in a while, and report it if it repeats."
+    # Three different failures all say "hash mismatch", and they need opposite advice (DistroWatch's 4.0
+    # review hit one of them on every attempt), so tell them apart:
+    elif grep -qaiE "hash mismatch in input path[^ ]*['\"]?(path:)?/mnt/etc/nixos" <<<"$tail_text"; then
+        echo "Nix saw the installer's own config change while it was reading it. That's an Abora installer bug, not your hardware: please report it with this log ('abora support-report')."
+    elif grep -qaiE "hash mismatch importing path|NAR hash mismatch in input [^ ]*path:/nix/store|is corrupt|bad archive|truncated (gzip|xz|zstd)" <<<"$tail_text"; then
+        echo "A package copied from the install media or the cache didn't match its checksum. That points at the USB stick or the computer's memory: check the ISO against SHA256SUMS, write it to a USB stick again (or use another one), and run a memory test if it repeats."
+    elif grep -qaiE 'hash mismatch in fixed-output derivation|hash mismatch|got:.*sha256|specified:.*sha256' <<<"$tail_text"; then
+        echo "A source download didn't match the hash Abora pins for it: the file changed upstream, or something on the network (a proxy or captive portal) altered it. Try again on another network, and report it with this log if it repeats; the log has the path and both hashes."
     elif grep -qaiE 'input/output error|read-only file system|i/o error|ata[0-9]+.*error|medium error' <<<"$tail_text"; then
         echo "The disk reported errors while writing. Check the disk and cables, or try another disk."
     elif grep -qaiE 'max-silent-time|build timed out|timed out after' <<<"$tail_text"; then
@@ -425,24 +431,147 @@ ensure_sane_clock() {
     return 0
 }
 
+# The exact facts behind a failure, from the install log: which derivation
+# failed to build, which path's hash didn't match, and the expected and actual
+# hashes. These are what a bug report needs, and they're usually hundreds of
+# lines up in the log. Prints nothing when there's nothing specific.
+install_failure_facts() {
+    local log="${1:-}" text
+    [[ -r "$log" ]] || return 0
+    text="$(tail -n 2000 "$log" 2>/dev/null)" || return 0
+    {
+        grep -aoE "builder for '[^']+\.drv' failed[^.]*" <<<"$text" | tail -n 3 | sed 's/^/Failed build: /'
+        grep -aoE "Cannot build '[^']+\.drv'" <<<"$text" | tail -n 2 | sed 's/^/Failed build: /'
+        grep -aoE "hash mismatch [^:]*'[^']+'" <<<"$text" | tail -n 3 | sed 's/^/Hash mismatch: /'
+        grep -aoE "hash mismatch importing path '[^']+'" <<<"$text" | tail -n 3 | sed 's/^/Corrupt path: /'
+        grep -aE '^[[:space:]]*(specified|got):[[:space:]]+(sha256|sha512)' <<<"$text" | tail -n 4 | sed -E 's/^[[:space:]]+//; s/^/  /'
+    } | awk '!seen[$0]++'
+}
+
+# Appends `nix log` for each failed derivation to the install log, so the
+# build's own output survives with it (nix keeps it only in the live
+# system's RAM-backed store).
+append_failed_build_logs() {
+    local log="$1" drv
+    command -v nix >/dev/null 2>&1 || return 0
+    while IFS= read -r drv; do
+        [[ -n "$drv" ]] || continue
+        {
+            printf '\n===== nix log %s =====\n' "$drv"
+            timeout 20 nix --extra-experimental-features nix-command log "$drv" 2>&1 | tail -n 200
+        } >>"$log" 2>/dev/null || true
+    done < <(grep -aoE "builder for '[^']+\.drv' failed" "$log" 2>/dev/null | grep -oE "/nix/store/[^']+\.drv" | awk '!seen[$0]++' | tail -n 2)
+}
+
+# A failed install's log is in /tmp on the live system, which is gone after a
+# reboot. If the target's root is still mounted, keep a copy there too, where
+# it's readable after booting the live USB again or from another OS.
+preserve_install_log() {
+    local dest
+    [[ -s "$install_log" ]] || return 0
+    if mountpoint -q /mnt 2>/dev/null && [[ -w /mnt ]]; then
+        dest="/mnt/abora-install-failed-$(date +%Y%m%d-%H%M%S 2>/dev/null || echo log).log"
+        cp -f "$install_log" "$dest" 2>/dev/null && printf 'LOG COPY: %s (on the target disk)\n' "${dest#/mnt}" >>"$install_log"
+    fi
+    return 0
+}
+
 die() {
     err "$*"
     printf 'INSTALL ERROR: %s\n' "$*" >>"$install_log" 2>/dev/null || true
+    append_failed_build_logs "$install_log" 2>/dev/null || true
+    local facts
+    facts="$(install_failure_facts "$install_log" 2>/dev/null || true)"
+    [[ -n "$facts" ]] && printf 'WHAT FAILED:\n%s\n' "$facts" >>"$install_log" 2>/dev/null
     local hint
     hint="$(install_failure_hint "$install_log" 2>/dev/null || true)"
     [[ -n "$hint" ]] && printf 'LIKELY CAUSE: %s\n' "$hint" >>"$install_log" 2>/dev/null
+    preserve_install_log 2>/dev/null || true
     # In batch mode, exit so automation can read the error from stdout/logs.
     if [[ "${batch_mode:-0}" -eq 1 ]]; then
         printf 'FATAL: %s\n' "$*" >&2
         [[ -n "$hint" ]] && printf 'LIKELY CAUSE: %s\n' "$hint" >&2
+        [[ -n "$facts" ]] && printf 'WHAT FAILED:\n%s\n' "$facts" >&2
         cleanup_target 2>/dev/null || true
         exit 1
     fi
     [[ -n "$hint" ]] && printf '\n  %bLikely cause:%b %s\n' "${D}${CG}" "$R" "$hint"
+    if [[ -n "$facts" ]]; then
+        printf '\n  %bWhat failed%b\n' "${B}${CY}" "$R"
+        printf '%s\n' "$facts" | sed 's/^/    /'
+    fi
     printf '\n  %bLog: %s%b\n\n' "${D}${CG}" "$install_log" "$R"
     # Unmount before handing off to a shell so nothing is left mounted.
     cleanup_target 2>/dev/null || true
     failed_install_menu "$*"
+}
+
+# Removable partitions a person could save logs to: on a USB or removable
+# disk, with a filesystem other computers read, and not on the disk Abora
+# booted from (or anything else currently mounted). "/dev/sdb1|16G|KINGSTON
+# (vfat)" per line.
+log_target_partitions() {
+    local -A busy=()
+    local name
+    while IFS= read -r name; do
+        [[ -n "$name" ]] && busy["$name"]=1
+    done < <(boot_media_disks)
+    lsblk -rpno NAME,TYPE,FSTYPE,RM,TRAN,SIZE,LABEL,PKNAME 2>/dev/null \
+        | while read -r dev type fstype rm tran size label parent; do
+            [[ "$type" == "part" ]] || continue
+            [[ "$rm" == "1" || "$tran" == "usb" ]] || continue
+            case "$fstype" in vfat|exfat|ntfs|ext4|ext3|ext2|btrfs) ;; *) continue ;; esac
+            [[ -n "${busy[${parent##*/}]:-}" ]] && continue
+            # lsblk -r escapes spaces in labels as \x20.
+            label="${label//\\x20/ }"
+            printf '%s|%s %s (%s)\n' "$dev" "$size" "${label:-no label}" "$fstype"
+        done
+}
+
+# Copies the install and config logs, plus a redacted support report, onto a
+# USB drive, so a failed install's details survive a reboot and can be
+# attached to a bug report from another computer.
+save_logs_to_usb() {
+    local -a parts=() items=()
+    local line dev mnt="/run/abora-log-usb" stamp dest
+    release_header "Save Logs To USB"
+    mapfile -t parts < <(log_target_partitions)
+    if [[ "${#parts[@]}" -eq 0 ]]; then
+        warn "No USB drive found. Plug one in (FAT, exFAT, NTFS or ext4), wait a few seconds, and try again."
+        msg "The Abora install stick itself can't be used: it's read-only."
+        pause
+        return 0
+    fi
+    for line in "${parts[@]}"; do
+        items+=("${line%%|*}|${line#*|}")
+    done
+    items+=("Cancel|Go back without saving")
+    menu "Save the logs to which drive?" "${items[@]}"
+    [[ "$MENU_RESULT" -lt "${#parts[@]}" ]] || return 0
+    dev="${parts[$MENU_RESULT]%%|*}"
+
+    mkdir -p "$mnt"
+    if ! mount "$dev" "$mnt" 2>/dev/null; then
+        err "Couldn't mount ${dev}."
+        pause
+        return 0
+    fi
+    stamp="$(date +%Y%m%d-%H%M%S 2>/dev/null || echo logs)"
+    dest="$mnt/abora-logs-$stamp"
+    if mkdir -p "$dest"; then
+        [[ -f "$install_log" ]] && cp -f "$install_log" "$dest/" 2>/dev/null
+        [[ -f "$config_log" ]] && cp -f "$config_log" "$dest/" 2>/dev/null
+        if command -v abora-support-report >/dev/null 2>&1; then
+            abora-support-report --output-dir "$dest" >/dev/null 2>&1 || true
+        fi
+        sync
+        ok "Saved to ${dev}: abora-logs-${stamp}/"
+        ls -1 "$dest" 2>/dev/null | sed 's/^/      /'
+    else
+        err "Couldn't write to ${dev}. Is it full or write-protected?"
+    fi
+    umount "$mnt" 2>/dev/null || warn "Couldn't unmount ${dev}; wait a moment before removing it."
+    pause
 }
 
 failed_install_menu() {
@@ -470,6 +599,7 @@ failed_install_menu() {
             "Network tools|Fix Wi-Fi, DNS, or cache reachability" \
             "Debug tools|View logs, hardware test, support report" \
             "Open terminal|Drop to the live shell" \
+            "Save logs to a USB drive|Keep the log for a bug report after rebooting" \
             "Power off|Shut down this machine"
 
         case "$MENU_RESULT" in
@@ -500,6 +630,9 @@ failed_install_menu() {
                 exec bash --login </dev/tty >/dev/tty 2>/dev/tty || exit 0
                 ;;
             4)
+                save_logs_to_usb
+                ;;
+            5)
                 poweroff || exit 0
                 ;;
         esac
@@ -609,6 +742,72 @@ timezone_exists() {
         timedatectl list-timezones 2>/dev/null | grep -Fxq "$tz" && return 0
     fi
     return 1
+}
+
+# Every IANA timezone name this system knows, one per line, for matching what
+# someone typed. timedatectl where it works, else the zoneinfo tree (minus the
+# posix/ and right/ duplicates and the data files that aren't zones).
+list_timezones() {
+    local base
+    if command -v timedatectl >/dev/null 2>&1 && timedatectl list-timezones 2>/dev/null; then
+        return 0
+    fi
+    for base in "${ABORA_ZONEINFO_PATH:-}" /usr/share/zoneinfo /run/current-system/sw/share/zoneinfo; do
+        [[ -n "$base" && -d "$base" ]] || continue
+        ( cd "$base" && find . -type f ! -path './posix/*' ! -path './right/*' ! -name '*.tab' ! -name '*.zi' \
+            ! -name 'leap*' ! -name 'tzdata*' ! -name '+VERSION' ! -name 'SECURITY' 2>/dev/null ) \
+            | sed 's|^\./||' | grep '/' | sort
+        printf 'UTC\n'
+        return 0
+    done
+}
+
+# The properly capitalized name when only the case is off ("europe/berlin" or
+# "EUROPE/BERLIN" -> "Europe/Berlin"), else the input unchanged.
+canonical_timezone() {
+    local tz="$1" match
+    timezone_exists "$tz" && { printf '%s\n' "$tz"; return 0; }
+    safe_timezone "$tz" || { printf '%s\n' "$tz"; return 0; }
+    match="$(list_timezones | grep -Fix -- "$tz" | head -n1 || true)"
+    printf '%s\n' "${match:-$tz}"
+}
+
+# Up to five zone names containing what was typed, ignoring case and treating
+# a space as "_" ("new york" -> America/New_York), best matches (the city
+# part) first.
+timezone_suggestions() {
+    local text="${1// /_}"
+    [[ -n "$text" ]] || return 0
+    safe_timezone "$text" || return 0
+    { list_timezones | grep -Fi -- "/$text" ; list_timezones | grep -Fi -- "$text"; } 2>/dev/null \
+        | awk '!seen[$0]++' | head -n 5
+}
+
+# The timezone question, shared by the guided and the quick install. UTC and
+# Region/City names both work, and the case doesn't matter; "?" or any part of
+# a name lists matches instead of only saying no.
+ask_timezone() {
+    local v suggestions
+    msg "Timezone: type UTC, or a Region/City name like Europe/Berlin or America/New_York. A city on its own (Berlin) shows matches."
+    while true; do
+        v="$(prompt_field "Timezone" "$timezone_value")"
+        if [[ "$v" == "?" ]]; then
+            warn "Type part of a city or region and press Enter to see matching names, or UTC."
+            continue
+        fi
+        [[ -n "$v" ]] && timezone_value="$(canonical_timezone "$(normalize_timezone "$v")")"
+        if timezone_exists "$timezone_value"; then
+            break
+        fi
+        suggestions="$(timezone_suggestions "$v")"
+        if [[ -n "$suggestions" ]]; then
+            warn "\"${v}\" isn't a timezone name on its own. Did you mean one of these? Type it exactly:"
+            printf '%s\n' "$suggestions" | sed 's/^/      /'
+        else
+            warn "\"${v}\" isn't a timezone name. Use UTC, or Region/City like Europe/London, America/Chicago, Asia/Tokyo."
+        fi
+        timezone_value="UTC"
+    done
 }
 
 # SHA-512 crypt hash (openssl passwd -6) — the format NixOS's
@@ -1607,12 +1806,7 @@ step_identity() {
     done
 
     local v
-    while true; do
-        v="$(prompt_field "Timezone" "$timezone_value")"
-        [[ -n "$v" ]] && timezone_value="$(normalize_timezone "$v")"
-        if timezone_exists "$timezone_value"; then break; fi
-        warn "Use a valid timezone, for example America/New_York, EST, Eastern, or UTC."
-    done
+    ask_timezone
 
     while true; do
         v="$(prompt_field "Console keymap" "$keyboard_value")"
@@ -4146,13 +4340,7 @@ release_locale() {
     esac
     apply_language_defaults
 
-    while true; do
-        local v
-        v="$(prompt_field "Timezone" "$timezone_value")"
-        [[ -n "$v" ]] && timezone_value="$(normalize_timezone "$v")"
-        timezone_exists "$timezone_value" && break
-        warn "Use America/New_York, EST, Eastern, UTC, etc."
-    done
+    ask_timezone
 
     while true; do
         local v
