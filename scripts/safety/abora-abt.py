@@ -423,6 +423,11 @@ def main(argv: list[str]) -> int:
     except AbtError as exc:
         error(f"abt: {exc}")
         return 2
+    except OSError as exc:
+        # Usually the state directory: ABT runs as root, because the system changes it wraps do.
+        error(f"abt: {exc}")
+        dim_line(f"ABT keeps its transactions in {state_dir}, which needs root. Nothing was changed.")
+        return 2
 
 
 if __name__ == "__main__":

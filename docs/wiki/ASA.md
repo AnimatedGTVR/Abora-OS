@@ -30,7 +30,10 @@ These run as transactions today:
 - `anix apps` (`abora apps`) when it rebuilds
 - `anix update` (`abora update`): the final switch. The updater keeps its own backups of the files it
   rewrites, so ABT doesn't snapshot the config there; it verifies the switch and goes back to the previous
-  generation if it fails.
+  generation if it fails. After such a rollback the old system is running, but `/etc/nixos` already has the
+  new release's files, so the update reports the failure and the next `anix update` (or `anix apply`)
+  tries the new release again. This is a change from 4.1, where a switch that failed part-way (for example
+  one service failing to start) left the new generation running.
 
 `anix rollback` itself isn't one: it's the way back.
 
