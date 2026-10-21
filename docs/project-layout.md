@@ -11,6 +11,30 @@ This is the quick map of the Abora OS repo for the Abora OS v4.2 Solstice releas
 - `Makefile`: command entrypoint for building, checking, QEMU testing, and releasing
 - `flake.nix` and `flake.lock`: Nix flake entrypoint and pinned dependencies
 
+## Architecture
+
+Abora is six layers. Each lives in its own place, and a layer only calls the ones below it in this table.
+
+| Layer | Where | Language | What it is |
+| --- | --- | --- | --- |
+| CLI | `scripts/core/anix.sh` (`anix`; `abora.sh` is its old name) | Shell | the one user-facing command; routes Abora system commands to their tools |
+| GUI | `scripts/*/*-gui.py`, `scripts/install/abora-installer-gui.py` | Python (GTK4) | front-ends; every action is also a CLI command |
+| Safety and recovery (ASA) | `scripts/safety/` (ABT), `scripts/support/` (doctor, recovery, support report) | Python | transactions, health checks and repairs ([ASA](wiki/ASA.md)) |
+| Tools | `scripts/apps/`, `scripts/config/`, `scripts/support/abora-update.sh` | Shell, Python | apps, settings, desktops, updates |
+| Installer | `scripts/install/`, `vendor/mint/` (front-end), `tools/abora-installer/` | Shell, Go, Rust | live boot, install, adopt an existing NixOS |
+| System config | `nix/` | Nix | the live ISO and the installed system |
+
+Shared code: `scripts/core/abora-ui.sh` for shell (UI, `abora_abt_prefix`), `scripts/support/abora_core.py`
+for Python (UI, redaction). Shell is glue; logic that needs data structures goes in Python.
+
+### Stable, new, and experimental
+
+| Status | What |
+| --- | --- |
+| **Stable** | the installer TUI and MINT, the desktop profiles, `anix` config/profiles/snapshots/rollback, `abora update`, `abora apps`, the support tools |
+| **New in 4.2** (alpha until the [release gate](next-release-plan.md#release-gate) passes) | `anix` as the one command, `anix package install`, the whole-system `anix doctor`, ABT transactions |
+| **Experimental** (not part of the installed system unless chosen) | Abora Labs (`automation/abora_labs`, opt-in at install), `experiments/` (language comparisons, never shipped), ANIX v2 languages beyond ANIX Native and ModuCPP |
+
 ## Main Directories
 
 ### `assets/`
@@ -78,6 +102,7 @@ Important files:
 - `scripts/abora-desktop-profiles.sh`: supported desktop profile definitions
 - `scripts/abora-session-setup.sh`: first-session defaults
 - `scripts/support/`: doctor, recovery, welcome, support report, full check, and hardware test (Python)
+- `scripts/safety/`: ABT, the transaction engine of ASA (`abora-abt`)
 - `scripts/check-scripts.py`: repo script and runtime sanity checks
 - `scripts/check-all-files.py`: broad syntax, links, YAML, JSON, and docs sweep
 - `scripts/check-desktops.py`: evaluates every supported desktop profile
