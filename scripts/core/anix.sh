@@ -53,6 +53,9 @@ fi
 if ! declare -F abora_abt_prefix >/dev/null; then
     abora_abt_prefix() { ABORA_ABT_PREFIX=(); }
 fi
+if ! declare -F abora_abt_pending >/dev/null; then
+    abora_abt_pending() { :; }
+fi
 
 # Every path ANIX reads or writes is a variable with an ANIX_* environment
 # override, defaulting to the real installed-system location. That's what
@@ -190,6 +193,7 @@ write_anix_raw_option() {
     local escaped_key="${key//./\\.}"
 
     ensure_anix_file
+    abora_abt_pending "anix config changes" "$config_dir" run_as_root
     if grep -Eq "^[[:space:]]*anix\\.${escaped_key}[[:space:]]*=" "$anix_file"; then
         run_as_root sed -i -E \
             "s|^([[:space:]]*anix\\.${escaped_key}[[:space:]]*=).*$|\\1 ${value};|" \
@@ -939,6 +943,7 @@ do_set() {
     fi
 
     ensure_anix_file
+    abora_abt_pending "anix config changes" "$config_dir" run_as_root
 
     case "$key" in
         hostname)
@@ -1186,6 +1191,7 @@ do_package() {
     fi
 
     ensure_anix_file
+    abora_abt_pending "anix config changes" "$config_dir" run_as_root
     file="$anix_file"
     case "$action" in
         add)
@@ -3519,8 +3525,8 @@ usage() {
         abora_dim_line "  Flatpak app bundles and custom packages, the gaming layer, and opt-in Labs."
         printf '  %banix doctor%b | %banix recovery%b | %banix network%b | %banix repair%b | %banix hardware-test%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
         abora_dim_line "  Health checks, recovery menu, network diagnostics, repairs, and hardware readiness."
-        printf '  %banix history%b | %banix undo <id>%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
-        abora_dim_line "  Every system change made as a safe transaction, and undoing one of them."
+        printf '  %banix history%b | %banix undo <id>%b | %banix undo --keep-edits <id>%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
+        abora_dim_line "  Every system change made as a safe transaction, undoing one, or getting back the edits a failed one rolled back."
         printf '  %banix logs%b | %banix check-full%b | %banix support-report%b | %banix bug-report%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
         abora_dim_line "  Installer logs, full diagnostics, a redacted support archive, and bug reports."
         printf '  %banix build --from-source%b | %banix adopt-nixos%b | %banix welcome-gui%b | %banix config-gui%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
@@ -3683,7 +3689,13 @@ do_abt() {
         exit 1
     fi
     if [[ "$action" == "undo" ]]; then
-        [[ $# -eq 1 ]] || { abora_error "Usage: anix undo <transaction id from 'anix history'>"; exit 1; }
+        # --keep-edits: a change that failed and was rolled back kept the
+        # edits that broke it; this puts them back to fix, then apply again.
+        if [[ "${1:-}" == "--keep-edits" && $# -eq 2 ]]; then
+            run_as_root abora-abt restore-edits "$2"
+            return
+        fi
+        [[ $# -eq 1 ]] || { abora_error "Usage: anix undo <id> | anix undo --keep-edits <id>   (ids from 'anix history')"; exit 1; }
         run_as_root abora-abt undo "$1"
         return
     fi

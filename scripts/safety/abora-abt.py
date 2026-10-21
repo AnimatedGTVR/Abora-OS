@@ -18,10 +18,17 @@ Usage:
   abora-abt list [--limit N]
   abora-abt show ID
   abora-abt undo ID                                roll back a transaction that went through
+  abora-abt pending --name NAME --config DIR       open (or reuse) the transaction for edits to DIR
+  abora-abt restore-edits ID                       put back the edits a rolled-back transaction undid
 
 `begin` + `commit` is for callers that edit the config themselves between the two (anix config set,
 anix desktop set): the snapshot is taken before their edits, so a failed apply undoes the edits too.
 `run` is begin and commit at once, for a change that's only the command.
+
+`pending` is begin for edits made by separate commands (anix set, then later anix apply): the first edit
+after an apply opens a transaction and later ones reuse it, so its snapshot is the config from before all of
+them, and the next `run --config DIR` commits it. When it's rolled back, the edits aren't lost: the config as
+it was when the change failed is kept with the transaction, and `restore-edits` puts it back to fix and retry.
 
 Transactions are kept in $ABT_STATE_DIR (default /var/lib/abora/abt), one directory each, holding
 transaction.json and the config snapshot. Exit status: 0 committed, 1 failed (and rolled back, unless
@@ -31,6 +38,7 @@ the rollback failed too, which says so loudly), 2 usage errors.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import random
@@ -105,6 +113,30 @@ def log_phase(tx: dict, phase: str, status: str, detail: str = "") -> None:
         step(f"{label} {detail}".rstrip())
     else:
         error(f"{label} {detail}".rstrip())
+
+
+def pending_file(config: str) -> Path:
+    return state_dir / "pending" / hashlib.sha256(config.encode()).hexdigest()[:16]
+
+
+def pending_tx(config: str | None) -> dict | None:
+    """The open pending transaction for this config directory, if there is one."""
+    if not config:
+        return None
+    path = pending_file(str(Path(config).resolve()))
+    try:
+        tx = load(path.read_text(encoding="utf-8").strip())
+    except (OSError, AbtError):
+        return None
+    return tx if tx.get("state") == "open" else None
+
+
+def clear_pending(tx: dict) -> None:
+    if tx.get("config"):
+        try:
+            pending_file(tx["config"]).unlink()
+        except OSError:
+            pass
 
 
 # ── system state ──────────────────────────────────────────────────────────────
@@ -215,7 +247,15 @@ def begin(name: str, config: str | None) -> dict:
 def rollback(tx: dict, reason: str) -> bool:
     log_phase(tx, "ROLLBACK", "start", reason)
     ok = True
+    clear_pending(tx)
     if tx.get("snapshot") and tx.get("config"):
+        # Keep the config as it is now, with whatever edits made it fail, so they can be fixed instead of
+        # retyped (restore-edits).
+        try:
+            snapshot(Path(tx["config"]), tx_dir(tx["id"]) / "edits.tar.gz")
+            tx["edits"] = "edits.tar.gz"
+        except (OSError, tarfile.TarError) as exc:
+            warning(f"couldn't keep a copy of the edits: {exc}")
         try:
             restore(Path(tx["config"]), tx_dir(tx["id"]) / tx["snapshot"])
             log_phase(tx, "ROLLBACK", "ok", f"config restored in {tx['config']}")
@@ -235,6 +275,8 @@ def rollback(tx: dict, reason: str) -> bool:
     if not ok:
         error("The rollback didn't finish. The previous system is still in the boot menu:")
         dim_line(f"  reboot and pick generation {before.get('number', '?')}, or run: sudo nixos-rebuild switch --rollback")
+    if tx.get("edits"):
+        dim_line(f"Your edits are kept. Put them back to fix and retry: anix undo --keep-edits {tx['id']}")
     return ok
 
 
@@ -289,6 +331,7 @@ def commit(tx: dict, command: list[str], validate: list[str], verify: list[list[
         return 1
     log_phase(tx, "VERIFY", "ok", f"generation {generation().get('number', '?')} is running")
     tx["state"] = "committed"
+    clear_pending(tx)
     tx["after"] = {"generation": generation(), "running": running_system()}
     tx["finished"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     save(tx)
@@ -311,6 +354,16 @@ def verify_change(tx: dict, verify: list[list[str]]) -> list[str]:
         if run_command(check, "verify") != 0:
             problems.append(f"check failed: {shlex.join(check)}")
     return problems
+
+
+def restore_edits(tx: dict) -> int:
+    if not tx.get("edits") or not tx.get("config"):
+        raise AbtError(f"transaction {tx['id']} has no kept edits (only a rolled-back one with a config does)")
+    restore(Path(tx["config"]), tx_dir(tx["id"]) / tx["edits"])
+    success(f"Edits from {tx['id']} are back in {tx['config']}. Fix what failed, then apply again.")
+    tx["edits_restored"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    save(tx)
+    return 0
 
 
 def abort(tx: dict) -> int:
@@ -387,8 +440,22 @@ def main(argv: list[str]) -> int:
         if action == "run":
             if not options["name"] or not command:
                 raise AbtError("run needs --name and a command after --")
-            tx = begin(options["name"], options["config"])
+            # Edits made since the last apply already opened a transaction; commit that one, so a
+            # failure undoes them too.
+            tx = pending_tx(options["config"]) or begin(options["name"], options["config"])
             return commit(tx, command, options["validate"], options["verify"])
+        if action == "pending":
+            if not options["name"] or not options["config"]:
+                raise AbtError("pending needs --name and --config")
+            with contextlib.redirect_stdout(sys.stderr):
+                tx = pending_tx(options["config"])
+                if tx is None:
+                    tx = begin(options["name"], options["config"])
+                    path = pending_file(tx["config"])
+                    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                    path.write_text(tx["id"] + "\n", encoding="utf-8")
+            print(tx["id"])
+            return 0
         if action == "begin":
             if not options["name"]:
                 raise AbtError("begin needs --name")
@@ -397,7 +464,7 @@ def main(argv: list[str]) -> int:
                 tx = begin(options["name"], options["config"])
             print(tx["id"])
             return 0
-        if action in ("commit", "abort", "show", "undo"):
+        if action in ("commit", "abort", "show", "undo", "restore-edits"):
             if len(options["positional"]) != 1:
                 raise AbtError(f"{action} needs one transaction id")
             tx = load(options["positional"][0])
@@ -409,6 +476,8 @@ def main(argv: list[str]) -> int:
                 return abort(tx)
             if action == "undo":
                 return undo(tx)
+            if action == "restore-edits":
+                return restore_edits(tx)
             json.dump(tx, sys.stdout, indent=2)
             print()
             return 0

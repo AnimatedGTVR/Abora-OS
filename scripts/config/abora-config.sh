@@ -40,6 +40,9 @@ fi
 if ! declare -F abora_abt_prefix >/dev/null; then
     abora_abt_prefix() { ABORA_ABT_PREFIX=(); }
 fi
+if ! declare -F abora_abt_pending >/dev/null; then
+    abora_abt_pending() { :; }
+fi
 
 config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
 local_module="${config_dir}/abora-local.nix"
@@ -308,6 +311,7 @@ normalize_bool() {
 write_string_option() {
     local key="$1" value="$2" escaped_key escaped_value tmp
     escaped_key="${key//./\\.}"
+    abora_abt_pending "abora config changes" "$config_dir" run_as_root
 
     if grep -Eq "^[[:space:]]*abora\\.${escaped_key}[[:space:]]*=" "$local_module"; then
         # Escape the sed replacement metacharacters so a value containing a
@@ -335,6 +339,7 @@ write_string_option() {
 write_bool_option() {
     local key="$1" value="$2" escaped_key tmp
     local escaped_key="${key//./\\.}"
+    abora_abt_pending "abora config changes" "$config_dir" run_as_root
     if grep -Eq "^[[:space:]]*abora\\.${escaped_key}[[:space:]]*=" "$local_module"; then
         run_as_root sed -i -E \
             "s|^[[:space:]]*abora\\.${escaped_key}[[:space:]]*=.*|  abora.${key} = ${value};|" \

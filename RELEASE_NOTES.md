@@ -16,7 +16,7 @@ Released: **<RELEASE DATE>** · Tag: `v4.2` · Channel: `stable`
 - **Safe system changes (ASA).** `anix apply`, `anix config apply`, `anix apps` and `anix update` run as
   transactions: checked, snapshotted, applied, verified, and rolled back to the previous generation and
   config if anything fails, including a service that newly fails. `anix history` lists them; `anix undo <id>`
-  reverses one. See [ASA](docs/wiki/ASA.md).
+  reverses one, and `anix undo --keep-edits <id>` brings back the edits a failed change rolled back. See [ASA](docs/wiki/ASA.md).
 - **`anix doctor`** checks the bootloader, Nix, the ANIX config, the update channel, the desktop and login
   screen, the GPU driver, network and DNS, disk space and a read-only root, failed services and Flatpak,
   explains each problem in plain language, and fixes what it safely can (`anix doctor repair`).
@@ -62,8 +62,6 @@ Release files, once published: `abora-<edition>-<stamp>-x86_64-v4.2.iso` for eac
 
 - The install matrix (every edition, UEFI and BIOS, GPU choices) has not been run on 4.2 yet.
 - ABT can't protect a first install: there's no earlier generation to go back to.
-- `anix desktop set`, `anix gaming` and `anix config set gpu` roll back the generation on failure, but not yet
-  the config edit they made.
 
 ---
 

@@ -624,3 +624,19 @@ abora_abt_prefix() {
     [[ "$config" == "-" ]] || ABORA_ABT_PREFIX+=(--config "$config")
     ABORA_ABT_PREFIX+=(--)
 }
+
+# Call before editing the system config: opens the pending ABT transaction for
+# the config dir, or reuses the one an earlier edit opened, so the next
+# rebuild through abora_abt_prefix rolls back these edits too if it fails
+# (and keeps them for `anix undo --keep-edits`). Pass the caller's privilege
+# escalation after the config dir. Never stops the edit: without abora-abt,
+# or if it fails, the edit goes ahead as it always has.
+#
+#   abora_abt_pending "anix set" "$config_dir" run_as_root
+abora_abt_pending() {
+    local name="$1" config="$2"
+    shift 2
+    case "${ABORA_NO_ABT:-}" in 1|yes|true) return 0 ;; esac
+    command -v abora-abt >/dev/null 2>&1 || return 0
+    "$@" abora-abt pending --name "$name" --config "$config" >/dev/null 2>&1 || true
+}

@@ -208,6 +208,47 @@ def _():
             assert done.returncode == 2 and "not a transaction id" in done.stdout, (bad, done.stdout)
 
 
+@check("runtime: abt pending edits roll back with a failed apply, and restore-edits brings them back")
+def _():
+    tmp, system = fake_system()
+    with tmp:
+        first = system.abt("pending", "--name", "anix set", "--config", str(system.config))
+        (system.config / "flake.nix").write_text("{ desktop = \"typo\"; }\n")
+        second = system.abt("pending", "--name", "anix enable", "--config", str(system.config))
+        (system.config / "extra.nix").write_text("{ }\n")
+        ids = first.stdout.strip().splitlines()[-1], second.stdout.strip().splitlines()[-1]
+        assert ids[0] == ids[1], f"the second edit opened another transaction: {ids}"
+        failed = system.abt("run", "--name", "anix apply", "--config", str(system.config), "--", *system.switch_command(2, "exit 1"))
+        tx = system.transactions()[0]
+        assert failed.returncode == 1 and tx["id"] == ids[0] and tx["state"] == "rolled-back", (tx["state"], failed.stdout)
+        assert (system.config / "flake.nix").read_text() == "{ original = true; }\n", "the edits survived the rollback"
+        assert not (system.config / "extra.nix").exists()
+        assert "anix undo --keep-edits " + ids[0] in failed.stdout, failed.stdout
+        restored = system.abt("restore-edits", ids[0])
+        assert restored.returncode == 0, restored.stdout
+        assert (system.config / "flake.nix").read_text() == "{ desktop = \"typo\"; }\n" and (system.config / "extra.nix").is_file()
+        # A later edit starts a fresh transaction: the rolled-back one is no longer pending.
+        third = system.abt("pending", "--name", "anix set", "--config", str(system.config))
+        assert third.stdout.strip().splitlines()[-1] != ids[0]
+
+
+@check("runtime: anix and abora config open the pending transaction before every config edit")
+def _():
+    anix = (REPO / "scripts/core/anix.sh").read_text(encoding="utf-8")
+    config = (REPO / "scripts/config/abora-config.sh").read_text(encoding="utf-8")
+    for function in ("write_anix_raw_option", "do_set", "do_package"):
+        body = anix[anix.index(f"\n{function}() {{"):]
+        body = body[: body.index("\n}\n")]
+        assert 'abora_abt_pending "anix config changes" "$config_dir" run_as_root' in body, f"anix.sh {function} doesn't"
+    for function in ("write_string_option", "write_bool_option"):
+        body = config[config.index(f"\n{function}() {{"):]
+        body = body[: body.index("\n}\n")]
+        assert 'abora_abt_pending "abora config changes" "$config_dir" run_as_root' in body, f"abora-config.sh {function} doesn't"
+    probe = subprocess.run(["bash", "-c", f'source "{REPO}/scripts/core/abora-ui.sh"; PATH=/nonexistent; abora_abt_pending x /etc/nixos false; echo rc=$?'],
+                           stdout=subprocess.PIPE, text=True)
+    assert probe.stdout.strip() == "rc=0", "without abora-abt an edit must go ahead"
+
+
 @check("runtime: every way Abora reaches a system also brings abt.py")
 def _():
     # anix and the updater only use ABT when abora-abt is on PATH, so a system without it still

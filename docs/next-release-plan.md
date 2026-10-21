@@ -22,7 +22,7 @@ tagged. Record the ISO name, the commit, and the result in [Validation results](
 | 5 | Each GPU choice the installer offers on matching hardware or VM | nouveau, nvidia-open, amdgpu, intel |
 | 6 | `anix update` from 4.1.1 and from 4.0, reboot | one edition is enough |
 | 7 | A failing update rolls back (see [ASA](wiki/ASA.md)) | inject a failing unit; `anix history` shows `rolled-back` and the old generation runs |
-| 8 | `anix undo <id>` after a committed `anix apply` | any |
+| 8 | `anix undo <id>` after a committed `anix apply`; `anix set` typo, failed `anix apply`, then `anix undo --keep-edits <id>` | any |
 | 9 | `anix doctor` reports and repairs each injected failure: full ESP, stopped DNS, failed unit, wrong `abora.gpu`, missing `/etc/abora` file | VM |
 | 10 | `anix package install hello`, then `uninstall`, then `keep` + `anix apply` | any |
 | 11 | An install that fails (pull the network mid-install) shows **What failed**, and **Save logs to a USB drive** writes the logs | VM with a USB stick passed through |
@@ -57,8 +57,6 @@ tagged. Record the ISO name, the commit, and the result in [Validation results](
 ## Not in Solstice
 
 - Atlas removal: Atlas exists only on the website (`Abora-OS-website`), not in this repo.
-- `anix desktop set`, `anix gaming` and `anix config set gpu` don't use `abt begin`/`commit` yet, so on
-  failure they roll back the generation but not their config edit.
 - One shared command list for `live.nix` and `installed-base.nix`, and folding the two small C# tools into
   Python: the duplication is mapped in [v4.2-prep.md](v4.2-prep.md) and is next.
 

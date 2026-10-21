@@ -47,6 +47,22 @@ anix undo <id>        # go back to before a transaction that went through
 `anix undo` restores that transaction's config snapshot and switches to the generation it started from.
 Newer generations stay in the boot menu, so an undo can be undone with `anix rollback`.
 
+### Edits are part of the change
+
+`anix set`, `anix enable`/`disable`, `anix package add`/`remove` and `anix config set` (which `anix desktop
+set` and `anix gaming` use) open a transaction at the first edit after an apply, and later edits join it. The
+next `anix apply` or `anix config apply` commits it. So if that rebuild fails, the config goes back to how it
+was before **all** of those edits, not only the last one.
+
+The edits aren't lost. The rollback keeps the config as it was when the change failed, and prints:
+
+```sh
+anix undo --keep-edits <id>   # put the edits back, fix what failed, apply again
+```
+
+If you edit `/etc/nixos` by hand and rebuild with `nixos-rebuild` directly, run `anix apply` once so ANIX's
+transaction catches up; otherwise a later rollback can also undo those hand edits.
+
 Results in `anix history`:
 
 | Result | Meaning |
@@ -82,8 +98,6 @@ only by root, because the snapshots contain `/etc/nixos` (the hashed user passwo
 
 ## What's next
 
-- `anix desktop set`, `anix gaming`, and `anix config set gpu` edit the config and apply it in one command;
-  moving them to `begin`/`commit` makes a failed apply undo the edit as well, not only the generation.
 - The installer and `anix recovery` from the live USB: a failed install can't roll back to a generation
   that doesn't exist yet, so there ASA means keeping the logs and an exact explanation (see the installer's
   failure hints).
