@@ -51,7 +51,7 @@ tagged. Record the ISO name, the commit, and the result in [Validation results](
 | Install failed with hash mismatches, repeatedly | **Not reproduced.** Needs a 4.0 ISO install attempt to capture the exact message. The 4.2 installer now says which of the three kinds it is and keeps the failing path and hashes. Do not blame the ISO checksum without that message. |
 | Release and version information disagreed | Implemented (above). The website and GitHub releases also need checking at release time (row 1). |
 | Manual partitioning | Fixed in 4.1.1; regression rows 2 and 4. |
-| Desktop editions boot to a TUI installer | Documented in [Installation](wiki/Installation.md). **Open decision:** offer the edition's desktop as a live session, or drop the unused desktop from the live image. |
+| Desktop editions boot to a TUI installer | Documented in [Installation](wiki/Installation.md). **Decided:** no live desktop session; live sessions don't fit Abora. The live image should drop desktop components the installer doesn't use (needs a Nix build to verify the ISO still installs every edition). |
 | Timezone entry | Implemented. |
 
 ## Not in Solstice

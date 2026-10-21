@@ -40,7 +40,7 @@ direct, constructive criticism.
 | Manual partitioning | fixed in 4.1.1 |
 | Install failures with hash mismatches | diagnosis and logs improved (above); the 4.0 failure itself is **not yet reproduced** |
 | Timezone entry unclear | fixed (above) |
-| Live ISO layout (desktop editions boot to a TUI installer) | documented in [Installation](docs/wiki/Installation.md); whether to offer a live desktop session is still open |
+| Live ISO layout (desktop editions boot to a TUI installer) | by design: Abora's live image is an installer, not a live desktop. Documented in [Installation](docs/wiki/Installation.md) |
 
 ## Upgrading
 
