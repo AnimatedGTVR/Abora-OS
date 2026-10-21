@@ -19,8 +19,16 @@ from pathlib import Path
 
 SYSTEM_PATH = "/run/wrappers/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-version = os.environ.get("ABORA_VERSION") or "4.1"
-release_name = os.environ.get("ABORA_RELEASE_NAME") or "Abora OS v4.1 Horizon"
+def installed_version() -> str:
+    """The version this system was built from (/etc/abora/VERSION), so a report never claims another one."""
+    try:
+        return "".join(Path("/etc/abora/VERSION").read_text(encoding="utf-8").split())
+    except OSError:
+        return ""
+
+
+version = os.environ.get("ABORA_VERSION") or installed_version() or "4.2"
+release_name = os.environ.get("ABORA_RELEASE_NAME") or "Abora OS v4.2 Solstice"
 state_home = Path(os.environ.get("XDG_STATE_HOME") or f"{os.environ.get('HOME') or '/tmp'}/.local/state")
 
 SECTIONS = (

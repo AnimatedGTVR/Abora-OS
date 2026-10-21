@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Abora OS Installer - Abora OS v4.1 Horizon
+# Abora OS Installer - Abora OS v4.2 Solstice
 # Compact Omarchy-inspired TUI: large wordmark, boxed choices, simple prompts.
 
 set -uo pipefail
@@ -51,8 +51,8 @@ user_password_hash=""
 root_password_hash=""
 root_password_mode="same"
 version="${ABORA_VERSION:-}"
-release_name="${ABORA_RELEASE_NAME:-Abora OS v4.1 Horizon}"
-release_short="${ABORA_RELEASE_SHORT:-v4.1 Horizon}"
+release_name="${ABORA_RELEASE_NAME:-Abora OS v4.2 Solstice}"
+release_short="${ABORA_RELEASE_SHORT:-v4.2 Solstice}"
 reconfig_mode="${ABORA_RECONFIG:-0}"
 batch_mode=0
 batch_params_file=""

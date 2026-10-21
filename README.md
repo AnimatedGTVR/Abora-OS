@@ -109,15 +109,16 @@ Examples include:
 3.14
 4.0 / v4 Everest
 4.1 / v4.1 Horizon
+4.2 / v4.2 Solstice
 ```
 
-This is what final releases track by default, and what most people should run once Horizon graduates from alpha.
+This is what final releases track by default, and what most people should run once Solstice graduates from alpha.
 
 ### Edge
 
 Tracks `edge` directly, no waiting for a tag. Same deal as `nixos-unstable`: newest installer work, desktop changes, ANIX changes, and fixes land here first, before anything's been fully vetted. Things can and do break.
 
-Abora OS v4.1 Horizon alpha installs default to this line so they can receive alpha fixes from `edge`.
+Abora OS v4.2 Solstice alpha installs default to this line so they can receive alpha fixes from `edge`.
 
 New installer work, desktop changes, ANIX changes, and fixes arrive here first. Edge may contain unfinished features or bugs.
 

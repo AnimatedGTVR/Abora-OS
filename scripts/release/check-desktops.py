@@ -31,7 +31,7 @@ from pathlib import Path
 
 from abora_release import repo_root
 
-RELEASE_SHORT = "v4.1 Horizon"
+RELEASE_SHORT = "v4.2 Solstice"
 
 # Every profile must be representable by the CLI and the Nix option types.
 PROFILE_LISTS = ("scripts/anix.sh", "scripts/abora-config.sh", "nix/modules/abora-options.nix", "nix/modules/anix.nix")

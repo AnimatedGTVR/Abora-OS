@@ -1,6 +1,19 @@
 # Abora OS Roadmap
 
-This roadmap tracks Abora OS v4.1 Horizon and its reliability, installer, and graphical-tools work.
+This roadmap tracks Abora OS v4.2 Solstice: a cleaner codebase and a more reliable system. The release gate
+and the state of each item are in [next-release-plan.md](next-release-plan.md).
+
+## Abora OS v4.2 Solstice (in progress)
+
+- `anix` is the one command; `abora` is its old name
+- TinyPM removed; `anix package` installs nixpkgs packages without a rebuild
+- `anix doctor` covers the whole system, explains problems and repairs them
+- ASA: system changes run as ABT transactions and roll back on failure
+- installer failures are diagnosable (hash mismatch kinds, failing paths and hashes, logs saved to USB)
+- release names derive from one source and are checked
+- next: one command list for `live.nix` and `installed-base.nix`; `abt begin`/`commit` for the commands that
+  edit and apply in one step; fold the two C# tools into Python
+
 
 ## Abora OS v4 Everest Delivered
 

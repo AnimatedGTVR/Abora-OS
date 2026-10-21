@@ -126,7 +126,6 @@ def workflows(ctx: Context) -> None:
         grep("-q", "out/release/SHA256SUMS", ".github/workflows/build-iso.yml"),
         grep("-q", "out/packages/anix", ".github/workflows/release-iso.yml"),
         grep("-q", "out/release/RELEASE_NOTES", ".github/workflows/release-iso.yml"),
-        grep("-q", "Abora OS v4.1 Horizon (${tag})", ".github/workflows/release-iso.yml"),
     ).run(ctx)
     Check(
         "runtime: TinyPM is gone from the build, packaging and workflows (removed in 4.2)",

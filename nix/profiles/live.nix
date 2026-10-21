@@ -378,10 +378,10 @@ in
     label = version;
     extraOSReleaseArgs = {
       LOGO = "abora";
-      VERSION = "v4.1 Horizon";
-      VERSION_ID = "4.1";
+      VERSION = "v4.2 Solstice";
+      VERSION_ID = "4.2";
       VERSION_CODENAME = "horizon";
-      PRETTY_NAME = "Abora OS v4.1 Horizon";
+      PRETTY_NAME = "Abora OS v4.2 Solstice";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
       BUG_REPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
@@ -689,10 +689,10 @@ in
       "xdg/fastfetch/config.jsonc".source = ../../assets/fastfetch-config.jsonc;
       "xdg/fastfetch/abora-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "issue".text = ''
-        Abora OS v4.1 Horizon
+        Abora OS v4.2 Solstice
       '';
       "issue.net".text = ''
-        Abora OS v4.1 Horizon
+        Abora OS v4.2 Solstice
       '';
       "profile.d/abora-live.sh".text = ''
         # Only greet on real TTY sessions (not COSMIC/graphical login shells)

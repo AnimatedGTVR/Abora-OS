@@ -45,7 +45,7 @@ def ui_version() -> str:
     try:
         return "".join(Path("/etc/abora/VERSION").read_text(encoding="utf-8").split())
     except OSError:
-        return "v4 Everest"
+        return "v4.2 Solstice"
 
 
 def ui_cols() -> int:

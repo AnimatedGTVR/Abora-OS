@@ -8,9 +8,16 @@ Abora OS is a distro project built on top of NixOS with a focus on a simpler fir
 
 Abora is still NixOS-based, but it adds its own live image flow, installer experience, branding, update path, desktop profiles, support tools, and ANIX workflows, including `anix package` for installing nixpkgs packages without a rebuild.
 
-## What is Abora OS v4.1 Horizon?
+## What is Abora OS v4.2 Solstice?
 
-Abora OS v4.1 Horizon is the current alpha release line. It builds on Everest with installer and update reliability work, community tools, a simplified ANIX language set, and first-class GPU support.
+Abora OS v4.2 Solstice is the current alpha release line: a safer, simpler Abora. `anix` becomes the one
+command (`abora` is its old name), system changes run as transactions that roll themselves back when they
+fail ([ASA](ASA.md)), `anix doctor` explains and repairs problems, `anix package install` replaces TinyPM,
+and the installer explains failures precisely. See [RELEASE_NOTES.md](../../RELEASE_NOTES.md).
+
+## What was Abora OS v4.1 Horizon?
+
+Abora OS v4.1 Horizon built on Everest with installer and update reliability work, community tools, a simplified ANIX language set, and first-class GPU support.
 
 Key additions over DENALI 3.14:
 

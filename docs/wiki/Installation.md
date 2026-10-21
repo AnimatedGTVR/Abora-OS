@@ -1,6 +1,6 @@
 # Installation
 
-This page covers the normal Abora OS install flow for v2.5+ through Abora OS v4.1 Horizon.
+This page covers the normal Abora OS install flow for v2.5+ through Abora OS v4.2 Solstice.
 
 Horizon can optionally install the Abora Labs workspace manager. Leave it off
 for a normal product installation. Enabling it does not download Labs during

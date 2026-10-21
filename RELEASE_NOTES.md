@@ -1,3 +1,70 @@
+# Abora OS v4.2 Solstice
+
+**Draft.** Solstice is not released yet: the install, update and rollback matrix in
+[docs/next-release-plan.md](docs/next-release-plan.md) has to pass first.
+
+A safer, simpler Abora: one command instead of two, system changes that undo themselves when they fail, a
+doctor that explains and repairs, and an installer that says exactly what went wrong.
+
+Released: **<RELEASE DATE>** · Tag: `v4.2` · Channel: `stable`
+
+## Highlights
+
+- **`anix` is the one command.** Everything `abora` did is now `anix <command>`: `anix update`,
+  `anix doctor`, `anix apps`, `anix gaming`, `anix recovery`. `abora` still works as its old name, so
+  `abora update` and `anix update` are the same thing.
+- **Safe system changes (ASA).** `anix apply`, `anix config apply`, `anix apps` and `anix update` run as
+  transactions: checked, snapshotted, applied, verified, and rolled back to the previous generation and
+  config if anything fails, including a service that newly fails. `anix history` lists them; `anix undo <id>`
+  reverses one. See [ASA](docs/wiki/ASA.md).
+- **`anix doctor`** checks the bootloader, Nix, the ANIX config, the update channel, the desktop and login
+  screen, the GPU driver, network and DNS, disk space and a read-only root, failed services and Flatpak,
+  explains each problem in plain language, and fixes what it safely can (`anix doctor repair`).
+  `anix doctor --json` is for bug reports, and support reports include it.
+- **Packages without a rebuild.** `anix package install <pkg>` installs any nixpkgs package right away,
+  from the exact nixpkgs your system is pinned to, without touching `flake.nix`. `anix package keep` makes
+  it part of the system. **TinyPM is removed**; see [Packages](docs/wiki/Packages.md) for the mapping.
+- **Installer failures you can act on.** Three kinds of "hash mismatch" are told apart (a damaged USB
+  stick or RAM, a changed download, an installer bug), a **What failed** block names the failed build, the
+  path and both hashes, and **Save logs to a USB drive** keeps the log through a reboot.
+- **A clearer timezone question**: UTC or Region/City in any case, and a city on its own lists matches.
+
+## Fixed from DistroWatch's 4.0 review
+
+Thanks to **Jesse Smith of DistroWatch** for testing Abora OS 4.0 across several attempts and publishing
+direct, constructive criticism.
+
+| Issue | Status |
+| --- | --- |
+| Confusing release and version information | 4.1 aligned the names; 4.2 makes every shipped file derive its release name from one place and fails the build when one doesn't |
+| Manual partitioning | fixed in 4.1.1 |
+| Install failures with hash mismatches | diagnosis and logs improved (above); the 4.0 failure itself is **not yet reproduced** |
+| Timezone entry unclear | fixed (above) |
+| Live ISO layout (desktop editions boot to a TUI installer) | documented in [Installation](docs/wiki/Installation.md); whether to offer a live desktop session is still open |
+
+## Upgrading
+
+```
+sudo anix update
+```
+
+- **On 4.1 or 4.1.1:** one update is enough. The updater hands over to 4.2's own updater, which installs the
+  new files (ABT, the shared core) along with everything else.
+- **On 4.0:** run `sudo abora update` twice. The 4.0 updater can't hand over mid-update, so the first run
+  installs the newer updater and the second uses it.
+
+Release files, once published: `abora-<edition>-<stamp>-x86_64-v4.2.iso` for each edition, with
+`SHA256SUMS-v4.2.txt`. Check the ISO against it before writing the USB stick.
+
+## Known limitations
+
+- The install matrix (every edition, UEFI and BIOS, GPU choices) has not been run on 4.2 yet.
+- ABT can't protect a first install: there's no earlier generation to go back to.
+- `anix desktop set`, `anix gaming` and `anix config set gpu` roll back the generation on failure, but not yet
+  the config edit they made.
+
+---
+
 # Abora OS v4.1.1
 
 A small update to Horizon that fixes how `abora update` handles files.

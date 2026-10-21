@@ -370,13 +370,13 @@ in
     vendorName = "Abora OS";
     label = version;
     variant_id = lib.mkDefault "system";
-    variantName = lib.mkDefault "Abora OS v4.1 Horizon";
+    variantName = lib.mkDefault "Abora OS v4.2 Solstice";
     extraOSReleaseArgs = lib.mapAttrs (_: lib.mkDefault) {
       LOGO = "abora";
-      VERSION = "v4.1 Horizon";
-      VERSION_ID = "4.1";
+      VERSION = "v4.2 Solstice";
+      VERSION_ID = "4.2";
       VERSION_CODENAME = "horizon";
-      PRETTY_NAME = "Abora OS v4.1 Horizon";
+      PRETTY_NAME = "Abora OS v4.2 Solstice";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
       BUG_REPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
@@ -815,7 +815,7 @@ in
         mode = "0755";
       };
       "motd".text = ''
-        Abora OS v4.1 Horizon
+        Abora OS v4.2 Solstice
 
           anix learn                   the short command cheat sheet
           anix welcome                 first steps and quick actions
@@ -967,10 +967,10 @@ in
         Opacity=0.84
       '';
       "issue".text = ''
-        Abora OS v4.1 Horizon
+        Abora OS v4.2 Solstice
       '';
       "issue.net".text = ''
-        Abora OS v4.1 Horizon
+        Abora OS v4.2 Solstice
       '';
     }
     // builtins.listToAttrs (

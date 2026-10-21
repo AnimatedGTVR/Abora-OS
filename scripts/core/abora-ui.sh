@@ -16,7 +16,7 @@ _abora_ui_resolve_version() {
         tr -d '[:space:]' < /etc/abora/VERSION
         return
     fi
-    printf 'v4.1 Horizon'
+    printf 'v4.2 Solstice'
 }
 
 ABORA_UI_VERSION="$(_abora_ui_resolve_version)"

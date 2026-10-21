@@ -1,6 +1,6 @@
 # Project Layout
 
-This is the quick map of the Abora OS repo for the Abora OS v4.1 Horizon release.
+This is the quick map of the Abora OS repo for the Abora OS v4.2 Solstice release.
 
 ## Top Level
 
