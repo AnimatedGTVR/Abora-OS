@@ -430,7 +430,13 @@ case "${1:-help}" in
         ;;
     doctor)
         shift
-        exec abora-doctor "$@"
+        if command -v abora-doctor >/dev/null 2>&1; then
+            exec abora-doctor "$@"
+        fi
+        # A checkout has it as support/abora-doctor.py, and as the
+        # scripts/abora-doctor.sh compatibility link.
+        helper="$(resolve_helper abora-doctor.py 2>/dev/null || resolve_helper abora-doctor.sh)"
+        exec python3 "$helper" "$@"
         ;;
     check-full)
         shift

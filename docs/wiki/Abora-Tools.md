@@ -25,7 +25,7 @@ Two names mean slightly different things under each:
 | `abora learn` | Show the short beginner cheat sheet |
 | `abora welcome` | Show first-step status and useful actions |
 | `abora welcome-gui` | Graphical version of the above — status card, update check, and quick actions in a window. Opens once automatically on first desktop login |
-| `abora doctor` | Check install health, Flatpak, themes, boot assets, updates, and ANIX |
+| `abora doctor` | Check bootloader, Nix, ANIX config, update channel, desktop, GPU driver, network/DNS, disk, services, and Flatpak; `doctor repair` fixes, `doctor --json` for support. See [Recovery](Recovery.md#doctor) |
 | `abora network` | Diagnose Wi-Fi, DNS, NetworkManager, and Abora cache/update reachability |
 | `abora logs` | Show recent live installer/config logs if present |
 | `abora bug-report` | Print a copy-pasteable Discord/GitHub bug report template |

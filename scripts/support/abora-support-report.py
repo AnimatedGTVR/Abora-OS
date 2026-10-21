@@ -113,6 +113,16 @@ def main(args: list[str]) -> int:
         for title, argv in LATE_SECTIONS:
             capture_section(title, argv)
 
+    # The doctor's findings as JSON, a file of its own so support can read it without parsing the report.
+    # It exits 1 whenever a check fails, which is still a complete report, so only stdout is kept.
+    argv = ["abora-doctor", "--json"] if shutil.which("abora-doctor") else ["anix", "doctor", "--json"] if shutil.which("anix") else None
+    if argv:
+        try:
+            done = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=120)
+            (report_dir / "doctor.json").write_text(redact(done.stdout.decode("utf-8", errors="replace")), encoding="utf-8")
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
     for source, target in (
         ("/tmp/abora-generate-config.log", "abora-generate-config.log"),
         ("/tmp/abora-install.log", "abora-install.log"),

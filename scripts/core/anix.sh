@@ -3251,6 +3251,20 @@ doctor_check() {
     esac
 }
 
+# On Abora, `anix doctor` is the whole-system doctor (abora-doctor.py:
+# bootloader, Nix, GPU, network, disk, services, --json, repair), which runs
+# the ANIX config checks below as one of its parts. It asks for just those
+# with ANIX_DOCTOR_LAYER_ONLY=1, which is also how `anix doctor --fix`
+# reaches them. On plain NixOS there's only this part.
+do_doctor_entry() {
+    if is_yes "${ANIX_DOCTOR_LAYER_ONLY:-}" || [[ "${1:-}" == "--fix" || "${1:-}" == "--repair" ]] \
+        || ! abora_backend >/dev/null; then
+        do_doctor "$@"
+        return
+    fi
+    run_abora_system_command doctor "$@"
+}
+
 do_doctor() {
     local fix="false"
     while [[ "$#" -gt 0 ]]; do
@@ -3693,7 +3707,7 @@ main() {
         uninstall) shift; do_package_uninstall "$@" ;;
         search) shift; do_package_search "$@" ;;
         gc|clean) shift || true; do_gc "$@" ;;
-        doctor) shift || true; do_doctor "$@" ;;
+        doctor) shift || true; do_doctor_entry "$@" ;;
         tinypm|grab)
             abora_warn "TinyPM was removed in Abora OS 4.2. Packages now come from: anix package"
             printf '\n'
