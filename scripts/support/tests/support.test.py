@@ -381,10 +381,10 @@ def _():
     places = {
         "nix/profiles/live.nix (the live ISO's /etc/abora)": ('"abora/abora_core.py".source = ../../scripts/support/abora_core.py',),
         "nix/modules/installed-base.nix (an installed system's /etc/abora)": ("./abora_core.py", '"abora/abora_core.py".source = aboraCoreModule'),
-        "scripts/install/abora-installer.sh (live ISO to the new system)": ("labs.sh abora_core.py; do",),
+        "scripts/install/abora-installer.sh (live ISO to the new system)": ("labs.sh abora_core.py abt.py; do",),
         "scripts/install/abora-adopt-nixos.sh (adopting a NixOS install)": ('"scripts/support/abora_core.py:abora_core.py"',),
         "scripts/support/abora-update.sh (updates)": (
-            "scripts/support/abora_core.py\nEOF",
+            "\nscripts/support/abora_core.py\n",
             'copy_upstream_file "$upstream_dir/scripts/support/abora_core.py" "$abora_dir/abora_core.py"',
         ),
         "nix/pkgs/hardware-test.nix (the standalone package)": ('"$src/scripts/support/abora_core.py"',),

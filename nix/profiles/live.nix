@@ -73,6 +73,9 @@ let
   aboraDoctor = pkgs.writeShellScriptBin "abora-doctor" ''
     exec ${pkgs.python3}/bin/python3 /etc/abora/doctor.sh "$@"
   '';
+  aboraAbt = pkgs.writeShellScriptBin "abora-abt" ''
+    exec ${pkgs.python3}/bin/python3 /etc/abora/abt.py "$@"
+  '';
   aboraCheckFull = pkgs.writeShellScriptBin "abora-check-full" ''
     exec ${pkgs.python3}/bin/python3 /etc/abora/check-full.sh "$@"
   '';
@@ -477,6 +480,7 @@ in
     aboraGaming
     aboraDotfilesImport
     aboraDoctor
+    aboraAbt
     aboraHardwareTest
     aboraRecovery
     aboraRepairFlakePurity
@@ -636,6 +640,8 @@ in
       };
       # The support tools' shared core (UI, redaction); they import it from /etc/abora.
       "abora/abora_core.py".source = ../../scripts/support/abora_core.py;
+      # ABT, ASA's transaction engine; anix and the updater run switches through it.
+      "abora/abt.py".source = ../../scripts/safety/abora-abt.py;
       "abora/repair-flake-purity.sh" = {
         source = ../../scripts/config/abora-repair-flake-purity.sh;
         mode = "0755";

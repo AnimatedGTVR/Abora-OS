@@ -72,6 +72,8 @@ PYTHON_SCRIPTS = (
     "scripts/abora-gaming-welcome-gui.py",
     "scripts/support/abora-check-full.py",
     "scripts/support/abora-doctor.py",
+    "scripts/safety/abora-abt.py",
+    "scripts/safety/tests/abt.test.py",
     "scripts/support/abora-hardware-test.py",
     "scripts/support/abora-recovery.py",
     "scripts/support/abora-support-report.py",

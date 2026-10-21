@@ -29,6 +29,10 @@ let
   # The support tools' shared core (UI, redaction), new in 4.2; they import it from /etc/abora.
   aboraCoreModule =
     if builtins.pathExists ./abora_core.py then ./abora_core.py else null;
+  # ABT, the transaction engine of ASA (scripts/safety/abora-abt.py), new in 4.2. Optional like the
+  # core above; while it's missing, rebuilds just run without a transaction.
+  abtScript =
+    if builtins.pathExists ./abt.py then ./abt.py else null;
   # New in this release; optional so systems mid-update (new installed-base.nix
   # synced before the new .py files finish copying) don't fail evaluation.
   welcomeGuiScript =
@@ -141,6 +145,9 @@ let
   '';
   aboraDoctor = pkgs.writeShellScriptBin "abora-doctor" ''
     exec ${pkgs.python3}/bin/python3 /etc/abora/doctor.sh "$@"
+  '';
+  aboraAbt = pkgs.writeShellScriptBin "abora-abt" ''
+    exec ${pkgs.python3}/bin/python3 /etc/abora/abt.py "$@"
   '';
   aboraCheckFull = pkgs.writeShellScriptBin "abora-check-full" ''
     exec ${pkgs.python3}/bin/python3 /etc/abora/check-full.sh "$@"
@@ -607,7 +614,8 @@ in
     zenity
     swaybg
     zsh
-  ] ++ lib.optional (pkgs ? abora-update-resolver) pkgs.abora-update-resolver
+  ] ++ lib.optional (abtScript != null) aboraAbt
+    ++ lib.optional (pkgs ? abora-update-resolver) pkgs.abora-update-resolver
     ++ lib.optional (pkgs ? abora-update) pkgs.abora-update
     ++ lib.optional (pkgs ? abora-plan-tool) pkgs.abora-plan-tool
     ++ lib.optional (welcomeGuiScript != null) aboraWelcomeGui
@@ -1025,6 +1033,9 @@ in
     }
     // lib.optionalAttrs (aboraCoreModule != null) {
       "abora/abora_core.py".source = aboraCoreModule;
+    }
+    // lib.optionalAttrs (abtScript != null) {
+      "abora/abt.py".source = abtScript;
     }
     // lib.optionalAttrs (gamingWelcomeGuiScript != null) {
       "abora/gaming-welcome-gui.py".source = gamingWelcomeGuiScript;

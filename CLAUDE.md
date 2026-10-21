@@ -92,6 +92,14 @@ All shell scripts source `abora-ui.sh` (or `/etc/abora/ui.sh` on-system) for sha
 
 `anix package install/uninstall/search/upgrade/try/keep` installs nixpkgs packages into the user's Nix profile with `--inputs-from /etc/nixos`, so they use the system's pinned nixpkgs and need no config edit or rebuild. `anix package add/remove` stays the declarative path (`anix.packages` in `anix.nix`). Tests use `ANIX_NIX_BIN` to point at a fake `nix`. `anix.tinypm.*` options remain as no-ops so pre-4.2 `anix.nix` files still evaluate. Docs: `docs/wiki/Packages.md`.
 
+### ASA / ABT (4.2)
+
+`scripts/safety/abora-abt.py` (installed as `/etc/abora/abt.py`, command `abora-abt`) runs a system change as a transaction: PLAN → VALIDATE → SNAPSHOT → APPLY → VERIFY → ROLLBACK on failure. Shell tools get it through `abora_abt_prefix` in `abora-ui.sh` (empty when `abora-abt` is absent or `ABORA_NO_ABT=1`); anix, abora-config, abora-apps and the updater's final switch use it. Tests: `scripts/safety/tests/abt.test.py` (fake system profile). Docs: `docs/wiki/ASA.md`.
+
+### Doctor (4.2)
+
+`anix doctor` on Abora is `scripts/support/abora-doctor.py`: a list of checks producing findings (id, area, status, explanation, optional repair), `--json`, `repair [<id>]`. It runs anix.sh's own config checks with `ANIX_DOCTOR_LAYER_ONLY=1`; on plain NixOS those are the whole doctor.
+
 ### Desktop Profiles
 
 `scripts/abora-desktop-profiles.sh` is a sourced library (not a standalone script). It defines two functions per desktop: `abora_desktop_config_block` (NixOS service/session config) and `abora_desktop_package_block` (packages). The split is important — `scripts/config/tests/desktop.test.sh` explicitly tests that config blocks do not contain `environment.systemPackages`.

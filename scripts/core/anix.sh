@@ -48,6 +48,12 @@ else
     }
 fi
 
+# From abora-ui.sh (ASA/ABT). Outside Abora, with the fallback UI above,
+# switches simply run without a transaction.
+if ! declare -F abora_abt_prefix >/dev/null; then
+    abora_abt_prefix() { ABORA_ABT_PREFIX=(); }
+fi
+
 # Every path ANIX reads or writes is a variable with an ANIX_* environment
 # override, defaulting to the real installed-system location. That's what
 # lets the test suites and the e2e tests point a whole ANIX invocation at a
@@ -550,7 +556,8 @@ run_rebuild() {
             run_as_root nixos-rebuild dry-build --flake "$target" 2> >(tee "$log_file" >&2) || rc=$?
             ;;
         switch)
-            run_as_root nixos-rebuild switch --flake "$target" 2> >(tee "$log_file" >&2) || rc=$?
+            abora_abt_prefix "anix switch ${target##*#}" "$config_dir"
+            run_as_root "${ABORA_ABT_PREFIX[@]}" nixos-rebuild switch --flake "$target" 2> >(tee "$log_file" >&2) || rc=$?
             ;;
         build)
             run_as_root nixos-rebuild build --flake "$target" 2> >(tee "$log_file" >&2) || rc=$?
@@ -1358,7 +1365,8 @@ do_apply() {
     printf '\n'
 
     stage_config_for_flake
-    run_as_root nixos-rebuild switch --flake "${config_dir}#${flake_config_name}"
+    abora_abt_prefix "anix apply" "$config_dir"
+    run_as_root "${ABORA_ABT_PREFIX[@]}" nixos-rebuild switch --flake "${config_dir}#${flake_config_name}"
 
     printf '\n'
     abora_success "Done. The ANIX layer is now active."
@@ -3511,6 +3519,8 @@ usage() {
         abora_dim_line "  Flatpak app bundles and custom packages, the gaming layer, and opt-in Labs."
         printf '  %banix doctor%b | %banix recovery%b | %banix network%b | %banix repair%b | %banix hardware-test%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
         abora_dim_line "  Health checks, recovery menu, network diagnostics, repairs, and hardware readiness."
+        printf '  %banix history%b | %banix undo <id>%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
+        abora_dim_line "  Every system change made as a safe transaction, and undoing one of them."
         printf '  %banix logs%b | %banix check-full%b | %banix support-report%b | %banix bug-report%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
         abora_dim_line "  Installer logs, full diagnostics, a redacted support archive, and bug reports."
         printf '  %banix build --from-source%b | %banix adopt-nixos%b | %banix welcome-gui%b | %banix config-gui%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
@@ -3662,6 +3672,24 @@ do_config() {
     run_abora_system_command config "$@"
 }
 
+# ASA's transaction log: every switch anix, anix config/apps and anix update
+# ran through ABT, and `anix undo <id>` to go back to before one of them.
+do_abt() {
+    local action="$1"
+    shift
+    if ! command -v abora-abt >/dev/null 2>&1; then
+        abora_error "Abora's transaction engine (abora-abt) isn't installed here."
+        abora_dim_line "Generations are still there: anix generations, anix rollback nix"
+        exit 1
+    fi
+    if [[ "$action" == "undo" ]]; then
+        [[ $# -eq 1 ]] || { abora_error "Usage: anix undo <transaction id from 'anix history'>"; exit 1; }
+        run_as_root abora-abt undo "$1"
+        return
+    fi
+    run_as_root abora-abt "$action" "$@"
+}
+
 main() {
     local command="${1:-show}"
 
@@ -3705,6 +3733,8 @@ main() {
             fi
             shift; do_package_install "$@" ;;
         uninstall) shift; do_package_uninstall "$@" ;;
+        history|transactions) shift || true; do_abt list "$@" ;;
+        undo) shift || true; do_abt undo "$@" ;;
         search) shift; do_package_search "$@" ;;
         gc|clean) shift || true; do_gc "$@" ;;
         doctor) shift || true; do_doctor_entry "$@" ;;

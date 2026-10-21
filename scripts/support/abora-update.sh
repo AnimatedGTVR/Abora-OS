@@ -103,6 +103,11 @@ else
     }
 fi
 
+# From abora-ui.sh (ASA/ABT); without it, rebuilds run as before.
+if ! declare -F abora_abt_prefix >/dev/null; then
+    abora_abt_prefix() { ABORA_ABT_PREFIX=(); }
+fi
+
 config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
 command_name="${ABORA_UPDATE_COMMAND:-$(basename "$0")}"
 # The AboraProject org fallback is intentional (a registered organization
@@ -1233,6 +1238,7 @@ EOF
     if release_has_abora_core "$selected_ref"; then
         cat <<'EOF'
 scripts/support/abora_core.py
+scripts/safety/abora-abt.py
 EOF
     fi
 
@@ -1507,6 +1513,9 @@ install_abora_files() {
     copy_upstream_file "$upstream_dir/scripts/abora-welcome.sh" "$abora_dir/welcome.sh"
     if [[ -f "$upstream_dir/scripts/support/abora_core.py" ]]; then
         copy_upstream_file "$upstream_dir/scripts/support/abora_core.py" "$abora_dir/abora_core.py"
+    fi
+    if [[ -f "$upstream_dir/scripts/safety/abora-abt.py" ]]; then
+        copy_upstream_file "$upstream_dir/scripts/safety/abora-abt.py" "$abora_dir/abt.py"
     fi
     if [[ -f "$upstream_dir/scripts/support/abora-community.py" && -f "$upstream_dir/nix/modules/community.nix" ]]; then
         copy_upstream_file "$upstream_dir/scripts/support/abora-community.py" "$abora_dir/community.py"
@@ -2080,8 +2089,13 @@ fi
 require_minimum_free_space /nix/store || exit 1
 
 switch_status=0
+# As an ABT transaction where abora-abt exists: a switch that fails or leaves a
+# newly failed service goes back to the generation from before the update.
+# Outside the timeout, so a timeout can't stop ABT part-way through. No config
+# snapshot: this script keeps its own backups of everything it rewrites.
+abora_abt_prefix "abora update" -
 abora_wu_run "Switching to the new Abora system" "/tmp/abora-update-rebuild.log" -- \
-    timeout "$switch_timeout" \
+    "${ABORA_ABT_PREFIX[@]}" timeout "$switch_timeout" \
     nixos-rebuild switch --flake "$config_dir#${flake_config_name}" || switch_status=$?
 if [[ "$switch_status" -ne 0 ]]; then
     explain_step_failure "$switch_status" "/tmp/abora-update-rebuild.log" "$switch_timeout"

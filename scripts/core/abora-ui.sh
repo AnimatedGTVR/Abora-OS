@@ -602,3 +602,25 @@ abora_wu_run() {
     fi
     return "$status"
 }
+
+# ── ASA: system changes as ABT transactions ───────────────────────────────────
+# Sets ABORA_ABT_PREFIX to the words that run a command as an ABT transaction
+# (see scripts/safety/abora-abt.py): checked, snapshotted, verified, and
+# rolled back to the previous generation and config if it fails. Callers put
+# it inside their own privilege escalation:
+#
+#   abora_abt_prefix "anix apply" "$config_dir"
+#   run_as_root "${ABORA_ABT_PREFIX[@]}" nixos-rebuild switch --flake ...
+#
+# Empty (so the command runs as before) when abora-abt isn't installed --
+# plain NixOS, or a system part-way through updating from a release without
+# it -- or when ABORA_NO_ABT is set. A config dir of "-" skips the snapshot.
+abora_abt_prefix() {
+    local name="$1" config="${2:--}"
+    ABORA_ABT_PREFIX=()
+    case "${ABORA_NO_ABT:-}" in 1|yes|true) return 0 ;; esac
+    command -v abora-abt >/dev/null 2>&1 || return 0
+    ABORA_ABT_PREFIX=(abora-abt run --name "$name")
+    [[ "$config" == "-" ]] || ABORA_ABT_PREFIX+=(--config "$config")
+    ABORA_ABT_PREFIX+=(--)
+}

@@ -36,6 +36,11 @@ else
     abora_card_end()   { printf '  %b└────────%b\n' "$ABORA_BLUE" "$ABORA_NC"; }
 fi
 
+# From abora-ui.sh (ASA/ABT); without it, rebuilds run as before.
+if ! declare -F abora_abt_prefix >/dev/null; then
+    abora_abt_prefix() { ABORA_ABT_PREFIX=(); }
+fi
+
 config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
 local_module="${config_dir}/abora-local.nix"
 wallpaper_dir="${ABORA_WALLPAPER_DIR:-/etc/abora/wallpapers}"
@@ -718,7 +723,8 @@ do_apply() {
     printf '\n'
 
     stage_config_for_flake
-    run_as_root nixos-rebuild switch --flake "${config_dir}#${flake_target}"
+    abora_abt_prefix "abora config apply" "$config_dir"
+    run_as_root "${ABORA_ABT_PREFIX[@]}" nixos-rebuild switch --flake "${config_dir}#${flake_target}"
 
     printf '\n'
     abora_success "Done. Your changes are now active."

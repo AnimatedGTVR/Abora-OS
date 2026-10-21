@@ -45,6 +45,11 @@ else
     abora_trunc()    { printf '%s' "$1"; }
 fi
 
+# From abora-ui.sh (ASA/ABT); without it, rebuilds run as before.
+if ! declare -F abora_abt_prefix >/dev/null; then
+    abora_abt_prefix() { ABORA_ABT_PREFIX=(); }
+fi
+
 # Unlike abora-ui.sh (cosmetics only), the app catalog is real data this
 # script cannot function without -- there's no meaningful "fallback"
 # catalog to fabricate. But a raw "No such file or directory" from a bare
@@ -299,7 +304,8 @@ rebuild_system() {
     stage_config_for_flake
     log_file="$(mktemp)"
     set +e
-    run_as_root nixos-rebuild switch --flake "${config_dir}#${flake_target}" 2>&1 | tee "$log_file"
+    abora_abt_prefix "abora apps" "$config_dir"
+    run_as_root "${ABORA_ABT_PREFIX[@]}" nixos-rebuild switch --flake "${config_dir}#${flake_target}" 2>&1 | tee "$log_file"
     status="${PIPESTATUS[0]}"
     set -e
     if [[ "$status" -ne 0 ]]; then
