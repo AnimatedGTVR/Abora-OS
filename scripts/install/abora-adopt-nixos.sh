@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_url="${ABORA_REPO_URL:-https://github.com/AnimatedGTVR/Abora-OS.git}"
+repo_url="${ABORA_REPO_URL:-https://github.com/Abora-OS/Abora-OS.git}"
 config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
 script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$script_dir"
@@ -24,7 +24,7 @@ path instead -- by default that's a dry run; pass --apply to copy Abora
 modules into the existing NixOS config and add a tiny import file.
 
 Examples:
-  git clone https://github.com/AnimatedGTVR/Abora-OS.git
+  git clone https://github.com/Abora-OS/Abora-OS.git
   cd Abora-OS
   ./abora adopt-nixos
   sudo ./abora adopt-nixos --apply

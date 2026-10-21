@@ -110,7 +110,7 @@ With this repository directly:
 
 ```nix
 {
-  inputs.abora.url = "github:AnimatedGTVR/Abora-OS";
+  inputs.abora.url = "github:Abora-OS/Abora-OS";
 
   outputs = { nixpkgs, abora, ... }: {
     nixosConfigurations.my-host = nixpkgs.lib.nixosSystem {

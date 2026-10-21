@@ -11,24 +11,24 @@
 <a href="https://aboraos.org">
   <img height="28" src="https://img.shields.io/badge/Website-aboraos.org-f0f0f0?style=for-the-badge" alt="Website">
 </a>
-<a href="https://deepwiki.com/AnimatedGTVR/Abora-OS">
+<a href="https://deepwiki.com/Abora-OS/Abora-OS">
   <img height="28" src="https://img.shields.io/badge/Ask%20DeepWiki-Abora%20OS-0ea5e9?style=for-the-badge" alt="Ask DeepWiki">
 </a>
-<a href="https://github.com/AnimatedGTVR/Abora-OS">
+<a href="https://github.com/Abora-OS/Abora-OS">
   <img height="28" src="https://img.shields.io/badge/GitHub-Abora--OS-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub">
 </a>
 
 <br/>
 <br/>
 
-<a href="https://github.com/AnimatedGTVR/Abora-OS/stargazers">
-  <img height="22" src="https://img.shields.io/github/stars/AnimatedGTVR/Abora-OS?style=flat-square&label=Stars" alt="GitHub Stars">
+<a href="https://github.com/Abora-OS/Abora-OS/stargazers">
+  <img height="22" src="https://img.shields.io/github/stars/Abora-OS/Abora-OS?style=flat-square&label=Stars" alt="GitHub Stars">
 </a>
-<a href="https://github.com/AnimatedGTVR/Abora-OS/issues">
-  <img height="22" src="https://img.shields.io/github/issues/AnimatedGTVR/Abora-OS?style=flat-square&label=Issues" alt="Issues">
+<a href="https://github.com/Abora-OS/Abora-OS/issues">
+  <img height="22" src="https://img.shields.io/github/issues/Abora-OS/Abora-OS?style=flat-square&label=Issues" alt="Issues">
 </a>
-<a href="https://github.com/AnimatedGTVR/Abora-OS/releases">
-  <img height="22" src="https://img.shields.io/github/v/release/AnimatedGTVR/Abora-OS?style=flat-square&label=Release" alt="Latest Release">
+<a href="https://github.com/Abora-OS/Abora-OS/releases">
+  <img height="22" src="https://img.shields.io/github/v/release/Abora-OS/Abora-OS?style=flat-square&label=Release" alt="Latest Release">
 </a>
 <a href="LICENSE">
   <img height="22" src="https://img.shields.io/badge/License-See%20LICENSE-3b82f6?style=flat-square" alt="License">
@@ -45,10 +45,10 @@
 ## Quick Links
 
 - [Official Website](https://aboraos.org)
-- [GitHub Releases](https://github.com/AnimatedGTVR/Abora-OS/releases)
-- [Documentation](https://deepwiki.com/AnimatedGTVR/Abora-OS)
-- [Issue Tracker](https://github.com/AnimatedGTVR/Abora-OS/issues)
-- [Discussions](https://github.com/AnimatedGTVR/Abora-OS/discussions)
+- [GitHub Releases](https://github.com/Abora-OS/Abora-OS/releases)
+- [Documentation](https://deepwiki.com/Abora-OS/Abora-OS)
+- [Issue Tracker](https://github.com/Abora-OS/Abora-OS/issues)
+- [Discussions](https://github.com/Abora-OS/Abora-OS/discussions)
 - [Contributing Guide](CONTRIBUTING.md)
 - [Security Policy](SECURITY.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
@@ -238,7 +238,7 @@ Abora OS can be downloaded from the official website or from GitHub Releases.
 <a href="https://aboraos.org">
   <img src="https://img.shields.io/badge/Download-Abora%20OS-f0f0f0?style=for-the-badge" alt="Download Abora OS">
 </a>
-<a href="https://github.com/AnimatedGTVR/Abora-OS/releases">
+<a href="https://github.com/Abora-OS/Abora-OS/releases">
   <img src="https://img.shields.io/badge/GitHub-Releases-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub Releases">
 </a>
 
@@ -249,7 +249,7 @@ Abora OS can be downloaded from the official website or from GitHub Releases.
 Clone the repository:
 
 ```bash
-git clone https://github.com/AnimatedGTVR/Abora-OS.git
+git clone https://github.com/Abora-OS/Abora-OS.git
 cd Abora-OS
 ```
 

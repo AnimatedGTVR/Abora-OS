@@ -17,7 +17,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, GLib, Gtk
 
 
-ISSUE_REPO = os.environ.get("ABORA_ISSUE_REPO", "AnimatedGTVR/Abora-OS")
+ISSUE_REPO = os.environ.get("ABORA_ISSUE_REPO", "Abora-OS/Abora-OS")
 LOG_LINES = 200
 
 

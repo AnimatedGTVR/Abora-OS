@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_url="${ABORA_LABS_REPO_URL:-https://github.com/AboraOS-Project/Abora-Labs.git}"
+repo_url="${ABORA_LABS_REPO_URL:-https://github.com/Abora-OS/Abora-Labs.git}"
 repo_ref="${ABORA_LABS_REPO_REF:-stable}"
 workspace="${ABORA_LABS_DIR:-${XDG_DATA_HOME:-${HOME}/.local/share}/abora/labs}"
 

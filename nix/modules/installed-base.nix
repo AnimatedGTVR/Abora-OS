@@ -378,8 +378,8 @@ in
       VERSION_CODENAME = "horizon";
       PRETTY_NAME = "Abora OS v4.2 Solstice";
       HOME_URL = "https://www.aboraos.org/";
-      SUPPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
-      BUG_REPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
+      SUPPORT_URL = "https://github.com/Abora-OS/Abora-OS/issues";
+      BUG_REPORT_URL = "https://github.com/Abora-OS/Abora-OS/issues";
       ANSI_COLOR = "0;38;2;80;220;255";
     };
   };

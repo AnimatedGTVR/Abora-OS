@@ -139,13 +139,13 @@ updates an existing checkout) and hands off to the real wizard, which asks
 a couple of questions and shows the exact plan before touching anything:
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/scripts/abora-adopt-bootstrap.sh | bash
+curl -sSL https://raw.githubusercontent.com/Abora-OS/Abora-OS/edge/scripts/abora-adopt-bootstrap.sh | bash
 ```
 
 That's equivalent to cloning yourself and running the wizard directly:
 
 ```sh
-git clone https://github.com/AnimatedGTVR/Abora-OS.git
+git clone https://github.com/Abora-OS/Abora-OS.git
 cd Abora-OS
 ./abora adopt-nixos
 ```

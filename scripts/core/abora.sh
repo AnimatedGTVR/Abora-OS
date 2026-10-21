@@ -243,7 +243,7 @@ EOF
 }
 
 create_github_issue() {
-    local repo="${ABORA_ISSUE_REPO:-AnimatedGTVR/Abora-OS}"
+    local repo="${ABORA_ISSUE_REPO:-Abora-OS/Abora-OS}"
     local title=""
     local body_file=""
     local tmp_body=""
@@ -290,7 +290,7 @@ Create a GitHub issue with the Abora bug report template using the GitHub CLI.
 
 Options:
   --title TEXT            Issue title. If omitted, Abora prompts for one.
-  --repo OWNER/REPO       Target repository. Default: AnimatedGTVR/Abora-OS
+  --repo OWNER/REPO       Target repository. Default: Abora-OS/Abora-OS
   --body-file FILE        Use an existing issue body file.
   --with-support-report   Create a support archive and mention its path.
   --web                   Open the issue in the browser before submitting.

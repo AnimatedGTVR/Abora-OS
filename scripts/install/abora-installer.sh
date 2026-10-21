@@ -4188,7 +4188,7 @@ source_build_menu() {
     printf '  %b·%b QEMU if you want to boot-test locally\n' "$CI" "$R"
     printf '\n'
     printf '  %bCommands%b\n' "${B}${CS}" "$R"
-    printf '  %bgit clone https://github.com/AnimatedGTVR/Abora-OS.git%b\n' "$CW" "$R"
+    printf '  %bgit clone https://github.com/Abora-OS/Abora-OS.git%b\n' "$CW" "$R"
     printf '  %bcd Abora-OS%b\n' "$CW" "$R"
     printf '  %bnix build .#nixosConfigurations.abora.config.system.build.toplevel%b\n' "$CW" "$R"
     printf '\n'

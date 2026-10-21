@@ -10,7 +10,7 @@ Environment overrides (empty counts as unset):
   ABORA_VM_WORKSPACE  default /var/tmp/abora-vm-build
   ABORA_REPO_DIR      checkout location (default $ABORA_VM_WORKSPACE/abora-os)
   ABORA_OUT_DIR       build output (default $ABORA_VM_WORKSPACE/out)
-  ABORA_REPO_URL      default https://github.com/AnimatedGTVR/Abora-OS.git
+  ABORA_REPO_URL      default https://github.com/Abora-OS/Abora-OS.git
   ABORA_REPO_BRANCH   default edge
 """
 
@@ -39,7 +39,7 @@ def main() -> int:
     workspace = Path(env("ABORA_VM_WORKSPACE") or "/var/tmp/abora-vm-build")
     repo_dir = Path(env("ABORA_REPO_DIR") or workspace / "abora-os")
     out_dir = Path(env("ABORA_OUT_DIR") or workspace / "out")
-    repo_url = env("ABORA_REPO_URL") or "https://github.com/AnimatedGTVR/Abora-OS.git"
+    repo_url = env("ABORA_REPO_URL") or "https://github.com/Abora-OS/Abora-OS.git"
     branch = env("ABORA_REPO_BRANCH") or "edge"
 
     if not shutil.which("git"):

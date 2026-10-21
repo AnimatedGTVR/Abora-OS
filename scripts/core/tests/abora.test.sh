@@ -45,7 +45,7 @@ if printf '%s' "$build_help_out" | grep -q 'abora build --from-source' \
   && grep -q 'selected ref "%s" was unavailable; using branch fallback "%s"' scripts/abora-build.sh \
   && grep -q 'Abora compatibility build finished successfully' scripts/abora-build.sh \
   && grep -q 'Trying compatibility target' scripts/abora-build.sh \
-  && grep -q 'https://github.com/AnimatedGTVR/Abora-OS.git' scripts/abora-build.sh \
+  && grep -q 'https://github.com/Abora-OS/Abora-OS.git' scripts/abora-build.sh \
   && grep -q 'aboraBuild = pkgs.writeShellScriptBin "abora-build"' nix/profiles/live.nix \
   && grep -q 'aboraBuild = pkgs.writeShellScriptBin "abora-build"' nix/modules/installed-base.nix \
   && grep -q '"abora/build.sh"' nix/profiles/live.nix \

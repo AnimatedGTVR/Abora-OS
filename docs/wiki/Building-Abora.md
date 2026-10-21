@@ -41,7 +41,7 @@ make iso
 If you want to compile Abora yourself from a fresh checkout:
 
 ```sh
-git clone https://github.com/AnimatedGTVR/Abora-OS.git
+git clone https://github.com/Abora-OS/Abora-OS.git
 cd Abora-OS
 nix build .#nixosConfigurations.abora.config.system.build.toplevel
 ```
@@ -71,7 +71,7 @@ abora build --from-source
 To add Abora to a normal NixOS install without reinstalling or wiping `/home`:
 
 ```sh
-git clone https://github.com/AnimatedGTVR/Abora-OS.git
+git clone https://github.com/Abora-OS/Abora-OS.git
 cd Abora-OS
 ./abora adopt-nixos
 sudo ./abora adopt-nixos --apply

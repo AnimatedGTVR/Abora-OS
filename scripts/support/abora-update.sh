@@ -110,11 +110,14 @@ fi
 
 config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
 command_name="${ABORA_UPDATE_COMMAND:-$(basename "$0")}"
-# The AboraProject org fallback is intentional (a registered organization
-# the repo may move to), not a stray/untrusted URL — list_release_tags()
-# below tries each of these in order and uses whichever answers first.
-repo_git_url="${ABORA_REPO_GIT_URL:-https://github.com/AnimatedGTVR/Abora-OS.git}"
-repo_git_fallbacks="${ABORA_REPO_GIT_URLS:-$repo_git_url https://github.com/AboraProject/Abora-OS.git}"
+# Every URL here must be one the project owns: list_release_tags() below tries
+# them in order and installs from whichever answers first, so an unowned name
+# is an update channel anyone could register. (Until 4.2 the fallback was an
+# organization name that was never registered.) The repo lives
+# in the Abora-OS organization; AnimatedGTVR/Abora-OS is where it came from,
+# and GitHub redirects it there.
+repo_git_url="${ABORA_REPO_GIT_URL:-https://github.com/Abora-OS/Abora-OS.git}"
+repo_git_fallbacks="${ABORA_REPO_GIT_URLS:-$repo_git_url https://github.com/AnimatedGTVR/Abora-OS.git}"
 repo_ref="${ABORA_REPO_REF:-edge}"
 upstream_dir="${ABORA_UPSTREAM_DIR:-$config_dir/.abora-upstream}"
 flake_config_name="${ABORA_FLAKE_CONFIG_NAME:-abora}"

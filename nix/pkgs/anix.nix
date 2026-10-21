@@ -95,7 +95,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       $out/share/anix/anix-module.nix
 
     Flake users can also consume this repository directly:
-      inputs.abora.url = "github:AnimatedGTVR/Abora-OS";
+      inputs.abora.url = "github:Abora-OS/Abora-OS";
       imports = [ abora.nixosModules.anix ];
       environment.systemPackages = [ abora.packages.''${pkgs.system}.anix ];
     EOF
@@ -105,7 +105,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
   meta = with lib; {
     description = "Friendly NixOS profile and rebuild helper";
-    homepage = "https://github.com/AnimatedGTVR/Abora-OS";
+    homepage = "https://github.com/Abora-OS/Abora-OS";
     license = licenses.mit;
     platforms = platforms.linux;
     mainProgram = "anix";

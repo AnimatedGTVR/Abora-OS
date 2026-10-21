@@ -7,13 +7,13 @@ blank_issues_enabled: true
 
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/AnimatedGTVR/Abora-OS/blob/edge/SECURITY.md
+    url: https://github.com/Abora-OS/Abora-OS/blob/edge/SECURITY.md
     about: Do not open a public issue for a security problem. Follow the disclosure process here.
 
   - name: Installation and recovery guides
-    url: https://github.com/AnimatedGTVR/Abora-OS/blob/edge/docs/wiki/Home.md
+    url: https://github.com/Abora-OS/Abora-OS/blob/edge/docs/wiki/Home.md
     about: Install steps, recovery, updating, gaming, and the ANIX config layer.
 
   - name: FAQ
-    url: https://github.com/AnimatedGTVR/Abora-OS/blob/edge/docs/wiki/FAQ.md
+    url: https://github.com/Abora-OS/Abora-OS/blob/edge/docs/wiki/FAQ.md
     about: Check here before filing — common questions are already answered.

@@ -108,7 +108,7 @@ No reinstall is needed, and the ISOs are only refreshed with the new version num
 
 # Abora OS v4.1 Horizon
 
-![Abora OS v4.1 Horizon](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/Images/v4.1-horizon-banner.png)
+![Abora OS v4.1 Horizon](https://raw.githubusercontent.com/Abora-OS/Abora-OS/edge/assets/Images/v4.1-horizon-banner.png)
 
 
 Abora OS v4.1 Horizon is the reliability-focused follow-up to Everest: a safer installer, corrected update and configuration paths, improved diagnostics, built-in community and learning tools, and a smaller ANIX language surface.
@@ -120,7 +120,7 @@ Released: **<RELEASE DATE>** · Tag: `v4.1` · Channel: `stable`
 ---
 # Highlights
 
-![Highlights](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/highlights_converted.gif)
+![Highlights](https://raw.githubusercontent.com/Abora-OS/Abora-OS/edge/assets/highlights_converted.gif)
 
 Horizon includes the Everest feature set and adds:
 
@@ -165,7 +165,7 @@ Every bundle is optional.
 
 # What's New
 
-![What's New](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/whatsnew_converted.gif)
+![What's New](https://raw.githubusercontent.com/Abora-OS/Abora-OS/edge/assets/whatsnew_converted.gif)
 
 ## Abora Labs
 
@@ -333,7 +333,7 @@ Horizon continues to include Limine, Plymouth, Abora wallpapers, light desktop d
 
 # Changes
 
-![Changes](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/Changes_converted.gif)
+![Changes](https://raw.githubusercontent.com/Abora-OS/Abora-OS/edge/assets/Changes_converted.gif)
 
 ## `abora update`
 
@@ -468,7 +468,7 @@ Along with:
 
 # Known Issues
 
-![Known Issues](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/KnownIssues_converted.gif)
+![Known Issues](https://raw.githubusercontent.com/Abora-OS/Abora-OS/edge/assets/KnownIssues_converted.gif)
 
 ## xone-dongle-firmware
 
@@ -541,7 +541,7 @@ before powering off.
 
 # Download
 
-![Download](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/download_converted.gif)
+![Download](https://raw.githubusercontent.com/Abora-OS/Abora-OS/edge/assets/download_converted.gif)
 
 Horizon ships in five editions:
 

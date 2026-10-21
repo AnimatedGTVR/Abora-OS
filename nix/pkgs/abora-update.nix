@@ -47,7 +47,7 @@ stdenvNoCC.mkDerivation {
 
   meta = with lib; {
     description = "Vanta core of abora update: channel resolution and downgrade guard";
-    homepage = "https://github.com/AboraOS-Project/Abora-Labs";
+    homepage = "https://github.com/Abora-OS/Abora-OS";
     license = licenses.gpl3Plus;
     platforms = platforms.linux;
     mainProgram = "abora-update";

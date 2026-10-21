@@ -57,7 +57,7 @@ buildDotnetModule rec {
 
   meta = with lib; {
     description = "Pure version/channel resolution logic for abora update, extracted from bash";
-    homepage = "https://github.com/AnimatedGTVR/Abora-OS";
+    homepage = "https://github.com/Abora-OS/Abora-OS";
     license = licenses.mit;
     platforms = platforms.linux;
     mainProgram = "abora-update-resolver";
