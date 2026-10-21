@@ -6,7 +6,7 @@ fresh ISO whenever possible so the screenshots match what users see.
 ## Installer
 
 - live boot on `tty1` showing the Abora logo in color
-- MINT welcome screen with `Install Abora OS to System`
+- installer welcome screen with `Install Abora OS to System`
 - edition picker
 - network step with the `nmtui` option visible
 - Network tools screen showing status, Quick Wi-Fi, and rescan options

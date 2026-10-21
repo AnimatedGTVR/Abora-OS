@@ -28,7 +28,7 @@ When the ISO starts, Abora should take over `tty1` and launch the live boot flow
 The live image should:
 
 - start NetworkManager
-- open the guided installer (MINT, see below)
+- open the installer (see below)
 - allow Wi-Fi setup through `nmtui` or `nmcli`
 - provide a fallback live shell if the installer exits
 
@@ -71,19 +71,18 @@ prompt. Two accounts exist for exactly that case:
 
 ## Installer Flow
 
-The default guided installer is **MINT** (`mint abora install`), a small Go/Bubble Tea front-end that walks through every step and then hands the confirmed plan to the existing bash installer (`abora-installer.sh`) as its backend — the bash installer never went away, it's just the execution layer now instead of the thing you interact with directly. Run it manually with:
+Abora has one installer: a terminal UI (`abora-installer.sh`, menus drawn with
+[gum](https://github.com/charmbracelet/gum)). The live ISO starts it on `tty1`; from a live shell, run
+`abora-install`. The live ISO is an installer only: desktop editions set which desktop gets installed, and
+there's no live desktop session.
 
-```sh
-mint abora install --tty --pre-alpha
-```
-
-The flow is a step-by-step wizard, not a single linear pass — every screen (edition, hostname, timezone, disk layout, and so on) can be backed out of with `Esc` or the `← Back` list entry, re-showing the previous screen with whatever you already typed still filled in. Screens show a "Step X of Y" indicator so it's clear how far along you are.
+Menus have a **Back** entry where a choice can be changed, and nothing is written to disk before the final review.
 
 The current flow includes:
 
 - network setup
 - hostname, username, keyboard, and password setup
-- timezone selection: pick a region first (Americas, Europe, Africa, Asia, Australia & Oceania, or UTC), then search the real IANA timezones within it — states/regions with more than one zone (Indiana's eight, for example) all show up individually
+- timezone: typed, with suggestions (see [Typing a timezone](#typing-a-timezone))
 - desktop profile selection
 - starter app bundle selection
 - optional dotfiles import for Hyprland and Other Environment installs
@@ -93,21 +92,15 @@ The current flow includes:
 - generated-config validation before `nixos-install`
 - install progress and clear logs
 
-Prefer the older bash-only flow instead of MINT? Pass `--batch` (or `--reconfig`/`-r`) to the installer launcher:
+For scripted installs, pass `--batch`; to reconfigure an installed system, `--reconfig` (or `-r`):
 
 ```sh
 abora-install --batch
 ```
 
-Or run the bash installer directly, bypassing the MINT/backend choice entirely:
-
-```sh
-abora-installer
-```
-
 ### Typing a timezone
 
-The bash installer (`abora-installer`, and `abora-install --batch`) asks for the timezone as text. It accepts
+The installer asks for the timezone as text. It accepts
 `UTC`, or an IANA `Region/City` name such as `Europe/Berlin`, `America/New_York` or `Asia/Tokyo`, in any
 capitalization. The common US abbreviations (`EST`, `PST`, `Eastern`, ...) work too. A city on its own, such
 as `Berlin` or `new york`, lists the matching names to choose from instead of being rejected.

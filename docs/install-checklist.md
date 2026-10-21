@@ -27,7 +27,7 @@ Use this after building a release candidate ISO and after running one real insta
 
 ## Installer
 
-- MINT renders with color on `tty1`
+- the installer TUI renders with color on `tty1`, with gum menus
 - Abora text/logo appears without a `logo not found` fallback
 - first screen offers Open terminal, Debug installer, and Build from source
 - preflight failure offers Network tools, Debug tools, Open terminal, and retry

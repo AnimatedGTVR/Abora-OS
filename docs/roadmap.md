@@ -11,6 +11,7 @@ and the state of each item are in [next-release-plan.md](next-release-plan.md).
 - ASA: system changes run as ABT transactions and roll back on failure
 - installer failures are diagnosable (hash mismatch kinds, failing paths and hashes, logs saved to USB)
 - release names derive from one source and are checked
+- one installer: the bash TUI with gum; MINT and the GTK installer are removed, and the live ISO is an installer only (no live desktop session)
 - next: one command list for `live.nix` and `installed-base.nix`; `abt begin`/`commit` for the commands that
   edit and apply in one step; fold the two C# tools into Python
 
@@ -24,7 +25,6 @@ and the state of each item are in [next-release-plan.md](next-release-plan.md).
 
 ## In Progress Toward the Next Release
 
-- **MINT** as the default guided installer front-end, handing the confirmed plan to the existing bash installer as its backend
 - `abora welcome-gui` and `abora config-gui` — the first GTK4/libadwaita graphical tools, thin front-ends over the existing CLI so nothing they do is GUI-exclusive
 
 ## Recently Delivered
@@ -38,7 +38,6 @@ and the state of each item are in [next-release-plan.md](next-release-plan.md).
 
 - **importable Abora features for existing NixOS users** — `anix` and `branding` (fastfetch config/logo, title banner, logo image, default wallpaper) are standalone-importable `nixosModules`; `nix run github:AnimatedGTVR/Abora-OS#desktop-preview -- <profile>` prints Abora's exact desktop-profile config/package blocks to paste in by hand (shell-generated, can't be a declarative module); `nix run github:AnimatedGTVR/Abora-OS#hardware-test` runs Abora's hardware-readiness checks on any machine. None of this requires the installer or ISO (see `docs/wiki/ANIX-Standalone.md`). Most of the rest of the `abora` CLI (`abora-config`, `abora-desktop`, `abora-doctor`, etc.) is Abora-install-specific by nature — it reads/writes actual Abora system state — so it's not clear all of it *should* be extracted the same way; what's left here is auditing the remaining `installed-base` pieces case by case for which ones are genuinely portable, the way hardware-test and desktop-preview turned out to be
 - keep expanding graphical coverage where it clearly helps first-time and non-terminal users, without ever making the CLI a second-class citizen — every GUI action should have an equivalent command
-- extend MINT's guided flow to cover more of what the bash installer can already do, rather than duplicating logic between the two
 - keep the desktop matrix green across all 23 profiles via `make check-desktops` as new GTK/libadwaita dependencies are added
 - continue auditing scripts and the new Python/GTK tooling for the same class of bug found and fixed during this pass: environment variables silently dropped across privilege escalation (`pkexec`/`sudo`), which can cause a tool to act on the wrong config path instead of failing loudly
 - improve hardware test coverage for Wi-Fi laptops, NVIDIA systems, BIOS boot, and UEFI boot

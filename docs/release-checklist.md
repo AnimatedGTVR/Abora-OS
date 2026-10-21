@@ -29,7 +29,7 @@ Use this after a local release build or after the GitHub ISO workflow succeeds.
 
 - boot the ISO in a VM with `make qemu-fresh`
 - confirm the live boot flow takes over `tty1`
-- confirm MINT renders with color and shows the packaged Abora logo
+- confirm the installer TUI renders with color and shows the packaged Abora logo
 - confirm NetworkManager is running before the network step
 - confirm `nmtui` opens from the installer
 - confirm Fastfetch shows the Abora logo in the live shell

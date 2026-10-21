@@ -170,37 +170,6 @@ let
   '';
   wallpaperDir = ../../assets/wallpapers/collection;
   wallpaperThemeDir = ../../assets/wallpaper-themes;
-  mintPackage = pkgs.buildGoModule {
-    pname = "mint";
-    version = version;
-    src = ../../vendor/mint;
-    vendorHash = null;
-    postInstall = ''
-      mv "$out/bin/MINT" "$out/bin/mint"
-    '';
-  };
-  aboraInstallerGui =
-    let
-      python = pkgs.python3.withPackages (ps: with ps; [ pygobject3 ]);
-      giPath = lib.makeSearchPath "lib/girepository-1.0" (with pkgs; [
-        gtk4 libadwaita glib gdk-pixbuf (lib.getLib pango) harfbuzz graphene cairo gobject-introspection
-      ]);
-      libPath = lib.makeLibraryPath (with pkgs; [
-        gtk4 libadwaita glib gdk-pixbuf cairo
-      ]);
-    in
-    pkgs.writeShellScriptBin "abora-installer-gui" ''
-      export GI_TYPELIB_PATH="${giPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
-      export LD_LIBRARY_PATH="${libPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-      export ABORA_INSTALLER="''${ABORA_INSTALLER:-/etc/abora/installer.sh}"
-      export ABORA_DEFAULT_DESKTOP="''${ABORA_DEFAULT_DESKTOP:-${selectedEdition.desktop}}"
-      export ABORA_EDITION="''${ABORA_EDITION:-${selectedEdition.id}}"
-      # Force software renderer so the installer works in QEMU and on
-      # hardware without accelerated GL (black window otherwise).
-      export GSK_RENDERER="''${GSK_RENDERER:-cairo}"
-      export GDK_BACKEND="''${GDK_BACKEND:-wayland,x11}"
-      exec ${python}/bin/python3 /etc/abora/installer-gui.py "$@"
-    '';
   aboraWelcomeGui =
     let
       python = pkgs.python3.withPackages (ps: with ps; [ pygobject3 ]);
@@ -500,7 +469,6 @@ in
     # ── Shell / UI ───────────────────────────────────────────────────────────
     bashInteractive
     gum         # upstream Charm gum picker/input UI used by installer.sh
-    mintPackage # Abora helper commands; intentionally not linked as gum
     fastfetch   # shown in the live welcome banner
     feh         # X11 wallpaper fallback for lightweight live desktops
     chafa       # terminal logo rendering fallback
@@ -519,7 +487,6 @@ in
     dosfstools  # mkfs.vfat
     e2fsprogs   # mkfs.ext4
     parted
-    gparted     # graphical partition editor, opened from the installer's disk step
     util-linux  # wipefs, lsblk, mount …
 
     # ── Boot management ──────────────────────────────────────────────────────

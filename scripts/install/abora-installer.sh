@@ -898,7 +898,7 @@ set_nix_string_assignment() {
 # several keyboards: the Japanese console map is "jp106" but the layout is
 # "jp"; UK is "uk" vs "gb"; Turkish "trq" vs "tr"; and so on. Passing the
 # console name through as the layout leaves the desktop with an invalid layout.
-# Keep this in sync with KEYBOARDS in abora-installer-gui.py and with the copy
+# Keep this in sync with the copy
 # in abora-config.sh (scripts/install/tests/keyboard-layout.test.sh checks both).
 console_keymap_to_xkb() {
     case "$1" in
@@ -4373,9 +4373,8 @@ release_desktop() {
     esac
 
     # Hyprland and "other" are built around tiling window managers, so show
-    # those first here too, matching the GUI installer's ordering
-    # (_edition_desktops in abora-installer-gui.py) instead of the plain
-    # alphabetic-ish order every other edition gets.
+    # those first instead of the plain alphabetic-ish order every other
+    # edition gets.
     local -a ordered=()
     if [[ "${abora_edition:-}" == "hyprland" || "${abora_edition:-}" == "other" ]]; then
         while IFS= read -r profile; do

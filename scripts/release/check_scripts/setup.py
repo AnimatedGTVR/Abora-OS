@@ -1,4 +1,4 @@
-"""Tool builds, MINT's Go checks, syntax and executable bits, required files, flake evaluation."""
+"""Tool builds, syntax and executable bits, required files, flake evaluation."""
 
 from __future__ import annotations
 
@@ -183,15 +183,6 @@ def run(ctx: Context) -> None:
         ctx, "abora-plan-tool", "tools/abora-plan-tool/AboraPlanTool.csproj",
         "tools/abora-plan-tool/bin/Debug/net10.0/abora-plan-tool.dll",
     )
-
-    # vendor/mint had no automated verification before: only the manual `make
-    # test-installer*` targets. go vet/test are its baseline safety net.
-    if shutil.which("go"):
-        for step in ("build", "vet", "test"):
-            done = ctx.run(["go", step, "./..."], cwd=ctx.repo / "vendor/mint", quiet=True)
-            ctx.result(done.returncode == 0, f"vendor/mint: go {step}")
-    else:
-        ctx.ok("go unavailable (vendor/mint build/vet/test skipped)")
 
     for file in BASH_SCRIPTS:
         path = ctx.path(file)

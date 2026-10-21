@@ -1,4 +1,4 @@
-.PHONY: help iso iso-all iso-cosmic iso-hyprland iso-gnome iso-kde iso-other iso-local build-vm run qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc doctor desktop-preview check check-desktops check-all preflight metadata release anix-package test-installer test-installer-tty test-installer-kitty test-welcome test-config
+.PHONY: help iso iso-all iso-cosmic iso-hyprland iso-gnome iso-kde iso-other iso-local build-vm run qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc doctor desktop-preview check check-desktops check-all preflight metadata release anix-package test-welcome test-config
 
 help:
 	@echo "Usage: make <target>"
@@ -24,9 +24,6 @@ help:
 	@echo "  qemu-debug       - Graphical QEMU plus live serial output in this terminal"
 	@echo "  qemu-fresh-debug - Fresh disk + graphical QEMU + terminal serial output"
 	@echo "  qmec / qemc      - Aliases for qemu"
-	@echo "  test-installer   - Run the MINT installer TUI from source, auto-detecting the terminal (no ISO build needed)"
-	@echo "  test-installer-tty   - Same, but forces TTY-safe block-art rendering"
-	@echo "  test-installer-kitty - Same, but forces real Kitty graphics-protocol rendering"
 	@echo "  test-welcome     - Run the Abora Welcome GUI from source (no ISO build needed)"
 	@echo "  test-config      - Run the Abora Config Editor GUI against a throwaway fixture config"
 	@echo "  check            - Run repository script checks"
@@ -92,15 +89,6 @@ qemu-fresh-debug:
 qmec: qemu
 
 qemc: qemu
-
-test-installer:
-	cd vendor/mint && go run . abora install --pre-alpha
-
-test-installer-tty:
-	cd vendor/mint && go run . abora install --tty --pre-alpha
-
-test-installer-kitty:
-	cd vendor/mint && go run . abora install --kitty --pre-alpha
 
 test-welcome:
 	python3 scripts/abora-welcome-gui.py

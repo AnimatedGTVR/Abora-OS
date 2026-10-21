@@ -18,10 +18,10 @@ Abora is six layers. Each lives in its own place, and a layer only calls the one
 | Layer | Where | Language | What it is |
 | --- | --- | --- | --- |
 | CLI | `scripts/core/anix.sh` (`anix`; `abora.sh` is its old name) | Shell | the one user-facing command; routes Abora system commands to their tools |
-| GUI | `scripts/*/*-gui.py`, `scripts/install/abora-installer-gui.py` | Python (GTK4) | front-ends; every action is also a CLI command |
+| GUI | `scripts/*/*-gui.py` (welcome, config, gaming, feedback) | Python (GTK4) | front-ends; every action is also a CLI command |
 | Safety and recovery (ASA) | `scripts/safety/` (ABT), `scripts/support/` (doctor, recovery, support report) | Python | transactions, health checks and repairs ([ASA](wiki/ASA.md)) |
 | Tools | `scripts/apps/`, `scripts/config/`, `scripts/support/abora-update.sh` | Shell, Python | apps, settings, desktops, updates |
-| Installer | `scripts/install/`, `vendor/mint/` (front-end), `tools/abora-installer/` | Shell, Go, Rust | live boot, install, adopt an existing NixOS |
+| Installer | `scripts/install/` (the TUI, drawn with gum), `tools/abora-installer/` (launcher) | Shell, Rust | live boot, install, adopt an existing NixOS |
 | System config | `nix/` | Nix | the live ISO and the installed system |
 
 Shared code: `scripts/core/abora-ui.sh` for shell (UI, `abora_abt_prefix`), `scripts/support/abora_core.py`
@@ -31,7 +31,7 @@ for Python (UI, redaction). Shell is glue; logic that needs data structures goes
 
 | Status | What |
 | --- | --- |
-| **Stable** | the installer TUI and MINT, the desktop profiles, `anix` config/profiles/snapshots/rollback, `abora update`, `abora apps`, the support tools |
+| **Stable** | the installer TUI, the desktop profiles, `anix` config/profiles/snapshots/rollback, `abora update`, `abora apps`, the support tools |
 | **New in 4.2** (alpha until the [release gate](next-release-plan.md#release-gate) passes) | `anix` as the one command, `anix package install`, the whole-system `anix doctor`, ABT transactions |
 | **Experimental** (not part of the installed system unless chosen) | Abora Labs (`automation/abora_labs`, opt-in at install), `experiments/` (language comparisons, never shipped), ANIX v2 languages beyond ANIX Native and ModuCPP |
 

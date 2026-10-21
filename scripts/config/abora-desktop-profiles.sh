@@ -79,8 +79,7 @@ EOF
 # (with the sole current exception of MangoWM's bundled config.conf) no
 # pre-made dotfiles, so they need either a hand-written config or an
 # imported one (see abora_dotfiles_import) to be usable day-to-day. This is
-# the exact desktop set the "Other Desktops" edition offers, and must stay
-# in sync with _TILING_WMS in abora-installer-gui.py.
+# the exact desktop set the "Other Desktops" edition offers.
 abora_tiling_wm_profiles() {
     cat <<'EOF'
 hyprland

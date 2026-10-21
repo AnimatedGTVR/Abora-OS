@@ -146,7 +146,7 @@ detect_legacy_gpu() {
 # several keyboards: the Japanese console map is "jp106" but the layout is
 # "jp"; UK is "uk" vs "gb"; Turkish "trq" vs "tr"; and so on. Passing the
 # console name through as the layout leaves the desktop with an invalid layout.
-# Keep this in sync with KEYBOARDS in abora-installer-gui.py and with the copy
+# Keep this in sync with the copy
 # in abora-config.sh (scripts/install/tests/keyboard-layout.test.sh checks both).
 console_keymap_to_xkb() {
     case "$1" in

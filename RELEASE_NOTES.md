@@ -28,6 +28,8 @@ Released: **<RELEASE DATE>** · Tag: `v4.2` · Channel: `stable`
   stick or RAM, a changed download, an installer bug), a **What failed** block names the failed build, the
   path and both hashes, and **Save logs to a USB drive** keeps the log through a reboot.
 - **A clearer timezone question**: UTC or Region/City in any case, and a city on its own lists matches.
+- **One installer.** The terminal installer, drawn with gum, is the only one. MINT and the GTK installer are
+  removed, and the live ISO is an installer only, with no live desktop session.
 
 ## Fixed from DistroWatch's 4.0 review
 
