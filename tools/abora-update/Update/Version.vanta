@@ -2,8 +2,8 @@ module Update.Version;
 
 # Version and release-tag helpers for abora update, replacing
 # tools/abora-update-resolver/VersionUtil.cs. Semantics follow
-# experiments/updater/shared/README.md: a version part is plain decimal digits
-# that fit a signed 32-bit int.
+# the downgrade-guard comparison done for 4.2 (git history): a version part is
+# plain decimal digits that fit a signed 32-bit int.
 
 func MaxPart()::int {
     return 2147483647;

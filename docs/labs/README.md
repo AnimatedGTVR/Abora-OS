@@ -50,7 +50,7 @@ out/labs/                           results and logs, gitignored
 
 | Area | Question | Implementations |
 |---|---|---|
-| [`updater`](../../experiments/updater/shared/README.md) | The downgrade guard from `scripts/abora-update.sh` | C, C#, Go, Vanta (numeric-only) |
+| `updater` (finished in 4.2, removed) | The downgrade guard from `scripts/abora-update.sh` | C, C#, Go and Vanta were compared; Vanta won and became `tools/abora-update`. The comparison is in git history before 4.2. |
 
 ## From experiment to Abora
 
