@@ -87,10 +87,6 @@ let
   setupDesktopFile     = ./setup.desktop;
   plymouthDir          = ./plymouth;
   bootloaderDir        = ./bootloader;
-  effectsAudioFile =
-    if builtins.pathExists ./effects/v3StartingAbora.mp3 then ./effects/v3StartingAbora.mp3
-    else if builtins.pathExists ./effects/LaunchingAbora.mp3 then ./effects/LaunchingAbora.mp3
-    else null;
   limineWallpaperFile =
     if builtins.pathExists (bootloaderDir + "/limine-background.png") then
       bootloaderDir + "/limine-background.png"
@@ -590,7 +586,6 @@ in
     linux-firmware
     nixosCommand
     pciutils
-    mpg123
     updateCommand
     upgradeCommand
     rollbackCommand
@@ -604,7 +599,6 @@ in
     qt6Packages.qt6ct
     xdg-utils
     xterm
-    zenity
     swaybg
     zsh
   ] ++ lib.optional (abtScript != null) aboraAbt
@@ -1001,9 +995,6 @@ in
     }
     // lib.optionalAttrs (aboraLogoFile != null) {
       "abora/Abora-LOGO.png".source = aboraLogoFile;
-    }
-    // lib.optionalAttrs (effectsAudioFile != null) {
-      "abora/effects/v3StartingAbora.mp3".source = effectsAudioFile;
     }
     // lib.optionalAttrs (welcomeGuiScript != null) {
       "abora/welcome-gui.py".source = welcomeGuiScript;

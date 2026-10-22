@@ -48,7 +48,6 @@ STAGED_FILES = (
     ("assets/mango/config.conf", "mango/config.conf"),
     ("assets/plymouth/abora.plymouth", "plymouth/abora.plymouth"),
     ("assets/plymouth/abora.script", "plymouth/abora.script"),
-    ("assets/Effects/v3StartingAbora.mp3", "effects/v3StartingAbora.mp3"),
     ("nix/modules/installed-base.nix", "installed-base.nix"),
     ("nix/modules/abora-options.nix", "abora-options.nix"),
     ("nix/modules/anix.nix", "anix-module.nix"),

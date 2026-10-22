@@ -55,12 +55,6 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       cp -a "$src/assets/wallpapers/collection/." "$out/share/anix/wallpapers/"
     fi
 
-    if [ -f "$src/assets/Effects/v3StartingAbora.mp3" ]; then
-      mkdir -p "$out/share/anix/effects"
-      install -Dm0644 "$src/assets/Effects/v3StartingAbora.mp3" \
-        "$out/share/anix/effects/v3StartingAbora.mp3"
-    fi
-
     makeWrapper "${bashInteractive}/bin/bash" "$out/bin/anix" \
       --add-flags "$out/share/anix/anix.sh" \
       --prefix PATH : "${lib.makeBinPath [
@@ -80,8 +74,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       --set ANIX_UI_LIB "$out/share/anix/abora-ui.sh" \
       --set ANIX_DOCS_DIR "$out/share/anix/docs/wiki" \
       --set ANIX_SYSTEM_LANGUAGE_DIR "$out/share/anix/languages" \
-      --set ANIX_WALLPAPER_DIR "$out/share/anix/wallpapers" \
-      --set ANIX_SOUND_FILE "$out/share/anix/effects/v3StartingAbora.mp3"
+      --set ANIX_WALLPAPER_DIR "$out/share/anix/wallpapers"
 
     cat > "$out/share/anix/README.md" <<'EOF'
     ANIX standalone package

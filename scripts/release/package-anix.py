@@ -58,7 +58,6 @@ export ABORA_UI_LIB="$share_dir/abora-ui.sh"
 export ANIX_DOCS_DIR="$share_dir/docs/wiki"
 export ANIX_SYSTEM_LANGUAGE_DIR="$share_dir/languages"
 export ANIX_WALLPAPER_DIR="$share_dir/wallpapers"
-export ANIX_SOUND_FILE="$share_dir/effects/v3StartingAbora.mp3"
 export PATH="$share_dir/tools:$PATH"
 
 exec bash "$share_dir/anix.sh" "$@"
@@ -165,11 +164,6 @@ def main() -> int:
     if wallpapers.is_dir():
         entries.append(Entry(f"{share}/wallpapers"))
         entries += tree_entries(wallpapers, f"{share}/wallpapers")
-
-    sound = repo / "assets/Effects/v3StartingAbora.mp3"
-    if sound.is_file():
-        entries.append(Entry(f"{share}/effects"))
-        entries.append(Entry(f"{share}/effects/v3StartingAbora.mp3", sound, 0o644))
 
     package_dir.mkdir(parents=True, exist_ok=True)
     package_path = package_dir / f"anix-{anix_tag}-abora-{version_tag}.tar.gz"

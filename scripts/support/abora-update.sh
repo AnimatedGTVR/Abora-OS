@@ -1189,7 +1189,6 @@ assets/bootloader/background.png
 assets/bootloader/theme.txt
 assets/plymouth/abora.plymouth
 assets/plymouth/abora.script
-assets/Effects/LaunchingAbora.mp3
 assets/wallpapers/collection
 assets/wallpaper-themes
 EOF
@@ -1562,10 +1561,6 @@ install_abora_files() {
     fi
     copy_upstream_file "$upstream_dir/assets/fastfetch-logo.txt" "$abora_dir/fastfetch-logo.txt"
     copy_upstream_file "$upstream_dir/assets/fastfetch-config.jsonc" "$abora_dir/fastfetch-config.jsonc"
-    copy_first_existing_upstream_file \
-        "$abora_dir/effects/v3StartingAbora.mp3" \
-        "$upstream_dir/assets/Effects/v3StartingAbora.mp3" \
-        "$upstream_dir/assets/Effects/LaunchingAbora.mp3"
     copy_upstream_file "$upstream_dir/assets/plymouth/abora.plymouth" "$abora_dir/plymouth/abora.plymouth"
     copy_upstream_file "$upstream_dir/assets/plymouth/abora.script" "$abora_dir/plymouth/abora.script"
     install_mango_config_asset

@@ -997,7 +997,7 @@ fi
 # typing a hostname containing a space into "Settings > Hostname" killed
 # the entire `anix --gui` session before it ever returned to the settings
 # menu or the control center. Runs the real terminal UI end-to-end (no
-# DISPLAY/zenity, so it falls back to do_gui_terminal) against a sandboxed
+# DISPLAY, so it goes to do_gui_terminal) against a sandboxed
 # ANIX_SYSTEM_CONFIG, entering Settings (2) -> Hostname (2) -> an invalid
 # value, and checks the control center/settings banners rendered more than
 # once and the whole process exited cleanly.

@@ -266,12 +266,10 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'copy_upstream_file "$upstream_dir/nix/pkgs/abora-plan-tool-deps.json"', 'scripts/abora-update.sh'),
     ),
     Check(
-        'runtime: installed systems tolerate either Abora startup sound filename',
-        grep('-q', 'effectsAudioFile', 'nix/modules/installed-base.nix'),
-        grep('-q', 'builtins.pathExists ./effects/v3StartingAbora.mp3', 'nix/modules/installed-base.nix'),
-        grep('-q', 'builtins.pathExists ./effects/LaunchingAbora.mp3', 'nix/modules/installed-base.nix'),
-        grep('-q', '/etc/abora/effects/LaunchingAbora.mp3', 'scripts/abora-installer.sh'),
-        grep('-q', 'assets/Effects/LaunchingAbora.mp3', 'scripts/abora-update.sh'),
+        'runtime: the startup sound is gone (removed in 4.2): no ringtone command, no login sound, no sound files',
+        not_(grep('-rqiE', 'ringtone|launch_sound|ANIX_SOUND_FILE|v3StartingAbora', 'scripts/core', 'scripts/config', 'nix', 'scripts/install', 'scripts/support/abora-update.sh')),
+        not_(test('-e', 'assets/Effects/v3StartingAbora.mp3')),
+        test('-e', 'assets/Effects/LaunchingAbora.mp3'),
     ),
     Check(
         'runtime: installed systems expose dotfiles import and source build helper',

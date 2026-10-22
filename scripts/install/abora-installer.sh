@@ -2732,11 +2732,6 @@ write_branding_assets() {
     cp_required /etc/abora/abora-options.nix       "${root}/etc/nixos/abora/abora-options.nix"
 
     [[ -f /etc/abora/anix.sh           ]] && cp /etc/abora/anix.sh            "${root}/etc/nixos/abora/anix.sh"
-    if [[ -f /etc/abora/effects/v3StartingAbora.mp3 ]]; then
-        cp /etc/abora/effects/v3StartingAbora.mp3 "${root}/etc/nixos/abora/effects/v3StartingAbora.mp3"
-    elif [[ -f /etc/abora/effects/LaunchingAbora.mp3 ]]; then
-        cp /etc/abora/effects/LaunchingAbora.mp3 "${root}/etc/nixos/abora/effects/v3StartingAbora.mp3"
-    fi
 
     cp -a /etc/abora/desktops/. "${root}/etc/nixos/abora/desktops/"
     cp -a /etc/abora/wallpapers/. "${root}/etc/nixos/abora/wallpapers/"

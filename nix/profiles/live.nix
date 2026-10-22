@@ -480,7 +480,6 @@ in
     qt6Packages.qt6ct
     swaybg      # wlroots wallpaper fallback for Hyprland/Sway/MangoWM live sessions
     xterm       # tiny fallback so the Start Abora launcher can always open
-    zenity      # graphical ANIX helper when launched from a desktop
 
     # ── Disk & filesystem ────────────────────────────────────────────────────
     dosfstools  # mkfs.vfat
@@ -634,7 +633,6 @@ in
       "abora/target-flake.lock".source = ../../flake.lock;
       "abora/fastfetch-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "abora/fastfetch-config.jsonc".source = ../../assets/fastfetch-config.jsonc;
-      "abora/effects/v3StartingAbora.mp3".source = ../../assets/Effects/v3StartingAbora.mp3;
       "abora/desktop-profiles.sh" = {
         source = ../../scripts/config/abora-desktop-profiles.sh;
         mode = "0755";
