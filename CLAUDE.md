@@ -110,6 +110,8 @@ After installation, user-facing config lives in `/etc/nixos/abora-local.nix`. Th
 
 ## Key Conventions
 
+- **Languages:** new system tools are not written in shell. Rust is for anything that can damage the system (disks, boot, generations, config writes), Go for network, diagnostics and user-facing screens, shell for glue only. No new C#/.NET. See `docs/project-layout.md`.
+
 - All scripts use `set -euo pipefail` and locate the repo root via `CDPATH= cd -- "$(dirname -- "$0")/.." && pwd`.
 - The `out/` directory is generated — never commit files there.
 - `VERSION` file drives the version string used everywhere (build, ISO filename, release metadata).

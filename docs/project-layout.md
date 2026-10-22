@@ -24,8 +24,29 @@ Abora is six layers. Each lives in its own place, and a layer only calls the one
 | Installer | `scripts/install/` (the TUI, drawn with gum), `tools/abora-installer/` (launcher) | Shell, Rust | live boot, install, adopt an existing NixOS |
 | System config | `nix/` | Nix | the live ISO and the installed system |
 
-Shared code: `scripts/core/abora-ui.sh` for shell (UI, `abora_abt_prefix`), `scripts/support/abora_core.py`
-for Python (UI, redaction). Shell is glue; logic that needs data structures goes in Python.
+Shared code today: `scripts/core/abora-ui.sh` for shell (UI, `abora_abt_prefix`) and
+`scripts/support/abora_core.py` for Python (UI, redaction).
+
+### Languages
+
+Abora's tools are mostly shell and Python today. They are being split up by job, starting after 4.2:
+
+| Language | Job | Rule of thumb |
+| --- | --- | --- |
+| **Rust** | anything that can damage the system: the installer's partitioning engine, ABT, `anix`'s config editing | if a bug could brick or wipe a machine, Rust |
+| **Go** | anything that talks to the network or the user, and read-only diagnostics: the updater, the doctor's checks, the support report, plan validation, the installer's screens | otherwise, Go |
+| **Nix** | system config | |
+| **Shell** | glue only: wrappers at the old `/etc/abora/*.sh` paths, systemd units, one-line launchers | no logic, no data structures |
+| **Python** | the existing GTK apps, until they are ported | no new tools |
+
+Not used: C#/.NET (the two C# tools are replaced by Go), and Java/Kotlin (a JVM is too heavy for an installer or
+recovery tool). Zig and C++ are allowed only where a job clearly needs them (for example Pancake, the desktop
+environment planned for Abora). Isora is a separate project (a sandboxed language for game mods) and is not part of
+the system.
+
+Two constraints apply to every port. Systems already installed call tools by their old names (`/etc/abora/doctor.sh`,
+`anix.sh`, ...), so each port keeps a thin shell wrapper at the old path. And a compiled tool has to be built, not
+copied, so Abora needs a binary cache or users compile on `anix update`.
 
 ### Stable, new, and experimental
 
