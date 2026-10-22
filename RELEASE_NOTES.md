@@ -31,6 +31,9 @@ Released: **<RELEASE DATE>** · Tag: `v4.2` · Channel: `stable`
 - **ModuCPP, MAKO and the bundled Modularity are removed.** ANIX Native (`.anix` files) is the language ANIX
   ships. Software outside nixpkgs, Modularity included, installs from its GitHub flake with
   `anix package install github:owner/repo`; `abora apps custom` is gone.
+- **Two update channels.** `demo` and `dev` are gone; there is `stable` and `unstable`. A system still
+  saved on one of the old names follows `unstable` and says so. `anix channel set stable` for tagged releases.
+- **Less to keep.** The zenity dialogs, `anix ringtone` and the login sound, and unused images are removed.
 - **One installer.** The terminal installer, drawn with gum, is the only one. MINT and the GTK installer are
   removed, and the live ISO is an installer only, with no live desktop session.
 

@@ -536,9 +536,9 @@ channel_help_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-u
 
 channel_bad_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-update.sh channel nope 2>&1 || true)"
 
-if printf '%s' "$update_help_out" | grep -q 'abora channel set <stable|demo|unstable>' \
+if printf '%s' "$update_help_out" | grep -q 'abora channel set <stable|unstable>' \
   && printf '%s' "$update_help_out" | grep -q 'abora update --check' \
-  && printf '%s' "$channel_help_out" | grep -q 'sudo abora channel set <stable|demo|unstable>' \
+  && printf '%s' "$channel_help_out" | grep -q 'sudo abora channel set <stable|unstable>' \
   && ! printf '%s' "$channel_help_out" | grep -q 'Unknown channel subcommand' \
   && printf '%s' "$channel_bad_out" | grep -q 'Unknown channel subcommand: nope' \
   && ! printf '%s' "$channel_bad_out" | grep -q 'Update failed before completion' \
@@ -548,6 +548,31 @@ if printf '%s' "$update_help_out" | grep -q 'abora channel set <stable|demo|unst
 else
   fail "runtime: updater help is clean and Abora-first"
 fi
+
+# The demo and dev channels were removed in 4.2. A system whose saved channel is one of them follows unstable
+# (and says so), `channel set` refuses them, and the list shows only stable and unstable.
+tmp_chan="$(mktemp -d)"
+mkdir -p "$tmp_chan/abora"
+for old in demo dev; do
+  printf '%s\n' "$old" > "$tmp_chan/abora/channel"
+  _chan_show="$(ABORA_SYSTEM_CONFIG="$tmp_chan" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-update.sh channel 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
+  if grep -q 'Channel    unstable' <<<"$_chan_show" && grep -q "the '$old' update channel was removed" <<<"$_chan_show"; then
+    pass "runtime: a system saved on the '$old' channel follows unstable and is told so"
+  else
+    fail "runtime: a system saved on the '$old' channel follows unstable and is told so"
+    printf '%s\n' "$_chan_show" | sed 's/^/              /'
+  fi
+done
+_chan_list="$(ABORA_SYSTEM_CONFIG="$tmp_chan" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-update.sh channel list 2>&1)"
+_chan_set_rc=0
+_chan_set="$(ABORA_SYSTEM_CONFIG="$tmp_chan" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-update.sh channel set demo 2>&1)" || _chan_set_rc=$?
+if grep -q 'stable' <<<"$_chan_list" && grep -q 'unstable' <<<"$_chan_list" && ! grep -q 'demo' <<<"$_chan_list" \
+  && [[ "$_chan_set_rc" -ne 0 ]] && grep -q "channel was removed in Abora OS 4.2" <<<"$_chan_set"; then
+  pass "runtime: the channel list has only stable and unstable, and 'channel set demo' explains it's gone"
+else
+  fail "runtime: the channel list has only stable and unstable, and 'channel set demo' explains it's gone"
+fi
+rm -rf "$tmp_chan"
 
 # Regression test: a bare `abora update` (no extra arguments) -- the
 # primary, documented way to run an update ("Sync the latest Abora files

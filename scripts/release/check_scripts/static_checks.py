@@ -129,7 +129,7 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'resolve_helper abora-gaming.sh', 'scripts/abora.sh'),
         grep('-q', 'exec abora-update channel "$@"', 'scripts/abora.sh'),
         not_(grep('-q', 'ABORA_UPDATE_COMMAND=nixos abora-update channel', 'scripts/abora.sh')),
-        grep('-q', 'abora channel set <stable|demo|unstable>', 'scripts/abora-update.sh'),
+        grep('-q', 'abora channel set <stable|unstable>', 'scripts/abora-update.sh'),
     ),
     Check(
         'runtime: updater can fall back between edge and main branches',

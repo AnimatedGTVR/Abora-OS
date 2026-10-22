@@ -99,12 +99,11 @@ Switch channels:
 
 ```sh
 sudo abora channel set stable
-sudo abora channel set demo
 sudo abora channel set unstable
 ```
 
 - `stable` tracks the latest tagged Abora release
-- `demo` tracks tagged demo/dev builds for the installed release line
+- there used to be `demo` and `dev` channels; they were removed in 4.2, and a system still saved on one follows `unstable`
 - `unstable` tracks the `edge` branch and is the v4.2 Solstice alpha default
 
 Abora's development branch is `edge`. If an older config or test command asks

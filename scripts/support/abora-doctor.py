@@ -272,7 +272,12 @@ def check_channel() -> None:
     channel_file = config_dir / "abora" / "channel"
     if channel_file.is_file():
         channel = "".join(channel_file.read_text(encoding="utf-8").split())
-    if channel in ("stable", "demo", "dev", "unstable"):
+    if channel in ("demo", "dev"):
+        report("channel", "updates", "warn", f"Update channel '{channel}' was removed in 4.2",
+               "Systems still saved on it follow unstable. Pick one: stable (tagged releases) or unstable.",
+               Repair("channel-stable", "Set the update channel to stable", ["anix", "channel", "set", "stable"], root=True),
+               channel=channel)
+    elif channel in ("stable", "unstable"):
         report("channel", "updates", "ok", f"Update channel: {channel}", channel=channel)
     else:
         report("channel", "updates", "warn", f"Unknown update channel: {channel}",

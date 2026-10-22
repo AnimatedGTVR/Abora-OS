@@ -228,15 +228,28 @@ channel_file() {
     printf '%s/abora/channel' "$config_dir"
 }
 
+# The demo and dev channels (tagged pre-release builds) were removed in 4.2: there are two channels, stable
+# and unstable. A system whose saved channel is one of the old names follows unstable, the nearest thing
+# to "newest builds", and is told so on stderr (this runs inside command substitutions).
+normalize_channel() {
+    case "$1" in
+        demo|dev)
+            printf "abora: the '%s' update channel was removed in Abora OS 4.2; using 'unstable'. Run 'sudo abora channel set stable' for tagged releases only.\n" "$1" >&2
+            printf 'unstable'
+            ;;
+        *) printf '%s' "$1" ;;
+    esac
+}
+
 read_channel() {
     local cf
     if [[ -n "${ABORA_RELEASE_CHANNEL:-}" ]]; then
-        printf '%s' "$ABORA_RELEASE_CHANNEL"
+        normalize_channel "$ABORA_RELEASE_CHANNEL"
         return
     fi
     cf="$(channel_file)"
     if [[ -f "$cf" ]]; then
-        tr -d '[:space:]' < "$cf"
+        normalize_channel "$(tr -d '[:space:]' < "$cf")"
     else
         printf 'stable'
     fi
@@ -464,7 +477,7 @@ usage() {
     printf '  %babora channel list%b  /  %bnixos channel list%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  List all available channels."
     printf '\n'
-    printf '  %babora channel set <stable|demo|unstable>%b  /  %bnixos channel set <stable|demo|unstable>%b\n' \
+    printf '  %babora channel set <stable|unstable>%b  /  %bnixos channel set <stable|unstable>%b\n' \
         "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Switch to a different update channel."
     printf '\n'
@@ -606,9 +619,9 @@ handle_channel_command() {
             abora_dim_line "  Show the current update channel."
             printf '\n'
             printf '  %babora channel list%b\n' "$ABORA_CYAN" "$ABORA_NC"
-            abora_dim_line "  List stable, demo, and unstable channels."
+            abora_dim_line "  List the stable and unstable channels."
             printf '\n'
-            printf '  %bsudo abora channel set <stable|demo|unstable>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+            printf '  %bsudo abora channel set <stable|unstable>%b\n' "$ABORA_CYAN" "$ABORA_NC"
             abora_dim_line "  Save the selected update channel."
             printf '\n'
             ;;
@@ -623,9 +636,6 @@ handle_channel_command() {
                 unstable)
                     abora_dim_line "  Tracks the edge development branch. May include breaking changes."
                     ;;
-                demo|dev)
-                    abora_dim_line "  Tracks tagged demo/dev builds for the installed release line."
-                    ;;
             esac
             printf '\n'
             ;;
@@ -635,9 +645,8 @@ handle_channel_command() {
 
             abora_card_start "Available Channels"
 
-            local marker_stable="" marker_demo="" marker_unstable=""
+            local marker_stable="" marker_unstable=""
             [[ "$channel" == "stable" ]]   && marker_stable=" %b◀ current%b"
-            [[ "$channel" == "demo" || "$channel" == "dev" ]] && marker_demo=" %b◀ current%b"
             [[ "$channel" == "unstable" ]] && marker_unstable=" %b◀ current%b"
 
             printf '  %b│%b  %bstable%b' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
@@ -645,14 +654,6 @@ handle_channel_command() {
             [[ -n "$marker_stable" ]]   && printf "  $marker_stable" "$ABORA_GREEN" "$ABORA_NC"
             printf '\n'
             printf '  %b│%b  %bLatest tagged Abora releases. Recommended for most users.%b\n' \
-                "$ABORA_BLUE" "$ABORA_NC" "$ABORA_DIM" "$ABORA_NC"
-            printf '\n'
-
-            printf '  %b│%b  %bdemo%b' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
-            # shellcheck disable=SC2059
-            [[ -n "$marker_demo" ]] && printf "  $marker_demo" "$ABORA_GREEN" "$ABORA_NC"
-            printf '\n'
-            printf '  %b│%b  %bTagged demo/dev builds for the installed release line.%b\n' \
                 "$ABORA_BLUE" "$ABORA_NC" "$ABORA_DIM" "$ABORA_NC"
             printf '\n'
 
@@ -671,7 +672,11 @@ handle_channel_command() {
         set)
             local new_channel="${2:-}"
             case "$new_channel" in
-                stable | demo | dev | unstable)
+                demo | dev)
+                    abora_error "The '${new_channel}' channel was removed in Abora OS 4.2. Use 'stable' or 'unstable'."
+                    exit 1
+                    ;;
+                stable | unstable)
                     run_as_root env \
                         ABORA_SYSTEM_CONFIG="$config_dir" \
                         bash -c '
@@ -684,11 +689,11 @@ handle_channel_command() {
                     printf '\n'
                     ;;
                 "")
-                    abora_error "Specify a channel: stable, demo, or unstable"
+                    abora_error "Specify a channel: stable or unstable"
                     exit 1
                     ;;
                 *)
-                    abora_error "Unknown channel: ${new_channel}. Use 'stable', 'demo', or 'unstable'."
+                    abora_error "Unknown channel: ${new_channel}. Use 'stable' or 'unstable'."
                     exit 1
                     ;;
             esac
