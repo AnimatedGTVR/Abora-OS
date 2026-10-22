@@ -14,8 +14,6 @@
         anix = final.callPackage ./nix/pkgs/anix.nix {};
         scenefx-0_5 = final.callPackage ./nix/pkgs/scenefx-0_5.nix {};
         mango = final.callPackage ./nix/pkgs/mango.nix {};
-        modularity = final.callPackage ./nix/pkgs/modularity.nix {};
-        moducpp-anix = final.callPackage ./nix/pkgs/moducpp-anix.nix {};
         abora-update-resolver = final.callPackage ./nix/pkgs/abora-update-resolver.nix {};
         vanta = final.callPackage ./nix/pkgs/vanta.nix {};
         abora-update = final.callPackage ./nix/pkgs/abora-update.nix {};
@@ -31,7 +29,6 @@
 
         config.allowUnfreePredicate = pkg:
           builtins.elem (nixpkgs.lib.getName pkg) [
-            "modularity"
             "steam"
             "steam-original"
             "steam-run"
@@ -53,8 +50,7 @@
 
               config.allowUnfreePredicate = pkg:
                 builtins.elem (nixpkgs.lib.getName pkg) [
-                  "modularity"
-                  "steam"
+                        "steam"
                   "steam-original"
                   "steam-run"
                   "steam-unwrapped"
@@ -94,8 +90,6 @@
         iso-other = self.nixosConfigurations.abora-live-other.config.system.build.isoImage;
 
         mango = pkgs.mango;
-        modularity = pkgs.modularity;
-        moducpp-anix = pkgs.moducpp-anix;
         abora-desktop-preview = pkgs.abora-desktop-preview;
         abora-hardware-test = pkgs.abora-hardware-test;
         abora-installer = pkgs.abora-installer;

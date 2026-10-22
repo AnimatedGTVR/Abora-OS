@@ -5,8 +5,6 @@ nix/modules/anix.nix
 nix/modules/desktops
 nix/pkgs/mango.nix
 nix/pkgs/scenefx-0_5.nix
-nix/pkgs/modularity.nix
-nix/pkgs/moducpp-anix.nix
 nix/pkgs/abora-update-resolver.nix
 nix/pkgs/abora-update-resolver-deps.json
 nix/pkgs/vanta.nix
@@ -45,7 +43,6 @@ scripts/abora-setup-launcher.sh
 docs/wiki/Abora-Gaming.md
 docs/wiki/ANIX-V2-Languages.md
 docs/wiki/Updating-Abora.md
-tools/moducpp-anix
 tools/abora-update-resolver/AboraUpdateResolver.csproj
 tools/abora-update-resolver/Program.cs
 tools/abora-update/main.vanta
@@ -67,6 +64,5 @@ assets/Effects/LaunchingAbora.mp3
 assets/wallpapers/collection
 assets/wallpapers/collection/aurora-lofoten.jpg
 assets/wallpaper-themes
-vendor/modularity
 scripts/support/abora_core.py
 scripts/safety/abora-abt.py

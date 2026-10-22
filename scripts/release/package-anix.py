@@ -98,8 +98,7 @@ This installs:
 - `bin/anix`
 - `share/anix/anix-module.nix`
 - bundled docs
-- bundled ANIX v2 language manifests
-- bundled ModuCPP ANIX adapter helper
+- bundled ANIX v2 language adapter directory
 
 Packages: `anix package install <pkg>` installs from nixpkgs without a
 rebuild; see `share/anix/docs/wiki/Packages.md`.
@@ -161,10 +160,6 @@ def main() -> int:
     languages = repo / "assets/anix-languages"
     if languages.is_dir():
         entries += tree_entries(languages, f"{share}/languages")
-
-    moducpp = repo / "tools/moducpp-anix"
-    if moducpp.is_file():
-        entries.append(Entry(f"{share}/tools/moducpp-anix", moducpp, 0o755))
 
     wallpapers = repo / "assets/wallpapers/collection"
     if wallpapers.is_dir():

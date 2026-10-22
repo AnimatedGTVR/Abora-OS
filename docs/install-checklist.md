@@ -86,9 +86,9 @@ Use [Bug Report Template](bug-report-template.md) for full reports.
 
 ## ANIX Languages
 
-- `anix language list` shows ANIX Native and ModuCPP
+- `anix language list` shows ANIX Native (and no ModuCPP or MAKO)
 - `anix run examples/anix-v2/simple.anix --yes` works in a test config
-- `anix diff-plan examples/anix-v2/workstation.moducpp` resolves through `moducpp-anix`
+- `anix diff-plan examples/anix-v2/workstation.anix` previews the plan
 
 ## Installed System
 

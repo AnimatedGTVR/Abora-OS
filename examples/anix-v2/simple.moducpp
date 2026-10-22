@@ -1,8 +1,0 @@
-add ANIX;
-
-int main() {
-    ANIX::Plan plan;
-    plan.Set("hostname", "everest");
-    plan.Finish();
-    return 0;
-}

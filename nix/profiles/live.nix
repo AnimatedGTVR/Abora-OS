@@ -475,7 +475,6 @@ in
     fbv         # real framebuffer PNG splash before the TTY installer
     htop
     jq          # ANIX v2 plan validation/execution (anix run/validate-plan/apply-plan)
-    moducpp-anix # ANIX v2 ModuCPP frontend — standalone, no Modularity checkout needed; bundles its own C++ compiler
     newt        # provides nmtui for Wi-Fi setup
     libsForQt5.qt5ct
     qt6Packages.qt6ct
@@ -694,22 +693,15 @@ in
       "abora/installed-base.nix".source = ../modules/installed-base.nix;
       "abora/pkgs/mango.nix".source = ../pkgs/mango.nix;
       "abora/pkgs/scenefx-0_5.nix".source = ../pkgs/scenefx-0_5.nix;
-      "abora/pkgs/modularity.nix".source = ../pkgs/modularity.nix;
-      "abora/pkgs/moducpp-anix.nix".source = ../pkgs/moducpp-anix.nix;
       "abora/pkgs/abora-update-resolver.nix".source = ../pkgs/abora-update-resolver.nix;
       "abora/pkgs/abora-update-resolver-deps.json".source = ../pkgs/abora-update-resolver-deps.json;
       "abora/pkgs/vanta.nix".source = ../pkgs/vanta.nix;
       "abora/pkgs/abora-update.nix".source = ../pkgs/abora-update.nix;
       "abora/pkgs/abora-plan-tool.nix".source = ../pkgs/abora-plan-tool.nix;
       "abora/pkgs/abora-plan-tool-deps.json".source = ../pkgs/abora-plan-tool-deps.json;
-      "abora/tools/moducpp-anix" = {
-        source = ../../tools/moducpp-anix;
-        mode = "0755";
-      };
       "abora/update-resolver".source = ../../tools/abora-update-resolver;
       "abora/abora-update".source = ../../tools/abora-update;
       "abora/plan-tool".source = ../../tools/abora-plan-tool;
-      "abora/vendor/modularity".source = ../../vendor/modularity;
       "abora/docs".source = ../../docs;
       "abora/anix-languages".source = ../../assets/anix-languages;
       "anix/languages".source = ../../assets/anix-languages;

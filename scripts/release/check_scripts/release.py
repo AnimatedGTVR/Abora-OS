@@ -47,19 +47,18 @@ def release_files(ctx: Context) -> None:
         ctx.detail("\n".join(f"missing, and 4.1 systems would refuse to update: {path}" for path in gone))
 
     ctx.result(manifest_ok and Check(
-        "runtime: release manifest includes ANIX adapters, Modularity skeleton, and gaming layer",
+        "runtime: release manifest includes the ANIX adapter directory and gaming layer",
         *(grep("-q", f"^{path}$", REQUIRED_PATHS) for path in (
-            "assets/anix-languages", "nix/pkgs/moducpp-anix.nix", "tools/moducpp-anix", "scripts/abora-build.sh",
+            "assets/anix-languages", "scripts/abora-build.sh",
             "scripts/abora-adopt-nixos.sh", "scripts/abora-gaming.sh", "scripts/abora-custom-packages.sh",
             "assets/Abora-LOGO.png", "assets/Abora-Text.png", "docs/wiki/Abora-Gaming.md",
-            "docs/wiki/ANIX-V2-Languages.md", "docs/wiki/Updating-Abora.md", "vendor/modularity",
+            "docs/wiki/ANIX-V2-Languages.md", "docs/wiki/Updating-Abora.md",
         )),
         *(test("-f", path) for path in (
-            "assets/anix-languages/moducpp.json", "nix/pkgs/moducpp-anix.nix",
-            "tools/moducpp-anix", "vendor/modularity/README.md", "assets/Abora-LOGO.png", "assets/Abora-Text.png",
+            "assets/anix-languages/README.md", "assets/Abora-LOGO.png", "assets/Abora-Text.png",
             "scripts/abora-gaming.sh", "docs/wiki/Abora-Gaming.md",
         )),
-    ).conditions_hold(ctx), "runtime: release manifest includes ANIX adapters, Modularity skeleton, and gaming layer")
+    ).conditions_hold(ctx), "runtime: release manifest includes the ANIX adapter directory and gaming layer")
 
 
 def packages_and_metadata(ctx: Context, tag: str) -> None:
@@ -75,9 +74,7 @@ def packages_and_metadata(ctx: Context, tag: str) -> None:
         if packages:
             with tarfile.open(packages[0]) as archive:
                 listing.write_text("".join(f"{member.name}{'/' if member.isdir() else ''}\n" for member in archive.getmembers()))
-        ctx.result(bool(packages) and not ctx.grep("-q", "anix/share/anix/languages/mako.json", str(listing)) and all(ctx.grep("-q", entry, str(listing)) for entry in (
-            "anix/share/anix/languages/moducpp.json",
-            "anix/share/anix/tools/moducpp-anix",
+        ctx.result(bool(packages) and not ctx.grep("-q", "anix/share/anix/languages/moducpp.json", str(listing)) and not ctx.grep("-q", "anix/share/anix/tools/moducpp-anix", str(listing)) and all(ctx.grep("-q", entry, str(listing)) for entry in (
             "anix/share/anix/docs/wiki/ANIX-V2-Languages.md",
             "anix/share/anix/docs/wiki/Abora-Gaming.md",
         )), name)

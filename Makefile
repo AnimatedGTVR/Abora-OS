@@ -119,30 +119,3 @@ check-all:
 preflight:
 	./scripts/preflight.py
 
-MODULARITY_VERSION ?= 7.0.0
-MODULARITY_ZIP_ROOT ?= Modularity-$(MODULARITY_VERSION)-Linux
-
-setup-modularity:
-	@[ -n "$(ZIP)" ] || { echo "Usage: make setup-modularity ZIP=/path/to/Modularity-$(MODULARITY_VERSION)-Linux.zip"; exit 1; }
-	@echo "Extracting Modularity V$(MODULARITY_VERSION) from $(ZIP)..."
-	@tmp="$$(mktemp -d)"; \
-	trap 'rm -rf "$$tmp"' EXIT; \
-	unzip -q "$(ZIP)" -d "$$tmp"; \
-	root="$$tmp/$(MODULARITY_ZIP_ROOT)"; \
-	if [ ! -d "$$root" ]; then \
-		root="$$(find "$$tmp" -mindepth 1 -maxdepth 1 -type d -iname 'Modularity*Linux*' | head -n 1)"; \
-	fi; \
-	[ -n "$$root" ] && [ -d "$$root" ] || { echo "Could not find Modularity Linux folder inside $(ZIP)"; exit 1; }; \
-	[ -x "$$root/bin/Modularity" ] || { echo "Missing executable: $$root/bin/Modularity"; exit 1; }; \
-	rm -rf vendor/modularity/bin vendor/modularity/lib; \
-	mkdir -p vendor/modularity/bin vendor/modularity/lib vendor/modularity/share/modularity; \
-	install -m 0755 "$$root/bin/Modularity" vendor/modularity/bin/Modularity; \
-	lib_dir="$$root/bin/linux.x86_64/release"; \
-	if [ -d "$$lib_dir" ]; then \
-		find "$$lib_dir" -maxdepth 1 -type f -name '*.so*' -exec cp {} vendor/modularity/lib/ \;; \
-	fi; \
-	if [ -d "$$root/share/modularity/Resources" ]; then \
-		rm -rf vendor/modularity/share/modularity/Resources; \
-		cp -R "$$root/share/modularity/Resources" vendor/modularity/share/modularity/Resources; \
-	fi
-	@echo "Modularity V$(MODULARITY_VERSION) ready at vendor/modularity/"

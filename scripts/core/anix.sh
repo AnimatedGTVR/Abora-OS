@@ -358,9 +358,8 @@ validate_profile_name() {
 }
 
 # "nix" is the only profile family today, but the family/profile split
-# (`anix switch nix <profile>`) exists so non-Nix flake families (MKO,
-# ModuCPP — see ANIX v2's language list) can be added later without changing
-# the CLI shape.
+# (`anix switch nix <profile>`) exists so other flake families can be added
+# later without changing the CLI shape.
 profile_target() {
     local family="$1"
     local profile="${2:-}"
@@ -1156,6 +1155,7 @@ Usage:
   anix package add <pkg>          declare it in anix.nix (arrives with anix apply)
   anix package remove <pkg>       take it out of anix.nix
   anix package install <pkg>...   install it now, no config edit or rebuild
+                                  (also github:owner/repo for a program that lives in a GitHub flake)
   anix package uninstall <pkg>... remove a package installed that way
   anix package list               show declared and installed packages
   anix package search <word>...   search the system's nixpkgs
@@ -1453,6 +1453,31 @@ validate_package_name() {
     fi
 }
 
+# A program that lives in a GitHub (or GitLab/SourceHut/git) flake instead of nixpkgs:
+# `anix package install github:owner/repo` or `github:owner/repo#attribute`. Only these schemes, and
+# only characters a flake ref needs, so a name can never be read by nix as an option or by the shell.
+# This is how software outside nixpkgs (Modularity, since 4.2) installs; the flake is fetched and
+# built by nix like any other, and what it builds is the author's code, so install only flakes
+# you trust.
+is_flake_ref() {
+    [[ "$1" =~ ^(github|gitlab|sourcehut|git\+https|git\+ssh):[A-Za-z0-9._/+@:#?=\&~-]+$ && "$1" != *..* ]]
+}
+
+# The name `nix profile` will list it under: the repository, or the #attribute when there is one.
+flake_ref_name() {
+    local ref="$1" name=""
+    if [[ "$ref" == *"#"* ]]; then
+        name="${ref##*#}"
+    else
+        ref="${ref%%\?*}"
+        case "$ref" in
+            github:*|gitlab:*|sourcehut:*) name="$(cut -d/ -f2 <<<"${ref#*:}")" ;;
+            *) name="${ref##*/}"; name="${name%.git}" ;;
+        esac
+    fi
+    printf '%s' "${name:-$1}"
+}
+
 declared_packages() {
     [[ -f "$anix_file" ]] || return 0
     sed -nE 's|^[[:space:]]*anix\.packages[[:space:]]*=[[:space:]]*with pkgs; \[(.*)\];.*|\1|p' "$anix_file" \
@@ -1545,18 +1570,28 @@ do_package_install() {
     require_command "$nix_bin"
     resolve_nixpkgs_args
     verb="$(nix_profile_add_verb)"
+    local installable="" name=""
     for pkg in "$@"; do
-        validate_package_name "$pkg"
-        if package_in_profile "$pkg"; then
-            abora_warn "${pkg} is already installed. Update it with: anix package upgrade"
+        if is_flake_ref "$pkg"; then
+            installable="$pkg"
+            name="$(flake_ref_name "$pkg")"
+            abora_step "Installing ${name} from ${pkg}"
+            abora_dim_line "This builds the flake's own code. Install flakes you trust."
+        else
+            validate_package_name "$pkg"
+            installable="nixpkgs#${pkg}"
+            name="$pkg"
+        fi
+        if package_in_profile "$name"; then
+            abora_warn "${name} is already installed. Update it with: anix package upgrade"
             continue
         fi
-        if declared_packages | grep -Fxq -- "$pkg"; then
-            abora_dim_line "${pkg} is also in anix.packages; installing a second copy for this user."
+        if declared_packages | grep -Fxq -- "$name"; then
+            abora_dim_line "${name} is also in anix.packages; installing a second copy for this user."
         fi
-        abora_step "Installing ${pkg} from the system's nixpkgs"
-        run_nix_package_command profile "$verb" "${nixpkgs_args[@]}" "nixpkgs#${pkg}" || exit 1
-        abora_success "Installed ${pkg}. It's ready now, no rebuild needed."
+        [[ "$installable" == nixpkgs#* ]] && abora_step "Installing ${name} from the system's nixpkgs"
+        run_nix_package_command profile "$verb" "${nixpkgs_args[@]}" "$installable" || exit 1
+        abora_success "Installed ${name}. It's ready now, no rebuild needed."
     done
     abora_dim_line "Keep it in your system config too: anix package keep <pkg>"
     printf '\n'
@@ -1636,15 +1671,20 @@ do_package_try() {
     local pkg="${1:-}"
     [[ -n "$pkg" ]] || { abora_error "Usage: anix package try <pkg> [-- command...]"; exit 1; }
     shift
-    validate_package_name "$pkg"
+    local installable="nixpkgs#${pkg}"
+    if is_flake_ref "$pkg"; then
+        installable="$pkg"
+    else
+        validate_package_name "$pkg"
+    fi
     require_command "$nix_bin"
     resolve_nixpkgs_args
     [[ "${1:-}" == "--" ]] && shift
     if [[ $# -gt 0 ]]; then
-        exec "$nix_bin" shell "${nixpkgs_args[@]}" "nixpkgs#${pkg}" --command "$@"
+        exec "$nix_bin" shell "${nixpkgs_args[@]}" "$installable" --command "$@"
     fi
     abora_dim_line "Starting a shell with ${pkg}. Type 'exit' to leave; nothing stays installed."
-    exec "$nix_bin" shell "${nixpkgs_args[@]}" "nixpkgs#${pkg}"
+    exec "$nix_bin" shell "${nixpkgs_args[@]}" "$installable"
 }
 
 # Moves a one-off install into anix.packages, so it survives a reinstall
@@ -3498,10 +3538,10 @@ usage() {
     abora_dim_line "  Rebuild the system using the ANIX layer."
     printf '\n'
     printf '  %banix language list%b / %banix language use <id>%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
-    abora_dim_line "  See or choose the default frontend for 'anix run' (anix, moducpp, ...)."
+    abora_dim_line "  See or choose the default frontend for 'anix run' (anix, or a custom adapter)."
     printf '\n'
     printf '  %banix run <file> [--language <id>] [--yes]%b\n' "$ABORA_CYAN" "$ABORA_NC"
-    abora_dim_line "  Turn a .anix/.moducpp file into a Plan and apply it as one transaction."
+    abora_dim_line "  Turn a .anix file into a Plan and apply it as one transaction."
     printf '\n'
     printf '  %banix validate-plan <plan.json>%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Check a Plan JSON file without touching system state."
@@ -3578,8 +3618,8 @@ do_learn() {
     printf '\n'
 
     abora_card_start "ANIX v2 Languages"
-    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix language list" "$ABORA_NC" "show .anix, ModuCPP, and custom adapters"
-    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix run workstation.moducpp" "$ABORA_NC" "run a frontend file as one ANIX transaction"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix language list" "$ABORA_NC" "show .anix and any custom adapters"
+    printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix run workstation.anix" "$ABORA_NC" "run a .anix file as one ANIX transaction"
     printf '  %b│%b  %b%-40s%b %s\n' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "anix diff-plan plan.json" "$ABORA_NC" "preview a plan before applying it"
     abora_card_end
     printf '\n'

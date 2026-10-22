@@ -82,8 +82,6 @@ let
   desktopProfilesScript = ./desktop-profiles.sh;
   mangoConfigFile      = ./mango/config.conf;
   mangoConfigText      = builtins.readFile mangoConfigFile;
-  moducppAnixTool      = ./tools/moducpp-anix;
-  modularitySrc        = ./vendor/modularity;
   installerScript      = ./installer.sh;
   setupLauncherScript  = ./setup-launcher.sh;
   setupDesktopFile     = ./setup.desktop;
@@ -390,10 +388,6 @@ in
     (final: prev: {
       scenefx-0_5 = final.callPackage ./pkgs/scenefx-0_5.nix {};
       mango = final.callPackage ./pkgs/mango.nix {};
-      modularity = final.callPackage ./pkgs/modularity.nix { inherit modularitySrc; };
-      moducpp-anix = final.callPackage ./pkgs/moducpp-anix.nix {
-        moducppAnixSrc = moducppAnixTool;
-      };
     }
     // lib.optionalAttrs (updateResolverDir != null) {
       abora-update-resolver = final.callPackage ./pkgs/abora-update-resolver.nix {
@@ -592,7 +586,6 @@ in
     iw
     jq
     libnotify
-    moducpp-anix
     kdePackages.konsole
     linux-firmware
     nixosCommand
@@ -790,7 +783,6 @@ in
       };
       "abora/mango/config.conf".source = mangoConfigFile;
       "mango/config.conf".text = lib.mkDefault mangoConfigText;
-      "abora/vendor/modularity".source = modularitySrc;
       # Keep the build-time nixpkgs source available for recovery/debug tools.
       "abora/nixpkgs".source = pkgs.path;
       "abora/installer.sh" = {

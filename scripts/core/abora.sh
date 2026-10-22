@@ -68,8 +68,7 @@ Change the system:
 Apps and extras:
   abora apps catalog                  see app bundles
   sudo abora apps bundle gaming       install a curated app bundle
-  abora apps custom list              list standalone custom packages
-  sudo abora apps custom update modularity-stable --zip ~/Downloads/Modularity.zip
+  anix package install <package>      install any nixpkgs package right away
   abora labs status                    inspect the opt-in experimental workspace
 
 Gaming:
@@ -123,7 +122,6 @@ Abora commands:
   abora gaming          gaming layer status and Steam Big Picture helper
   abora labs            opt-in Abora Labs experimental workspace manager
   abora apps            install curated apps
-  abora apps custom     update standalone custom packages
   abora config          view or edit installed-system settings
   abora config-gui      graphical settings editor
   abora update          update Abora

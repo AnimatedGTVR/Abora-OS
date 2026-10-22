@@ -1430,15 +1430,12 @@ check_install_environment() {
         /etc/abora/mango/config.conf
         /etc/abora/pkgs/mango.nix
         /etc/abora/pkgs/scenefx-0_5.nix
-        /etc/abora/pkgs/modularity.nix
-        /etc/abora/pkgs/moducpp-anix.nix
         /etc/abora/pkgs/abora-update-resolver.nix
         /etc/abora/pkgs/abora-update-resolver-deps.json
         /etc/abora/pkgs/vanta.nix
         /etc/abora/pkgs/abora-update.nix
         /etc/abora/pkgs/abora-plan-tool.nix
         /etc/abora/pkgs/abora-plan-tool-deps.json
-        /etc/abora/tools/moducpp-anix
         /etc/abora/target-flake.lock
         /etc/abora/installed-base.nix
         /etc/abora/abora-options.nix
@@ -1449,7 +1446,6 @@ check_install_environment() {
         /etc/abora/abora-update/main.vanta
         /etc/abora/plan-tool/AboraPlanTool.csproj
         /etc/abora/plan-tool/Program.cs
-        /etc/abora/vendor/modularity
         /etc/abora/installer.sh
         /etc/abora/setup-launcher.sh
         /etc/abora/setup.desktop
@@ -2725,8 +2721,6 @@ write_branding_assets() {
     install_mango_config_asset "$root"
     cp_required /etc/abora/pkgs/mango.nix          "${root}/etc/nixos/abora/pkgs/mango.nix"
     cp_required /etc/abora/pkgs/scenefx-0_5.nix    "${root}/etc/nixos/abora/pkgs/scenefx-0_5.nix"
-    cp_required /etc/abora/pkgs/modularity.nix     "${root}/etc/nixos/abora/pkgs/modularity.nix"
-    cp_required /etc/abora/pkgs/moducpp-anix.nix   "${root}/etc/nixos/abora/pkgs/moducpp-anix.nix"
     cp_required /etc/abora/pkgs/abora-update-resolver.nix "${root}/etc/nixos/abora/pkgs/abora-update-resolver.nix"
     cp_required /etc/abora/pkgs/abora-update-resolver-deps.json "${root}/etc/nixos/abora/pkgs/abora-update-resolver-deps.json"
     cp_required /etc/abora/pkgs/vanta.nix "${root}/etc/nixos/abora/pkgs/vanta.nix"
@@ -2734,10 +2728,8 @@ write_branding_assets() {
     cp_required /etc/abora/pkgs/abora-plan-tool.nix "${root}/etc/nixos/abora/pkgs/abora-plan-tool.nix"
     cp_required /etc/abora/pkgs/abora-plan-tool-deps.json "${root}/etc/nixos/abora/pkgs/abora-plan-tool-deps.json"
     cp_required /etc/abora/target-flake.lock "${root}/etc/nixos/abora/target-flake.lock"
-    cp_required /etc/abora/tools/moducpp-anix      "${root}/etc/nixos/abora/tools/moducpp-anix"
     cp_required /etc/abora/anix-module.nix         "${root}/etc/nixos/abora/anix-module.nix"
     cp_required /etc/abora/abora-options.nix       "${root}/etc/nixos/abora/abora-options.nix"
-    cp -a /etc/abora/vendor/modularity "${root}/etc/nixos/abora/vendor/modularity"
 
     [[ -f /etc/abora/anix.sh           ]] && cp /etc/abora/anix.sh            "${root}/etc/nixos/abora/anix.sh"
     if [[ -f /etc/abora/effects/v3StartingAbora.mp3 ]]; then

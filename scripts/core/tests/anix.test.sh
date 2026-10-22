@@ -615,7 +615,8 @@ tmp_installed_anix_lang="$tmp_ok/installed-anix-languages"
 mkdir -p "$tmp_installed_anix_lang/etc/nixos/abora/anix-languages" \
          "$tmp_installed_anix_lang/etc/anix"
 
-cp assets/anix-languages/*.json "$tmp_installed_anix_lang/etc/nixos/abora/anix-languages/"
+# Abora ships no adapter manifests (ModuCPP and MAKO were removed in 4.2): copy whatever the directory holds.
+find assets/anix-languages -name '*.json' -exec cp {} "$tmp_installed_anix_lang/etc/nixos/abora/anix-languages/" \;
 
 ln -s "$tmp_installed_anix_lang/etc/nixos/abora/anix-languages" \
       "$tmp_installed_anix_lang/etc/anix/languages"
@@ -629,19 +630,167 @@ installed_anix_language_list_output="$(
 )"
 
 if ! printf '%s' "$installed_anix_language_list_output" | grep -q "MAKO" \
-  && printf '%s' "$installed_anix_language_list_output" | grep -q "ModuCPP" \
+  && ! printf '%s' "$installed_anix_language_list_output" | grep -q "ModuCPP" \
+  && printf '%s' "$installed_anix_language_list_output" | grep -q "ANIX Native" \
   && grep -q 'builtins.pathExists ./anix-languages' nix/modules/installed-base.nix \
   && grep -q '"anix/languages".source = anixLanguagesDir' nix/modules/installed-base.nix; then
-  pass "runtime: installed systems expose real ANIX language adapters"
+  pass "runtime: installed systems expose ANIX Native and no removed adapters"
 else
-  fail "runtime: installed systems expose real ANIX language adapters"
+  fail "runtime: installed systems expose ANIX Native and no removed adapters"
 fi
 
 # ── ANIX v2 end-to-end: real example files through real adapters ───────────
 # Each example is run through the actual `anix run`, with the real adapter
 # manifests in assets/anix-languages, against an isolated config dir. This
-# exercises the whole path (adapter resolution -> real moducpp-anix
-# process -> plan validation -> transactional write), not just the plan
+# exercises the whole path (language resolution -> plan validation ->
+# transactional write), not just the plan
+# engine in isolation like the tests above. Skips per-frontend when the
+# frontend's own tool isn't installed, matching the existing `command -v
+# nix` skip pattern, rather than failing the whole suite on a missing dev
+# tool that isn't part of this repo.
+
+
+anix_e2e_run() {
+  local example="$1" config_dir="$2"
+  ANIX_NO_SUDO=1 \
+    ANIX_ASSUME_YES=1 \
+    ANIX_SYSTEM_CONFIG="$config_dir" \
+    ANIX_SYSTEM_LANGUAGE_DIR="$repo_dir/assets/anix-languages" \
+    ANIX_USER_LANGUAGE_DIR="$tmp_empty/no-user-languages" \
+    ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+    scripts/anix.sh run "$example" --yes >/dev/null 2>&1
+}
+
+if [[ -n "$plan_tool_bin" ]]; then
+export ABORA_PLAN_TOOL_BIN="$plan_tool_bin"
+tmp_anix_e2e_anix="$tmp_ok/anix-e2e-anix"
+mkdir -p "$tmp_anix_e2e_anix"
+anix_e2e_run "examples/anix-v2/simple.anix" "$tmp_anix_e2e_anix" || true
+if grep -Eq 'anix\.hostname[[:space:]]*=[[:space:]]*"everest"' "$tmp_anix_e2e_anix/anix.nix" 2>/dev/null; then
+  pass "runtime: e2e .anix simple example applies through anix run"
+else
+  fail "runtime: e2e .anix simple example applies through anix run"
+fi
+
+# do_set only bans '"', '\', and '${' for timezone/keyboard.xkb/gc.days/
+# gc.dates -- a systemd OnCalendar-style gc.dates value like "Sun 03:00:00"
+# is legal there and via a JSON Plan's "value" field, but
+# NativePlanBuilder's `set` used to require exactly 3 whitespace-split
+# tokens, silently truncating/rejecting any value containing a space.
+tmp_anix_e2e_spaced_value="$tmp_ok/anix-e2e-spaced-value"
+
+mkdir -p "$tmp_anix_e2e_spaced_value"
+
+printf 'set gc.dates Sun 03:00:00\n' > "$tmp_anix_e2e_spaced_value/plan.anix"
+
+anix_e2e_run "$tmp_anix_e2e_spaced_value/plan.anix" "$tmp_anix_e2e_spaced_value" || true
+
+if grep -Eq 'anix\.garbageCollect\.dates[[:space:]]*=[[:space:]]*"Sun 03:00:00"' "$tmp_anix_e2e_spaced_value/anix.nix" 2>/dev/null; then
+  pass "runtime: native .anix 'set' preserves a space-containing value"
+else
+  fail "runtime: native .anix 'set' preserves a space-containing value"
+fi
+
+tmp_anix_e2e_anix_ws="$tmp_ok/anix-e2e-anix-workstation"
+
+mkdir -p "$tmp_anix_e2e_anix_ws"
+
+anix_e2e_run "examples/anix-v2/workstation.anix" "$tmp_anix_e2e_anix_ws" || true
+
+if grep -Eq 'anix\.hostname[[:space:]]*=[[:space:]]*"everest-workstation"' "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.services\.bluetooth[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.gaming\.enable[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.gaming\.bigPictureShortcut[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null \
+  && grep -q "firefox" "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null \
+  && grep -q "git" "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null; then
+  pass "runtime: e2e .anix workstation example applies through anix run"
+else
+  fail "runtime: e2e .anix workstation example applies through anix run"
+fi
+
+unset ABORA_PLAN_TOOL_BIN
+
+else
+
+  pass "runtime: anix plan-JSON tests skipped (dotnet unavailable)"
+
+fi
+
+tmp_anix_lang_dir="$tmp_ok/anix-language"
+
+tmp_anix_lang_adapters="$tmp_ok/anix-language-adapters"
+
+mkdir -p "$tmp_anix_lang_dir" "$tmp_anix_lang_adapters"
+
+printf '%s\n' \
+  '{' \
+  '  "id": "stub",' \
+  '  "name": "Stub",' \
+  '  "extensions": [".stub"],' \
+  '  "command": ["cat"],' \
+  '  "planVersion": 1' \
+  '}' > "$tmp_anix_lang_adapters/stub.json"
+
+anix_language_list_output="$(
+  ANIX_SYSTEM_CONFIG="$tmp_anix_lang_dir" \
+    ANIX_SYSTEM_LANGUAGE_DIR="$tmp_anix_lang_adapters" \
+    ANIX_USER_LANGUAGE_DIR="$tmp_empty/no-user-languages" \
+    ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+    scripts/anix.sh language list 2>&1
+)"
+
+if printf '%s' "$anix_language_list_output" | grep -q "Stub"; then
+  pass "runtime: anix language list shows an installed adapter manifest"
+else
+  fail "runtime: anix language list shows an installed adapter manifest"
+fi
+
+if ANIX_SYSTEM_CONFIG="$tmp_anix_lang_dir" \
+  ANIX_SYSTEM_LANGUAGE_DIR="$tmp_anix_lang_adapters" \
+  ANIX_USER_LANGUAGE_DIR="$tmp_empty/no-user-languages" \
+  ANIX_NO_SUDO=1 \
+  ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+  scripts/anix.sh language use stub >/dev/null 2>&1 \
+  && grep -q "language=stub" "$tmp_anix_lang_dir/.anix/config" 2>/dev/null; then
+  pass "runtime: anix language use persists the default frontend"
+else
+  fail "runtime: anix language use persists the default frontend"
+fi
+
+tmp_installed_anix_lang="$tmp_ok/installed-anix-languages"
+
+mkdir -p "$tmp_installed_anix_lang/etc/nixos/abora/anix-languages" \
+         "$tmp_installed_anix_lang/etc/anix"
+
+# Abora ships no adapter manifests (ModuCPP and MAKO were removed in 4.2): copy whatever the directory holds.
+find assets/anix-languages -name '*.json' -exec cp {} "$tmp_installed_anix_lang/etc/nixos/abora/anix-languages/" \;
+
+ln -s "$tmp_installed_anix_lang/etc/nixos/abora/anix-languages" \
+      "$tmp_installed_anix_lang/etc/anix/languages"
+
+installed_anix_language_list_output="$(
+  ANIX_SYSTEM_CONFIG="$tmp_installed_anix_lang/etc/nixos" \
+    ANIX_SYSTEM_LANGUAGE_DIR="$tmp_installed_anix_lang/etc/anix/languages" \
+    ANIX_USER_LANGUAGE_DIR="$tmp_empty/no-user-languages" \
+    ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+    scripts/anix.sh language list 2>&1
+)"
+
+if ! printf '%s' "$installed_anix_language_list_output" | grep -q "MAKO" \
+  && ! printf '%s' "$installed_anix_language_list_output" | grep -q "ModuCPP" \
+  && printf '%s' "$installed_anix_language_list_output" | grep -q "ANIX Native" \
+  && grep -q 'builtins.pathExists ./anix-languages' nix/modules/installed-base.nix \
+  && grep -q '"anix/languages".source = anixLanguagesDir' nix/modules/installed-base.nix; then
+  pass "runtime: installed systems expose ANIX Native and no removed adapters"
+else
+  fail "runtime: installed systems expose ANIX Native and no removed adapters"
+fi
+
+# ── ANIX v2 end-to-end: real example files through real adapters ───────────
+# Each example is run through the actual `anix run`, with the real adapter
+# manifests in assets/anix-languages, against an isolated config dir. This
+# exercises the whole path (language resolution -> plan validation ->
+# transactional write), not just the plan
 # engine in isolation like the tests above. Skips per-frontend when the
 # frontend's own tool isn't installed, matching the existing `command -v
 # nix` skip pattern, rather than failing the whole suite on a missing dev
@@ -938,7 +1087,10 @@ touch "$profile"
 case "$1 $2" in
   "profile add") exit 0 ;;
   "profile install")
-    for a in "$@"; do [[ "$a" == nixpkgs#* ]] && printf '%s\n' "${a#nixpkgs#}" >> "$profile"; done
+    for a in "$@"; do
+      [[ "$a" == nixpkgs#* ]] && printf '%s\n' "${a#nixpkgs#}" >> "$profile"
+      [[ "$a" == github:* ]] && { r="${a#github:}"; r="${r%%#*}"; printf '%s\n' "$(echo "$r" | cut -d/ -f2)" >> "$profile"; }
+    done
     [[ "$*" == *nixpkgs#nosuchpkg* ]] && { echo "error: flake 'flake:nixpkgs' does not provide attribute 'nosuchpkg'" >&2; exit 1; }
     exit 0 ;;
   "profile remove") grep -vFx -- "$3" "$profile" > "$profile.new" || true; mv "$profile.new" "$profile"; exit 0 ;;
@@ -990,6 +1142,22 @@ if [[ "$_pkg_bad_rc" -ne 0 ]] && ! grep -q -- 'nixpkgs#--impure\|nixpkgs#\.\./x'
   pass "runtime: anix package install rejects option-like and path-like names"
 else
   fail "runtime: anix package install rejects option-like and path-like names"
+fi
+
+# A program that lives in a GitHub flake installs as itself, not through nixpkgs; anything that isn't a plain
+# flake ref (options, other schemes, path tricks) is refused before nix sees it.
+"${pkg_env[@]}" bash scripts/anix.sh package install github:Some-Org/modularity-flake >/dev/null 2>&1 || true
+_flake_bad=0
+for bad in 'github:x/y --impure' 'file:///etc/passwd' 'github:../etc' 'path:/etc'; do
+  "${pkg_env[@]}" bash scripts/anix.sh package install "$bad" >/dev/null 2>&1 && _flake_bad=1
+done
+if grep -qx 'profile install --inputs-from '"$tmp_pkg_cfg"' --impure github:Some-Org/modularity-flake' "$tmp_pkg_bin/log" \
+  && grep -qx modularity-flake "$tmp_pkg_bin/profile" && [[ "$_flake_bad" -eq 0 ]] \
+  && ! grep -qE 'file:|path:|--impure --impure|github:x/y' "$tmp_pkg_bin/log"; then
+  pass "runtime: anix package install takes a GitHub flake and refuses anything that isn't a plain flake ref"
+else
+  fail "runtime: anix package install takes a GitHub flake and refuses anything that isn't a plain flake ref"
+  sed 's/^/              /' "$tmp_pkg_bin/log"
 fi
 
 _pkg_un="$("${pkg_env[@]}" bash scripts/anix.sh package uninstall git 2>&1 || true)"

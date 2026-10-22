@@ -177,11 +177,10 @@ copy_if_exists() {
   rm -rf "$dest"
   # cp -R needs $dest's parent to already exist -- true for every
   # top-level entry under $abora_dir, but not for a nested destination
-  # like vendor/modularity or tools/moducpp-anix, whose own parent
-  # (vendor/, tools/) is never separately created. Confirmed as a real,
-  # pre-existing failure by actually running this against a real repo
-  # checkout: "cp: cannot create directory '.../vendor/modularity': No
-  # such file or directory".
+  # like vendor/x or tools/y, whose own parent (vendor/, tools/) is
+  # never separately created. Confirmed as a real failure by running
+  # this against a real repo checkout: "cp: cannot create directory
+  # '.../vendor/modularity': No such file or directory".
   mkdir -p "$(dirname "$dest")"
   cp -RL "$source" "$dest"
 }
@@ -332,8 +331,6 @@ copy_if_exists "$repo_dir/assets/Effects" "$abora_dir/effects"
 copy_if_exists "$repo_dir/assets/mango" "$abora_dir/mango"
 copy_if_exists "$repo_dir/assets/anix-languages" "$abora_dir/anix-languages"
 copy_if_exists "$repo_dir/docs" "$abora_dir/docs"
-copy_if_exists "$repo_dir/vendor/modularity" "$abora_dir/vendor/modularity"
-copy_if_exists "$repo_dir/tools/moducpp-anix" "$abora_dir/tools/moducpp-anix"
 copy_if_exists "$repo_dir/assets/abora-title.txt" "$abora_dir/title.txt"
 copy_if_exists "$repo_dir/assets/fastfetch-logo.txt" "$abora_dir/fastfetch-logo.txt"
 copy_if_exists "$repo_dir/assets/fastfetch-config.jsonc" "$abora_dir/fastfetch-config.jsonc"

@@ -54,11 +54,8 @@ STAGED_FILES = (
     ("nix/modules/anix.nix", "anix-module.nix"),
     ("nix/pkgs/mango.nix", "pkgs/mango.nix"),
     ("nix/pkgs/scenefx-0_5.nix", "pkgs/scenefx-0_5.nix"),
-    ("nix/pkgs/modularity.nix", "pkgs/modularity.nix"),
-    ("nix/pkgs/moducpp-anix.nix", "pkgs/moducpp-anix.nix"),
     ("nix/pkgs/vanta.nix", "pkgs/vanta.nix"),
     ("nix/pkgs/abora-update.nix", "pkgs/abora-update.nix"),
-    ("tools/moducpp-anix", "tools/moducpp-anix"),
     ("scripts/abora-ui.sh", "ui.sh"),
     ("scripts/abora-config.sh", "config.sh"),
     ("scripts/abora.sh", "abora.sh"),
@@ -95,7 +92,6 @@ STAGED_FLAT_DIRS = (
 # (repo directory, staged directory): whole trees, symlinks kept.
 STAGED_TREES = (
     ("nix/modules/desktops", "desktops"),
-    ("vendor/modularity", "vendor/modularity"),
     ("tools/abora-update", "abora-update"),
 )
 

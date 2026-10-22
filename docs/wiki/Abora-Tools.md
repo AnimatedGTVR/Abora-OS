@@ -41,7 +41,6 @@ Two names mean slightly different things under each:
 | `abora gaming steam on` | Enable Steam plus required controller support |
 | `abora config set gaming true` | Enable the optional gaming layer |
 | `abora apps` | App bundle and catalog helpers |
-| `abora apps custom` | Update standalone custom packages such as Modularity Stable |
 | `abora support-report` | Collect support diagnostics |
 | `abora update` | Update Abora |
 | `abora update --check` | Check whether an update is available without installing it |
@@ -133,24 +132,10 @@ anix set desktop hyprland
 anix apply
 ```
 
-## Custom Packages
+## Software outside nixpkgs
 
-Standalone packages that do not come from normal Nixpkgs can be updated with
-the custom package helper. Modularity Stable is the first supported package:
-
-```sh
-abora apps custom info modularity-stable
-sudo abora apps custom update modularity-stable --zip ~/Downloads/Modularity-7.0.0-Linux.zip
-```
-
-Bundled wallpapers: `titlis-alps.jpg`, `aurora-lofoten.jpg`, `alpine-glacier.jpg`,
-`tannheimer-mountains.jpg`, plus the `abora-dark.svg`/`abora-light.svg`
-originals. Source and license for each photo are in
-[assets/wallpapers/CREDITS.md](../../assets/wallpapers/CREDITS.md).
-
-```sh
-abora config set wallpaper titlis-alps.jpg
-```
+`abora apps custom` was removed in 4.2. A program that lives in a GitHub flake installs with
+`anix package install github:owner/repo`; see [Packages](Packages.md).
 
 ## Graphical Tools
 

@@ -5,8 +5,8 @@ Walks every .sh, .nix, .py, .md, .yml/.yaml, .json/.jsonc and .desktop file
 actually on disk (skipping out/, .git/, vendor/ and the TinyPM/ submodule --
 like vendor/, third-party-shaped with its own conventions and CI) and
 validates each by type, plus every extensionless-but-shebanged shell script
-(e.g. tools/moducpp-anix), every wallpaper theme .conf (sourced as shell), and
-every ANIX v2 source file (.anix/.moducpp) via `anix diff-plan`, so a new
+(e.g. the legacy placeholders), every wallpaper theme .conf (sourced as shell), and
+every ANIX v2 source file (.anix) via `anix diff-plan`, so a new
 file that nobody registered anywhere still gets checked.
 
 Usage:
@@ -52,7 +52,7 @@ def find_files(root: Path, ext: str) -> list[str]:
 
 
 def find_shebang_scripts(root: Path) -> list[str]:
-    """Executable files with no extension but a bash/sh shebang, like tools/moducpp-anix."""
+    """Executable files with no extension but a bash/sh shebang, like helper tools."""
 
     def is_shell_script(path: Path) -> bool:
         if "." in path.name or not os.access(path, os.X_OK):
@@ -348,7 +348,7 @@ class Sweep:
     # ── ANIX v2 plans ──
     def check_anix_plan(self, file: str) -> None:
         """`anix diff-plan` parses, compiles and validates a plan without applying anything.
-        A missing language adapter (MKO/ModuCPP toolchains install separately) is an
+        A missing language adapter (third-party toolchains install separately) is an
         environment gap, so it counts as skipped rather than failed."""
         self.counts["anix"] += 1
         if not self.has["jq"] or not (self.root / "scripts/anix.sh").is_file() or self.plan_tool is None:
@@ -482,9 +482,8 @@ class Sweep:
         self.section("ANIX v2 plan sources (anix diff-plan, non-destructive)")
         if not self.has["jq"]:
             self.ok("jq unavailable (anix plan checks skipped)")
-        for ext in ("anix", "moducpp"):
-            for file in find_files(root, ext):
-                self.check_anix_plan(file)
+        for file in find_files(root, "anix"):
+            self.check_anix_plan(file)
 
         self.section("YAML files (GitHub Actions workflows, etc.)")
         if self.yaml is None:

@@ -28,6 +28,9 @@ Released: **<RELEASE DATE>** · Tag: `v4.2` · Channel: `stable`
   stick or RAM, a changed download, an installer bug), a **What failed** block names the failed build, the
   path and both hashes, and **Save logs to a USB drive** keeps the log through a reboot.
 - **A clearer timezone question**: UTC or Region/City in any case, and a city on its own lists matches.
+- **ModuCPP, MAKO and the bundled Modularity are removed.** ANIX Native (`.anix` files) is the language ANIX
+  ships. Software outside nixpkgs, Modularity included, installs from its GitHub flake with
+  `anix package install github:owner/repo`; `abora apps custom` is gone.
 - **One installer.** The terminal installer, drawn with gum, is the only one. MINT and the GTK installer are
   removed, and the live ISO is an installer only, with no live desktop session.
 

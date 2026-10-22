@@ -65,9 +65,8 @@ Use this after a local release build or after the GitHub ISO workflow succeeds.
 
 ## ANIX Language Gate
 
-- confirm `anix language list` shows ANIX Native and ModuCPP, with no built-in MAKO adapter
-- confirm `.moducpp` examples still use `add ANIX;`
-- confirm `tools/moducpp-anix` is executable and included in the ANIX package
+- confirm `anix language list` shows ANIX Native only (ModuCPP and MAKO were removed in 4.2)
+- confirm `scripts/release/legacy-required-paths.txt` still passes: every path the installed 4.1 updater requires exists
 - confirm the standalone ANIX package includes `docs/wiki/Abora-Gaming.md`
 
 ## Release Gate

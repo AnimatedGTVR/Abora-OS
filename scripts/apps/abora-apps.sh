@@ -101,9 +101,6 @@ usage() {
     printf '  %babora apps rebuild%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Apply the current app list (nixos-rebuild switch)."
     printf '\n'
-    printf '  %babora apps custom <list|info|update>%b\n' "$ABORA_CYAN" "$ABORA_NC"
-    abora_dim_line "  Update standalone packages such as Modularity Stable."
-    printf '\n'
 }
 
 is_installed_system() {

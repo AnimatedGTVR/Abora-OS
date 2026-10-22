@@ -50,6 +50,20 @@ anix package uninstall ripgrep   # drop the now-duplicate personal copy
 
 `anix package add` / `anix package remove` edit `anix.packages` directly.
 
+## Programs that aren't in nixpkgs
+
+Software that lives in its own GitHub repository installs from that repository's flake:
+
+```sh
+anix package install github:owner/repo              # the flake's default package
+anix package install 'github:owner/repo#attribute'  # a specific one
+```
+
+It is fetched and built by Nix like anything else, and installs into your profile, so it's ready at once and
+`anix package uninstall <repo>` removes it. GitLab, SourceHut and `git+https` flakes work the same way. The
+flake's code runs in the build, so install only flakes you trust. This is how Modularity installs now; the
+`abora apps custom` helper and the bundled copy were removed in 4.2.
+
 ## Coming from TinyPM
 
 | TinyPM | Now |

@@ -20,7 +20,7 @@ and the state of each item are in [next-release-plan.md](next-release-plan.md).
 
 - five edition ISOs (Cosmic, Hyprland, GNOME, KDE, Other), each defaulting to a different desktop while still installing the full 23-profile matrix
 - first-class GPU driver selection (`abora.gpu`: nouveau, nvidia, nvidia-open, amdgpu, intel, none), detected via `lspci` at install time
-- ANIX v2: pluggable configuration languages (ANIX Native and ModuCPP) that resolve to one Plan JSON, applied as a single transaction with per-setting ADD/CHANGE/SAME diffing
+- ANIX v2: pluggable configuration languages (ANIX Native and, in 4.0 and 4.1, ModuCPP) that resolve to one Plan JSON, applied as a single transaction with per-setting ADD/CHANGE/SAME diffing
 - everything from DENALI 3.14 carried forward — Omarchy-inspired installer, 23 desktop profiles, TinyPM v0.8, branding and hardware coverage
 
 ## In Progress Toward the Next Release

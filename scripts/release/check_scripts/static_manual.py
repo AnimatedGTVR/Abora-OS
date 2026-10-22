@@ -119,8 +119,6 @@ def updater_sync(ctx: Context) -> None:
         grep("-q", 'cp /etc/abora/Abora-Text.png "${root}/etc/nixos/abora/Abora-Text.png"', "scripts/abora-installer.sh"),
         grep("-q", '"abora/Abora-LOGO.png".source = ../../assets/Abora-LOGO.png', "nix/profiles/live.nix"),
         grep("-q", '"abora/Abora-Text.png".source = ../../assets/Abora-Text.png', "nix/profiles/live.nix"),
-        grep("-q", "vendor/modularity", "scripts/abora-update.sh"),
-        grep("-q", 'copy_upstream_dir "$upstream_dir/vendor/modularity" "$abora_dir/vendor/modularity"', "scripts/abora-update.sh"),
         grep("-q", "docs/wiki/ANIX-V2-Languages.md", "scripts/abora-update.sh"),
         grep("-q", "docs/wiki/Updating-Abora.md", "scripts/abora-update.sh"),
         grep("-q", "Check your internet connection, then run: sudo abora update", "scripts/abora-update.sh"),

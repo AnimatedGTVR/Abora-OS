@@ -158,15 +158,12 @@ CHECKS: tuple[Check, ...] = (
         fail_name='runtime: NixOS modules must use pkgs.makeDesktopItem, not xdg.desktopEntries',
     ),
     Check(
-        'runtime: ModuCPP manifest matches examples and MAKO is not shipped',
-        grep('-q', '"id": "moducpp"', 'assets/anix-languages/moducpp.json'),
-        grep('-q', '".moducpp"', 'assets/anix-languages/moducpp.json'),
-        grep('-q', '".mcpp"', 'assets/anix-languages/moducpp.json'),
-        grep('-q', '"command": \\["moducpp-anix"\\]', 'assets/anix-languages/moducpp.json'),
-        grep('-q', 'add ANIX;', 'examples/anix-v2/simple.moducpp'),
-        grep('-q', 'add ANIX;', 'examples/anix-v2/workstation.moducpp'),
+        'runtime: MAKO and ModuCPP are gone (removed in 4.2): no manifests, examples, or tool wiring',
+        not_(test('-e', 'assets/anix-languages/moducpp.json')),
         not_(test('-e', 'assets/anix-languages/mako.json')),
+        no_match('examples/anix-v2/*.moducpp'),
         no_match('examples/anix-v2/*.mko'),
+        not_(grep('-rqi', 'moducpp-anix', 'nix', 'flake.nix', 'scripts/install', 'scripts/support/abora-update.sh')),
     ),
     Check(
         'runtime: release docs describe multi-edition, ANIX, and gaming flow',
@@ -249,11 +246,7 @@ CHECKS: tuple[Check, ...] = (
         'runtime: installer copies ANIX language adapters',
         grep('-q', '/etc/abora/anix-languages', 'scripts/abora-installer.sh'),
         grep('-q', 'etc/nixos/abora/anix-languages', 'scripts/abora-installer.sh'),
-        grep('-q', '/etc/abora/pkgs/moducpp-anix.nix', 'scripts/abora-installer.sh'),
-        grep('-q', 'etc/nixos/abora/pkgs/moducpp-anix.nix', 'scripts/abora-installer.sh'),
-        grep('-q', '"abora/pkgs/moducpp-anix.nix"', 'nix/profiles/live.nix'),
         grep('-q', '"abora/anix-languages".source = anixLanguagesDir', 'nix/modules/installed-base.nix'),
-        grep('-q', 'moducpp-anix = final.callPackage ./pkgs/moducpp-anix.nix', 'nix/modules/installed-base.nix'),
     ),
     # Regression test: a real fresh install (reproduced by actually running the
     # installer through nixos-install in QEMU, not just static review) failed
@@ -298,8 +291,6 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', '/etc/abora/desktops', 'scripts/abora-installer.sh'),
         grep('-q', '/etc/abora/wallpapers', 'scripts/abora-installer.sh'),
         grep('-q', '/etc/abora/themes', 'scripts/abora-installer.sh'),
-        grep('-q', '/etc/abora/vendor/modularity', 'scripts/abora-installer.sh'),
-        grep('-q', 'etc/nixos/abora/vendor/modularity', 'scripts/abora-installer.sh'),
         grep('-q', 'cp -a /etc/abora/wallpapers/.', 'scripts/abora-installer.sh'),
         grep('-q', 'cp -a /etc/abora/themes/.', 'scripts/abora-installer.sh'),
         grep('-q', '../../assets/wallpapers/collection', 'nix/modules/abora-options.nix'),
@@ -394,7 +385,6 @@ CHECKS: tuple[Check, ...] = (
         'runtime: Nix ANIX package bundles v2 language support and gaming docs',
         grep('-q', 'dontBuild = true;', 'nix/pkgs/anix.nix'),
         grep('-q', 'jq', 'nix/pkgs/anix.nix'),
-        grep('-q', 'moducpp-anix', 'nix/pkgs/anix.nix'),
         grep('-q', 'ANIX_SYSTEM_LANGUAGE_DIR', 'nix/pkgs/anix.nix'),
         grep('-q', 'assets/anix-languages', 'nix/pkgs/anix.nix'),
         grep('-q', 'Abora-Gaming.md', 'nix/pkgs/anix.nix'),
@@ -551,19 +541,6 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'anix.gaming.launchers = true;', 'scripts/anix.sh'),
         grep('-q', 'write_anix_gaming_dependencies', 'scripts/anix.sh'),
         grep('-q', 'gaming.bigPictureAutostart', 'scripts/anix.sh'),
-    ),
-    # Regression test: abora-custom-packages.sh's install_modularity_zip() hard
-    # requires unzip ("unzip is required to install Modularity Stable", exit 1
-    # otherwise) to run `abora apps custom update modularity-stable --zip
-    # <file>`, a real documented feature (abora.sh's own help text, this
-    # script's usage). unzip was never declared in installed-base.nix's
-    # environment.systemPackages, so on a genuinely clean install this feature
-    # would fail every time with no way to fix it short of installing unzip
-    # out of band. Static check since this is a package-declaration fact, not
-    # behavior to execute.
-    Check(
-        'runtime: installed-base.nix declares unzip (required by abora apps custom update --zip)',
-        grep('-qE', '^\\s*unzip\\s*$', 'nix/modules/installed-base.nix'),
     ),
     # Regression test: scripts/abora-setup.desktop is installed identically on
     # both the live ISO and every installed system (nix/modules/installed-base.nix),

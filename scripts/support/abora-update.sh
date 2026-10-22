@@ -1192,14 +1192,12 @@ assets/plymouth/abora.script
 assets/Effects/LaunchingAbora.mp3
 assets/wallpapers/collection
 assets/wallpaper-themes
-vendor/modularity
 EOF
 
     if release_uses_modern_layout "$selected_ref"; then
         cat <<'EOF'
 nix/modules/desktops
 nix/pkgs/mango.nix
-nix/pkgs/modularity.nix
 scripts/abora-repair-flake-purity.sh
 assets/mango/config.conf
 EOF
@@ -1208,8 +1206,6 @@ EOF
     if release_has_anix_languages "$selected_ref"; then
         cat <<'EOF'
 assets/anix-languages
-nix/pkgs/moducpp-anix.nix
-tools/moducpp-anix
 EOF
     fi
 
@@ -1508,9 +1504,6 @@ install_abora_files() {
     if [[ -d "$upstream_dir/docs" ]]; then
         copy_upstream_dir "$upstream_dir/docs" "$abora_dir/docs"
     fi
-    if [[ -d "$upstream_dir/vendor/modularity" ]]; then
-        copy_upstream_dir "$upstream_dir/vendor/modularity" "$abora_dir/vendor/modularity"
-    fi
     copy_upstream_file "$upstream_dir/scripts/abora-doctor.sh" "$abora_dir/doctor.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-recovery.sh" "$abora_dir/recovery.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-welcome.sh" "$abora_dir/welcome.sh"
@@ -1605,16 +1598,6 @@ install_abora_files() {
     record_installed "$abora_dir/themes"
     if [[ -f "$upstream_dir/nix/pkgs/mango.nix" ]]; then
         copy_upstream_file "$upstream_dir/nix/pkgs/mango.nix" "$abora_dir/pkgs/mango.nix"
-    fi
-    if [[ -f "$upstream_dir/nix/pkgs/modularity.nix" ]]; then
-        copy_upstream_file "$upstream_dir/nix/pkgs/modularity.nix" "$abora_dir/pkgs/modularity.nix"
-    fi
-    if [[ -f "$upstream_dir/nix/pkgs/moducpp-anix.nix" ]]; then
-        copy_upstream_file "$upstream_dir/nix/pkgs/moducpp-anix.nix" "$abora_dir/pkgs/moducpp-anix.nix"
-    fi
-    if [[ -f "$upstream_dir/tools/moducpp-anix" ]]; then
-        copy_upstream_file "$upstream_dir/tools/moducpp-anix" "$abora_dir/tools/moducpp-anix"
-        chmod 0755 "$abora_dir/tools/moducpp-anix" 2>/dev/null || true
     fi
     if [[ -f "$upstream_dir/nix/pkgs/abora-update-resolver.nix" ]]; then
         copy_upstream_file "$upstream_dir/nix/pkgs/abora-update-resolver.nix" "$abora_dir/pkgs/abora-update-resolver.nix"

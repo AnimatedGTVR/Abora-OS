@@ -10,7 +10,6 @@
 , gnugrep
 , gnused
 , jq
-, moducpp-anix
 , nix
 , procps
 , util-linux
@@ -74,7 +73,6 @@ stdenvNoCC.mkDerivation (finalAttrs: {
         gnugrep
         gnused
         jq
-        moducpp-anix
         nix
         procps
         util-linux

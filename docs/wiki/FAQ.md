@@ -22,7 +22,7 @@ Abora OS v4.1 Horizon built on Everest with installer and update reliability wor
 Key additions over DENALI 3.14:
 
 - five edition ISOs (Cosmic, Hyprland, GNOME, KDE, Other) via `make iso-all`, instead of one general-purpose ISO
-- ANIX v2: configuration can be written in ANIX Native or ModuCPP, both resolving to the same Plan JSON — see `anix language list`
+- ANIX v2: configuration can be written in a `.anix` file (ANIX Native; ModuCPP was available in 4.0 and 4.1) that resolves to a Plan JSON — see `anix language list`
 - `abora.gpu` option and an installer GPU step: choose nouveau, nvidia, nvidia-open, amdgpu, intel, or none, with NVIDIA hardware auto-detected and defaulted to the license-free `nouveau` driver
 - `abora hardware-test` now points at the GPU step and `abora config set gpu` when it detects NVIDIA hardware
 
@@ -185,25 +185,14 @@ right away, from the same nixpkgs revision as your system and without editing `f
 
 ## Is Modularity available in Abora?
 
-Yes. Modularity is a game engine editor by Tareno Labs and is included in the Developer app bundle.
-
-Install it after setup:
-
-```sh
-anix package add modularity
-anix apply
-```
-
-Or select it from the Developer bundle during installation.
-
-Modularity is backed by a custom Nix derivation with PhysX, Vulkan, and Mono support built in.
-
-To update the standalone Modularity Stable payload without waiting for a full
-Abora release, download the Linux zip and run:
+Not as part of the OS since 4.2. Modularity (a game engine editor by Tareno Labs) used to be bundled and
+updated through a special zip helper. It installs like any other program now: from its GitHub flake,
 
 ```sh
-sudo abora apps custom update modularity-stable --zip ~/Downloads/Modularity-7.0.0-Linux.zip
+anix package install github:<owner>/<repo>
 ```
+
+and `anix package keep <name>` makes it part of the system. See [Packages](Packages.md).
 
 ## Where are the project docs?
 
