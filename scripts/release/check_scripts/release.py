@@ -38,6 +38,14 @@ def release_files(ctx: Context) -> None:
     if not ctx.result(bool(block) and not missing, name):
         ctx.detail("\n".join(f"missing from release-required-paths.txt: {path}" for path in missing))
 
+    # The updater already installed on 4.0/4.1 refuses a release missing any path in its own fixed list
+    # (legacy-required-paths.txt is a copy of it). A cleanup that deletes one strands every system on 4.1.
+    legacy = [line for line in ctx.path("scripts/release/legacy-required-paths.txt").read_text(encoding="utf-8").splitlines()
+              if line and not line.startswith("#")]
+    gone = [path for path in legacy if not ctx.path(path).exists()]
+    if not ctx.result(bool(legacy) and not gone, "runtime: every path the installed 4.1 updater requires still exists (so 4.1 can update to this release)"):
+        ctx.detail("\n".join(f"missing, and 4.1 systems would refuse to update: {path}" for path in gone))
+
     ctx.result(manifest_ok and Check(
         "runtime: release manifest includes ANIX adapters, Modularity skeleton, and gaming layer",
         *(grep("-q", f"^{path}$", REQUIRED_PATHS) for path in (
