@@ -28,7 +28,7 @@ else
   fail "runtime: config and apps help use public commands"
 fi
 
-# abora-config.sh backs the `abora config` command CLAUDE.md documents as
+# abora-config.sh backs the `abora config` command AGENTS.md documents as
 # read/writing abora-local.nix without requiring Nix knowledge, including
 # that `user` and `disk` are intentionally read-only through this CLI — none
 # of that was previously exercised at runtime, only checked for existence.

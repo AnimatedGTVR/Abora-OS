@@ -1,5 +1,7 @@
 # Changelog
 
+Release history for the vendored TinyPM component.
+
 ## 0.8.1-alpha (2026-08-12)
 
 This release replaces the retired Bash implementation with a ground-up Rust

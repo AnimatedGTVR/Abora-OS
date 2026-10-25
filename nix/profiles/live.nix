@@ -169,7 +169,7 @@ let
   wallpaperThemeDir = ../../assets/wallpaper-themes;
   tinypmDir = ../../vendor/tinypm;
   # TinyPM was rewritten from a bash multicall tree to a real Rust crate
-  # (see TinyPM's own CLAUDE.md: "the old Bash runtime was removed").
+  # (see TinyPM's own AGENTS.md: "the old Bash runtime was removed").
   # Two real binaries now exist -- tinypm (inspection/diagnostics) and
   # grab (install-first) -- replacing the old mkGrabCmd multicall
   # wrapper's much longer alias list (tiny/Parcel/search/term/start/
