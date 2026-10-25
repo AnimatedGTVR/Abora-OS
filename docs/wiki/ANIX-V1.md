@@ -1,16 +1,82 @@
-# ANIX
+# ANIX v1
 
-ANIX is Abora's system-management layer. It provides shorter workflows for profiles, generations, snapshots, testing, and rollback without replacing Nix or NixOS.
+ANIX v1 is the Abora/NixOS profile manager.
+
+It is meant to make common NixOS tasks approachable without hiding the real system underneath. ANIX edits a small `anix.nix` layer, snapshots `/etc/nixos`, and calls the normal NixOS rebuild tools.
+
+## Core Commands
+
+- `anix learn`
+- `anix status`
+- `anix profiles`
+- `anix generations`
+- `anix init`
+- `anix show`
+- `anix edit`
+- `anix set <key> <value>`
+- `anix diff nix [profile]`
+- `anix test nix [profile]`
+- `anix boot nix [profile]`
+- `anix switch nix <profile> [--now]`
+- `anix rollback nix [profile] [--now]`
+- `anix save [message]`
+- `anix gc old`
+- `anix doctor`
+
+## Quick Learning Path
+
+Run this any time you forget the shape of ANIX commands:
+
+```sh
+anix learn
+```
+
+The short version is:
 
 ```sh
 anix status
-anix doctor
-anix generations
-anix save "before change"
-anix diff nix gaming
-anix test nix gaming
-anix switch nix gaming
-anix rollback nix
+anix show
+anix set desktop cosmic
+anix package add fastfetch
+anix apply
+anix rollback nix --now
 ```
 
-Use `anix --help` for the commands installed by your release. Prefer `diff` or `test` before switching a profile, and create a snapshot before large configuration changes.
+## What ANIX Manages
+
+- hostname
+- timezone
+- console and desktop keyboard layout
+- Abora desktop profile
+- Abora wallpaper
+- Abora Gaming toggles
+- optional system packages
+- optional Nix trusted users
+- optional scheduled Nix garbage collection
+- local Git snapshots of `/etc/nixos`
+
+## Safety Model
+
+ANIX snapshots dirty config before risky operations, runs dry-builds before interactive switches, and keeps rollback on the standard NixOS generation path.
+
+Use `anix switch nix <profile>` for a normal profile switch.
+Use `anix boot nix <profile>` when you want the profile prepared for next boot without switching immediately.
+Use `anix test nix <profile>` when you want a temporary activation.
+
+## Abora Gaming
+
+ANIX can enable Abora Gaming on installed Abora systems:
+
+```sh
+anix enable gaming
+anix enable gaming.steam
+anix enable gaming.big-picture
+anix enable gaming.gamescope
+anix enable gaming.controllers
+anix enable gaming.mangohud
+anix enable gaming.gamemode
+anix enable gaming.launchers
+anix apply
+```
+
+These write `anix.gaming.*` options, which forward into `abora.gaming.*` when the Abora options module is imported.

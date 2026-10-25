@@ -1,17 +1,82 @@
 # Release Guide
 
-1. Update `VERSION`, release notes, and visible version references.
-2. Run `make doctor` and `make check`.
-3. Build every edition with `make iso-all`.
-4. Perform a clean install and first boot on a VM and real hardware when available.
-5. Test networking, GPU selection, update, recovery, and rollback.
-6. Build the bundle with `make release`.
-7. Verify generated checksums and release metadata.
-8. Tag and publish only after the release checklist passes.
+This page covers the normal Abora release flow.
+
+## Local ISO Build
 
 ```sh
-git tag "v$VERSION"
-git push origin "v$VERSION"
+make iso
 ```
 
-See the [release checklist](../release-checklist.md) and [install checklist](../install-checklist.md). Keep Stable conservative; unfinished changes remain on Edge.
+Use this for fast installer and live-image iteration on the default Cosmic
+edition.
+
+To build every release edition:
+
+```sh
+make iso-all
+```
+
+This builds:
+
+- Cosmic Edition
+- Hyprland Edition
+- GNOME Edition
+- KDE Plasma Edition
+- Other Desktops Edition
+
+## Local Release Build
+
+```sh
+make release
+```
+
+Use this when preparing a full release bundle. It builds all five edition ISOs,
+the TinyPM package, the ANIX package, checksums, manifest, and generated release
+notes.
+
+## What To Publish
+
+The normal release bundle includes:
+
+- `abora-cosmic-<date>-x86_64-<version>.iso`
+- `abora-hyprland-<date>-x86_64-<version>.iso`
+- `abora-gnome-<date>-x86_64-<version>.iso`
+- `abora-kde-<date>-x86_64-<version>.iso`
+- `abora-other-<date>-x86_64-<version>.iso`
+- `tinypm-*-abora-<version>.tar.gz`
+- `anix-*-abora-<version>.tar.gz`
+- `SHA256SUMS-<version>.txt`
+- `RELEASE_MANIFEST-<version>.txt`
+- `RELEASE_NOTES-<version>.md`
+
+## Tagging A Release
+
+For the current Abora OS v4.1 Horizon line:
+
+```sh
+git tag v4.1
+git push origin v4.1
+```
+
+That triggers the GitHub release workflow for the tagged version.
+
+## Before Publishing
+
+Make sure these checks are done:
+
+- `make doctor`
+- `./scripts/check-scripts.py`
+- `./scripts/check-all-files.py`
+- `./scripts/check-desktops.py`
+- every edition ISO builds successfully
+- at least the default Cosmic live image boots
+- the installer completes one real install
+- the installed system boots without the ISO attached
+- `abora doctor` works on the installed system
+- `sudo abora update` works on the installed system
+
+More detailed lists:
+
+- [Install Checklist](../install-checklist.md)
+- [Release Checklist](../release-checklist.md)

@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://aboraos.org"><img src="https://img.shields.io/badge/Website-aboraos.org-1677ff?style=for-the-badge" alt="Website"></a>
   <a href="https://github.com/AnimatedGTVR/Abora-OS/releases"><img src="https://img.shields.io/github/v/release/AnimatedGTVR/Abora-OS?style=for-the-badge&label=Download" alt="Latest release"></a>
-  <a href="docs/wiki/Home.md"><img src="https://img.shields.io/badge/Documentation-Read-30363d?style=for-the-badge" alt="Documentation"></a>
+  <a href="docs/README.md"><img src="https://img.shields.io/badge/Documentation-Read-30363d?style=for-the-badge" alt="Documentation"></a>
 </p>
 
 <p align="center">
@@ -117,7 +117,7 @@ Bug reports, hardware tests, documentation fixes, artwork, and focused code chan
 
 ## Project links
 
-- [Documentation](docs/wiki/Home.md)
+- [Documentation](docs/README.md)
 - [Release notes](RELEASE_NOTES.md)
 - [Roadmap](docs/roadmap.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)

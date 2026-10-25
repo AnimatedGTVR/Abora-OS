@@ -1,3 +1,15 @@
-# TinyPM Bug Report
+---
+name: Bug report
+about: Something isn't working
+title: "[Bug] "
+labels: bug
+assignees: ""
+---
 
-Include the TinyPM version, operating system, selected provider, exact command, expected result, actual result, and relevant output. Remove credentials and personal information.
+## What happened?
+Expected vs actual behavior.
+
+## Command you ran
+```bash
+# example:
+search musescore
