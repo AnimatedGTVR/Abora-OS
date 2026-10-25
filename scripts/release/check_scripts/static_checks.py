@@ -129,7 +129,7 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'resolve_helper abora-gaming.sh', 'scripts/abora.sh'),
         grep('-q', 'exec abora-update channel "$@"', 'scripts/abora.sh'),
         not_(grep('-q', 'ABORA_UPDATE_COMMAND=nixos abora-update channel', 'scripts/abora.sh')),
-        grep('-q', 'abora channel set <stable|unstable>', 'scripts/abora-update.sh'),
+        grep('-q', 'abora channel set <stable|edge>', 'scripts/abora-update.sh'),
     ),
     Check(
         'runtime: updater can fall back between edge and main branches',
@@ -166,13 +166,11 @@ CHECKS: tuple[Check, ...] = (
         not_(grep('-rqi', 'moducpp-anix', 'nix', 'flake.nix', 'scripts/install', 'scripts/support/abora-update.sh')),
     ),
     Check(
-        'runtime: release docs describe multi-edition, ANIX, and gaming flow',
+        'runtime: release docs describe ANIX and gaming flow',
         grep('-q', 'sudo abora update', 'docs/wiki/FAQ.md'),
-        grep('-q', 'make iso-all', 'docs/wiki/Building-Abora.md'),
         grep('-q', 'abora build --from-source', 'docs/wiki/Building-Abora.md'),
         grep('-q', 'nix build .#nixosConfigurations.abora.config.system.build.toplevel', 'docs/wiki/Building-Abora.md'),
         grep('-q', 'ANIX standalone tarball', 'docs/wiki/Building-Abora.md'),
-        grep('-q', 'abora-cosmic-', 'RELEASE_NOTES.md'),
         grep('-q', 'ANIX standalone package', 'RELEASE_NOTES.md'),
         grep('-q', 'Abora Gaming', 'RELEASE_NOTES.md'),
         grep('-q', 'abora hardware-test', 'RELEASE_NOTES.md'),

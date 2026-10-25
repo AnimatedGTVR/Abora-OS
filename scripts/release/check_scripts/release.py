@@ -82,8 +82,7 @@ def packages_and_metadata(ctx: Context, tag: str) -> None:
         out = work / "metadata"
         for directory in ("iso", "packages", "release"):
             (out / directory).mkdir(parents=True)
-        for edition in ("cosmic", "hyprland", "gnome", "kde", "other"):
-            (out / "iso" / f"abora-{edition}-test-x86_64-{tag}.iso").touch()
+        (out / "iso" / f"abora-test-x86_64-{tag}.iso").touch()
         (out / "packages" / f"anix-v0.0.0-abora-{tag}.tar.gz").touch()
         sums = out / "release" / f"SHA256SUMS-{tag}.txt"
         generated = subprocess.run(["scripts/release-metadata.py"], cwd=ctx.repo, env=_env(ABORA_OUT_DIR=str(out), ABORA_RELEASE_STAMP="test"), stdout=subprocess.DEVNULL)
@@ -92,25 +91,22 @@ def packages_and_metadata(ctx: Context, tag: str) -> None:
             and sums.is_file()
             and (out / "release" / f"RELEASE_MANIFEST-{tag}.txt").is_file()
             and (out / "release" / f"RELEASE_NOTES-{tag}.md").is_file()
-            and all(ctx.grep("-q", f"abora-{edition}-test-x86_64-{tag}.iso", str(sums)) for edition in ("cosmic", "hyprland", "gnome", "kde", "other"))
+            and ctx.grep("-q", f"abora-test-x86_64-{tag}.iso", str(sums))
             and ctx.grep("-q", f"anix-v0.0.0-abora-{tag}.tar.gz", str(sums)),
-            "runtime: release-metadata checksum generation includes every edition",
+            "runtime: release-metadata checksum generation includes the universal ISO",
         )
 
         fallback = work / "fallback"
         for directory in ("iso", "packages", "release"):
             (fallback / directory).mkdir(parents=True)
-        for edition in ("cosmic", "gnome"):
-            (fallback / "iso" / f"abora-{edition}-2026.01.01-x86_64-{tag}.iso").touch()
-        for edition in ("cosmic", "hyprland", "gnome", "kde", "other"):
-            (fallback / "iso" / f"abora-{edition}-2026.07.27-x86_64-{tag}.iso").touch()
+        (fallback / "iso" / f"abora-2026.01.01-x86_64-{tag}.iso").touch()
+        (fallback / "iso" / f"abora-2026.07.27-x86_64-{tag}.iso").touch()
         fallback_sums = fallback / "release" / f"SHA256SUMS-{tag}.txt"
         generated = subprocess.run(["scripts/release-metadata.py"], cwd=ctx.repo, env=_env(ABORA_OUT_DIR=str(fallback)), stdout=subprocess.DEVNULL)
         ctx.result(
             generated.returncode == 0
             and fallback_sums.is_file()
-            and ctx.grep("-q", f"abora-cosmic-2026.07.27-x86_64-{tag}.iso", str(fallback_sums))
-            and ctx.grep("-q", f"abora-other-2026.07.27-x86_64-{tag}.iso", str(fallback_sums))
+            and ctx.grep("-q", f"abora-2026.07.27-x86_64-{tag}.iso", str(fallback_sums))
             and not ctx.grep("-q", "2026.01.01", str(fallback_sums)),
             "runtime: release-metadata falls back to newest local ISO stamp",
         )

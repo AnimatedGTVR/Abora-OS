@@ -92,7 +92,7 @@ class FakeSystem:
     def env(self) -> dict[str, str]:
         return {**os.environ, "PATH": f"{self.bin}:{os.environ['PATH']}", "ABT_STATE_DIR": str(self.root / "state"),
                 "ABT_SYSTEM_PROFILE": str(self.profiles / "system"), "ABT_CURRENT_SYSTEM": str(self.current),
-                "ABT_NIX_ENV": str(self.bin / "nix-env")}
+                "ABT_NIX_ENV": str(self.bin / "nix-env"), "ABT_SYSTEMCTL": str(self.bin / "systemctl")}
 
     def abt(self, *args: str) -> subprocess.CompletedProcess:
         return subprocess.run([sys.executable, str(ABT), *args], env=self.env(), cwd=REPO,

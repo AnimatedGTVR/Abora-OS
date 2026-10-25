@@ -23,9 +23,10 @@ resolve_helper() {
     return 1
 }
 
-# Since 4.2, `anix` is the one Abora command and `abora` is its old name.
-# This file still carries the Abora system commands (anix routes them here),
-# and hands everything else, including help and learn, to anix. On the
+# `abora` and `anix` are permanent, equal entry points. ANIX is the recommended
+# interface, while `abora` preserves the familiar command users already know.
+# This file carries the Abora system commands (anix routes them here), and
+# hands everything else, including help and learn, to anix. On the
 # installed system `anix` is a wrapper that sets ANIX_SYSTEM_CONFIG, so
 # prefer it over running anix.sh directly.
 forward_to_anix() {

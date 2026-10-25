@@ -75,7 +75,8 @@ func Start()::void {
     failures = failures + Same(RefOf(Resolver.Resolve("stable", "4.0", none, false, false, "", "edge")), "<none>", "stable resolves nothing without tags or edge");
     failures = failures + Same(RefOf(Resolver.Resolve("demo", "4.0", ["v4.0-EVEREST-ALPHA", "v3.14"], false, false, "", "edge")), "v4.0-EVEREST-ALPHA", "demo picks the current line's demo tag");
     failures = failures + Same(RefOf(Resolver.Resolve("stable", "4.0", ["v4.0-EVEREST-ALPHA"], false, false, "", "edge")), "v4.0-EVEREST-ALPHA", "stable uses the line's demo tag without a final tag");
-    failures = failures + Same(RefOf(Resolver.Resolve("unstable", "4.0", ["v99.0"], false, false, "", "edge")), "edge", "unstable always tracks edge");
+    failures = failures + Same(RefOf(Resolver.Resolve("edge", "4.0", ["v99.0"], false, false, "", "edge")), "edge", "edge always tracks nightly builds");
+    failures = failures + Same(RefOf(Resolver.Resolve("unstable", "4.0", ["v99.0"], false, false, "", "edge")), "edge", "old unstable channel migrates to edge");
     failures = failures + Same(RefOf(Resolver.Resolve("pre-alpha", "4.0", none, false, false, "", "some-branch")), "some-branch", "pre-alpha uses the configured ref");
     failures = failures + Same(RefOf(Resolver.Resolve("stable", "3.14", none, false, true, "v2.5.0", "edge")), "v2.5.0", "fallback mode uses the fallback ref");
     failures = failures + Same(RefOf(Resolver.Resolve("bogus", "4.0", none, false, false, "", "edge")), "edge", "unknown channel falls back to edge");

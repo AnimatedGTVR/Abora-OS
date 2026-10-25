@@ -72,22 +72,12 @@
       nixosConfigurations = {
         abora = mkLive "cosmic";
         abora-live = mkLive "cosmic";
-        abora-live-cosmic = mkLive "cosmic";
-        abora-live-hyprland = mkLive "hyprland";
-        abora-live-gnome = mkLive "gnome";
-        abora-live-kde = mkLive "kde";
-        abora-live-other = mkLive "other";
       };
 
       packages.${system} = {
         anix = pkgs.anix;
 
-        iso = self.nixosConfigurations.abora-live-cosmic.config.system.build.isoImage;
-        iso-cosmic = self.nixosConfigurations.abora-live-cosmic.config.system.build.isoImage;
-        iso-hyprland = self.nixosConfigurations.abora-live-hyprland.config.system.build.isoImage;
-        iso-gnome = self.nixosConfigurations.abora-live-gnome.config.system.build.isoImage;
-        iso-kde = self.nixosConfigurations.abora-live-kde.config.system.build.isoImage;
-        iso-other = self.nixosConfigurations.abora-live-other.config.system.build.isoImage;
+        iso = self.nixosConfigurations.abora-live.config.system.build.isoImage;
 
         mango = pkgs.mango;
         abora-desktop-preview = pkgs.abora-desktop-preview;
@@ -98,7 +88,7 @@
         abora-update = pkgs.abora-update;
         abora-plan-tool = pkgs.abora-plan-tool;
 
-        default = self.nixosConfigurations.abora-live-cosmic.config.system.build.isoImage;
+        default = self.nixosConfigurations.abora-live.config.system.build.isoImage;
       };
 
       apps.${system} = {

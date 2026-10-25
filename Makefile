@@ -1,16 +1,11 @@
-.PHONY: help iso iso-all iso-cosmic iso-hyprland iso-gnome iso-kde iso-other iso-local build-vm run qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc doctor desktop-preview check check-desktops check-all preflight metadata release anix-package test-welcome test-config
+.PHONY: help iso iso-local build-vm run qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc doctor desktop-preview check check-desktops check-all preflight metadata release anix-package test-welcome test-config
 
 help:
 	@echo "Usage: make <target>"
 	@echo "Targets:"
 	@echo "  doctor           - Check your dev machine is ready to build Abora (run this first)"
 	@echo "  desktop-preview  - Print Abora's NixOS config/packages for a desktop profile (PROFILE=gnome), no install needed"
-	@echo "  iso              - Build one ISO (defaults to Cosmic; override with ABORA_EDITION=gnome)"
-	@echo "  iso-all          - Build Cosmic, Hyprland, GNOME, KDE, and Other ISOs"
-	@echo "  iso-hyprland     - Build only the Hyprland ISO"
-	@echo "  iso-gnome        - Build only the GNOME ISO"
-	@echo "  iso-kde          - Build only the KDE Plasma ISO"
-	@echo "  iso-other        - Build only the Other Desktops ISO"
+	@echo "  iso              - Build the universal Abora installer ISO"
 	@echo "  metadata         - Generate release notes, manifest, and checksums"
 	@echo "  anix-package     - Build the ANIX standalone tarball"
 	@echo "  release          - Build the ISO, ANIX package, and refresh the release bundle"
@@ -32,25 +27,7 @@ help:
 	@echo "  preflight        - Run full release preflight checks"
 
 iso:
-	ABORA_EDITION=$${ABORA_EDITION:-cosmic} ./scripts/build-iso.py
-
-iso-all:
-	ABORA_EDITION=all ./scripts/build-iso.py
-
-iso-cosmic:
-	ABORA_EDITION=cosmic ./scripts/build-iso.py
-
-iso-hyprland:
-	ABORA_EDITION=hyprland ./scripts/build-iso.py
-
-iso-gnome:
-	ABORA_EDITION=gnome ./scripts/build-iso.py
-
-iso-kde:
-	ABORA_EDITION=kde ./scripts/build-iso.py
-
-iso-other:
-	ABORA_EDITION=other ./scripts/build-iso.py
+	./scripts/build-iso.py
 
 metadata:
 	./scripts/release-metadata.py
@@ -58,7 +35,7 @@ metadata:
 anix-package:
 	./scripts/package-anix.py
 
-release: iso-all anix-package metadata
+release: iso anix-package metadata
 
 build-vm:
 	./scripts/rebuild-vm.py

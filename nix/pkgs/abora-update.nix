@@ -41,7 +41,7 @@ stdenvNoCC.mkDerivation {
   installCheckPhase = ''
     runHook preInstallCheck
     ${vanta}/bin/vanta run ${updateSrc}/tests.vanta
-    test "$("$out/bin/abora-update" resolve-ref --channel unstable --current-version 4.0)" = "$(printf 'edge\tunstable channel tracks edge')"
+    test "$("$out/bin/abora-update" resolve-ref --channel edge --current-version 4.0)" = "$(printf 'edge\tedge channel tracks nightly builds')"
     runHook postInstallCheck
   '';
 

@@ -163,10 +163,11 @@ def running_system() -> str:
 
 
 def failed_units() -> list[str]:
-    if not shutil.which("systemctl"):
+    systemctl = os.environ.get("ABT_SYSTEMCTL") or shutil.which("systemctl")
+    if not systemctl:
         return []
     try:
-        done = subprocess.run(["systemctl", "--failed", "--plain", "--no-legend", "--no-pager"],
+        done = subprocess.run([systemctl, "--failed", "--plain", "--no-legend", "--no-pager"],
                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=15)
     except (OSError, subprocess.TimeoutExpired):
         return []
