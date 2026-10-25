@@ -109,7 +109,7 @@ let
     if builtins.pathExists ./plan-tool then ./plan-tool else null;
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
   # TinyPM was rewritten from a bash multicall tree to a real Rust crate
-  # (see TinyPM's own CLAUDE.md: "the old Bash runtime was removed"). The
+  # (see TinyPM's own AGENTS.md: "the old Bash runtime was removed"). The
   # installer copies the vendored source to /etc/nixos/abora/tinypm
   # (tinypmDir above), and this builds it the same way
   # nix/profiles/live.nix's tinypmPackage does for the live ISO. Only two

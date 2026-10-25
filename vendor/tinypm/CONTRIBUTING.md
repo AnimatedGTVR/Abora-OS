@@ -1,29 +1,11 @@
 # Contributing to TinyPM
 
-TinyPM is built for people who want one predictable package workflow across
-Linux distributions.
+Keep changes focused and include tests for provider resolution, command construction, state, or CLI behavior as appropriate.
 
-## Expectations
-
-- Beginner-friendly output by default
-- Cross-distro compatible provider behavior
-- Flatpak and Snap should be optional
-- Package-changing commands belong to `grab`; `tinypm` remains read-only
-- Provider processes use argument vectors, never interpolated shell source
-- Package-changing behavior must support `--dry-run`
-
-Run the complete verification suite before submitting changes:
-
-```console
-make release-check
+```sh
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test --locked
 ```
 
-`release-check` formats-checks, lints all targets and features, runs the locked
-test suite, audits `Cargo.lock`, verifies the publishable crate, and builds both
-optimized binaries. Install the pinned audit tool first with
-`cargo install cargo-audit --version 0.22.2 --locked`.
-
-CI additionally enforces Rust 1.85, checks x86_64 and ARM64 GNU/musl targets,
-and tests provider detection in representative distribution containers.
-
-Please keep changes readable and predictable.
+Do not add network access to tests or weaken dry-run, confirmation, transaction, and rollback safeguards.

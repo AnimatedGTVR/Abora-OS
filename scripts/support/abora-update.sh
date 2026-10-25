@@ -359,7 +359,7 @@ latest_tag_from_list() {
 
 # Resolves a channel name + the currently installed version into a single
 # concrete git ref to update to (a tag or "edge" -- the repo's nightly
-# branch; see CLAUDE.md's Branch Policy, there is no "main"), setting
+# branch; see AGENTS.md's Branch Policy, there is no "main"), setting
 # effective_ref and a human-readable effective_ref_reason for later
 # display. All I/O (git ls-remote for tags/branch existence) happens here
 # in bash; the actual channel/tag decision -- "stable" is the most involved,

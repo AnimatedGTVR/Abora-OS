@@ -1,4 +1,6 @@
-# Abora Wallpaper Credits
+# Wallpaper Credits
+
+These credits preserve the source and license information for artwork distributed with Abora OS. Do not remove an entry while its asset remains in the repository.
 
 The following wallpapers are included with Abora OS.
 

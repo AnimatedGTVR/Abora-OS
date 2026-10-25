@@ -1,109 +1,29 @@
-# Abora Install Checklist
+# Install Checklist
 
-Use this after building a release candidate ISO and after running one real install.
+## Live image
 
-## Live Session
-
-- ISO reaches the live boot flow without dropping to an emergency shell
-- live boot flow opens on `tty1`
-- NetworkManager starts before the installer network step
-- installer opens without dropping into a shell first
-- Omarchy-inspired welcome screen appears before disk/account questions
-- networking works in the live session
-- `/etc/abora/setup.desktop` exists
-- `/etc/abora/setup-launcher.sh` exists and is executable
-- `/etc/abora/default-wallpaper.png` exists
-- `/etc/abora/wallpapers/` contains the curated wallpaper set
-- Fastfetch shows the Abora logo
-- `abora gaming status` opens without a missing-command error
-
-## VM Coverage
-
-- QEMU fresh install works end to end with `make qemu-fresh`
-- installed disk boots with `make qemu-disk`
-- at least one Windows-host VM run is checked in VMware or Hyper-V when possible
-- if testing Hyper-V Generation 2, secure boot is disabled
-- if testing VirtualBox, boot is checked with default graphics settings first
+- boots in the intended firmware mode
+- starts NetworkManager and the installer
+- detects input, displays, network, and internal disks
+- does not confuse install media with a target disk
+- includes required Abora assets and commands
 
 ## Installer
 
-- MINT renders with color on `tty1`
-- Abora text/logo appears without a `logo not found` fallback
-- first screen offers Open terminal, Debug installer, and Build from source
-- preflight failure offers Network tools, Debug tools, Open terminal, and retry
-- Debug installer can show recent install/config logs before partitioning
-- Build from source shows `make doctor`, `make iso`, and `make iso-all`
-- network step can open `nmtui`
-- network step can run Quick Wi-Fi connect without `nmtui`
-- network step can turn Wi-Fi on and rescan
-- disk selection and user creation remain interactive
-- "Use an existing partition" mode formats only the chosen partition and
-  reuses an existing ESP on a disk that already has one (e.g. a dual-boot
-  Windows install), leaving every other partition on the disk untouched
-- password mismatch recovery works
-- GitHub login can be skipped cleanly
-- generated config validation runs before `nixos-install`
-- preflight rejects a malformed or locally-pinned `/etc/abora/target-flake.lock`, or a bundled nixpkgs source whose NAR hash does not match it, before touching the selected disk
-- optional Gaming setup can be skipped cleanly
-- optional Desktop Gaming + Big Picture writes the expected gaming settings
-- optional Abora Labs is off by default, displays an experimental warning, and writes `abora.labs.enable = true` only when selected
-- install progress reaches the install phase
-- install completes without fatal errors
-- failed installs show useful recent log output
-- failed installs offer Try installer again, Network tools, Debug tools, terminal, and power off
-- `/tmp/abora-install.log` and `/tmp/abora-config.log` are present on failure
-- `/tmp/abora-install.log` contains `network snapshot start`
+- validates identity, passwords, timezone, keyboard, desktop, and GPU choices
+- clearly distinguishes automatic, manual, and existing-partition modes
+- shows the exact target before formatting
+- validates generated configuration before `nixos-install`
+- preserves `/tmp/abora-install.log` and `/tmp/abora-config.log` on failure
+- offers useful recovery actions instead of a blank failure screen
 
-## Failure Capture
+## Installed system
 
-When a tester reports a failure, collect the basics:
+- boots without the ISO
+- reaches the selected desktop and login
+- connects to the network and produces audio
+- `abora doctor`, `anix doctor`, and `tinypm doctor` complete
+- update and rollback work
+- desktop, GPU, and boot configuration match the installer choices
 
-```sh
-abora bug-report
-abora bug-report --github --web
-abora logs --lines 200
-abora network
-abora support-report
-```
-
-Add these if it happened during install, before first boot:
-
-```sh
-cat /tmp/abora-install.log
-cat /tmp/abora-config.log
-```
-
-Add these if it happened after first boot (updates, Wi-Fi, or other
-post-install failures):
-
-```sh
-abora check-full
-journalctl -b --no-pager
-```
-
-Attach the generated support archive and installer logs if available.
-Use [Bug Report Template](bug-report-template.md) for full reports.
-
-## ANIX Languages
-
-- `anix language list` shows ANIX Native and ModuCPP
-- `anix run examples/anix-v2/simple.anix --yes` works in a test config
-- `anix diff-plan examples/anix-v2/workstation.moducpp` resolves through `moducpp-anix`
-
-## Installed System
-
-- installed system boots without the ISO attached
-- bootloader starts without manual repair
-- login prompt starts
-- selected username exists and the live-media accounts (`liveuser`, `aboraos`) do not
-- networking is enabled and functional
-- Firefox is available without a separate Flatpak installation
-- `abora setup` launches the installed reconfiguration tool
-- `tinypm` and `grab` are available
-- `abora gaming status` and `abora gaming doctor` run after install
-- when Labs was enabled, `abora labs status` works without downloading or executing experimental code automatically
-- on GNOME installs, Abora wallpapers appear in `Settings -> Appearance`
-- on every supported desktop, first login starts on the Abora default wallpaper
-- on GNOME installs, picking an Abora wallpaper updates accent/style automatically
-
-For release screenshots, use [Screenshot Checklist](screenshots.md).
+Test every main edition in a VM and at least the default edition on real hardware before release.
