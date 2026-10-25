@@ -11,7 +11,10 @@
 </p>
 
 <p align="center">
-  <img src="assets/Images/v4.1-horizon-banner.png" alt="Abora OS Horizon" width="900">
+  <img src="https://img.shields.io/github/stars/AnimatedGTVR/Abora-OS?style=flat-square&color=1677ff" alt="GitHub stars">
+  <img src="https://img.shields.io/github/issues/AnimatedGTVR/Abora-OS?style=flat-square&color=1677ff" alt="Open issues">
+  <img src="https://img.shields.io/github/license/AnimatedGTVR/Abora-OS?style=flat-square&color=1677ff" alt="License">
+  <img src="https://img.shields.io/badge/Base-NixOS-5277C3?style=flat-square&logo=nixos&logoColor=white" alt="Based on NixOS">
 </p>
 
 Abora OS was created by **AnimatedGTVR** and is developed with help from community contributors.
@@ -21,6 +24,19 @@ Abora OS was created by **AnimatedGTVR** and is developed with help from communi
 Abora keeps NixOS's declarative configuration, reproducible builds, atomic upgrades, and rollbacks while providing a guided installer, practical defaults, several desktop editions, and simpler management tools.
 
 Current editions include COSMIC, GNOME, KDE Plasma, Hyprland, and Other Desktops. Abora is still a young project: test important releases before installing them on your main machine.
+
+<table>
+  <tr>
+    <td align="center"><strong>Approachable</strong><br>Guided installation and useful defaults.</td>
+    <td align="center"><strong>Recoverable</strong><br>Generations, diagnostics, and rollback.</td>
+    <td align="center"><strong>Flexible</strong><br>Five editions on one NixOS foundation.</td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Declarative</strong><br>Reproducible system configuration.</td>
+    <td align="center"><strong>Gaming Ready</strong><br>Optional Steam and Gamescope tools.</td>
+    <td align="center"><strong>Open Source</strong><br>Built in public with community testing.</td>
+  </tr>
+</table>
 
 ## Screenshots
 
@@ -44,11 +60,26 @@ Current editions include COSMIC, GNOME, KDE Plasma, Hyprland, and Other Desktops
 - Optional TinyPM application layer and Abora Labs experiments
 - Multiple desktop environments from one shared base
 
+## Pick your desktop
+
+| Edition | Best for |
+| --- | --- |
+| **COSMIC** | A modern desktop and the main Abora experience |
+| **GNOME** | A focused and polished workflow |
+| **KDE Plasma** | Deep customization and a familiar desktop |
+| **Hyprland** | Keyboard-driven tiling and custom setups |
+| **Other Desktops** | Exploring Abora's wider desktop collection |
+
 ## Download and install
 
 Download an ISO from [aboraos.org](https://aboraos.org) or [GitHub Releases](https://github.com/AnimatedGTVR/Abora-OS/releases). Read the [installation guide](docs/wiki/Installation.md) before writing it to a USB drive.
 
 Stable is intended for normal use. Edge receives unfinished changes first and may break:
+
+| Channel | Purpose |
+| --- | --- |
+| **Stable** | Tested releases for normal use |
+| **Edge** | New features and fixes for testers and contributors |
 
 ```sh
 sudo abora channel set stable
