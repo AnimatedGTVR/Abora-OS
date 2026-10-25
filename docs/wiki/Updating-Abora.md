@@ -1,146 +1,26 @@
 # Updating Abora
 
-Abora uses a flake-based update flow for installed systems.
-
-## Normal Update
-
-On an installed Abora system, run:
-
-```sh
-sudo abora update
-```
-
-These aliases run the same updater:
-
-```sh
-update
-upgrade
-abora-update
-nixos update
-```
-
-## Checking Without Updating
-
-To see whether an update is available without fetching anything or touching the system:
+Update an installed system with:
 
 ```sh
 abora update --check
-```
-
-This resolves your channel and compares it against the installed version, same as a normal update would, but stops there — no rebuild, no root needed. `abora welcome-gui` uses this under the hood for its status card.
-
-If update checks fail with network, DNS, or cache errors, run:
-
-```sh
-abora network
-abora support-report
-```
-
-## Disk Or Nix Database Full
-
-If the updater says `No space left on device`, `database or disk is full`, or
-mentions `/nix/var/nix/db/db.sqlite`, free normal files first. Nix garbage
-collection also needs a little writable space to commit its database changes.
-
-Check space:
-
-```sh
-df -h /nix/store / /tmp
-```
-
-Then remove old ISO files, empty Trash, clear large downloads, or expand the VM
-disk if you are testing in a VM. After that:
-
-```sh
-sudo nix-collect-garbage -d
 sudo abora update
 ```
 
-If only the per-user Nix fetch cache is damaged, this can help:
-
-```sh
-abora gaming repair-cache
-```
-
-## What The Updater Does
-
-The update helper:
-
-- resolves the selected Abora channel
-- fetches the latest Abora project files into `/etc/nixos/.abora-upstream`
-- syncs the installed Abora files under `/etc/nixos/abora/`
-- optionally offers a local ANIX snapshot before rebuilding
-- updates the flake inputs
-- runs `nixos-rebuild switch`
+The updater resolves the selected channel, downloads Abora project files, updates flake inputs, and runs the system rebuild.
 
 ## Channels
 
-Abora OS v4.1 Horizon is currently an alpha release line, so new installs
-default to `unstable`, which tracks the `edge` branch. `stable` remains
-available for final tagged releases and older installed systems.
-
-The Abora channel controls Abora project files. Abora v4.1 alpha tracks
-NixOS's rolling `nixos-unstable` package branch so desktop environments,
-drivers, and regular Nix apps move forward with `sudo abora update`.
-
-Show the current channel:
-
 ```sh
 abora channel
-```
-
-List channels:
-
-```sh
 abora channel list
-```
-
-Switch channels:
-
-```sh
 sudo abora channel set stable
-sudo abora channel set demo
 sudo abora channel set unstable
 ```
 
-- `stable` tracks the latest tagged Abora release
-- `demo` tracks tagged demo/dev builds for the installed release line
-- `unstable` tracks the `edge` branch and is the v4.1 Horizon alpha default
+Stable tracks tested releases. Unstable tracks `edge` and may contain unfinished work.
 
-Abora's development branch is `edge`. If an older config or test command asks
-for `main`, use `edge` instead:
-
-```sh
-sudo ABORA_REPO_REF=edge abora update
-```
-
-## Pre-Alpha Builds
-
-Pre-alpha builds are unfinished development versions intended for testing and feedback only. They may fail to boot, break applications, lose data, or require manual recovery.
-
-Preview the selected pre-alpha ref without changing the system:
-
-```sh
-sudo abora install pre-alpha --dry-run
-```
-
-Install the default pre-alpha ref after the risk prompt:
-
-```sh
-sudo abora install pre-alpha
-```
-
-Install a specific branch or tag:
-
-```sh
-sudo abora install pre-alpha --ref my-test-branch
-```
-
-This is a one-shot path. It does not save your update channel as pre-alpha, and it requires typing `I ACCEPT THE RISK` exactly.
-
-## Safer Update Habit
-
-Before a larger update:
+## Before a large update
 
 ```sh
 anix save "before update"
@@ -148,34 +28,13 @@ anix status
 sudo abora update
 ```
 
-## Rollback
-
-If the update is not good:
+Rollback if needed:
 
 ```sh
 sudo abora rollback
-```
-
-Or with ANIX:
-
-```sh
+# or
 anix generations
 anix rollback nix
 ```
 
-## Related Tools
-
-- `abora doctor`: check system health
-- `abora recovery`: rollback, rebuild, repair, and support actions
-- `abora setup`: installed reconfiguration launcher
-- `anix status`: show profile, generation, and snapshot state
-- `anix save`: local `/etc/nixos` snapshot
-- `anix diff nix <profile>`: preview profile changes
-- `anix test nix <profile>`: test-activate a profile
-- `tinypm providers`: show app/package provider status
-
-## Notes
-
-- This is for installed Abora systems.
-- It does not use classic manual NixOS channel updates.
-- If the updater fails while fetching files, check the reported git error first.
+For network failures run `abora network`. For disk-full errors, free ordinary files first, then consider `sudo nix-collect-garbage -d`. Never delete files directly from `/nix/store`.
