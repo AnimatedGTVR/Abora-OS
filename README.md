@@ -1,16 +1,39 @@
-<p align="center"><img src="assets/Abora-Text.png" alt="Abora OS" width="650"></p>
+<p align="center">
+  <img src="assets/Abora-Text.png" alt="Abora OS" width="650">
+</p>
 
 <p align="center"><strong>A NixOS-based Linux distribution built to be easier to install, use, and understand.</strong></p>
 
-<p align="center"><a href="https://aboraos.org">Website</a> | <a href="https://github.com/AnimatedGTVR/Abora-OS/releases">Downloads</a> | <a href="docs/wiki/Home.md">Documentation</a> | <a href="https://github.com/AnimatedGTVR/Abora-OS/issues">Issues</a></p>
+<p align="center">
+  <a href="https://aboraos.org"><img src="https://img.shields.io/badge/Website-aboraos.org-1677ff?style=for-the-badge" alt="Website"></a>
+  <a href="https://github.com/AnimatedGTVR/Abora-OS/releases"><img src="https://img.shields.io/github/v/release/AnimatedGTVR/Abora-OS?style=for-the-badge&label=Download" alt="Latest release"></a>
+  <a href="docs/wiki/Home.md"><img src="https://img.shields.io/badge/Documentation-Read-30363d?style=for-the-badge" alt="Documentation"></a>
+</p>
 
-> Abora OS is created and maintained by **AnimatedGTVR** with help from community contributors. Project direction, architecture, review, and releases are human-led.
+<p align="center">
+  <img src="assets/Images/v4.1-horizon-banner.png" alt="Abora OS Horizon" width="900">
+</p>
+
+Abora OS was created by **AnimatedGTVR** and is developed with help from community contributors.
 
 ## About Abora
 
 Abora keeps NixOS's declarative configuration, reproducible builds, atomic upgrades, and rollbacks while providing a guided installer, practical defaults, several desktop editions, and simpler management tools.
 
 Current editions include COSMIC, GNOME, KDE Plasma, Hyprland, and Other Desktops. Abora is still a young project: test important releases before installing them on your main machine.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td><img src="assets/Images/v4/screenshot-2026-07-27_03-54-02.png" alt="Abora Welcome" width="440"></td>
+    <td><img src="assets/Images/v4/screenshot-2026-07-27_03-56-03.png" alt="Abora Settings" width="440"></td>
+  </tr>
+  <tr>
+    <td><img src="assets/Images/v4/screenshot-2026-07-27_03-58-15.png" alt="Abora GNOME desktop" width="440"></td>
+    <td><img src="assets/Images/v4/screenshot-2026-07-27_05-32-15.png" alt="Abora COSMIC desktop" width="440"></td>
+  </tr>
+</table>
 
 ## Main features
 
