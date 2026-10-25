@@ -1,46 +1,11 @@
-# Abora Screenshot Checklist
+# Screenshot Checklist
 
-Use this when preparing docs, Discord updates, or release images. Capture from a
-fresh ISO whenever possible so the screenshots match what users see.
+Capture current images at the same resolution and theme where practical:
 
-## Installer
+- boot menu and installer welcome
+- disk, desktop, GPU, and final-review installer steps
+- COSMIC, GNOME, KDE, Hyprland, and Other edition desktops
+- Abora Welcome, Settings, Gaming, Doctor, and Recovery
+- a useful failure screen with readable diagnostics
 
-- live boot on `tty1` showing the Abora logo in color
-- MINT welcome screen with `Install Abora OS to System`
-- edition picker
-- network step with the `nmtui` option visible
-- Network tools screen showing status, Quick Wi-Fi, and rescan options
-- timezone region picker and timezone search result
-- disk selection
-- final install review
-- preflight failure screen with Network tools, Debug tools, terminal, and retry
-- install progress screen
-- install failure screen with log path and helpful commands visible
-
-## Installed System
-
-- first boot desktop with the Abora wallpaper
-- `abora welcome` or welcome GUI, showing the Home and System tabs
-- Abora Gaming Welcome (`abora gaming welcome`) showing the platform list and Steam sign-in card
-- `abora config` or config GUI
-- `anix language list` showing ANIX Native and ModuCPP
-- `anix diff-plan examples/anix-v2/workstation.moducpp`
-
-## Naming
-
-Store final docs screenshots under `docs/screenshots/` when they are committed.
-Use short lowercase names, for example:
-
-```text
-installer-welcome-tty.png
-installer-timezone-search.png
-installer-review.png
-installer-network-tools.png
-installer-preflight-failed.png
-installer-install-failed.png
-anix-language-list.png
-anix-moducpp-diff.png
-```
-
-Avoid screenshots that include private usernames, Wi-Fi names, machine serials,
-or real disks unless they are intentionally part of a bug report.
+Remove usernames, hostnames, Wi-Fi names, disk serials, tokens, personal paths, and notifications. Update the README only with screenshots from the current supported release.
