@@ -46,6 +46,7 @@ let
     fluxbox      = "Fluxbox";
     icewm        = "IceWM";
     herbstluftwm = "Herbstluftwm";
+    lumina       = "Lumina";
     cosmic       = "COSMIC";
     mangowm      = "MangoWM";
   }.${cfg.desktop} or "Abora";
@@ -117,7 +118,7 @@ in
         "none" "gnome" "plasma" "hyprland" "sway" "xfce" "cinnamon" "mate"
         "budgie" "lxqt" "pantheon" "i3"
         "awesome" "openbox" "niri" "river" "qtile" "bspwm" "fluxbox"
-        "icewm" "herbstluftwm" "cosmic" "mangowm"
+        "icewm" "herbstluftwm" "cosmic" "mangowm" "lumina"
       ];
       default     = "cosmic";
       description = "Desktop environment or window manager to enable.";

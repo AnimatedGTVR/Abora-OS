@@ -68,6 +68,7 @@ DESKTOP_MARKERS = (
     ("windowManager.fluxbox.enable = true;", "fluxbox"),
     ("windowManager.icewm.enable = true;", "icewm"),
     ("windowManager.herbstluftwm.enable = true;", "herbstluftwm"),
+    ("pkgs.lumina.lumina", "lumina"),
 )
 
 # Free-space thresholds. NixOS needs room to build a new generation before it can drop old ones,

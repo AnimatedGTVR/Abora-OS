@@ -439,7 +439,7 @@ show_config() {
 valid_desktops=(
     none gnome plasma hyprland sway xfce cinnamon mate budgie lxqt pantheon
     i3 awesome openbox niri river qtile bspwm fluxbox
-    icewm herbstluftwm cosmic mangowm
+    icewm herbstluftwm cosmic mangowm lumina
 )
 
 wallpaper_candidates() {

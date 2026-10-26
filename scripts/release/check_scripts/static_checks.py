@@ -118,8 +118,11 @@ CHECKS: tuple[Check, ...] = (
     ),
     Check(
         'static: installs carry no duplicate terminal/browser, and minimal installs stay lean',
-        grep('-Fq', 'needsKonsole = graphical && !(nativeTerminals ? ${desktop});', 'nix/modules/installed-base.nix'),
-        grep('-Fq', 'lib.optional needsKonsole kdePackages.konsole', 'nix/modules/installed-base.nix'),
+        grep('-Fq', 'needsFallbackTerminal = graphical && !(nativeTerminals ? ${desktop});', 'nix/modules/installed-base.nix'),
+        grep('-Fq', 'lib.optional (needsFallbackTerminal && !minimal) kdePackages.konsole', 'nix/modules/installed-base.nix'),
+        grep('-Fq', 'cp ${wallpaperDir}/${minimalWallpaper} ', 'nix/modules/installed-base.nix'),
+        grep('-Fq', 'printf \'%s\\n\' none icewm lxqt xfce lumina niri sway fluxbox openbox', 'scripts/abora-installer.sh'),
+        grep('-Fq', 'system=${system.pkgs.stdenv.hostPlatform.system}', 'scripts/abora-installer.sh'),
         not_(grep('-Eq', '^    (firefox|starship|xterm|kdePackages.konsole)$', 'nix/modules/installed-base.nix')),
         grep('-Fq', 'flatpak install --system --noninteractive --or-update flathub ${zenFlatpak}', 'nix/modules/installed-base.nix'),
         grep('-Fq', 'services.flatpak.enable = lib.mkDefault (!minimal);', 'nix/modules/installed-base.nix'),

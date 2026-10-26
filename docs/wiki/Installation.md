@@ -86,7 +86,10 @@ The current flow includes:
 - desktop profile selection
 - starter app bundle selection
 - install style: **Standard** (Zen browser, Flatpak, the welcome and settings apps, wallpapers) or **Minimal**
-  (the desktop and Abora's commands only; sets `abora.minimal = true`)
+  (sets `abora.minimal = true`). Minimal asks the style before the desktop and offers light desktops: None, IceWM,
+  LXQt, XFCE, Lumina, Niri, Sway, Fluxbox, Openbox, or **Custom** for every desktop Abora supports. It installs no
+  browser, no Flatpak and no extra apps, and only the Titlis Alps wallpaper. Window managers without a terminal get
+  xterm instead of Konsole.
 - optional dotfiles import for Hyprland and Other Environment installs
 - ANIX and GitHub options
 - disk selection

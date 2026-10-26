@@ -4239,11 +4239,15 @@ release_locale() {
 
 release_desktop() {
     release_header "Desktop"
-    local -a profiles=() profile
     local default_profile="${abora_default_desktop:-${abora_edition:-cosmic}}"
     [[ "$default_profile" == "kde" ]] && default_profile="plasma"
     desktop_profile="$default_profile"
     abora_sync_desktop_label "$desktop_profile"
+
+    if [[ "$install_minimal" == "yes" ]]; then
+        release_minimal_desktop
+        return
+    fi
 
     case "${abora_edition:-}" in
         cosmic|hyprland|gnome|kde)
@@ -4256,7 +4260,11 @@ release_desktop() {
             [[ "$MENU_RESULT" -eq 0 ]] && return 0
             ;;
     esac
+    release_all_desktops
+}
 
+release_all_desktops() {
+    local -a profiles=() profile
     # Hyprland and "other" are built around tiling window managers, so show
     # those first instead of the plain alphabetic-ish order every other
     # edition gets.
@@ -4289,16 +4297,39 @@ release_apps() {
     starter_apps_bundle="none"
     starter_apps_label="None"
     install_apps_during_setup="no"
+}
 
+release_style() {
     release_header "Install style"
     menu "How much should be installed?" \
         "Standard|Recommended — Zen browser, Flatpak, welcome and settings apps, wallpapers" \
-        "Minimal|Your desktop and Abora's commands only — no browser, no Flatpak, no extra apps"
+        "Minimal|A light desktop and Abora's commands only — no browser, no Flatpak, one wallpaper"
     if [[ "$MENU_RESULT" -eq 1 ]]; then
         install_minimal="yes"
     else
         install_minimal="no"
     fi
+}
+
+# Minimal installs offer light desktops first; Custom opens the full list.
+minimal_desktop_profiles() {
+    printf '%s\n' none icewm lxqt xfce lumina niri sway fluxbox openbox
+}
+
+release_minimal_desktop() {
+    local -a rows=() profile
+    while IFS= read -r profile; do
+        abora_sync_desktop_label "$profile"
+        rows+=("${desktop_label}|${profile}")
+    done < <(minimal_desktop_profiles)
+    rows+=("Custom|Choose from every desktop Abora supports")
+    menu "Desktop" "${rows[@]}"
+    if [[ "$MENU_RESULT" -lt $(( ${#rows[@]} - 1 )) ]]; then
+        desktop_profile="${rows[$MENU_RESULT]#*|}"
+        abora_sync_desktop_label "$desktop_profile"
+        return 0
+    fi
+    release_all_desktops
 }
 
 release_gaming() {
@@ -4427,7 +4458,8 @@ release_review() {
 # Evaluated against the user's configuration before any disk is touched; the
 # Rust engine (`abora-installer flake judge`) decides whether it can boot here.
 read -r -d '' FLAKE_INSPECT_EXPR <<'NIX' || true
-c: let
+system: let
+  c = system.config;
   l = c.boot.loader;
   b = x: if x then "1" else "0";
   harmless = fs:
@@ -4436,7 +4468,7 @@ c: let
   extra = builtins.filter (m: m != "/" && m != "/boot" && !(harmless c.fileSystems.${m}))
     (builtins.attrNames c.fileSystems);
 in ''
-  system=${c.nixpkgs.hostPlatform.system}
+  system=${system.pkgs.stdenv.hostPlatform.system}
   systemd_boot=${b l.systemd-boot.enable}
   grub=${b l.grub.enable}
   grub_efi=${b l.grub.efiSupport}
@@ -4470,7 +4502,7 @@ list_flake_hosts() {
 }
 
 inspect_flake_host() {
-    flake_nix eval --refresh --raw "${flake_url}#nixosConfigurations.\"${flake_host}\".config" \
+    flake_nix eval --refresh --raw "${flake_url}#nixosConfigurations.\"${flake_host}\"" \
         --apply "$FLAKE_INSPECT_EXPR" 2>>"$flake_check_log"
 }
 
@@ -4789,6 +4821,7 @@ release_install_flow() {
     release_disk
     release_identity
     release_locale
+    release_style
     release_desktop
     step_gpu
     release_gaming

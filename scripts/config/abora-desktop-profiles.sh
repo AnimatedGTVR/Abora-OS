@@ -72,6 +72,7 @@ icewm
 herbstluftwm
 cosmic
 mangowm
+lumina
 EOF
 }
 
@@ -216,6 +217,10 @@ abora_sync_desktop_label() {
             desktop_label="MangoWM"
             desktop_variant_id="mangowm"
             ;;
+        lumina)
+            desktop_label="Lumina"
+            desktop_variant_id="lumina"
+            ;;
         *)
             desktop_label="GNOME"
             desktop_variant_id="gnome"
@@ -276,6 +281,8 @@ abora_detect_desktop_profile() {
         printf 'fluxbox\n'
     elif grep -q 'windowManager\.icewm\.enable = true;' "$file"; then
         printf 'icewm\n'
+    elif grep -q 'pkgs\.lumina\.lumina' "$file"; then
+        printf 'lumina\n'
     elif grep -q 'windowManager\.herbstluftwm\.enable = true;' "$file"; then
         printf 'herbstluftwm\n'
     elif grep -q "defaultSession = \"mango\";" "$file"; then
@@ -729,6 +736,23 @@ EOF
   services.xserver.displayManager.lightdm.enable = true;
 EOF
             ;;
+        lumina)
+            cat <<EOF
+  # Not desktopManager.lumina: that nixpkgs module needs libsForQt5.kwindowsystem, which is gone.
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+  };
+  environment.pathsToLink = [ "/share/lumina" ];
+  services.displayManager = {
+    sessionPackages = [ pkgs.lumina.lumina ];
+    defaultSession = "Lumina-DE";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
         herbstluftwm)
             cat <<EOF
   services.xserver = {
@@ -841,6 +865,17 @@ EOF
     foot
     waybar
     wofi
+EOF
+            ;;
+        lumina)
+            cat <<'EOF'
+    lumina.lumina
+    lumina.lumina-calculator
+    lumina.lumina-pdf
+    fluxbox
+    numlockx
+    qt5.qtsvg
+    xscreensaver
 EOF
             ;;
     esac

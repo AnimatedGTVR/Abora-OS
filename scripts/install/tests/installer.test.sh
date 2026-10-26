@@ -298,4 +298,23 @@ else
 fi
 rm -rf "$tmp_pw_root"
 
+# Minimal installs offer their own light desktops, and Custom opens the full list.
+tmp_min="$(mktemp)"
+sed -n '/^minimal_desktop_profiles()/,/^release_desktop()/p' scripts/abora-installer.sh | sed '$d' > "$tmp_min"
+min_out="$(bash -c "
+  source scripts/config/abora-desktop-profiles.sh
+  source '$tmp_min'
+  release_all_desktops() { desktop_profile=full-list; }
+  menu() { shift; printf '%s\n' \"\$@\" > '$tmp_min.rows'; MENU_RESULT=\"\$PICK\"; }
+  PICK=4; release_minimal_desktop; printf 'pick4=%s\n' \"\$desktop_profile\"
+  PICK=9; release_minimal_desktop; printf 'pick9=%s\n' \"\$desktop_profile\"
+")"
+if [[ "$min_out" == *"pick4=lumina"* && "$min_out" == *"pick9=full-list"* ]] \
+  && [[ "$(cut -d'|' -f1 "$tmp_min.rows" | tr '\n' ',')" == "No desktop,IceWM,LXQt,XFCE,Lumina,Niri,Sway,Fluxbox,Openbox,Custom," ]]; then
+  pass "runtime: minimal installs offer the light desktop list, and Custom opens every desktop"
+else
+  fail "runtime: minimal installs offer the light desktop list, and Custom opens every desktop"
+fi
+rm -f "$tmp_min" "$tmp_min.rows"
+
 testlib_finish

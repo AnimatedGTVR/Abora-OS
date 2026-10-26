@@ -71,7 +71,7 @@ done
 
 valid_desktop() {
   case "$1" in
-    none|gnome|plasma|hyprland|sway|xfce|cinnamon|mate|budgie|lxqt|pantheon|i3|awesome|openbox|niri|river|qtile|bspwm|fluxbox|icewm|herbstluftwm|cosmic|mangowm)
+    none|gnome|plasma|hyprland|sway|xfce|cinnamon|mate|budgie|lxqt|pantheon|i3|awesome|openbox|niri|river|qtile|bspwm|fluxbox|icewm|herbstluftwm|cosmic|mangowm|lumina)
       return 0
       ;;
     *)
@@ -136,7 +136,7 @@ run_interactive_wizard() {
 
   printf 'Desktop profile to let Abora manage (leave blank to keep your current one):\n'
   printf '  none gnome plasma hyprland sway xfce cinnamon mate budgie lxqt pantheon\n'
-  printf '  i3 awesome openbox niri river qtile bspwm fluxbox icewm herbstluftwm\n'
+  printf '  i3 awesome openbox niri river qtile bspwm fluxbox icewm herbstluftwm lumina\n'
   printf '  cosmic mangowm\n'
   printf 'Desktop [none]: '
   read -r answer_desktop || answer_desktop=""
@@ -321,7 +321,7 @@ copy_if_exists "$repo_dir/nix/modules/desktops" "$abora_dir/desktops"
 copy_if_exists "$repo_dir/nix/pkgs" "$abora_dir/pkgs"
 copy_if_exists "$repo_dir/tools/abora-plan-tool" "$abora_dir/plan-tool"
 copy_if_exists "$repo_dir/tools/abora-update" "$abora_dir/abora-update"
-copy_if_exists "$repo_dir/assets/wallpapers" "$abora_dir/wallpapers"
+copy_if_exists "$repo_dir/assets/wallpapers/collection" "$abora_dir/wallpapers"
 # installed-base.nix's wallpaperThemeDir looks for ./themes (matching what
 # abora-installer.sh's write_branding_assets() also copies to, on a real
 # install), not ./wallpaper-themes -- was silently wrong here, so an

@@ -9,11 +9,17 @@ let
     gnome = "kgx"; cosmic = "cosmic-term"; plasma = "konsole"; xfce = "xfce4-terminal";
     cinnamon = "gnome-terminal"; mate = "mate-terminal"; lxqt = "qterminal";
     pantheon = "io.elementary.terminal";
+    # Their Abora desktop modules install these.
+    hyprland = "kitty"; sway = "foot"; niri = "foot"; river = "foot"; mangowm = "foot";
   };
-  terminal     = nativeTerminals.${desktop} or "konsole";
-  needsKonsole = graphical && !(nativeTerminals ? ${desktop});
+  terminal     = nativeTerminals.${desktop} or fallbackTerminal;
+  needsFallbackTerminal = graphical && !(nativeTerminals ? ${desktop});
   hasOwnBluetoothUi = builtins.elem desktop [ "gnome" "plasma" "cosmic" "pantheon" ];
   zenFlatpak   = "app.zen_browser.zen";
+  # The one wallpaper a minimal install keeps.
+  minimalWallpaper = "titlis-alps.jpg";
+  # Minimal installs fall back to xterm on X11 rather than pulling in KDE for Konsole.
+  fallbackTerminal = if minimal then "xterm" else "konsole";
 
   # All paths below are relative to this file as it lives on the installed system
   # (beside installed-base.nix in /etc/nixos/abora/ or equivalent).  The
@@ -300,8 +306,15 @@ let
   '';
   aboraWallpapersPackage = pkgs.runCommandLocal "abora-wallpapers" { } ''
     mkdir -p "$out/share/backgrounds/abora" "$out/share/abora/themes" "$out/share/gnome-background-properties"
-    find ${wallpaperDir} -maxdepth 1 -type f -exec cp {} "$out/share/backgrounds/abora/" \;
-    find ${wallpaperThemeDir} -maxdepth 1 -type f -exec cp {} "$out/share/abora/themes/" \;
+    ${if minimal
+      then ''
+        cp ${wallpaperDir}/${minimalWallpaper} "$out/share/backgrounds/abora/"
+        cp ${wallpaperThemeDir}/${lib.removeSuffix ".jpg" minimalWallpaper}.conf "$out/share/abora/themes/"
+      ''
+      else ''
+        find ${wallpaperDir} -maxdepth 1 -type f -exec cp {} "$out/share/backgrounds/abora/" \;
+        find ${wallpaperThemeDir} -maxdepth 1 -type f -exec cp {} "$out/share/abora/themes/" \;
+      ''}
     cat >"$out/share/gnome-background-properties/abora.xml" <<'EOF'
     <?xml version="1.0"?>
     <!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd">
@@ -362,6 +375,7 @@ let
       </wallpaper>
     </wallpapers>
     EOF
+    ${lib.optionalString minimal ''rm -r "$out/share/gnome-background-properties"''}
   '';
   aboraPlymouthTheme = pkgs.runCommandLocal "abora-plymouth-theme" { } ''
     install -Dm0644 ${plymouthDir + "/abora.plymouth"} $out/share/plymouth/themes/abora/abora.plymouth
@@ -483,7 +497,13 @@ in
   networking.modemmanager.enable = config.abora.extras.mobileBroadband;
   security.polkit.enable = lib.mkDefault true;
   services.udisks2.enable = lib.mkDefault true;
-  services.blueman.enable = lib.mkDefault (graphical && !hasOwnBluetoothUi);
+  assertions = [{
+    assertion = !minimal || config.abora.wallpaper == minimalWallpaper;
+    message = "abora.minimal installs only the ${minimalWallpaper} wallpaper; set abora.wallpaper to it, or turn off abora.minimal.";
+  }];
+
+  # Only ever turns Blueman on: a desktop module (Cinnamon) may set its own mkDefault.
+  services.blueman.enable = lib.mkIf (graphical && !hasOwnBluetoothUi) (lib.mkDefault true);
   services.fwupd.enable = lib.mkDefault true;
   services.openssh.enable = lib.mkDefault false;
   security.rtkit.enable = lib.mkDefault true;
@@ -572,11 +592,13 @@ in
     };
   };
 
-  environment.variables = {
-    XCURSOR_THEME = lib.mkDefault "Adwaita";
-    XCURSOR_SIZE  = lib.mkDefault "24";
+  environment.variables = lib.optionalAttrs graphical {
     TERMINAL      = lib.mkDefault terminal;
     TERM_PROGRAM  = lib.mkDefault terminal;
+  } // {
+    XCURSOR_THEME = lib.mkDefault "Adwaita";
+    XCURSOR_SIZE  = lib.mkDefault "24";
+
   };
 
   environment.systemPackages = with pkgs; [
@@ -621,6 +643,7 @@ in
     wget
     zsh
   ] ++ lib.optionals graphical [
+    aboraWallpapersPackage
     feh
     libnotify
     swaybg
@@ -631,9 +654,9 @@ in
   ] ++ lib.optionals (graphical && !minimal) [
     aboraWelcomeDesktopPkg
     aboraConfigDesktopPkg
-    aboraWallpapersPackage
     papirus-icon-theme
-  ] ++ lib.optional needsKonsole kdePackages.konsole
+  ] ++ lib.optional (needsFallbackTerminal && !minimal) kdePackages.konsole
+    ++ lib.optional (needsFallbackTerminal && minimal) xterm
     ++ lib.optional (graphical && config.abora.browser == "firefox") firefox
     ++ lib.optional (abtScript != null) aboraAbt
     ++ lib.optional (pkgs ? abora-update) pkgs.abora-update

@@ -46,7 +46,7 @@ ZONE_DIR      = Path('/usr/share/zoneinfo')
 VALID_DESKTOPS = [
     'none', 'gnome', 'plasma', 'hyprland', 'sway', 'xfce', 'cinnamon', 'mate',
     'budgie', 'lxqt', 'pantheon', 'i3', 'awesome', 'openbox', 'niri', 'river',
-    'qtile', 'bspwm', 'fluxbox', 'icewm', 'herbstluftwm', 'cosmic', 'mangowm',
+    'qtile', 'bspwm', 'fluxbox', 'icewm', 'herbstluftwm', 'cosmic', 'mangowm', 'lumina',
 ]
 VALID_GPUS = ['auto', 'nouveau', 'nvidia', 'nvidia-open', 'amdgpu', 'intel', 'none']
 DEFAULT_WALLPAPERS = [

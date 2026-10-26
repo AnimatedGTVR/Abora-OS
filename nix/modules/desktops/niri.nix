@@ -4,6 +4,7 @@ let
 in
 {
   config = lib.mkIf (common.enabled "niri") {
+    environment.systemPackages = [ pkgs.foot ];
     services.xserver = common.xserver;
     programs.niri.enable = true;
     services.displayManager = {

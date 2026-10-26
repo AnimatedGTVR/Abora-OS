@@ -4,6 +4,7 @@ let
 in
 {
   config = lib.mkIf (common.enabled "hyprland") {
+    environment.systemPackages = [ pkgs.kitty ];
     services.xserver = common.xserver;
     services.displayManager = {
       defaultSession = "hyprland-uwsm";

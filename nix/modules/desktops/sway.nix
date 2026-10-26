@@ -4,6 +4,7 @@ let
 in
 {
   config = lib.mkIf (common.enabled "sway") {
+    environment.systemPackages = [ pkgs.foot ];
     services.xserver = common.xserver;
     programs.sway = {
       enable = true;

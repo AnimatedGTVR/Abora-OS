@@ -21,7 +21,7 @@ let
     "nix/pkgs:pkgs"
     "tools/abora-plan-tool:plan-tool"
     "tools/abora-update:abora-update"
-    "assets/wallpapers:wallpapers"
+    "assets/wallpapers/collection:wallpapers"
     "assets/wallpaper-themes:themes"
     "assets/bootloader:bootloader"
     "assets/plymouth:plymouth"
