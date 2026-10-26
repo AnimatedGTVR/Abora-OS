@@ -319,6 +319,8 @@ copy_if_exists "$repo_dir/nix/modules/installed-base.nix" "$abora_dir/installed-
 copy_if_exists "$repo_dir/nix/modules/anix.nix" "$abora_dir/anix-module.nix"
 copy_if_exists "$repo_dir/nix/modules/desktops" "$abora_dir/desktops"
 copy_if_exists "$repo_dir/nix/pkgs" "$abora_dir/pkgs"
+copy_if_exists "$repo_dir/tools/abora-plan-tool" "$abora_dir/plan-tool"
+copy_if_exists "$repo_dir/tools/abora-update" "$abora_dir/abora-update"
 copy_if_exists "$repo_dir/assets/wallpapers" "$abora_dir/wallpapers"
 # installed-base.nix's wallpaperThemeDir looks for ./themes (matching what
 # abora-installer.sh's write_branding_assets() also copies to, on a real
@@ -421,9 +423,12 @@ EOF
 if [[ -f "$configuration_nix" ]]; then
   ensure_import_in_configuration
 elif [[ -f "$flake_nix" ]]; then
-  printf '\nFlake config detected. Add ./abora-adopt.nix to your NixOS module list.\n'
-  printf 'Example:\n'
+  printf '\nFlake config detected. Add ./abora-adopt.nix to your NixOS module list:\n'
   printf '  modules = [ ./configuration.nix ./abora-adopt.nix ];\n'
+  printf '\nOr skip the copied files and use Abora as a flake input, updated with\n'
+  printf '`nix flake update abora`:\n'
+  printf '  inputs.abora.url = "github:Abora-OS/Abora-OS";\n'
+  printf '  modules = [ ./configuration.nix abora.nixosModules.default ];\n'
 else
   printf '\nNo configuration.nix or flake.nix found in %s.\n' "$config_dir"
   printf 'Import %s from your real NixOS configuration.\n' "$target_import"

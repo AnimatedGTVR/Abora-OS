@@ -12,6 +12,16 @@ import re
 
 from .core import Check, grep, no_match, not_, test
 
+
+def _adopt_layout() -> list[str]:
+    """Every "source:installed-name" pair abora-adopt-nixos.sh copies."""
+    from pathlib import Path
+    script = Path(__file__).resolve().parents[3] / "scripts/install/abora-adopt-nixos.sh"
+    text = script.read_text(encoding="utf-8")
+    pairs = re.findall(r'^copy_if_exists "\$repo_dir/([^"]+)" "\$abora_dir/([^"]+)"$', text, re.M)
+    pairs += re.findall(r'^  "([^":]+):([^"]+)"(?: \\|; do)$', text, re.M)
+    return [f"{src}:{dest}" for src, dest in pairs]
+
 CHECKS: tuple[Check, ...] = (
     Check(
         'runtime: desktop session setup has a systemd fallback for non-XDG-autostart sessions',
@@ -115,6 +125,13 @@ CHECKS: tuple[Check, ...] = (
         grep('-Fq', 'services.flatpak.enable = lib.mkDefault (!minimal);', 'nix/modules/installed-base.nix'),
         grep('-Fq', 'type = lib.types.enum [ "zen" "firefox" "none" ];', 'nix/modules/abora-options.nix'),
         grep('-Fq', 'abora.minimal = $(nix_bool "$install_minimal");', 'scripts/abora-installer.sh'),
+    ),
+    Check(
+        'static: nixosModules.default lays out every file abora adopt-nixos copies',
+        grep('-Fq', 'default = import ./nix/modules/abora-flake.nix { inherit self nixpkgs; };', 'flake.nix'),
+        grep('-Fq', 'abora.nixosModules.default', 'scripts/abora-adopt-nixos.sh'),
+        *(grep('-Fq', f'"{pair}"', 'nix/modules/abora-flake.nix') for pair in _adopt_layout()),
+        fail_name='nix/modules/abora-flake.nix must list every file abora-adopt-nixos.sh copies',
     ),
     Check(
         'runtime: abora.gpu accepts legacy/batch auto values as a no-op',

@@ -207,6 +207,34 @@ sudo nixos-rebuild switch
 The command writes a backup under `/etc/nixos/abora-backups/` before changing
 anything.
 
+### If your NixOS config is a flake
+
+Add Abora as a flake input instead. Nothing is copied into `/etc/nixos`, and Abora updates come with
+`nix flake update abora`:
+
+```nix
+{
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.abora.url = "github:Abora-OS/Abora-OS";
+
+  outputs = { nixpkgs, abora, ... }: {
+    nixosConfigurations.laptop = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ./configuration.nix
+        abora.nixosModules.default
+        # Optional, same choices as the wizard:
+        # { abora.desktop = "gnome"; abora.gaming.enable = true; }
+      ];
+    };
+  };
+}
+```
+
+This is the same adoption the wizard does: your users, homes and desktop are kept, `abora.desktop` defaults to
+`"none"`, and setting `abora.user.name` hands that user to Abora. Then run
+`sudo nixos-rebuild switch --flake .#laptop`.
+
 ## After Install
 
 When installation finishes:

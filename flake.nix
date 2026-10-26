@@ -63,6 +63,7 @@
       overlays.default = overlay;
 
       nixosModules = {
+        default = import ./nix/modules/abora-flake.nix { inherit self nixpkgs; };
         installed-base = import ./nix/modules/installed-base.nix;
         anix = import ./nix/modules/anix.nix;
         branding = import ./nix/modules/branding.nix;
