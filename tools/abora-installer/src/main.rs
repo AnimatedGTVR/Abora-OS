@@ -1,14 +1,28 @@
 mod cli;
 mod config;
+mod disk;
+mod disk_cli;
 mod install;
 mod logging;
 mod runner;
+mod system;
 mod tui;
 
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    let args = match cli::Args::parse(std::env::args_os().skip(1)) {
+    let raw: Vec<_> = std::env::args_os().skip(1).collect();
+    if raw.first().is_some_and(|a| a == "disk") {
+        return match disk_cli::run(&raw[1..]) {
+            Ok(code) => ExitCode::from(code),
+            Err(err) => {
+                eprintln!("abora-installer: {err}");
+                ExitCode::from(1)
+            }
+        };
+    }
+
+    let args = match cli::Args::parse(raw) {
         Ok(args) => args,
         Err(err) => {
             eprintln!("abora-installer: {err}");

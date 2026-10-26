@@ -6,6 +6,9 @@ pub fn print_help() {
     println!();
     println!("Usage:");
     println!("  abora-installer [options] [legacy installer args]");
+    println!(
+        "  abora-installer disk <erase|existing|mount> ...   (see: abora-installer disk --help)"
+    );
     println!();
     println!("Options:");
     println!("  --legacy-script <path>  Use a different Bash backend");

@@ -21,7 +21,7 @@ Abora is six layers. Each lives in its own place, and a layer only calls the one
 | GUI | `scripts/*/*-gui.py` (welcome, config, gaming, feedback) | Python (GTK4) | front-ends; every action is also a CLI command |
 | Safety and recovery (ASA) | `scripts/safety/` (ABT), `scripts/support/` (doctor, recovery, support report) | Python | transactions, health checks and repairs ([ASA](wiki/ASA.md)) |
 | Tools | `scripts/apps/`, `scripts/config/`, `scripts/support/abora-update.sh` | Shell, Python | apps, settings, desktops, updates |
-| Installer | `scripts/install/` (the TUI, drawn with gum), `tools/abora-installer/` (launcher) | Shell, Rust | live boot, install, adopt an existing NixOS |
+| Installer | `scripts/install/` (the TUI, drawn with gum), `tools/abora-installer/` (launcher and disk engine: `abora-installer disk erase/existing/mount`) | Shell, Rust | live boot, install, adopt an existing NixOS |
 | System config | `nix/` | Nix | the live ISO and the installed system |
 
 Shared code today: `scripts/core/abora-ui.sh` for shell (UI, `abora_abt_prefix`) and

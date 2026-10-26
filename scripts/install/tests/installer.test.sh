@@ -219,4 +219,47 @@ else
   fail "runtime: installer's branding git-add stages each path independently"
 fi
 
+# The disk steps are thin calls into the Rust engine (`abora-installer disk`).
+# A fake engine checks the arguments, the efi=/root= parsing and that an
+# engine error is shown and logged rather than captured as the layout.
+tmp_engine_dir="$(mktemp -d)"
+sed -n '/^log_install_step()/,/^cp_required()/p' scripts/abora-installer.sh | sed '$d' > "$tmp_engine_dir/funcs.sh"
+cat > "$tmp_engine_dir/engine" <<'ENGINE'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$FAKE_ENGINE_CALLS"
+if [[ "${FAKE_ENGINE_FAIL:-}" == 1 ]]; then
+  echo "abora-installer: EFI partition /dev/sda1 is not FAT (ntfs)." >&2
+  exit 1
+fi
+case "$2" in
+  erase) printf 'efi=%sp2\nroot=%sp3\n' "$3" "$3" ;;
+  existing) printf 'efi=%s\nroot=%s\n' "$7" "$5" ;;
+esac
+ENGINE
+chmod +x "$tmp_engine_dir/engine"
+engine_run() {
+  ABORA_INSTALLER_BIN="$tmp_engine_dir/engine" FAKE_ENGINE_CALLS="$tmp_engine_dir/calls" \
+    install_log="$tmp_engine_dir/log" bash -c "
+      err() { printf 'ERR %s\n' \"\$1\"; }
+      source '$tmp_engine_dir/funcs.sh'
+      disk=/dev/nvme0n1 target_partition=/dev/nvme0n1p4 target_esp=/dev/nvme0n1p1
+      $1"
+}
+erase_out="$(engine_run 'partition_disk && mount_target && echo "$efi_part $root_part"')"
+existing_out="$(engine_run 'partition_disk_existing && echo "$efi_part $root_part"')"
+fail_out="$(FAKE_ENGINE_FAIL=1 engine_run 'partition_disk_existing || echo "refused efi=[$efi_part]"' 2>&1)"
+if [[ "$erase_out" == "/dev/nvme0n1p2 /dev/nvme0n1p3" \
+  && "$existing_out" == "/dev/nvme0n1p1 /dev/nvme0n1p4" \
+  && "$fail_out" == *"ERR abora-installer: EFI partition /dev/sda1 is not FAT (ntfs)."* \
+  && "$fail_out" == *"refused efi=[]"* ]] \
+  && grep -qx "disk erase /dev/nvme0n1 --log $tmp_engine_dir/log" "$tmp_engine_dir/calls" \
+  && grep -qx "disk mount --root /dev/nvme0n1p3 --efi /dev/nvme0n1p2 --log $tmp_engine_dir/log" "$tmp_engine_dir/calls" \
+  && grep -qx "disk existing /dev/nvme0n1 --root /dev/nvme0n1p4 --esp /dev/nvme0n1p1 --log $tmp_engine_dir/log" "$tmp_engine_dir/calls" \
+  && grep -q "is not FAT" "$tmp_engine_dir/log"; then
+  pass "runtime: installer disk steps call the Rust disk engine and use its layout"
+else
+  fail "runtime: installer disk steps call the Rust disk engine and use its layout"
+fi
+rm -rf "$tmp_engine_dir"
+
 testlib_finish

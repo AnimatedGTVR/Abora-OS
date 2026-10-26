@@ -2377,159 +2377,59 @@ step_confirm() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  INSTALL ENGINE  (unchanged from working version)
+#  INSTALL ENGINE
 # ═══════════════════════════════════════════════════════════════════════════════
-
-# nvme/mmcblk/loop devices number their partitions as <disk>p<N> (e.g.
-# nvme0n1p2), while sd*/vd*/hd* disks are just <disk><N> (sda2) — this
-# suffix is what lets efi_part/root_part below be built generically for
-# either naming scheme.
-disk_part_suffix() {
-    case "$disk" in *nvme*|*mmcblk*|*loop*) printf 'p' ;; *) printf '' ;; esac
-}
 
 log_install_step() {
     printf '[installer] %s\n' "$*" >>"$install_log"
 }
 
-# GPT layout: a 1MiB BIOS-boot partition (for Limine's legacy-BIOS path),
-# a FAT32 ESP (UEFI), and the rest as the ext4 root — the same disk boots
-# either BIOS or UEFI without needing to know which at partition time.
-run_disk_command() {
-    local seconds="$1"
-    shift
-
-    timeout --signal=TERM --kill-after=5s "$seconds" "$@" >>"$install_log" 2>&1
-}
-
-settle_devices() {
-    local seconds="${1:-15}"
-    if ! udevadm settle --timeout="$seconds" >>"$install_log" 2>&1; then
-        log_install_step "udevadm settle timed out after ${seconds}s"
-        return 1
+# Partitioning, formatting and mounting live in the Rust installer
+# (tools/abora-installer/src/disk.rs). Prints the engine's stdout; its error
+# goes to the log and to the screen.
+disk_engine() {
+    local errfile rc=0
+    errfile="$(mktemp)"
+    "${ABORA_INSTALLER_BIN:-abora-installer}" disk "$@" --log "$install_log" 2>"$errfile" || rc=$?
+    if [[ -s "$errfile" ]]; then
+        cat "$errfile" >>"$install_log"
+        [[ "$rc" -ne 0 ]] && err "$(tail -n 1 "$errfile")" >&2
     fi
+    rm -f "$errfile"
+    return "$rc"
 }
 
-check_existing_esp() {
-    local esp="$1"
-    local size fstype
-
-    [[ -b "$esp" ]] || return 1
-    size="$(lsblk -bndo SIZE "$esp" 2>/dev/null | head -n 1 || true)"
-    fstype="$(lsblk -ndo FSTYPE "$esp" 2>/dev/null | head -n 1 || true)"
-
-    case "$fstype" in
-        vfat|fat|fat32) ;;
-        *)
-            log_install_step "check_existing_esp: ${esp} has unsupported fstype '${fstype:-unknown}'"
-            err "EFI partition ${esp} is not FAT."
-            return 1
-            ;;
-    esac
-
-    if [[ "$size" =~ ^[0-9]+$ ]] && (( size < 536870912 )); then
-        log_install_step "check_existing_esp: ${esp} too small: ${size} bytes"
-        err "EFI partition ${esp} is smaller than Abora's 512 MiB requirement."
-        return 1
-    fi
-
-    return 0
+# Reads the engine's efi=<path> / root=<path> lines into efi_part/root_part.
+use_disk_layout() {
+    local line
+    efi_part=""
+    root_part=""
+    while IFS= read -r line; do
+        case "$line" in
+            efi=*) efi_part="${line#efi=}" ;;
+            root=*) root_part="${line#root=}" ;;
+        esac
+    done <<<"$1"
+    log_install_step "disk layout: efi=${efi_part} root=${root_part}"
+    [[ -n "$efi_part" && -n "$root_part" ]]
 }
 
+# Erase mode: BIOS-boot + 512 MiB ESP + ext4 root labelled ABORA_ROOT.
 partition_disk() {
-    log_install_step "partition_disk: start disk=${disk}"
-    if [[ -z "$disk" || ! -b "$disk" ]]; then
-        log_install_step "partition_disk: refusing — '${disk}' is not a block device"
-        return 1
-    fi
-    umount -R /mnt >/dev/null 2>&1 || true
-    run_disk_command 30 wipefs -af "$disk" || return 1
-    run_disk_command 30 parted -s "$disk" mklabel gpt || return 1
-    run_disk_command 30 parted -s "$disk" unit MiB mkpart BIOSBOOT 1 3 || return 1
-    run_disk_command 30 parted -s "$disk" set 1 bios_grub on || return 1
-    run_disk_command 30 parted -s "$disk" unit MiB mkpart ESP fat32 3 515 || return 1
-    run_disk_command 30 parted -s "$disk" set 2 esp on || return 1
-    run_disk_command 30 parted -s "$disk" unit MiB mkpart primary ext4 515 100% || return 1
-    run_disk_command 15 partprobe "$disk" || log_install_step "partprobe timed out for ${disk}"
-    settle_devices 15 || true
-
-    local sfx; sfx="$(disk_part_suffix)"
-    efi_part="${disk}${sfx}2"
-    root_part="${disk}${sfx}3"
-    log_install_step "partition_disk: efi=${efi_part} root=${root_part}"
-
-    local n
-    for n in 1 2 3 4 5; do
-        [[ -b "$efi_part" && -b "$root_part" ]] && break
-        sleep 1
-        run_disk_command 15 partprobe "$disk" || log_install_step "partprobe timed out for ${disk}"
-        settle_devices 15 || true
-    done
-    [[ -b "$efi_part" ]] || { log_install_step "partition_disk: missing EFI partition ${efi_part}"; return 1; }
-    [[ -b "$root_part" ]] || { log_install_step "partition_disk: missing root partition ${root_part}"; return 1; }
-
-    run_disk_command 120 mkfs.vfat -F 32 -n ABORA_EFI "$efi_part" || return 1
-    run_disk_command 120 mkfs.ext4 -F -L ABORA_ROOT "$root_part" || return 1
-    sync || true
-    settle_devices 15 || true
-    ensure_root_label "$root_part" || {
-        log_install_step "partition_disk: root label verification failed for ${root_part}"
-        return 1
-    }
-    log_install_step "partition_disk: verified root label ABORA_ROOT on ${root_part}"
-    log_install_step "partition_disk: format complete"
+    local layout
+    layout="$(disk_engine erase "$disk")" || return 1
+    use_disk_layout "$layout"
 }
 
-# The "use an existing partition" counterpart to partition_disk(): formats
-# only $target_partition as the new root, reuses $target_esp completely
-# unformatted, and never touches wipefs/mklabel/mkpart at all — everything
-# else already on $disk (a Windows install, another Linux install, a data
-# partition) is left exactly as it was. Requires an existing ESP to
-# already be present on the disk (set via find_existing_esp in
-# step_disk()); this mode does not carve a new one out of free space.
+# Dual-boot mode: formats only $target_partition and reuses $target_esp as-is.
 partition_disk_existing() {
-    log_install_step "partition_disk_existing: start disk=${disk} target=${target_partition} esp=${target_esp}"
-    if [[ -z "$target_partition" || ! -b "$target_partition" ]]; then
-        log_install_step "partition_disk_existing: refusing — '${target_partition}' is not a block device"
-        return 1
-    fi
-    if [[ -z "$target_esp" || ! -b "$target_esp" ]]; then
-        log_install_step "partition_disk_existing: refusing — '${target_esp}' is not a block device"
-        return 1
-    fi
-    if [[ "$target_partition" == "$disk" || "$target_esp" == "$disk" ]]; then
-        log_install_step "partition_disk_existing: refusing — target resolves to the whole disk, not a partition"
-        return 1
-    fi
-    check_existing_esp "$target_esp" || return 1
-
-    umount -R /mnt >/dev/null 2>&1 || true
-    # Deliberately no wipefs/mklabel/mkpart here — that's the entire point
-    # of this mode. Only the one partition the operator explicitly chose
-    # and confirmed in step_disk() ever gets formatted.
-    run_disk_command 120 mkfs.ext4 -F -L ABORA_ROOT "$target_partition" || return 1
-    sync || true
-    settle_devices 15 || true
-
-    efi_part="$target_esp"
-    root_part="$target_partition"
-    log_install_step "partition_disk_existing: efi=${efi_part} root=${root_part}"
-
-    ensure_root_label "$root_part" || {
-        log_install_step "partition_disk_existing: root label verification failed for ${root_part}"
-        return 1
-    }
-    log_install_step "partition_disk_existing: verified root label ABORA_ROOT on ${root_part}"
-    log_install_step "partition_disk_existing: format complete (disk otherwise untouched)"
+    local layout
+    layout="$(disk_engine existing "$disk" --root "$target_partition" --esp "$target_esp")" || return 1
+    use_disk_layout "$layout"
 }
 
 mount_target() {
-    log_install_step "mount_target: start root=${root_part} efi=${efi_part}"
-    mkdir -p /mnt || return 1
-    mount "$root_part" /mnt >>"$install_log" 2>&1 || return 1
-    mkdir -p /mnt/boot || return 1
-    mount "$efi_part" /mnt/boot >>"$install_log" 2>&1 || return 1
-    log_install_step "mount_target: complete"
+    disk_engine mount --root "$root_part" --efi "$efi_part"
 }
 
 cp_required() {
@@ -3404,32 +3304,6 @@ eject_media() {
         eject "$d" >/dev/null 2>&1 && return 0
     done
     return 0
-}
-
-ensure_root_label() {
-    local device="$1"
-    local current=""
-    local n
-
-    [[ -b "$device" ]] || return 1
-
-    for n in 1 2 3 4 5; do
-        udevadm settle >>"$install_log" 2>&1 || true
-        current="$(blkid -s LABEL -o value "$device" 2>/dev/null | head -n 1 || true)"
-        [[ "$current" == "ABORA_ROOT" ]] && return 0
-
-        if command -v e2label >/dev/null 2>&1; then
-            e2label "$device" ABORA_ROOT >>"$install_log" 2>&1 || true
-        elif command -v tune2fs >/dev/null 2>&1; then
-            tune2fs -L ABORA_ROOT "$device" >>"$install_log" 2>&1 || true
-        fi
-
-        sync || true
-        sleep 1
-    done
-
-    current="$(blkid -s LABEL -o value "$device" 2>/dev/null | head -n 1 || true)"
-    [[ "$current" == "ABORA_ROOT" ]]
 }
 
 live_media_present() {

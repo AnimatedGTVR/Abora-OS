@@ -15,8 +15,14 @@ pub fn run_legacy(script: &Path, passthrough: &[OsString]) -> Result<u8, String>
     // was absent nothing ran at all. Resolve bash through PATH instead, and
     // only then fall back to the usual absolute locations.
     let mut last_err = None;
+    // The Bash screens call back into this binary for the disk engine.
+    let this_binary = std::env::current_exe().ok();
     for bash in bash_candidates() {
-        match Command::new(&bash).arg(script).args(passthrough).status() {
+        let mut cmd = Command::new(&bash);
+        if let Some(path) = &this_binary {
+            cmd.env("ABORA_INSTALLER_BIN", path);
+        }
+        match cmd.arg(script).args(passthrough).status() {
             Ok(status) => return Ok(status.code().unwrap_or(1).min(u8::MAX as i32) as u8),
             Err(err) => last_err = Some((bash, err)),
         }
