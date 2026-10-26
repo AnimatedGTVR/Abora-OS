@@ -86,7 +86,11 @@ All shell scripts source `abora-ui.sh` (or `/etc/abora/ui.sh` on-system) for sha
 
 ### Vanta tools
 
-`tools/abora-update/` is the Vanta core of `abora update` (release channel resolution and the downgrade guard so far), called by `scripts/abora-update.sh` through the same CLI as the C# `tools/abora-update-resolver` it replaces, which stays as a fallback for now. It runs on the Vanta interpreter packaged in `nix/pkgs/vanta.nix` (pinned to a Vanta commit) and ships as `nix/pkgs/abora-update.nix`. Unit tests: `vanta run tools/abora-update/tests.vanta` (also run by `make check` when a new-enough Vanta is found).
+`tools/abora-update/` is the Vanta core of `abora update` (release channel resolution and the downgrade guard so far), called by `scripts/abora-update.sh` through the CLI the removed C# `abora-update-resolver` had. `tools/abora-update-resolver/` and `nix/pkgs/abora-update-resolver*` are placeholders kept only because 4.0/4.1 updaters require those paths (`scripts/release/legacy-required-paths.txt`); don't delete them. It runs on the Vanta interpreter packaged in `nix/pkgs/vanta.nix` (pinned to a Vanta commit) and ships as `nix/pkgs/abora-update.nix`. Unit tests: `vanta run tools/abora-update/tests.vanta` (also run by `make check` when a new-enough Vanta is found).
+
+### Plan tool
+
+`tools/abora-plan-tool/` (Rust, rewritten from C# in 4.2 with the same name and CLI) validates ANIX Plan JSON and turns `.anix` files into it for `anix validate-plan/diff-plan/apply-plan/run`. `make check` builds it with cargo for the anix suite.
 
 ### Packages (TinyPM was removed in 4.2)
 

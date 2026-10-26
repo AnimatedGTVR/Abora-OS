@@ -39,7 +39,8 @@ Abora's tools are mostly shell and Python today. They are being split up by job,
 | **Shell** | glue only: wrappers at the old `/etc/abora/*.sh` paths, systemd units, one-line launchers | no logic, no data structures |
 | **Python** | the existing GTK apps, until they are ported | no new tools |
 
-Not used: C#/.NET (the two C# tools are replaced by Go), and Java/Kotlin (a JVM is too heavy for an installer or
+Not used: C#/.NET (removed in 4.2: the plan tool is Rust now, and the update resolver's job is done by the Vanta
+`abora-update`), and Java/Kotlin (a JVM is too heavy for an installer or
 recovery tool). Zig and C++ are allowed only where a job clearly needs them (for example Pancake, the desktop
 environment planned for Abora). Isora is a separate project (a sandboxed language for game mods) and is not part of
 the system.

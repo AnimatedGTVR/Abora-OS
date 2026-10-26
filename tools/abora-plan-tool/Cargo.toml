@@ -1,0 +1,13 @@
+[package]
+name = "abora-plan-tool"
+version = "2.0.0"
+edition = "2021"
+description = "Shape validation for ANIX Plan JSON, and ANIX Native to Plan JSON"
+license = "MIT"
+
+[[bin]]
+name = "abora-plan-tool"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = { version = "1", features = ["preserve_order"] }

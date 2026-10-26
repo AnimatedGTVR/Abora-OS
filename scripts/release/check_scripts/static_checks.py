@@ -83,8 +83,7 @@ CHECKS: tuple[Check, ...] = (
         'runtime: installer preflight checks release lock and offline package assets',
         grep('-q', 'target-flake.lock', 'nix/profiles/live.nix'),
         grep('-q', '/etc/abora/target-flake.lock', 'scripts/abora-installer.sh'),
-        grep('-q', '/etc/abora/pkgs/abora-update-resolver-deps.json', 'scripts/abora-installer.sh'),
-        grep('-q', '/etc/abora/pkgs/abora-plan-tool-deps.json', 'scripts/abora-installer.sh'),
+        grep('-q', '/etc/abora/plan-tool/Cargo.lock', 'scripts/abora-installer.sh'),
     ),
     Check(
         'runtime: Rust installer front controller is packaged and wired into the live ISO',
@@ -272,22 +271,31 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'etc/nixos/abora/anix-languages', 'scripts/abora-installer.sh'),
         grep('-q', '"abora/anix-languages".source = anixLanguagesDir', 'nix/modules/installed-base.nix'),
     ),
-    # Regression test: a real fresh install (reproduced by actually running the
-    # installer through nixos-install in QEMU, not just static review) failed
-    # with "path '/mnt/etc/nixos/abora/pkgs/abora-update-resolver-deps.json'
-    # does not exist" -- nix/pkgs/abora-update-resolver.nix's/abora-plan-tool.nix's
-    # `nugetDeps = ./abora-*-deps.json;` is a path relative to wherever the .nix
-    # file itself ends up, so the deps.json has to be shipped and copied
-    # alongside its .nix file at every hop (live ISO -> installed target ->
-    # later abora update syncs), not just the .nix file itself.
+    # Regression test: a real fresh install once failed with "path
+    # '/mnt/etc/nixos/abora/pkgs/abora-update-resolver-deps.json' does not exist":
+    # a package's lock file is read relative to wherever its .nix file ends up,
+    # so it has to travel with the tool at every hop (live ISO -> installed
+    # target -> later abora update syncs). The plan tool's Cargo.lock lives in
+    # its source directory, which every hop copies whole.
     Check(
-        'runtime: installer and updater ship nugetDeps json alongside the C# tool .nix files',
-        grep('-q', '"abora/pkgs/abora-update-resolver-deps.json".source = ../pkgs/abora-update-resolver-deps.json', 'nix/profiles/live.nix'),
-        grep('-q', '"abora/pkgs/abora-plan-tool-deps.json".source = ../pkgs/abora-plan-tool-deps.json', 'nix/profiles/live.nix'),
-        grep('-q', 'cp_required /etc/abora/pkgs/abora-update-resolver-deps.json', 'scripts/abora-installer.sh'),
-        grep('-q', 'cp_required /etc/abora/pkgs/abora-plan-tool-deps.json', 'scripts/abora-installer.sh'),
-        grep('-q', 'copy_upstream_file "$upstream_dir/nix/pkgs/abora-update-resolver-deps.json"', 'scripts/abora-update.sh'),
-        grep('-q', 'copy_upstream_file "$upstream_dir/nix/pkgs/abora-plan-tool-deps.json"', 'scripts/abora-update.sh'),
+        'runtime: installer and updater ship the plan tool with its Cargo.lock',
+        grep('-Fq', 'cargoLock.lockFile = toolSrc + "/Cargo.lock";', 'nix/pkgs/abora-plan-tool.nix'),
+        test('-f', 'tools/abora-plan-tool/Cargo.lock'),
+        grep('-q', '"abora/plan-tool".source = ../../tools/abora-plan-tool', 'nix/profiles/live.nix'),
+        grep('-q', 'cp -a /etc/abora/plan-tool/. ', 'scripts/abora-installer.sh'),
+        grep('-q', 'copy_upstream_dir "$upstream_dir/tools/abora-plan-tool"', 'scripts/abora-update.sh'),
+        grep('-Fq', 'tools/abora-plan-tool/Cargo.lock', 'scripts/abora-update.sh'),
+    ),
+    # 4.0/4.1 updaters refuse a release without the old resolver's files, and a
+    # rolled-back older installed-base.nix may still call its .nix: the
+    # placeholder forwards to abora-update (same CLI) instead of failing.
+    Check(
+        'runtime: the removed C# tools leave only legacy placeholders behind',
+        grep('-Fq', 'exec abora-update "$@"', 'nix/pkgs/abora-update-resolver.nix'),
+        not_(grep('-q', 'buildDotnetModule', 'nix/pkgs/abora-update-resolver.nix', 'nix/pkgs/abora-plan-tool.nix')),
+        not_(grep('-q', 'abora-update-resolver', 'flake.nix', 'nix/profiles/live.nix', 'nix/modules/installed-base.nix')),
+        not_(test('-e', 'tools/abora-plan-tool/AboraPlanTool.csproj')),
+        not_(test('-e', 'nix/pkgs/abora-plan-tool-deps.json')),
     ),
     Check(
         'runtime: the startup sound is gone (removed in 4.2): no ringtone command, no login sound, no sound files',
@@ -586,7 +594,6 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'local synced_ui="\\$config_dir/abora/ui.sh"', 'scripts/abora-update.sh'),
         grep('-q', 'ABORA_UI_LIB="\\${synced_ui}"', 'scripts/abora-update.sh'),
         grep('-q', 'resolve_resolver_bin()', 'scripts/abora-update.sh'),
-        grep('-q', 'tools/abora-update-resolver/bin/Debug/net10.0/abora-update-resolver', 'scripts/abora-update.sh'),
         grep('-q', 'resolver_bin="$(resolve_resolver_bin)"', 'scripts/abora-update.sh'),
         grep('-q', 'abora-update-build.log', 'scripts/abora-update.sh'),
         grep('-q', 'Checking the new Abora system', 'scripts/abora-update.sh'),

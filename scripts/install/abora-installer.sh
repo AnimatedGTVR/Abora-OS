@@ -1436,22 +1436,18 @@ check_install_environment() {
         /etc/abora/mango/config.conf
         /etc/abora/pkgs/mango.nix
         /etc/abora/pkgs/scenefx-0_5.nix
-        /etc/abora/pkgs/abora-update-resolver.nix
-        /etc/abora/pkgs/abora-update-resolver-deps.json
         /etc/abora/pkgs/vanta.nix
         /etc/abora/pkgs/abora-update.nix
         /etc/abora/pkgs/abora-plan-tool.nix
-        /etc/abora/pkgs/abora-plan-tool-deps.json
         /etc/abora/target-flake.lock
         /etc/abora/installed-base.nix
         /etc/abora/abora-options.nix
         /etc/abora/anix.sh
         /etc/abora/anix-module.nix
-        /etc/abora/update-resolver/AboraUpdateResolver.csproj
-        /etc/abora/update-resolver/Program.cs
         /etc/abora/abora-update/main.vanta
-        /etc/abora/plan-tool/AboraPlanTool.csproj
-        /etc/abora/plan-tool/Program.cs
+        /etc/abora/plan-tool/Cargo.toml
+        /etc/abora/plan-tool/Cargo.lock
+        /etc/abora/plan-tool/src/main.rs
         /etc/abora/installer.sh
         /etc/abora/setup-launcher.sh
         /etc/abora/setup.desktop
@@ -2642,12 +2638,9 @@ write_branding_assets() {
     install_mango_config_asset "$root"
     cp_required /etc/abora/pkgs/mango.nix          "${root}/etc/nixos/abora/pkgs/mango.nix"
     cp_required /etc/abora/pkgs/scenefx-0_5.nix    "${root}/etc/nixos/abora/pkgs/scenefx-0_5.nix"
-    cp_required /etc/abora/pkgs/abora-update-resolver.nix "${root}/etc/nixos/abora/pkgs/abora-update-resolver.nix"
-    cp_required /etc/abora/pkgs/abora-update-resolver-deps.json "${root}/etc/nixos/abora/pkgs/abora-update-resolver-deps.json"
     cp_required /etc/abora/pkgs/vanta.nix "${root}/etc/nixos/abora/pkgs/vanta.nix"
     cp_required /etc/abora/pkgs/abora-update.nix "${root}/etc/nixos/abora/pkgs/abora-update.nix"
     cp_required /etc/abora/pkgs/abora-plan-tool.nix "${root}/etc/nixos/abora/pkgs/abora-plan-tool.nix"
-    cp_required /etc/abora/pkgs/abora-plan-tool-deps.json "${root}/etc/nixos/abora/pkgs/abora-plan-tool-deps.json"
     cp_required /etc/abora/target-flake.lock "${root}/etc/nixos/abora/target-flake.lock"
     cp_required /etc/abora/anix-module.nix         "${root}/etc/nixos/abora/anix-module.nix"
     cp_required /etc/abora/abora-options.nix       "${root}/etc/nixos/abora/abora-options.nix"
@@ -2661,11 +2654,6 @@ write_branding_assets() {
         cp -a /etc/abora/anix-languages/. "${root}/etc/nixos/abora/anix-languages/"
     fi
     rewrite_installed_mango_config_paths "$root"
-
-    if [[ -e /etc/abora/update-resolver ]]; then
-        mkdir -p "${root}/etc/nixos/abora/update-resolver"
-        cp -a /etc/abora/update-resolver/. "${root}/etc/nixos/abora/update-resolver/"
-    fi
 
     if [[ -e /etc/abora/abora-update ]]; then
         mkdir -p "${root}/etc/nixos/abora/abora-update"
@@ -3709,13 +3697,11 @@ run_install() {
     # flake-based nixosSystem { ... } that actually built this live ISO
     # (nix/profiles/live.nix, via flake.nix's mkLive), even when pointed at
     # the identical nixpkgs tree via $nixpkgs. That divergence gives
-    # out-of-tree packages -- notably abora-plan-tool and
-    # abora-update-resolver, both Native AOT dotnet builds not available on
-    # any binary cache -- a different derivation hash than the copies
-    # already sitting fully built in this live system's own /nix/store, so
-    # nixos-install rebuilt them from source instead of reusing them. That
-    # rebuild (dotnetBuildHook running a real AOT compile) is expensive
-    # enough to crash outright in a memory-constrained install VM. Building
+    # out-of-tree packages -- Abora's own tools, which no binary cache has --
+    # a different derivation hash than the copies already sitting fully
+    # built in this live system's own /nix/store, so nixos-install rebuilt
+    # them from source instead of reusing them, which was expensive enough
+    # to crash a memory-constrained install VM. Building
     # through the same flake shape this ISO was built from keeps install and
     # update evaluation consistent enough for custom Abora packages to be
     # reused whenever the Nixpkgs input still matches. The build happens from

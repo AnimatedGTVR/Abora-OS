@@ -133,16 +133,12 @@ switch_timeout="${ABORA_SWITCH_TIMEOUT:-1800}"
 # The channel/version decision logic in resolve_update_ref/
 # guard_against_accidental_downgrade below is delegated to abora-update, the
 # Vanta core of the updater (tools/abora-update), which more of this script
-# moves into over time. It replaces the Native AOT C# abora-update-resolver,
-# kept as a fallback with the identical CLI until the Vanta path has shipped.
-# Both only decide: this script still owns every bit of I/O (git ls-remote,
-# reading VERSION, printing colored UI text) and shells out for the decision.
-# Defaults to relying on PATH (present via Nix systemPackages on any real
-# Abora system); source checkouts may also have the debug C# binary from
-# make check's dotnet build, which keeps `bash scripts/abora-update.sh
-# --check` useful before an ISO has shipped the new package.
+# moves into over time. It only decides: this script still owns every bit of
+# I/O (git ls-remote, reading VERSION, printing colored UI text). The C#
+# abora-update-resolver it replaced (same CLI) was removed in 4.2; a system
+# that still has it on PATH, mid-update from 4.1, may use it.
 resolve_resolver_bin() {
-    local candidate repo_dir
+    local candidate
 
     if [[ -n "${ABORA_UPDATE_RESOLVER_BIN:-}" ]]; then
         printf '%s\n' "$ABORA_UPDATE_RESOLVER_BIN"
@@ -159,22 +155,7 @@ resolve_resolver_bin() {
         return 0
     fi
 
-    repo_dir="$script_dir"
-    while [[ "$repo_dir" != "/" && ! -f "$repo_dir/flake.nix" ]]; do
-        repo_dir="$(dirname "$repo_dir")"
-    done
-    for candidate in \
-        "$repo_dir/tools/abora-update-resolver/bin/Debug/net10.0/abora-update-resolver" \
-        "$repo_dir/tools/abora-update-resolver/bin/Release/net10.0/abora-update-resolver" \
-        "$script_dir/update-resolver/bin/Debug/net10.0/abora-update-resolver" \
-        "$script_dir/update-resolver/bin/Release/net10.0/abora-update-resolver"; do
-        if [[ -x "$candidate" ]]; then
-            printf '%s\n' "$candidate"
-            return 0
-        fi
-    done
-
-    printf '%s\n' abora-update-resolver
+    printf '%s\n' abora-update
 }
 
 resolver_bin="$(resolve_resolver_bin)"
@@ -1138,6 +1119,23 @@ release_has_plan_tool() {
     ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
 }
 
+# What a 4.1 release (C# plan tool) contains, for updates to 4.1 itself.
+csharp_plan_tool_paths() {
+    printf '%s\n' \
+        tools/abora-plan-tool/AboraPlanTool.csproj \
+        tools/abora-plan-tool/Program.cs \
+        nix/pkgs/abora-plan-tool.nix \
+        nix/pkgs/abora-plan-tool-deps.json
+}
+
+# 4.2 rewrote the plan tool in Rust (same name and CLI as the C# one before it).
+release_has_rust_plan_tool() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "edge" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.2"
+}
+
 release_has_gaming_welcome_gui() {
     local selected_ref="$1"
     [[ "$selected_ref" == "edge" ]] && return 0
@@ -1291,13 +1289,15 @@ nix/pkgs/abora-update.nix
 EOF
     fi
 
-    if release_has_plan_tool "$selected_ref"; then
+    if release_has_rust_plan_tool "$selected_ref"; then
         cat <<'EOF'
-tools/abora-plan-tool/AboraPlanTool.csproj
-tools/abora-plan-tool/Program.cs
+tools/abora-plan-tool/Cargo.toml
+tools/abora-plan-tool/Cargo.lock
+tools/abora-plan-tool/src/main.rs
 nix/pkgs/abora-plan-tool.nix
-nix/pkgs/abora-plan-tool-deps.json
 EOF
+    elif release_has_plan_tool "$selected_ref"; then
+        csharp_plan_tool_paths
     fi
 }
 

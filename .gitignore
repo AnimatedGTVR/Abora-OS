@@ -3,8 +3,8 @@
 /result
 *.iso
 *.lock
-!/tools/abora-installer/Cargo.lock
-/tools/abora-installer/target/
+!/tools/*/Cargo.lock
+/tools/*/target/
 .codex
 
 

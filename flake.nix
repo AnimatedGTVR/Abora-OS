@@ -14,7 +14,6 @@
         anix = final.callPackage ./nix/pkgs/anix.nix {};
         scenefx-0_5 = final.callPackage ./nix/pkgs/scenefx-0_5.nix {};
         mango = final.callPackage ./nix/pkgs/mango.nix {};
-        abora-update-resolver = final.callPackage ./nix/pkgs/abora-update-resolver.nix {};
         vanta = final.callPackage ./nix/pkgs/vanta.nix {};
         abora-update = final.callPackage ./nix/pkgs/abora-update.nix {};
         abora-plan-tool = final.callPackage ./nix/pkgs/abora-plan-tool.nix {};
@@ -83,7 +82,6 @@
         abora-desktop-preview = pkgs.abora-desktop-preview;
         abora-hardware-test = pkgs.abora-hardware-test;
         abora-installer = pkgs.abora-installer;
-        abora-update-resolver = pkgs.abora-update-resolver;
         vanta = pkgs.vanta;
         abora-update = pkgs.abora-update;
         abora-plan-tool = pkgs.abora-plan-tool;

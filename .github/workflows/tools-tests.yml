@@ -1,10 +1,8 @@
 name: Tool Tests
 
-# The Rust installer and the two .NET tools ship real unit tests that nothing
-# in CI was running: flake-check.yml covers shell scripts and Nix evaluation,
-# and `nix flake check --no-build` does not build the installer derivation, so
-# its cargo tests never executed on a pull request. A regression in any of
-# these could only be caught by someone running the suites by hand.
+# The Rust tools ship real unit tests that nothing else in CI runs:
+# flake-check.yml covers shell scripts and Nix evaluation, and
+# `nix flake check --no-build` does not build these derivations.
 
 permissions:
   contents: read
@@ -17,12 +15,16 @@ on:
   pull_request:
 
 jobs:
-  rust-installer:
-    name: Rust installer (abora-installer)
+  rust-tools:
+    name: Rust tools (${{ matrix.tool }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tool: [abora-installer, abora-plan-tool]
     defaults:
       run:
-        working-directory: tools/abora-installer
+        working-directory: tools/${{ matrix.tool }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -42,33 +44,10 @@ jobs:
         run: cargo fmt --check
 
       - name: Clippy
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --all-targets --locked -- -D warnings
 
       - name: Tests
-        run: cargo test --all-targets
-
-  dotnet-tools:
-    name: .NET tools (plan-tool, update-resolver)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          # These jobs run test code from the pull request branch. Checkout
-          # otherwise leaves the job's token in .git/config, where that code
-          # could read it. Nothing here talks to git after checkout.
-          persist-credentials: false
-
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: "10.0.x"
-
-      - name: Test abora-plan-tool
-        run: dotnet test tools/abora-plan-tool/tests/AboraPlanTool.Tests.csproj --nologo
-
-      - name: Test abora-update-resolver
-        run: dotnet test tools/abora-update-resolver/tests/AboraUpdateResolver.Tests.csproj --nologo
+        run: cargo test --all-targets --locked
 
   python-syntax:
     name: Python GUI syntax

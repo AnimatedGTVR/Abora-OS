@@ -158,7 +158,7 @@ if [[ -n "$resolver_bin" ]]; then
 
   unset ABORA_UPDATE_RESOLVER_BIN
 else
-  pass "runtime: abora-update-resolver tests skipped (dotnet unavailable)"
+  pass "runtime: update resolver tests skipped (Vanta unavailable)"
 fi
 
 if [[ -n "$resolver_bin" ]]; then
@@ -177,7 +177,7 @@ if [[ -n "$resolver_bin" ]]; then
     fail "runtime: pre-alpha dry-run previews selected ref"
   fi
 else
-  pass "runtime: pre-alpha dry-run test skipped (dotnet unavailable)"
+  pass "runtime: pre-alpha dry-run test skipped (Vanta unavailable)"
 fi
 
 if ABORA_PRE_ALPHA_ACCEPT="I ACCEPT THE RISK" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-pre-alpha-confirm >/dev/null; then

@@ -565,7 +565,7 @@ unset ABORA_PLAN_TOOL_BIN
 
 else
 
-  pass "runtime: anix plan-JSON tests skipped (dotnet unavailable)"
+  pass "runtime: anix plan-JSON tests skipped (cargo unavailable)"
 
 fi
 
@@ -712,7 +712,7 @@ unset ABORA_PLAN_TOOL_BIN
 
 else
 
-  pass "runtime: anix plan-JSON tests skipped (dotnet unavailable)"
+  pass "runtime: anix plan-JSON tests skipped (cargo unavailable)"
 
 fi
 
@@ -886,7 +886,7 @@ unset ABORA_PLAN_TOOL_BIN
 
 else
 
-  pass "runtime: anix e2e run tests skipped (dotnet unavailable)"
+  pass "runtime: anix e2e run tests skipped (cargo unavailable)"
 
 fi
 
@@ -984,7 +984,7 @@ unset ABORA_PLAN_TOOL_BIN
 
 else
 
-  pass "runtime: anix plan failure-path tests skipped (dotnet unavailable)"
+  pass "runtime: anix plan failure-path tests skipped (cargo unavailable)"
 
 fi
 

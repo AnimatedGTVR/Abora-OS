@@ -94,7 +94,7 @@ class Sweep:
         self.c = codes if color else dict.fromkeys(codes, "")
         self.failed = self.warned = self.elevated = False
         self.counts = dict.fromkeys(("sh", "nix", "py", "md", "orphan", "anix", "yaml", "json", "desktop", "conf", "anix_skipped"), 0)
-        self.has = {tool: shutil.which(tool) is not None for tool in ("shellcheck", "nix-instantiate", "jq", "dotnet")}
+        self.has = {tool: shutil.which(tool) is not None for tool in ("shellcheck", "nix-instantiate", "jq", "cargo")}
         self.plan_tool: Path | None = None
         self.yaml = _load_yaml()
 
@@ -141,21 +141,16 @@ class Sweep:
 
     # ── plan tool ──
     def build_plan_tool(self) -> None:
-        """`anix diff-plan` needs a real abora-plan-tool. Build a Debug one (faster than the
-        AOT publish the Nix package uses) and expose it through ABORA_PLAN_TOOL_BIN."""
-        project = self.root / "tools/abora-plan-tool/AboraPlanTool.csproj"
-        if not (self.has["dotnet"] and project.is_file()):
+        """`anix diff-plan` needs a real abora-plan-tool: build a debug one and expose it
+        through ABORA_PLAN_TOOL_BIN."""
+        manifest = self.root / "tools/abora-plan-tool/Cargo.toml"
+        if not (self.has["cargo"] and manifest.is_file()):
             return
-        build = self.run(["dotnet", "build", str(project), "-c", "Debug"], env={**os.environ, "MSBuildEnableWorkloadResolver": "false"})
-        if build.returncode != 0:
+        if self.run(["cargo", "build", "--quiet", "--manifest-path", str(manifest)]).returncode != 0:
             return
-        dll = self.root / "tools/abora-plan-tool/bin/Debug/net10.0/abora-plan-tool.dll"
-        handle, name = tempfile.mkstemp(prefix="abora-plan-tool-")
-        with os.fdopen(handle, "w") as wrapper:
-            wrapper.write(f"#!/usr/bin/env python3\nimport os, sys\nos.execvp('dotnet', ['dotnet', {str(dll)!r}, *sys.argv[1:]])\n")
-        os.chmod(name, 0o755)
-        self.plan_tool = Path(name)
-        os.environ["ABORA_PLAN_TOOL_BIN"] = name
+        binary = self.root / "tools/abora-plan-tool/target/debug/abora-plan-tool"
+        self.plan_tool = binary
+        os.environ["ABORA_PLAN_TOOL_BIN"] = str(binary)
 
     # ── shell scripts ──
     def check_shell(self, file: str) -> None:
@@ -443,11 +438,7 @@ class Sweep:
     # ── run ──
     def run_all(self) -> int:
         self.build_plan_tool()
-        try:
-            return self._run_sections()
-        finally:
-            if self.plan_tool is not None:
-                self.plan_tool.unlink(missing_ok=True)
+        return self._run_sections()
 
     def _run_sections(self) -> int:
         root, c = self.root, self.c

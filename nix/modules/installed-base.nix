@@ -111,8 +111,6 @@ let
   # update (new installed-base.nix synced before the corresponding new
   # directory finishes copying) must not fail evaluation just because one
   # of these hasn't landed yet.
-  updateResolverDir =
-    if builtins.pathExists ./update-resolver then ./update-resolver else null;
   # The Vanta core of `abora update` and the interpreter it runs on.
   aboraUpdateDir =
     if builtins.pathExists ./abora-update
@@ -400,11 +398,6 @@ in
       scenefx-0_5 = final.callPackage ./pkgs/scenefx-0_5.nix {};
       mango = final.callPackage ./pkgs/mango.nix {};
     }
-    // lib.optionalAttrs (updateResolverDir != null) {
-      abora-update-resolver = final.callPackage ./pkgs/abora-update-resolver.nix {
-        resolverSrc = updateResolverDir;
-      };
-    }
     // lib.optionalAttrs (aboraUpdateDir != null) {
       vanta = final.callPackage ./pkgs/vanta.nix {};
       abora-update = final.callPackage ./pkgs/abora-update.nix {
@@ -643,7 +636,6 @@ in
   ] ++ lib.optional needsKonsole kdePackages.konsole
     ++ lib.optional (graphical && config.abora.browser == "firefox") firefox
     ++ lib.optional (abtScript != null) aboraAbt
-    ++ lib.optional (pkgs ? abora-update-resolver) pkgs.abora-update-resolver
     ++ lib.optional (pkgs ? abora-update) pkgs.abora-update
     ++ lib.optional (pkgs ? abora-plan-tool) pkgs.abora-plan-tool
     ++ lib.optional (graphical && !minimal && welcomeGuiScript != null) aboraWelcomeGui
@@ -1063,9 +1055,6 @@ in
     }
     // lib.optionalAttrs (gamingWelcomeGuiScript != null) {
       "abora/gaming-welcome-gui.py".source = gamingWelcomeGuiScript;
-    }
-    // lib.optionalAttrs (updateResolverDir != null) {
-      "abora/update-resolver".source = updateResolverDir;
     }
     // lib.optionalAttrs (aboraUpdateDir != null) {
       "abora/abora-update".source = aboraUpdateDir;
