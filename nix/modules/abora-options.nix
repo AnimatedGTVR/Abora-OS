@@ -236,6 +236,25 @@ in
       };
     };
 
+    browser = lib.mkOption {
+      type = lib.types.enum [ "zen" "firefox" "none" ];
+      default = if config.abora.minimal || config.abora.desktop == "none" then "none" else "zen";
+      defaultText = lib.literalExpression ''if minimal or desktop == "none" then "none" else "zen"'';
+      description = ''
+        Web browser. "zen" installs Zen from Flathub once, on the first boot with a network
+        (it isn't in nixpkgs, and Flathub keeps it updated). "firefox" installs it from nixpkgs.
+      '';
+    };
+
+    minimal = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Leave out what isn't needed to run the desktop and Abora's commands: Flatpak, the
+        welcome/config apps, the wallpaper collection, extra fonts and icons, and the browser.
+      '';
+    };
+
     extras = {
       diagnostics = lib.mkOption {
         type = lib.types.bool;

@@ -356,10 +356,10 @@ EOF
 
     [org.gnome.shell]
     enabled-extensions=['dash-to-dock@micxgx.gmail.com', 'blur-my-shell@aunetx', 'appindicatorsupport@rgcjonas.gmail.com', 'caffeine@patapon.info']
-    favorite-apps=['org.gnome.Nautilus.desktop', 'org.kde.konsole.desktop', 'org.mozilla.firefox.desktop', 'org.gnome.Settings.desktop']
+    favorite-apps=['org.gnome.Nautilus.desktop', 'org.gnome.Console.desktop', 'app.zen_browser.zen.desktop', 'org.gnome.Settings.desktop']
 
     [org.gnome.desktop.default-applications.terminal]
-    exec='konsole'
+    exec='kgx'
     exec-arg='-e'
 
     [org.gnome.shell.extensions.dash-to-dock]

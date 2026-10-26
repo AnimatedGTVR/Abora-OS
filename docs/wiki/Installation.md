@@ -85,6 +85,8 @@ The current flow includes:
 - timezone: typed, with suggestions (see [Typing a timezone](#typing-a-timezone))
 - desktop profile selection
 - starter app bundle selection
+- install style: **Standard** (Zen browser, Flatpak, the welcome and settings apps, wallpapers) or **Minimal**
+  (the desktop and Abora's commands only; sets `abora.minimal = true`)
 - optional dotfiles import for Hyprland and Other Environment installs
 - ANIX and GitHub options
 - disk selection
@@ -97,6 +99,15 @@ For scripted installs, pass `--batch`; to reconfigure an installed system, `--re
 ```sh
 abora-install --batch
 ```
+
+### Browser and terminal
+
+The default browser is [Zen](https://zen-browser.app). It isn't in nixpkgs, so it installs from Flathub once, on the first
+boot with a network, and Flathub keeps it updated. If you remove it, it stays removed. `abora.browser = "firefox";` installs
+Firefox from nixpkgs instead, and `"none"` installs no browser.
+
+Each desktop uses its own terminal (GNOME Console, COSMIC Terminal, Konsole, xfce4-terminal, ...). Konsole is installed
+only for the window managers that don't come with one.
 
 ### Installing your own NixOS flake
 

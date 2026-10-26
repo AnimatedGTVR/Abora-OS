@@ -1,5 +1,20 @@
 { lib, pkgs, config, ... }:
 let
+  desktop   = config.abora.desktop;
+  minimal   = config.abora.minimal;
+  graphical = desktop != "none";
+  # These desktops' NixOS modules already install a terminal (checked against
+  # nixpkgs); Konsole is only the fallback for the window managers.
+  nativeTerminals = {
+    gnome = "kgx"; cosmic = "cosmic-term"; plasma = "konsole"; xfce = "xfce4-terminal";
+    cinnamon = "gnome-terminal"; mate = "mate-terminal"; lxqt = "qterminal";
+    pantheon = "io.elementary.terminal";
+  };
+  terminal     = nativeTerminals.${desktop} or "konsole";
+  needsKonsole = graphical && !(nativeTerminals ? ${desktop});
+  hasOwnBluetoothUi = builtins.elem desktop [ "gnome" "plasma" "cosmic" "pantheon" ];
+  zenFlatpak   = "app.zen_browser.zen";
+
   # All paths below are relative to this file as it lives on the installed system
   # (beside installed-base.nix in /etc/nixos/abora/ or equivalent).  The
   # installer copies every required file via cp_required before the first
@@ -475,7 +490,7 @@ in
   networking.modemmanager.enable = config.abora.extras.mobileBroadband;
   security.polkit.enable = lib.mkDefault true;
   services.udisks2.enable = lib.mkDefault true;
-  services.blueman.enable = lib.mkDefault true;
+  services.blueman.enable = lib.mkDefault (graphical && !hasOwnBluetoothUi);
   services.fwupd.enable = lib.mkDefault true;
   services.openssh.enable = lib.mkDefault false;
   security.rtkit.enable = lib.mkDefault true;
@@ -486,12 +501,12 @@ in
     pulse.enable = lib.mkDefault true;
   };
 
-  services.flatpak.enable = lib.mkDefault true;
+  services.flatpak.enable = lib.mkDefault (!minimal);
   xdg.portal.enable = lib.mkDefault true;
   xdg.portal.extraPortals = lib.mkDefault (with pkgs; [ xdg-desktop-portal-gtk ]);
 
   # Add Flathub automatically once the network is up.
-  systemd.services.abora-flatpak-setup = {
+  systemd.services.abora-flatpak-setup = lib.mkIf config.services.flatpak.enable {
     description     = "Add Flathub remote for Flatpak";
     after           = [ "network-online.target" "flatpak.service" ];
     wants           = [ "network-online.target" ];
@@ -513,6 +528,30 @@ in
     '';
   };
 
+  # Zen isn't in nixpkgs; from Flathub it also gets security updates without
+  # waiting for an Abora release. Installed once: removing it later sticks.
+  systemd.services.abora-browser-setup =
+    lib.mkIf (config.abora.browser == "zen" && config.services.flatpak.enable) {
+      description     = "Install the Zen browser from Flathub (once)";
+      after           = [ "abora-flatpak-setup.service" "network-online.target" ];
+      requires        = [ "abora-flatpak-setup.service" ];
+      wants           = [ "network-online.target" ];
+      wantedBy        = [ "multi-user.target" ];
+      unitConfig.ConditionPathExists = "!/var/lib/abora/browser-installed";
+      unitConfig.StartLimitIntervalSec = 0;
+      serviceConfig = {
+        Type            = "oneshot";
+        TimeoutStartSec = "30min";
+        Restart         = "on-failure";
+        RestartSec      = "60s";
+      };
+      script = ''
+        ${pkgs.flatpak}/bin/flatpak install --system --noninteractive --or-update flathub ${zenFlatpak}
+        mkdir -p /var/lib/abora
+        touch /var/lib/abora/browser-installed
+      '';
+    };
+
   services.qemuGuest.enable = lib.mkDefault config.abora.extras.virtualizationGuests;
   services.spice-vdagentd.enable = lib.mkDefault config.abora.extras.virtualizationGuests;
   virtualisation.vmware.guest.enable =
@@ -525,8 +564,9 @@ in
   fonts.packages = with pkgs; [
     noto-fonts
     noto-fonts-color-emoji
-    inter
     jetbrains-mono
+  ] ++ lib.optionals (!minimal) [
+    inter
     nerd-fonts.jetbrains-mono
   ];
   fonts.fontconfig = {
@@ -542,8 +582,8 @@ in
   environment.variables = {
     XCURSOR_THEME = lib.mkDefault "Adwaita";
     XCURSOR_SIZE  = lib.mkDefault "24";
-    TERMINAL      = lib.mkDefault "konsole";
-    TERM_PROGRAM  = lib.mkDefault "konsole";
+    TERMINAL      = lib.mkDefault terminal;
+    TERM_PROGRAM  = lib.mkDefault terminal;
   };
 
   environment.systemPackages = with pkgs; [
@@ -565,9 +605,6 @@ in
     aboraSupportReport
     aboraUpdate
     aboraWelcome
-    aboraWelcomeDesktopPkg
-    aboraConfigDesktopPkg
-    aboraWallpapersPackage
     aboraInstaller
     aboraSetup
     aboraSetupDesktopPkg
@@ -575,14 +612,10 @@ in
     aboraThemeSync
     bashInteractive
     curl
-    feh
     fastfetch
-    firefox
     git
     iw
     jq
-    libnotify
-    kdePackages.konsole
     linux-firmware
     nixosCommand
     pciutils
@@ -590,23 +623,31 @@ in
     upgradeCommand
     rollbackCommand
     spaceship-prompt
-    starship
     unzip
     usbutils
     wget
-    papirus-icon-theme
+    zsh
+  ] ++ lib.optionals graphical [
+    feh
+    libnotify
+    swaybg
+    xdg-utils
+  ] ++ lib.optionals (graphical && desktop != "plasma") [
     libsForQt5.qt5ct
     qt6Packages.qt6ct
-    xdg-utils
-    xterm
-    swaybg
-    zsh
-  ] ++ lib.optional (abtScript != null) aboraAbt
+  ] ++ lib.optionals (graphical && !minimal) [
+    aboraWelcomeDesktopPkg
+    aboraConfigDesktopPkg
+    aboraWallpapersPackage
+    papirus-icon-theme
+  ] ++ lib.optional needsKonsole kdePackages.konsole
+    ++ lib.optional (graphical && config.abora.browser == "firefox") firefox
+    ++ lib.optional (abtScript != null) aboraAbt
     ++ lib.optional (pkgs ? abora-update-resolver) pkgs.abora-update-resolver
     ++ lib.optional (pkgs ? abora-update) pkgs.abora-update
     ++ lib.optional (pkgs ? abora-plan-tool) pkgs.abora-plan-tool
-    ++ lib.optional (welcomeGuiScript != null) aboraWelcomeGui
-    ++ lib.optional (configGuiScript != null) aboraConfigGui
+    ++ lib.optional (graphical && !minimal && welcomeGuiScript != null) aboraWelcomeGui
+    ++ lib.optional (graphical && !minimal && configGuiScript != null) aboraConfigGui
     ++ lib.optional (gamingWelcomeGuiScript != null) aboraGamingWelcomeGui
     ++ lib.optional config.abora.gaming.enable aboraGamingWelcomeDesktopPkg
     ++ lib.optional (config.abora.labs.enable && labsScript != null) aboraLabs
@@ -996,7 +1037,7 @@ in
     // lib.optionalAttrs (aboraLogoFile != null) {
       "abora/Abora-LOGO.png".source = aboraLogoFile;
     }
-    // lib.optionalAttrs (welcomeGuiScript != null) {
+    // lib.optionalAttrs (graphical && !minimal && welcomeGuiScript != null) {
       "abora/welcome-gui.py".source = welcomeGuiScript;
       "xdg/autostart/abora-welcome-gui.desktop".text = ''
         [Desktop Entry]

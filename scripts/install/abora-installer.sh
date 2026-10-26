@@ -70,6 +70,7 @@ case "$abora_release_stage" in
 esac
 dotfiles_url=""
 config_source="abora"
+install_minimal="no"
 flake_url=""
 flake_host=""
 flake_inspection=""
@@ -2347,6 +2348,9 @@ _print_summary() {
     else
         printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Gaming:" "$R" "off"
     fi
+    if [[ "$install_minimal" == "yes" ]]; then
+        printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Style:" "$R" "Minimal (no browser, Flatpak or extra apps)"
+    fi
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "ANIX:"     "$R" "$anix_enabled"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Abora Labs:" "$R" "$labs_enabled"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Root:"     "$R" "$root_password_mode"
@@ -2910,6 +2914,7 @@ EOF
   abora.gaming.vulkanTools = ${gaming_vulkan_nix};
   abora.gaming.launchers = ${gaming_launchers_nix};
   abora.labs.enable = $(nix_bool "$labs_enabled");
+  abora.minimal = $(nix_bool "$install_minimal");
   abora.extras.diagnostics = false;
   abora.extras.virtualizationGuests = false;
   abora.extras.mobileBroadband = false;
@@ -4298,6 +4303,16 @@ release_apps() {
     starter_apps_bundle="none"
     starter_apps_label="None"
     install_apps_during_setup="no"
+
+    release_header "Install style"
+    menu "How much should be installed?" \
+        "Standard|Recommended — Zen browser, Flatpak, welcome and settings apps, wallpapers" \
+        "Minimal|Your desktop and Abora's commands only — no browser, no Flatpak, no extra apps"
+    if [[ "$MENU_RESULT" -eq 1 ]]; then
+        install_minimal="yes"
+    else
+        install_minimal="no"
+    fi
 }
 
 release_gaming() {

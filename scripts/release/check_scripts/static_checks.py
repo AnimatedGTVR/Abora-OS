@@ -108,6 +108,16 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'Installing your own NixOS flake', 'docs/wiki/Installation.md'),
     ),
     Check(
+        'static: installs carry no duplicate terminal/browser, and minimal installs stay lean',
+        grep('-Fq', 'needsKonsole = graphical && !(nativeTerminals ? ${desktop});', 'nix/modules/installed-base.nix'),
+        grep('-Fq', 'lib.optional needsKonsole kdePackages.konsole', 'nix/modules/installed-base.nix'),
+        not_(grep('-Eq', '^    (firefox|starship|xterm|kdePackages.konsole)$', 'nix/modules/installed-base.nix')),
+        grep('-Fq', 'flatpak install --system --noninteractive --or-update flathub ${zenFlatpak}', 'nix/modules/installed-base.nix'),
+        grep('-Fq', 'services.flatpak.enable = lib.mkDefault (!minimal);', 'nix/modules/installed-base.nix'),
+        grep('-Fq', 'type = lib.types.enum [ "zen" "firefox" "none" ];', 'nix/modules/abora-options.nix'),
+        grep('-Fq', 'abora.minimal = $(nix_bool "$install_minimal");', 'scripts/abora-installer.sh'),
+    ),
+    Check(
         'runtime: abora.gpu accepts legacy/batch auto values as a no-op',
         grep('-Fq', 'type = lib.types.enum [ "auto" "nouveau" "nvidia" "nvidia-open" "amdgpu" "intel" "none" ];', 'nix/modules/abora-options.nix'),
         grep('-Fq', 'accepts "auto" as a compatibility-safe no-op', 'nix/modules/abora-options.nix'),
