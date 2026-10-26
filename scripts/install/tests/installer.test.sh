@@ -262,4 +262,40 @@ else
 fi
 rm -rf "$tmp_engine_dir"
 
+# Own-flake installs: users the configuration left without a password get the
+# chosen one; users with a password, system users and nixbld users are untouched.
+tmp_pw_root="$(mktemp -d)"
+mkdir -p "$tmp_pw_root/etc"
+sed -n '/^set_shadow_hash()/,/^validate_flake_install()/p' scripts/abora-installer.sh | sed '$d' > "$tmp_pw_root/funcs.sh"
+cat > "$tmp_pw_root/etc/passwd" <<'PASSWD'
+root:x:0:0:System administrator:/root:/run/current-system/sw/bin/bash
+sshd:x:998:998::/var/empty:/run/current-system/sw/bin/nologin
+nixbld1:x:30001:30000:Nix build user 1:/var/empty:/run/current-system/sw/bin/nologin
+alice:x:1000:100::/home/alice:/run/current-system/sw/bin/zsh
+bob:x:1001:100::/home/bob:/run/current-system/sw/bin/bash
+PASSWD
+cat > "$tmp_pw_root/etc/shadow" <<'SHADOW'
+root:!:1::::::
+sshd:!:1::::::
+nixbld1:!:1::::::
+alice:!:1::::::
+bob:$6$keep$bobshash:1::::::
+SHADOW
+chmod 600 "$tmp_pw_root/etc/shadow"
+pw_out="$(install_log=/dev/null user_password_hash='$6$new$hash' bash -c "
+  ok() { printf 'OK %s\n' \"\$1\"; }; warn() { printf 'WARN %s\n' \"\$1\"; }; msg() { printf 'MSG %s\n' \"\$1\"; }
+  source '$tmp_pw_root/funcs.sh'
+  set_flake_user_passwords '$tmp_pw_root'")"
+if grep -qx 'alice:$6$new$hash:1::::::' "$tmp_pw_root/etc/shadow" \
+  && grep -qx 'bob:$6$keep$bobshash:1::::::' "$tmp_pw_root/etc/shadow" \
+  && grep -qx 'root:!:1::::::' "$tmp_pw_root/etc/shadow" \
+  && grep -qx 'nixbld1:!:1::::::' "$tmp_pw_root/etc/shadow" \
+  && [[ "$(stat -c %a "$tmp_pw_root/etc/shadow")" == 600 ]] \
+  && [[ "$pw_out" == *"OK Password set for alice"* && "$pw_out" == *"MSG bob keeps"* ]]; then
+  pass "runtime: own-flake install sets passwords only where the configuration left none"
+else
+  fail "runtime: own-flake install sets passwords only where the configuration left none"
+fi
+rm -rf "$tmp_pw_root"
+
 testlib_finish

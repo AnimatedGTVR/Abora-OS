@@ -69,6 +69,11 @@ case "$abora_release_stage" in
         ;;
 esac
 dotfiles_url=""
+config_source="abora"
+flake_url=""
+flake_host=""
+flake_inspection=""
+flake_check_log="/tmp/abora-flake-check.log"
 
 case "${ABORA_REPO_REF:-} ${ABORA_PRE_ALPHA_REF:-} ${version:-}" in
     *ALPHA*|*alpha*|*pre-alpha*|*prealpha*|*edge*)
@@ -2294,6 +2299,18 @@ step_disk_existing_partition() {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _print_summary() {
+    if [[ "$config_source" == "flake" ]]; then
+        if [[ "$install_disk_mode" == "existing" ]]; then
+            printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Disk:" "$R" "${disk}  (only ${target_partition} will be erased)"
+            printf '  %b  %-16s%b  %s\n' "${D}${CI}" "EFI partition:" "$R" "${target_esp}  ← reused as-is, not reformatted"
+        else
+            printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Disk:" "$R" "${disk}  ← will be erased"
+        fi
+        printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Configuration:" "$R" "${flake_url}#${flake_host}"
+        printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Added:" "$R" "hardware-configuration.nix, abora-machine.nix (disks)"
+        printf '\n'
+        return 0
+    fi
     if [[ -n "$disk" && "$install_disk_mode" == "existing" ]]; then
         printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Disk:" "$R" "${disk}  (only ${target_partition} will be erased)"
         printf '  %b  %-16s%b  %s\n' "${D}${CI}" "EFI partition:" "$R" "${target_esp}  ← reused as-is, not reformatted"
@@ -3601,6 +3618,21 @@ run_with_log_panel() {
     return "$rc"
 }
 
+install_nix_config() {
+    printf '%s\n' \
+        "experimental-features = nix-command flakes" \
+        "substituters = https://cache.nixos.org" \
+        "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" \
+        "connect-timeout = 10" \
+        "stalled-download-timeout = 120" \
+        "fallback = true" \
+        "builders-use-substitutes = true" \
+        "max-jobs = 2" \
+        "cores = 2" \
+        "max-substitution-jobs = 32" \
+        "http-connections = 32"
+}
+
 run_install() {
     printf '\033[2J\033[H'
     printf '\n'
@@ -3632,6 +3664,11 @@ run_install() {
     progress_line 32 "Target mounted"
     ok "Mounted"
 
+    if [[ "$config_source" == "flake" ]]; then
+        install_from_flake
+        return
+    fi
+
     msg "Generating NixOS configuration…"
     if ! generate_nixos_config "/mnt"; then die "Config generation failed. See ${config_log}."; fi
     progress_line 45 "Configuration written"
@@ -3645,18 +3682,7 @@ run_install() {
     ok "Configuration validated"
 
     local nix_config
-    nix_config="$(printf '%s\n' \
-        "experimental-features = nix-command flakes" \
-        "substituters = https://cache.nixos.org" \
-        "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" \
-        "connect-timeout = 10" \
-        "stalled-download-timeout = 120" \
-        "fallback = true" \
-        "builders-use-substitutes = true" \
-        "max-jobs = 2" \
-        "cores = 2" \
-        "max-substitution-jobs = 32" \
-        "http-connections = 32")"
+    nix_config="$(install_nix_config)"
 
     ensure_sane_clock
 
@@ -3734,10 +3760,17 @@ page_done() {
     printf '  %b┌────────────────────────────────────────────────────────┐%b\n' "$CF" "$R"
     printf '  %b│%b  %b✓  Installation Complete%b                               %b│%b\n' \
         "$CF" "$R" "${B}${CP}" "$R" "$CF" "$R"
+    local installed_name="${release_name} is installed"
+    [[ "$config_source" == "flake" ]] && installed_name="${flake_host} is installed"
     printf '  %b│%b  %b%-52s%b  %b│%b\n' \
-        "$CF" "$R" "$CS" "${release_name} is installed" "$R" "$CF" "$R"
+        "$CF" "$R" "$CS" "$installed_name" "$R" "$CF" "$R"
     printf '  %b└────────────────────────────────────────────────────────┘%b\n' "$CF" "$R"
     printf '\n'
+    if [[ "$config_source" == "flake" ]]; then
+        printf '  %b·%b  Rebuild with %bnixos-rebuild switch --flake /etc/nixos#abora%b.\n' "$CI" "$R" "${B}${CW}" "$R"
+        printf '  %b·%b  Moving this host into your repo? Read /etc/nixos/README-abora.md first.\n' "$CI" "$R"
+        printf '\n'
+    fi
     if [[ "$starter_apps_bundle" != "none" && "$install_apps_during_setup" != "yes" ]]; then
         printf '  %b·%b  Apps: %b%s%b saved — run %babora apps rebuild%b after first boot.\n' \
             "$CI" "$R" "$CC" "$starter_apps_label" "$R" "${B}${CW}" "$R"
@@ -4373,21 +4406,385 @@ release_review() {
     release_header "Review"
     _print_summary
     printf '\n'
+    local what="Abora OS"
+    [[ "$config_source" == "flake" ]] && what="${flake_host}"
     if [[ "$install_disk_mode" == "existing" ]]; then
-        warn "The next step formats ${target_partition} and installs Abora OS."
+        warn "The next step formats ${target_partition} and installs ${what}."
     else
-        warn "The next step erases ${disk} and installs Abora OS."
+        warn "The next step erases ${disk} and installs ${what}."
     fi
     menu "Install now?" \
-        "Install Abora OS|Start installation with the selected disk layout" \
+        "Install ${what}|Start installation with the selected disk layout" \
         "Cancel|Return to live shell"
     [[ "$MENU_RESULT" -eq 0 ]] || exit 1
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  YOUR OWN FLAKE — install a user's NixOS configuration instead of Abora's
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Evaluated against the user's configuration before any disk is touched; the
+# Rust engine (`abora-installer flake judge`) decides whether it can boot here.
+read -r -d '' FLAKE_INSPECT_EXPR <<'NIX' || true
+c: let
+  l = c.boot.loader;
+  b = x: if x then "1" else "0";
+  harmless = fs:
+    builtins.elem fs.fsType [ "tmpfs" "ramfs" "proc" "sysfs" "devtmpfs" "overlay" "nfs" "nfs4" "cifs" "9p" "virtiofs" ]
+    || builtins.any (o: builtins.elem o [ "nofail" "noauto" "bind" ]) (fs.options or [ ]);
+  extra = builtins.filter (m: m != "/" && m != "/boot" && !(harmless c.fileSystems.${m}))
+    (builtins.attrNames c.fileSystems);
+in ''
+  system=${c.nixpkgs.hostPlatform.system}
+  systemd_boot=${b l.systemd-boot.enable}
+  grub=${b l.grub.enable}
+  grub_efi=${b l.grub.efiSupport}
+  limine=${b (l.limine.enable or false)}
+  extra_mounts=${builtins.concatStringsSep " " extra}
+''
+NIX
+
+flake_nix() {
+    nix --extra-experimental-features "nix-command flakes" "$@"
+}
+
+flake_engine() {
+    "${ABORA_INSTALLER_BIN:-abora-installer}" flake "$@"
+}
+
+show_flake_log_tail() {
+    [[ -s "$flake_check_log" ]] || return 0
+    printf '\n'
+    tail -n 8 "$flake_check_log" | while IFS= read -r line; do
+        printf '  %b%s%b\n' "$CG" "$(truncate_line "$line" 100)" "$R"
+    done
+    printf '\n'
+}
+
+# Fetches the flake and lists its NixOS configurations, one per line.
+list_flake_hosts() {
+    flake_nix eval --refresh --raw "${1}#nixosConfigurations" \
+        --apply 'c: builtins.concatStringsSep "\n" (builtins.attrNames c)' \
+        2>>"$flake_check_log"
+}
+
+inspect_flake_host() {
+    flake_nix eval --refresh --raw "${flake_url}#nixosConfigurations.\"${flake_host}\".config" \
+        --apply "$FLAKE_INSPECT_EXPR" 2>>"$flake_check_log"
+}
+
+release_config_source() {
+    release_header "What to install"
+    msg "Abora sets up the disk either way. Choose what goes on it."
+    printf '\n'
+    menu "Install" \
+        "Abora OS|Recommended — Abora's desktop, apps, updates and tools" \
+        "My own NixOS flake|Your configuration from GitHub, GitLab or any Git server"
+    if [[ "$MENU_RESULT" -eq 0 ]]; then
+        config_source="abora"
+        return 0
+    fi
+    config_source="flake"
+    release_flake_source || config_source="abora"
+}
+
+release_flake_source() {
+    local ref parsed hosts host_rows=() h
+    while true; do
+        release_header "Your flake"
+        msg "Example: github:you/nixos-config#laptop  (the part after # is the configuration)"
+        msg "Private repository? Set up access from Open terminal first, e.g. git+ssh://."
+        printf '\n'
+        ref="$(prompt_field "Flake" "${flake_url:+${flake_url}${flake_host:+#${flake_host}}}")"
+        if ! parsed="$(flake_engine check "$ref" 2>&1)"; then
+            err "${parsed#abora-installer: }"
+            menu "Next" "Try again|Enter a different flake" "Open terminal|Fix access or look around" "Use Abora OS instead|Go back to the normal install"
+            case "$MENU_RESULT" in
+                0) continue ;;
+                1) open_live_terminal; continue ;;
+                *) return 1 ;;
+            esac
+        fi
+        flake_url="$(sed -n 's/^url=//p' <<<"$parsed")"
+        flake_host="$(sed -n 's/^host=//p' <<<"$parsed")"
+
+        : > "$flake_check_log"
+        printf '\n'
+        msg "Fetching ${flake_url} — this can take a minute…"
+        if ! hosts="$(list_flake_hosts "$flake_url")" || [[ -z "$hosts" ]]; then
+            err "Could not read nixosConfigurations from ${flake_url}."
+            show_flake_log_tail
+            menu "Next" "Try again|Enter the flake again" "Open terminal|Fix access or look around" "Use Abora OS instead|Go back to the normal install"
+            case "$MENU_RESULT" in
+                0) continue ;;
+                1) open_live_terminal; continue ;;
+                *) return 1 ;;
+            esac
+        fi
+
+        if [[ -n "$flake_host" ]] && ! grep -qxF "$flake_host" <<<"$hosts"; then
+            warn "${flake_url} has no configuration named ${flake_host}."
+            flake_host=""
+        fi
+        if [[ -z "$flake_host" ]]; then
+            host_rows=()
+            while IFS= read -r h; do
+                [[ -n "$h" ]] && host_rows+=("${h}|nixosConfigurations.${h}")
+            done <<<"$hosts"
+            if [[ ${#host_rows[@]} -eq 1 ]]; then
+                flake_host="${host_rows[0]%%|*}"
+            else
+                menu "Which configuration is this machine?" "${host_rows[@]}"
+                flake_host="${host_rows[$MENU_RESULT]%%|*}"
+            fi
+        fi
+
+        msg "Checking ${flake_host} (evaluating your configuration)…"
+        if ! flake_inspection="$(inspect_flake_host)"; then
+            err "${flake_host} does not evaluate."
+            show_flake_log_tail
+            menu "Next" "Try again|After fixing and pushing the configuration" "Open terminal|Look around" "Use Abora OS instead|Go back to the normal install"
+            case "$MENU_RESULT" in
+                0) continue ;;
+                1) open_live_terminal; continue ;;
+                *) return 1 ;;
+            esac
+        fi
+        ok "Found ${flake_host} in ${flake_url}"
+        pause
+        return 0
+    done
+}
+
+# After the disk is chosen: can this configuration boot on this machine and layout?
+release_flake_judge() {
+    local verdict line refused=0 uefi=no bios_boot=no
+    [[ -d /sys/firmware/efi ]] && uefi=yes
+    [[ "$install_disk_mode" != "existing" ]] && bios_boot=yes
+
+    release_header "Checking your configuration"
+    verdict="$(flake_engine judge --uefi "$uefi" --bios-boot "$bios_boot" <<<"$flake_inspection")" || refused=1
+    while IFS= read -r line; do
+        case "$line" in
+            refuse=*) err "${line#refuse=}" ;;
+            warn=*) warn "${line#warn=}" ;;
+        esac
+    done <<<"$verdict"
+
+    if (( refused )); then
+        printf '\n'
+        menu "This configuration can't be installed here as it is" \
+            "Check again|After fixing and pushing the configuration" \
+            "Choose disk again|Pick a different disk or mode" \
+            "Cancel|Return to the live shell"
+        case "$MENU_RESULT" in
+            0)
+                msg "Checking ${flake_host} again…"
+                : > "$flake_check_log"
+                if ! flake_inspection="$(inspect_flake_host)"; then
+                    err "${flake_host} does not evaluate."
+                    show_flake_log_tail
+                    pause
+                fi
+                release_flake_judge
+                ;;
+            1) release_disk; release_flake_judge ;;
+            *) exit 1 ;;
+        esac
+        return
+    fi
+    if [[ -n "$verdict" ]]; then
+        printf '\n'
+        menu "Continue?" "Continue|I understand the note above" "Cancel|Return to the live shell"
+        [[ "$MENU_RESULT" -eq 0 ]] || exit 1
+    else
+        ok "${flake_host} can boot on this machine."
+        pause
+    fi
+}
+
+release_flake_password() {
+    release_header "Password"
+    msg "Users your configuration leaves without a password get this one."
+    msg "Users that already have a password in your configuration keep it."
+    printf '\n'
+    while true; do
+        local p1 p2
+        p1="$(prompt_password "Password")"
+        p2="$(prompt_password "Confirm")"
+        [[ -n "$p1" ]] || { warn "Password cannot be empty."; continue; }
+        [[ "$p1" == "$p2" ]] || { warn "Passwords do not match."; continue; }
+        user_password_hash="$(hash_password "$p1")"
+        [[ -n "$user_password_hash" ]] || { warn "Could not hash password."; continue; }
+        root_password_hash="$user_password_hash"
+        ok "Password set."
+        pause
+        return 0
+    done
+}
+
+release_flake_flow() {
+    starter_apps_bundle="none"
+    gaming_enabled="no"
+    release_disk
+    release_flake_judge
+    release_flake_password
+    release_preflight
+    release_review
+    run_install
+    page_done
+}
+
+# A by-id path survives disks being renumbered, which matters for BIOS GRUB.
+stable_disk_path() {
+    local wanted link
+    wanted="$(readlink -f "$1")"
+    for link in /dev/disk/by-id/*; do
+        [[ "$link" == *-part* || "$link" == */wwn-* || "$link" == */nvme-eui.* ]] && continue
+        [[ "$link" =~ ^[A-Za-z0-9/_.:-]+$ ]] || continue
+        if [[ "$(readlink -f "$link")" == "$wanted" ]]; then
+            printf '%s\n' "$link"
+            return 0
+        fi
+    done
+    printf '%s\n' "$1"
+}
+
+lock_user_flake() {
+    local cfgdir="${1:-/mnt}/etc/nixos" tmp rc=0
+    tmp="$(mktemp -d /tmp/abora-user-flake.XXXXXX)" || return 1
+    cp -a "${cfgdir}/." "$tmp/" || rc=1
+    if (( rc == 0 )); then
+        flake_nix flake lock "path:${tmp}" >>"$install_log" 2>&1 || rc=1
+    fi
+    if (( rc == 0 )); then
+        cp "$tmp/flake.lock" "${cfgdir}/flake.lock" || rc=1
+    fi
+    rm -rf "$tmp"
+    return "$rc"
+}
+
+# Rewrites one user's hash in place; keeps the file's owner and mode.
+set_shadow_hash() {
+    local shadow="$1" name="$2" hash="$3" tmp
+    grep -q "^${name}:" "$shadow" 2>/dev/null || return 1
+    tmp="$(mktemp)" || return 1
+    awk -F: -v OFS=: -v u="$name" -v h="$hash" '$1 == u { $2 = h } 1' "$shadow" >"$tmp" \
+        && cat "$tmp" >"$shadow"
+    local rc=$?
+    rm -f "$tmp"
+    return "$rc"
+}
+
+# Gives the chosen password to normal users (or root, if there are none)
+# that the configuration left without one.
+set_flake_user_passwords() {
+    local root="${1:-/mnt}" name uid shell field count=0
+    local -a users=()
+    while IFS=: read -r name _ uid _ _ _ shell; do
+        [[ "$uid" =~ ^[0-9]+$ ]] || continue
+        (( uid >= 1000 && uid < 30000 )) || continue
+        [[ "$shell" == */nologin || "$shell" == */false ]] && continue
+        users+=("$name")
+    done <"${root}/etc/passwd"
+    [[ ${#users[@]} -gt 0 ]] || users=(root)
+
+    for name in "${users[@]}"; do
+        field="$(awk -F: -v u="$name" '$1 == u { print $2 }' "${root}/etc/shadow" 2>/dev/null || true)"
+        if [[ -z "$field" || "$field" == "!"* || "$field" == "*" ]]; then
+            if set_shadow_hash "${root}/etc/shadow" "$name" "$user_password_hash"; then
+                ok "Password set for ${name}"
+                count=$((count + 1))
+            else
+                warn "Could not set a password for ${name}."
+            fi
+        else
+            msg "${name} keeps the password from your configuration"
+            count=$((count + 1))
+        fi
+    done
+    (( count > 0 )) || warn "No user has a password; you may not be able to log in."
+}
+
+validate_flake_install() {
+    local root="${1:-/mnt}"
+    [[ -e "${root}/etc/NIXOS" ]] || die "nixos-install finished, but ${root}/etc/NIXOS is missing. See ${install_log}."
+    target_has_system_profile "$root" || target_has_installed_boot_path "$root" \
+        || die "nixos-install finished, but no system profile was installed. See ${install_log}."
+    find "${root}/boot" -maxdepth 4 \( -iname '*.efi' -o -name 'grub.cfg' -o -iname 'limine*' \) 2>/dev/null | grep -q . \
+        || die "No bootloader files found in ${root}/boot after nixos-install. See ${install_log}."
+}
+
+install_from_flake() {
+    local cfgdir=/mnt/etc/nixos esp_uuid bios_disk="" system_path_file system_path nix_config
+
+    msg "Writing this machine's hardware configuration…"
+    mkdir -p "$cfgdir" || die "Could not create ${cfgdir}."
+    nixos-generate-config --root /mnt --no-filesystems --show-hardware-config \
+        >"${cfgdir}/hardware-configuration.nix" 2>>"$install_log" \
+        || die "nixos-generate-config failed. See ${install_log}."
+    esp_uuid="$(blkid -s UUID -o value "$efi_part" 2>/dev/null | head -n 1 || true)"
+    [[ -n "$esp_uuid" ]] || die "Could not read the UUID of ${efi_part}. See ${install_log}."
+    [[ "$install_disk_mode" != "existing" ]] && bios_disk="$(stable_disk_path "$disk")"
+
+    if ! flake_engine write --flake "$flake_url" --host "$flake_host" --esp-uuid "$esp_uuid" \
+        ${bios_disk:+--bios-disk "$bios_disk"} --target /mnt 2>>"$install_log"; then
+        die "Could not write the wrapper flake. See ${install_log}."
+    fi
+    progress_line 45 "Configuration written"
+    ok "Wrapper flake written (${flake_url}#${flake_host})"
+
+    ensure_sane_clock
+    nix_config="$(install_nix_config)"
+    msg "Locking your flake…"
+    log_network_snapshot
+    NIX_CONFIG="$nix_config" lock_user_flake /mnt || die "Locking your flake failed. See ${install_log}."
+    ok "Flake locked"
+
+    system_path_file="/tmp/abora-built-system-path"
+    rm -f "$system_path_file"
+    msg "Building ${flake_host}…"
+    if ! NIX_CONFIG="${nix_config}" \
+        ABORA_INSTALL_IDLE_TIMEOUT=900 \
+        ABORA_INSTALL_NIX_MAX_SILENT_TIME=900 \
+        run_with_log_panel 70 "Building system" \
+        build_target_system "/mnt" "$system_path_file"; then
+        die "Building ${flake_host} failed. See ${install_log}."
+    fi
+    system_path="$(cat "$system_path_file" 2>/dev/null || true)"
+    [[ "$system_path" == /nix/store/* ]] || die "The build did not produce a system path. See ${install_log}."
+
+    msg "Running nixos-install…"
+    if ! run_with_log_panel 82 "Installing bootloader" \
+        env "NIX_CONFIG=${nix_config}" \
+        nixos-install --root /mnt --no-channel-copy --no-root-passwd --system "$system_path"; then
+        die "nixos-install failed. See ${install_log}."
+    fi
+    progress_line 90 "System installed"
+    validate_flake_install /mnt
+
+    msg "Setting passwords…"
+    set_flake_user_passwords /mnt
+    mkdir -p /mnt/etc/abora
+    {
+        printf 'installed_at=%s\n' "$(date -Iseconds 2>/dev/null || date)"
+        printf 'source=flake\n'
+        printf 'flake=%s#%s\n' "$flake_url" "$flake_host"
+    } >/mnt/etc/abora/INSTALLED
+    progress_line 100 "Complete"
+    ok "Done! ${flake_host} is installed."
+    printf '\n'
 }
 
 release_install_flow() {
     abora_sync_desktop_label "${abora_default_desktop:-${abora_edition:-cosmic}}"
     release_welcome
     release_network
+    release_config_source
+    if [[ "$config_source" == "flake" ]]; then
+        release_flake_flow
+        return
+    fi
     release_disk
     release_identity
     release_locale

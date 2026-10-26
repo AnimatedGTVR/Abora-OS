@@ -98,6 +98,38 @@ For scripted installs, pass `--batch`; to reconfigure an installed system, `--re
 abora-install --batch
 ```
 
+### Installing your own NixOS flake
+
+After network setup the installer asks what to install: **Abora OS**, or **My own NixOS flake**. The second
+installs your NixOS configuration instead of Abora's. Abora still handles the disk, the hardware and the
+password; your configuration decides everything else (desktop, packages, users, bootloader).
+
+1. Enter the flake, for example `github:you/nixos-config#laptop`. GitHub, GitLab, SourceHut, `git+https://`,
+   `git+ssh://` and `https://` work. The part after `#` names the `nixosConfigurations` entry; leave it out
+   to pick from a list. Local paths are refused because the installed system couldn't find them again, so
+   push the flake somewhere first. For a private repository, set up a key from **Open terminal**, then use `git+ssh://`.
+2. The installer evaluates the configuration **before touching any disk** and refuses it if:
+   - it isn't `x86_64-linux`
+   - it enables no bootloader
+   - its bootloader doesn't match how this machine boots (systemd-boot on a BIOS machine, or BIOS-only GRUB on a UEFI one)
+   - it needs a BIOS-boot partition the chosen disk mode won't create
+
+   It warns about other mounts, such as `/home` on a disk that isn't in this machine, because boot would stop in
+   emergency mode waiting for them. Fix and push the configuration, then choose **Check again**.
+3. Choose the disk as usual (erase or dual-boot), and a password. Users your configuration leaves without a
+   password get this one. Users that already have one keep it.
+
+The installed `/etc/nixos/flake.nix` is a small wrapper. It takes your configuration as the input `config` and
+adds `abora-machine.nix`, which imports `hardware-configuration.nix` and sets `/` and `/boot` to the partitions
+the installer created. Rebuild with `sudo nixos-rebuild switch --flake /etc/nixos#abora`. To pick up new commits
+of your configuration, run `sudo nix flake update config --flake /etc/nixos` first. To rebuild from your own repo
+instead, copy `abora-machine.nix` and `hardware-configuration.nix` into it and import `abora-machine.nix` from
+that host, or the machine won't find its disks (see `/etc/nixos/README-abora.md`).
+
+Abora's own tools (`abora`, `anix`, updates) are not part of such an install unless your configuration imports them.
+
+Batch installs set `config_source=flake`, `flake_url` and `flake_host` in the params file.
+
 ### Typing a timezone
 
 The installer asks for the timezone as text. It accepts

@@ -2,6 +2,8 @@ mod cli;
 mod config;
 mod disk;
 mod disk_cli;
+mod flake;
+mod flake_cli;
 mod install;
 mod logging;
 mod runner;
@@ -12,8 +14,13 @@ use std::process::ExitCode;
 
 fn main() -> ExitCode {
     let raw: Vec<_> = std::env::args_os().skip(1).collect();
-    if raw.first().is_some_and(|a| a == "disk") {
-        return match disk_cli::run(&raw[1..]) {
+    let subcommand = match raw.first().and_then(|a| a.to_str()) {
+        Some("disk") => Some(disk_cli::run as fn(&[std::ffi::OsString]) -> Result<u8, String>),
+        Some("flake") => Some(flake_cli::run as fn(&[std::ffi::OsString]) -> Result<u8, String>),
+        _ => None,
+    };
+    if let Some(run) = subcommand {
+        return match run(&raw[1..]) {
             Ok(code) => ExitCode::from(code),
             Err(err) => {
                 eprintln!("abora-installer: {err}");

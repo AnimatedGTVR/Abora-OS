@@ -98,6 +98,16 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'pkgs.abora-installer}/bin/abora-installer --legacy-script /etc/abora/installer.sh', 'nix/profiles/live.nix'),
     ),
     Check(
+        'runtime: installer can install a user flake, checked before any disk is touched',
+        grep('-q', 'mod flake;', 'tools/abora-installer/src/main.rs'),
+        grep('-Fq', 'pub fn judge(', 'tools/abora-installer/src/flake.rs'),
+        grep('-Fq', 'extendModules', 'tools/abora-installer/src/flake.rs'),
+        grep('-q', '^release_config_source()', 'scripts/abora-installer.sh'),
+        grep('-Fq', 'flake_engine judge --uefi', 'scripts/abora-installer.sh'),
+        grep('-Fq', 'install_from_flake', 'scripts/abora-installer.sh'),
+        grep('-q', 'Installing your own NixOS flake', 'docs/wiki/Installation.md'),
+    ),
+    Check(
         'runtime: abora.gpu accepts legacy/batch auto values as a no-op',
         grep('-Fq', 'type = lib.types.enum [ "auto" "nouveau" "nvidia" "nvidia-open" "amdgpu" "intel" "none" ];', 'nix/modules/abora-options.nix'),
         grep('-Fq', 'accepts "auto" as a compatibility-safe no-op', 'nix/modules/abora-options.nix'),

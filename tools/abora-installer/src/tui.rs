@@ -9,6 +9,9 @@ pub fn print_help() {
     println!(
         "  abora-installer disk <erase|existing|mount> ...   (see: abora-installer disk --help)"
     );
+    println!(
+        "  abora-installer flake <check|write> ...           (see: abora-installer flake --help)"
+    );
     println!();
     println!("Options:");
     println!("  --legacy-script <path>  Use a different Bash backend");
