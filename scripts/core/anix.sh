@@ -9,7 +9,18 @@ export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/
 
 script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ui_lib="${ABORA_UI_LIB:-$script_dir/abora-ui.sh}"
-anix_version="1.0.5 DEMO"
+# ANIX is versioned with Abora: the packaged command sets ANIX_VERSION, an Abora
+# system has /etc/abora/VERSION, and a checkout has VERSION at its root.
+anix_version="${ANIX_VERSION:-}"
+if [[ -z "$anix_version" ]]; then
+    for anix_version_file in /etc/abora/VERSION "$(dirname -- "${BASH_SOURCE[0]}")/../../VERSION"; do
+        if [[ -r "$anix_version_file" ]]; then
+            anix_version="$(tr -d '[:space:]' < "$anix_version_file")"
+            break
+        fi
+    done
+fi
+anix_version="${anix_version:-unknown}"
 
 if [[ ! -f "$ui_lib" && -f /etc/abora/ui.sh ]]; then
     ui_lib="/etc/abora/ui.sh"
@@ -2942,7 +2953,14 @@ do_doctor() {
 
     if [[ -f "$config_dir/flake.nix" ]]; then
         doctor_check ok "flake.nix exists"
-        if command -v nix >/dev/null 2>&1 \
+        local unreadable=""
+        unreadable="$(find "$config_dir" -maxdepth 2 -type f ! -readable -print -quit 2>/dev/null || true)"
+        if [[ -n "$unreadable" && "${EUID:-$(id -u)}" -ne 0 ]]; then
+            # Nix copies the whole directory to evaluate it, so one root-only file
+            # (abora-local.nix holds the password hash) fails it for a normal user.
+            doctor_check warn "flake not evaluated: ${unreadable} is readable by root only; run with sudo to check it"
+            warnings=$((warnings + 1))
+        elif command -v nix >/dev/null 2>&1 \
             && nix --extra-experimental-features "nix-command flakes" flake show --no-write-lock-file "$config_dir" >/dev/null 2>&1; then
             doctor_check ok "flake outputs evaluate"
         else

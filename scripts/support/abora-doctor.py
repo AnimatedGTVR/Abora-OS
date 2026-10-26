@@ -299,15 +299,30 @@ def supported_desktops() -> list[str]:
     return listed.stdout.splitlines()
 
 
+def anix_desktop() -> str:
+    """anix.desktop from anix.nix, which (unlike abora-local.nix) every user can read."""
+    try:
+        text = (local_config.parent / "anix.nix").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    match = re.search(r'^\s*anix\.desktop\s*=\s*"([^"]+)";', text, re.M)
+    return match.group(1) if match else ""
+
+
 def check_desktop() -> None:
     desktop = (
         read_local_string("abora.desktop")
         or read_local_string("system.nixos.variant_id")
         or detect_desktop_from_local_config()
+        or anix_desktop()
     )
     if not desktop:
-        report("desktop", "desktop", "warn", "No desktop setting in abora-local.nix",
-               "anix can't tell which desktop this system should start.")
+        if local_config.exists() and not os.access(local_config, os.R_OK):
+            report("desktop", "desktop", "warn", "Desktop setting not readable",
+                   f"{local_config} is readable by root only. Run with sudo to check the desktop.")
+        else:
+            report("desktop", "desktop", "warn", "No desktop setting in abora-local.nix",
+                   "anix can't tell which desktop this system should start.")
         return
     known = supported_desktops()
     if known and desktop not in known:

@@ -23,7 +23,7 @@
 # install.sh step.
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "anix";
-  version = "1.0.5-demo";
+  version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile ../../VERSION);
 
   src = ../../.;
 
@@ -57,6 +57,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
     makeWrapper "${bashInteractive}/bin/bash" "$out/bin/anix" \
       --add-flags "$out/share/anix/anix.sh" \
+      --set-default ANIX_VERSION "${finalAttrs.version}" \
       --prefix PATH : "${lib.makeBinPath [
         bashInteractive
         coreutils
