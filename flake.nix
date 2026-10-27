@@ -20,6 +20,7 @@
         abora-desktop-preview = final.callPackage ./nix/pkgs/desktop-preview.nix {};
         abora-hardware-test = final.callPackage ./nix/pkgs/hardware-test.nix {};
         abora-installer = final.callPackage ./nix/pkgs/abora-installer.nix {};
+        abora-trailer = final.callPackage ./nix/pkgs/abora-trailer.nix {};
       };
 
       pkgs = import nixpkgs {
@@ -83,6 +84,7 @@
         abora-desktop-preview = pkgs.abora-desktop-preview;
         abora-hardware-test = pkgs.abora-hardware-test;
         abora-installer = pkgs.abora-installer;
+        abora-trailer = pkgs.abora-trailer;
         vanta = pkgs.vanta;
         abora-update = pkgs.abora-update;
         abora-plan-tool = pkgs.abora-plan-tool;

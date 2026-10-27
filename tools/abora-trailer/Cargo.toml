@@ -1,0 +1,16 @@
+[package]
+name = "abora-trailer"
+version = "1.0.0"
+edition = "2021"
+description = "Animated Abora OS title sequence for trailers, recorded straight from a terminal"
+license = "MIT"
+
+[[bin]]
+name = "abora-trailer"
+path = "src/main.rs"
+
+[dependencies]
+crossterm = "0.28"
+
+[profile.release]
+opt-level = 3
