@@ -314,6 +314,7 @@ abora_dir="$config_dir/abora"
 mkdir -p "$abora_dir"
 
 copy_if_exists "$repo_dir/VERSION" "$abora_dir/VERSION"
+copy_if_exists "$repo_dir/NIXOS_STABLE" "$abora_dir/nixos-stable"
 copy_if_exists "$repo_dir/nix/modules/abora-options.nix" "$abora_dir/abora-options.nix"
 copy_if_exists "$repo_dir/nix/modules/installed-base.nix" "$abora_dir/installed-base.nix"
 copy_if_exists "$repo_dir/nix/modules/anix.nix" "$abora_dir/anix-module.nix"

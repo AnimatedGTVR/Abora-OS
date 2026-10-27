@@ -1487,6 +1487,9 @@ install_abora_files() {
     installed_paths=()
     mkdir -p "$abora_dir/plymouth" "$abora_dir/bootloader" "$abora_dir/effects" "$abora_dir/mango" "$abora_dir/vendor"
     copy_upstream_file "$upstream_dir/VERSION" "$abora_dir/VERSION"
+    if [[ -f "$upstream_dir/NIXOS_STABLE" ]]; then
+        copy_upstream_file "$upstream_dir/NIXOS_STABLE" "$abora_dir/nixos-stable"
+    fi
     copy_upstream_file "$upstream_dir/nix/modules/abora-options.nix" "$abora_dir/abora-options.nix"
     if [[ -d "$upstream_dir/nix/modules/desktops" ]]; then
         copy_upstream_dir "$upstream_dir/nix/modules/desktops" "$abora_dir/desktops"
@@ -1706,6 +1709,13 @@ write_installed_flake() {
     local removed=0
 
     mkdir -p "$config_dir"
+    # `anix nixos stable|unstable` and the installer save the branch here; a
+    # missing or odd value means the rolling default every system started with.
+    local nixos_branch="nixos-unstable" saved_branch=""
+    saved_branch="$(tr -d '[:space:]' 2>/dev/null < "$config_dir/abora/nixos-release" || true)"
+    if [[ "$saved_branch" =~ ^nixos-([0-9]{2}\.[0-9]{2}|unstable)$ ]]; then
+        nixos_branch="$saved_branch"
+    fi
     flake_tmp="$(mktemp "${flake_file}.tmp.XXXXXX")"
     update_tmp_files+=("$flake_tmp")
 
@@ -1715,7 +1725,7 @@ write_installed_flake() {
   # Keep installed systems on the rolling NixOS package set used by Abora
   # v4 alpha. Avoid path:/etc/... here: on NixOS that path resolves through
   # /etc/static, which pure flake evaluation rejects as an absolute path.
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/${nixos_branch}";
   outputs = { nixpkgs, ... }: {
     nixosConfigurations = {
       "${flake_config_name}" = nixpkgs.lib.nixosSystem {

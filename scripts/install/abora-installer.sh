@@ -71,6 +71,7 @@ esac
 dotfiles_url=""
 config_source="abora"
 install_minimal="no"
+nixos_release="${ABORA_NIXOS_RELEASE:-unstable}"
 flake_url=""
 flake_host=""
 flake_inspection=""
@@ -1460,6 +1461,7 @@ check_install_environment() {
         /etc/abora/plymouth/abora.script
     )
     local -a optional_paths=(
+        /etc/abora/nixos-stable
         /etc/abora/docs/wiki/ANIX-V1.md
         /etc/abora/docs/wiki/ANIX-V2-Languages.md
         /etc/abora/docs/wiki/Packages.md
@@ -1522,7 +1524,17 @@ check_install_environment() {
         fi
     done
 
-    if [[ -f /etc/abora/target-flake.lock ]] && command -v jq >/dev/null 2>&1; then
+    if [[ "$nixos_release" == "stable" ]]; then
+        if [[ -z "$(nixos_stable_branch)" ]]; then
+            err "This ISO does not name a stable NixOS release."
+            failed=1
+        elif ! cache_reachable || ! curl -fsI --connect-timeout 5 --max-time 8 https://api.github.com >/dev/null 2>&1; then
+            err "Installing the stable release needs internet (GitHub and cache.nixos.org)."
+            failed=1
+        elif [[ "$mode" == "detail" ]]; then
+            ok "Stable release $(nixos_stable_branch) is reachable"
+        fi
+    elif [[ -f /etc/abora/target-flake.lock ]] && command -v jq >/dev/null 2>&1; then
         if ! jq -e '
             (.nodes[.root].inputs.nixpkgs) as $input |
             .version >= 7 and
@@ -2347,6 +2359,9 @@ _print_summary() {
     if [[ "$install_minimal" == "yes" ]]; then
         printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Style:" "$R" "Minimal (no browser, Flatpak or extra apps)"
     fi
+    if [[ "$nixos_release" == "stable" ]]; then
+        printf '  %b  %-16s%b  %s\n' "${D}${CI}" "NixOS:" "$R" "Stable ($(nixos_stable_branch | sed 's/^nixos-//'))"
+    fi
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "ANIX:"     "$R" "$anix_enabled"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Abora Labs:" "$R" "$labs_enabled"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Root:"     "$R" "$root_password_mode"
@@ -2651,6 +2666,9 @@ write_branding_assets() {
         cp /etc/abora/pkgs/abora-grab.nix "${root}/etc/nixos/abora/pkgs/abora-grab.nix"
     fi
     cp_required /etc/abora/target-flake.lock "${root}/etc/nixos/abora/target-flake.lock"
+    if [[ -f /etc/abora/nixos-stable ]]; then
+        cp /etc/abora/nixos-stable "${root}/etc/nixos/abora/nixos-stable"
+    fi
     cp_required /etc/abora/anix-module.nix         "${root}/etc/nixos/abora/anix-module.nix"
     cp_required /etc/abora/abora-options.nix       "${root}/etc/nixos/abora/abora-options.nix"
 
@@ -2728,11 +2746,14 @@ write_installed_flake() {
     local root="${1:-/mnt}"
     local cfgdir="${root}/etc/nixos"
 
+    local branch=""
+    branch="$(nixos_branch)"
+    [[ -n "$branch" ]] || die "This ISO does not name a stable NixOS release. Choose the unstable release."
     [[ -f /etc/abora/target-flake.lock ]] || die "Release target-flake.lock is missing."
-    cat > "${cfgdir}/flake.nix" <<'EOF'
+    cat > "${cfgdir}/flake.nix" <<EOF
 {
   description = "Abora installed system";
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/${branch}";
   outputs = { nixpkgs, ... }: {
     nixosConfigurations = {
       abora = nixpkgs.lib.nixosSystem {
@@ -2746,7 +2767,16 @@ write_installed_flake() {
 }
 EOF
 
-    cp /etc/abora/target-flake.lock "${cfgdir}/flake.lock"
+    printf '%s\n' "$branch" > "${cfgdir}/abora/nixos-release"
+    if [[ "$nixos_release" == "stable" ]]; then
+        # No lock ships for stable: resolve the branch now, so the system starts
+        # on its latest security fixes rather than the ISO's build date.
+        lock_user_flake "$root" || die "Could not resolve ${branch} (stable needs internet). See ${install_log}."
+        jq -e --arg ref "$branch" '.nodes[.nodes[.root].inputs.nixpkgs].original.ref == $ref' "${cfgdir}/flake.lock" >/dev/null 2>&1 \
+            || die "The lock for ${branch} does not pin that branch. See ${install_log}."
+    else
+        cp /etc/abora/target-flake.lock "${cfgdir}/flake.lock"
+    fi
     if grep -Eq 'path:.*(nixpkgs|/etc/abora|/mnt/etc/nixos)' "${cfgdir}/flake.nix"; then
         die "Generated flake.nix still contains a local nixpkgs path. See ${config_log}."
     fi
@@ -4319,6 +4349,43 @@ release_apps() {
     install_apps_during_setup="no"
 }
 
+# The stable branch this Abora release names ("nixos-26.05"), or nothing.
+nixos_stable_branch() {
+    local branch=""
+    branch="$(tr -d '[:space:]' 2>/dev/null < "${ABORA_NIXOS_STABLE_FILE:-/etc/abora/nixos-stable}" || true)"
+    [[ "$branch" =~ ^nixos-[0-9]{2}\.[0-9]{2}$ ]] && printf '%s' "$branch"
+    return 0
+}
+
+# The nixpkgs branch the chosen release means.
+nixos_branch() {
+    if [[ "$nixos_release" == "stable" ]]; then
+        nixos_stable_branch
+    else
+        printf 'nixos-unstable'
+    fi
+}
+
+release_nixos() {
+    local stable=""
+    stable="$(nixos_stable_branch)"
+    if [[ -z "$stable" ]]; then
+        nixos_release="unstable"
+        return 0
+    fi
+    release_header "NixOS release"
+    msg "Which NixOS package set should this system follow? You can switch later with: anix nixos"
+    printf '\n'
+    menu "NixOS release" \
+        "Unstable (rolling)|Newest software and desktops. The ISO carries it, so it installs offline" \
+        "Stable ${stable#nixos-}|Steadier: security and bug fixes only. Needs internet while installing"
+    if [[ "$MENU_RESULT" -eq 1 ]]; then
+        nixos_release="stable"
+    else
+        nixos_release="unstable"
+    fi
+}
+
 release_style() {
     release_header "Install style"
     menu "How much should be installed?" \
@@ -4842,6 +4909,7 @@ release_install_flow() {
     release_identity
     release_locale
     release_style
+    release_nixos
     release_desktop
     step_gpu
     release_gaming

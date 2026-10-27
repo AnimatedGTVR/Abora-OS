@@ -68,7 +68,7 @@ fi
 # and copy the release-pinned target lock instead of regenerating it on the
 # half-installed target.
 if grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";' "$tmp_update_flake/flake.nix" \
-  && grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";' scripts/abora-installer.sh \
+  && grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/${branch}";' scripts/abora-installer.sh \
   && grep -q '/etc/abora/target-flake.lock' scripts/abora-installer.sh \
   && grep -q 'cp /etc/abora/target-flake.lock "${cfgdir}/flake.lock"' scripts/abora-installer.sh \
   && grep -q 'write_installed_flake "$root"' scripts/abora-installer.sh \
@@ -90,6 +90,27 @@ if grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";' "$tmp_u
   pass "runtime: installed flake uses a release-pinned pure nixos-unstable input"
 else
   fail "runtime: installed flake uses a release-pinned pure nixos-unstable input"
+fi
+
+# The release a user chose (installer, `anix nixos`) is saved beside the config
+# and the updater regenerates the same flake; anything unusable means unstable.
+tmp_nixos_rel="$(mktemp -d)"
+testlib_cleanup_paths+=("$tmp_nixos_rel")
+mkdir -p "$tmp_nixos_rel/abora"
+_nixos_rel_flake() {
+  rm -f "$tmp_nixos_rel/flake.nix"
+  ABORA_SYSTEM_CONFIG="$tmp_nixos_rel" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-write-flake >/dev/null 2>&1
+  sed -n 's|.*inputs.nixpkgs.url = "github:NixOS/nixpkgs/\([^"]*\)";.*|\1|p' "$tmp_nixos_rel/flake.nix"
+}
+_nixos_rel_none="$(_nixos_rel_flake)"
+printf 'nixos-26.05\n' > "$tmp_nixos_rel/abora/nixos-release"
+_nixos_rel_stable="$(_nixos_rel_flake)"
+printf 'nixos-26.05"; evil = true; #\n' > "$tmp_nixos_rel/abora/nixos-release"
+_nixos_rel_bad="$(_nixos_rel_flake)"
+if [[ "$_nixos_rel_none" == nixos-unstable && "$_nixos_rel_stable" == nixos-26.05 && "$_nixos_rel_bad" == nixos-unstable ]]; then
+  pass "runtime: updater keeps the chosen NixOS release when it regenerates flake.nix"
+else
+  fail "runtime: updater keeps the chosen NixOS release when it regenerates flake.nix (none=$_nixos_rel_none stable=$_nixos_rel_stable bad=$_nixos_rel_bad)"
 fi
 
 if [[ -n "$resolver_bin" ]]; then

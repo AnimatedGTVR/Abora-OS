@@ -317,4 +317,30 @@ else
 fi
 rm -f "$tmp_min" "$tmp_min.rows"
 
+# NixOS release step: stable is only offered when the ISO names a stable branch,
+# and the branch the installer writes comes from that file, never from a literal.
+tmp_rel="$(mktemp -d)"
+sed -n '/^nixos_stable_branch()/,/^release_style()/p' scripts/abora-installer.sh | sed '$d' > "$tmp_rel/funcs.sh"
+rel_run() {
+  bash -c "
+    release_header() { :; }; msg() { :; }
+    menu() { MENU_RESULT=\"\$PICK\"; }
+    source '$tmp_rel/funcs.sh'
+    nixos_release=unstable
+    $1" 
+}
+printf 'nixos-26.05\n' > "$tmp_rel/stable"
+printf 'banana\n' > "$tmp_rel/odd"
+rel_stable="$(ABORA_NIXOS_STABLE_FILE="$tmp_rel/stable" PICK=1 rel_run 'release_nixos >/dev/null; printf "%s %s" "$nixos_release" "$(nixos_branch)"')"
+rel_rolling="$(ABORA_NIXOS_STABLE_FILE="$tmp_rel/stable" PICK=0 rel_run 'release_nixos >/dev/null; printf "%s %s" "$nixos_release" "$(nixos_branch)"')"
+rel_none="$(ABORA_NIXOS_STABLE_FILE="$tmp_rel/missing" PICK=1 rel_run 'release_nixos >/dev/null; printf "%s %s" "$nixos_release" "$(nixos_branch)"')"
+rel_odd="$(ABORA_NIXOS_STABLE_FILE="$tmp_rel/odd" PICK=1 rel_run 'release_nixos >/dev/null; printf "%s" "$nixos_release"')"
+if [[ "$rel_stable" == "stable nixos-26.05" && "$rel_rolling" == "unstable nixos-unstable" \
+  && "$rel_none" == "unstable nixos-unstable" && "$rel_odd" == "unstable" ]]; then
+  pass "runtime: installer offers the stable NixOS release only when the ISO names one"
+else
+  fail "runtime: installer offers the stable NixOS release only when the ISO names one ($rel_stable | $rel_rolling | $rel_none | $rel_odd)"
+fi
+rm -rf "$tmp_rel"
+
 testlib_finish

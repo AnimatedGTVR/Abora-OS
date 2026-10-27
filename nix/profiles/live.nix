@@ -639,6 +639,7 @@ in
       '';
       "abora/title.txt".source = ../../assets/abora-title.txt;
       "abora/VERSION".source = ../../VERSION;
+      "abora/nixos-stable".source = ../../NIXOS_STABLE;
       "abora/target-flake.lock".source = ../../flake.lock;
       "abora/fastfetch-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "abora/fastfetch-config.jsonc".source = ../../assets/fastfetch-config.jsonc;

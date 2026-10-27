@@ -1,4 +1,5 @@
 VERSION
+NIXOS_STABLE
 nix/modules/abora-options.nix
 nix/modules/installed-base.nix
 nix/modules/anix.nix

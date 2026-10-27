@@ -79,9 +79,10 @@ Abora OS v4.2 Solstice is currently an alpha release line, so new installs
 default to `unstable`, which tracks the `edge` branch. `stable` remains
 available for final tagged releases and older installed systems.
 
-The Abora channel controls Abora project files. Abora v4.2 alpha tracks
-NixOS's rolling `nixos-unstable` package branch so desktop environments,
-drivers, and regular Nix apps move forward with `sudo abora update`.
+The Abora channel controls Abora project files. Which NixOS packages you get is a separate choice, the
+**NixOS release**: by default the rolling `nixos-unstable` branch, so desktop environments, drivers and
+regular Nix apps move forward with `sudo abora update`, or the stable release (see
+[Installation](Installation.md#choosing-the-nixos-release)). `abora update` keeps whichever you chose.
 
 Show the current channel:
 

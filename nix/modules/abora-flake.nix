@@ -13,6 +13,7 @@ let
   # the flake source. make check fails if it misses a file the adopt script copies.
   layout = [
     "VERSION:VERSION"
+    "NIXOS_STABLE:nixos-stable"
     "nix/modules/abora-options.nix:abora-options.nix"
     "nix/modules/installed-base.nix:installed-base.nix"
     "nix/modules/anix.nix:anix-module.nix"

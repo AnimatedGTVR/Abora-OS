@@ -112,6 +112,30 @@ Firefox from nixpkgs instead, and `"none"` installs no browser.
 Each desktop uses its own terminal (GNOME Console, COSMIC Terminal, Konsole, xfce4-terminal, ...). Konsole is installed
 only for the window managers that don't come with one.
 
+### Choosing the NixOS release
+
+The installer asks which NixOS package set the system follows:
+
+- **Unstable (rolling)** is `nixos-unstable`: the newest software and desktops. The ISO is built from it, so
+  it installs offline. This is the default.
+- **Stable** (currently NixOS 26.05 "Yarara"): steadier, with security and bug fixes only. It needs internet
+  while installing, because the stable packages aren't on the ISO. The installer locks the branch at install
+  time, so you start on the latest fixes rather than the ISO's build date.
+
+Switch later with `anix nixos`:
+
+```sh
+anix nixos            # which release the system follows
+anix nixos stable     # or: anix nixos unstable
+anix apply            # rebuild with it
+```
+
+Switching edits the `nixpkgs` input of `/etc/nixos/flake.nix`, relocks it, and remembers the choice in
+`/etc/nixos/abora/nixos-release`, so `abora update` keeps you on it. Going to stable moves some packages back
+to older versions; programs that already upgraded their data may not read it. A failed `anix apply` rolls
+back on its own. `anix nixos` won't touch a `flake.nix` you wrote yourself. Batch installs set
+`nixos_release=stable` in the params file.
+
 ### Installing your own NixOS flake
 
 After network setup the installer asks what to install: **Abora OS**, or **My own NixOS flake**. The second

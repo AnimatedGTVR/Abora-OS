@@ -44,7 +44,7 @@ Before pushing any change, run `make check` — it validates bash syntax, execut
 
 ### Build System
 
-`flake.nix` is the Nix entrypoint. It pins `nixpkgs/nixos-26.05`, exposes `nixosModules` (installed-base, anix), and produces the `abora-live` ISO. The only NixOS configuration used at build time is `nix/profiles/live.nix`.
+`flake.nix` is the Nix entrypoint. It tracks `nixpkgs/nixos-unstable` (the ISO is built from it; `NIXOS_STABLE` names the stable branch, `nixos-26.05`), exposes `nixosModules` (installed-base, anix), and produces the `abora-live` ISO. The only NixOS configuration used at build time is `nix/profiles/live.nix`.
 
 `scripts/build-iso.py` calls `nix build` targeting `#packages.x86_64-linux.iso-<edition>` and copies the result to `out/iso/`.
 
@@ -87,6 +87,10 @@ All shell scripts source `abora-ui.sh` (or `/etc/abora/ui.sh` on-system) for sha
 ### Vanta tools
 
 `tools/abora-update/` is the Vanta core of `abora update` (release channel resolution and the downgrade guard so far), called by `scripts/abora-update.sh` through the CLI the removed C# `abora-update-resolver` had. `tools/abora-update-resolver/` and `nix/pkgs/abora-update-resolver*` are placeholders kept only because 4.0/4.1 updaters require those paths (`scripts/release/legacy-required-paths.txt`); don't delete them. It runs on the Vanta interpreter packaged in `nix/pkgs/vanta.nix` (pinned to a Vanta commit) and ships as `nix/pkgs/abora-update.nix`. Unit tests: `vanta run tools/abora-update/tests.vanta` (also run by `make check` when a new-enough Vanta is found).
+
+### NixOS release
+
+An installed system follows `nixos-unstable` (default) or the stable branch named in `NIXOS_STABLE`. The generated `/etc/nixos/flake.nix` holds it as its `nixpkgs` input and `/etc/nixos/abora/nixos-release` remembers it, so the updater (`write_installed_flake`) regenerates the same flake. The installer asks (`release_nixos`; stable resolves its lock at install time and needs internet); `anix nixos [stable|unstable]` switches later and refuses a flake.nix Abora didn't write. Abora's modules were checked to evaluate on both branches.
 
 ### Plan tool
 

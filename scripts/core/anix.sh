@@ -1159,6 +1159,152 @@ do_toggle() {
     printf '\n'
 }
 
+# ── NixOS release ─────────────────────────────────────────────────────────────
+# Which nixpkgs branch the system follows: "unstable" (nixos-unstable, rolling)
+# or "stable" (the release this Abora names in /etc/abora/nixos-stable). The
+# generated flake.nix holds it as its nixpkgs input, and abora/nixos-release
+# remembers it so `abora update` regenerates the same flake.
+nixos_stable_file="${ANIX_NIXOS_STABLE_FILE:-/etc/abora/nixos-stable}"
+nixos_release_file="${config_dir}/abora/nixos-release"
+nixos_branch_pattern='^nixos-([0-9]{2}\.[0-9]{2}|unstable)$'
+
+nixos_flake_branch() {
+    sed -n 's|^[[:space:]]*inputs\.nixpkgs\.url = "github:NixOS/nixpkgs/\([^"]*\)";.*|\1|p' "${config_dir}/flake.nix" 2>/dev/null | head -n1
+}
+
+nixos_stable_branch() {
+    local branch=""
+    branch="$(tr -d '[:space:]' 2>/dev/null < "$nixos_stable_file" || true)"
+    [[ "$branch" =~ ^nixos-[0-9]{2}\.[0-9]{2}$ ]] && printf '%s' "$branch"
+    return 0
+}
+
+nixos_describe() {
+    case "$1" in
+        nixos-unstable) printf 'unstable (rolling, newest software)' ;;
+        nixos-*) printf 'stable %s (security and bug fixes only)' "${1#nixos-}" ;;
+        *) printf '%s' "$1" ;;
+    esac
+}
+
+nixos_usage() {
+    cat <<'USAGE'
+Usage:
+  anix nixos                 show which NixOS release this system follows
+  anix nixos stable          follow the stable release (steadier)
+  anix nixos unstable        follow nixos-unstable (rolling, newest software)
+
+Switching edits the nixpkgs input of /etc/nixos/flake.nix and relocks it; then
+`anix apply` rebuilds, with a rollback if the new system fails.
+USAGE
+}
+
+do_nixos() {
+    local action="${1:-status}" current="" target="" stable=""
+    case "$action" in
+        status|"") ;;
+        stable|unstable) ;;
+        help|--help|-h) nixos_usage; return 0 ;;
+        *) abora_error "Unknown release: ${action}"; nixos_usage; exit 1 ;;
+    esac
+
+    local flake="${config_dir}/flake.nix"
+    [[ -f "$flake" ]] || { abora_error "No flake.nix in ${config_dir}."; exit 1; }
+    current="$(nixos_flake_branch)"
+    stable="$(nixos_stable_branch)"
+
+    if [[ "$action" == "status" || "$action" == "" ]]; then
+        abora_banner "NixOS release" "Which package set this system follows."
+        abora_card_start "Release"
+        abora_kv "following" "$(nixos_describe "${current:-unknown}")"
+        abora_kv "branch" "${current:-unknown}"
+        abora_kv "stable is" "${stable:-not named by this Abora release}"
+        abora_card_end
+        abora_dim_line "Switch with: anix nixos stable | anix nixos unstable"
+        printf '\n'
+        return 0
+    fi
+
+    if ! grep -q 'description = "Abora installed system";' "$flake"; then
+        abora_error "This flake.nix wasn't written by Abora, so ANIX won't edit it."
+        abora_dim_line "Change the nixpkgs input in ${flake} yourself, then run: anix apply"
+        exit 1
+    fi
+    if [[ ! "$current" =~ $nixos_branch_pattern ]]; then
+        abora_error "Couldn't read the nixpkgs branch from ${flake}."
+        exit 1
+    fi
+
+    if [[ "$action" == "stable" ]]; then
+        target="$stable"
+        [[ -n "$target" ]] || { abora_error "This Abora release doesn't name a stable NixOS release."; exit 1; }
+    else
+        target="nixos-unstable"
+    fi
+    if [[ "$current" == "$target" ]]; then
+        abora_success "Already following $(nixos_describe "$target")."
+        printf '\n'
+        return 0
+    fi
+
+    abora_banner "NixOS release" "$(nixos_describe "$current") -> $(nixos_describe "$target")"
+    local default_answer="yes"
+    if [[ "$action" == "stable" ]]; then
+        abora_warn "Stable has older software than unstable, so this moves some packages back."
+        abora_dim_line "Your files and settings stay. Programs that already upgraded their data may not read it."
+        abora_dim_line "A failed rebuild rolls back on its own; the old generation stays in the boot menu."
+        default_answer="no"
+    fi
+    confirm "Switch to $(nixos_describe "$target")?" "$default_answer" || { abora_dim_line "Left as it was."; exit 0; }
+    require_command "$nix_bin"
+
+    local tmp_flake="" tmp_note="" had_note=0 saved_note=""
+    tmp_flake="$(mktemp)"
+    tmp_note="$(mktemp)"
+    sed "s|^\([[:space:]]*inputs\.nixpkgs\.url = \"github:NixOS/nixpkgs/\)[^\"]*\(\";.*\)$|\1${target}\2|" "$flake" > "$tmp_flake"
+    if [[ "$(sed -n 's|^[[:space:]]*inputs\.nixpkgs\.url = "github:NixOS/nixpkgs/\([^"]*\)";.*|\1|p' "$tmp_flake" | head -n1)" != "$target" ]]; then
+        rm -f "$tmp_flake" "$tmp_note"
+        abora_error "Couldn't edit the nixpkgs line of ${flake}."
+        exit 1
+    fi
+    printf '%s\n' "$target" > "$tmp_note"
+    if [[ -f "$nixos_release_file" ]]; then
+        had_note=1
+        saved_note="$(mktemp)"
+        cp "$nixos_release_file" "$saved_note"
+    fi
+    local saved_flake="" saved_lock="" had_lock=0
+    saved_flake="$(mktemp)"
+    cp "$flake" "$saved_flake"
+    if [[ -f "${config_dir}/flake.lock" ]]; then
+        had_lock=1
+        saved_lock="$(mktemp)"
+        cp "${config_dir}/flake.lock" "$saved_lock"
+    fi
+
+    run_as_root install -m 0644 "$tmp_flake" "$flake"
+    run_as_root mkdir -p "${config_dir}/abora"
+    run_as_root install -m 0644 "$tmp_note" "$nixos_release_file"
+    abora_step "Resolving ${target} (needs internet)"
+    if ! run_as_root "$nix_bin" --extra-experimental-features "nix-command flakes" flake update nixpkgs --flake "$config_dir"; then
+        abora_error "Couldn't resolve ${target}. Putting everything back."
+        run_as_root install -m 0644 "$saved_flake" "$flake"
+        if (( had_lock )); then run_as_root install -m 0644 "$saved_lock" "${config_dir}/flake.lock"; fi
+        if (( had_note )); then
+            run_as_root install -m 0644 "$saved_note" "$nixos_release_file"
+        else
+            run_as_root rm -f "$nixos_release_file"
+        fi
+        rm -f "$tmp_flake" "$tmp_note" "$saved_flake" "$saved_lock" "$saved_note"
+        exit 1
+    fi
+    rm -f "$tmp_flake" "$tmp_note" "$saved_flake" "$saved_lock" "$saved_note"
+
+    abora_success "Now following $(nixos_describe "$target")."
+    abora_dim_line "Run 'anix apply' to rebuild with it."
+    printf '\n'
+}
+
 package_usage() {
     cat <<'USAGE'
 Usage:
@@ -3081,6 +3227,9 @@ usage() {
     printf '  %banix save%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Save a local Git snapshot of ${config_dir}."
     printf '\n'
+    printf '  %banix nixos [stable|unstable]%b\n' "$ABORA_CYAN" "$ABORA_NC"
+    abora_dim_line "  Show or switch which NixOS release the system follows."
+    printf '\n'
     printf '  %banix doctor%b\n' "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Check flakes, Git state, generations, and ANIX settings."
     printf '  %banix doctor --fix%b\n' "$ABORA_CYAN" "$ABORA_NC"
@@ -3351,6 +3500,7 @@ main() {
         enable) shift || true; do_toggle true "$@" ;;
         disable) shift || true; do_toggle false "$@" ;;
         package|pkg) shift || true; do_package "$@" ;;
+        nixos|release) shift || true; do_nixos "$@" ;;
         service) shift || true; do_service "$@" ;;
         apply) shift || true; do_apply "$@" ;;
         test) shift || true; do_test "$@" ;;
@@ -3378,10 +3528,14 @@ main() {
         search) shift; do_package_search "$@" ;;
         gc|clean) shift || true; do_gc "$@" ;;
         doctor) shift || true; do_doctor_entry "$@" ;;
-        tinypm|grab)
-            abora_warn "TinyPM was removed in Abora OS 4.2. Packages now come from: anix package"
+        tinypm)
+            abora_warn "TinyPM was removed in Abora OS 4.2. Use: grab <app>, or anix package"
             printf '\n'
             package_usage
+            exit 1
+            ;;
+        grab)
+            abora_warn "grab is its own command now, not part of anix: grab <app>"
             exit 1
             ;;
         help|--help|-h) usage ;;

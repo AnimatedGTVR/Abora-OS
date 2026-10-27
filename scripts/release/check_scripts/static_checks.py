@@ -147,6 +147,16 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', '^## grab', 'docs/wiki/Packages.md'),
     ),
     Check(
+        'runtime: the NixOS release (stable or unstable) is chosen in the installer, kept by the updater and switched by anix',
+        grep('-Eq', '^nixos-[0-9]{2}\\.[0-9]{2}$', 'NIXOS_STABLE'),
+        grep('-q', '"abora/nixos-stable".source = ../../NIXOS_STABLE;', 'nix/profiles/live.nix'),
+        grep('-q', '^release_nixos()', 'scripts/abora-installer.sh'),
+        grep('-q', 'abora/nixos-release', 'scripts/abora-installer.sh'),
+        grep('-q', 'nixos-release', 'scripts/abora-update.sh'),
+        grep('-q', '^do_nixos()', 'scripts/anix.sh'),
+        grep('-q', '^### Choosing the NixOS release', 'docs/wiki/Installation.md'),
+    ),
+    Check(
         'runtime: abora.gpu accepts legacy/batch auto values as a no-op',
         grep('-Fq', 'type = lib.types.enum [ "auto" "nouveau" "nvidia" "nvidia-open" "amdgpu" "intel" "none" ];', 'nix/modules/abora-options.nix'),
         grep('-Fq', 'accepts "auto" as a compatibility-safe no-op', 'nix/modules/abora-options.nix'),

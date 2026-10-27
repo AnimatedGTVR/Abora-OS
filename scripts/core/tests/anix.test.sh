@@ -1186,4 +1186,82 @@ else
   fail "runtime: anix tinypm says TinyPM is gone and where packages come from now"
 fi
 
+# anix nixos: which nixpkgs branch the generated flake follows. A fake nix
+# records `flake update`; the config dir is a throwaway copy of an Abora flake.
+tmp_nx="$(mktemp -d)"
+testlib_cleanup_paths+=("$tmp_nx")
+mkdir -p "$tmp_nx/cfg/abora" "$tmp_nx/bin"
+cat > "$tmp_nx/flake.template" <<'FLAKE'
+{
+  description = "Abora installed system";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  outputs = { nixpkgs, ... }: { };
+}
+FLAKE
+printf 'nixos-26.05\n' > "$tmp_nx/stable"
+cat > "$tmp_nx/bin/nix" <<'FAKENIX'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FAKE_NIX_LOG"
+if [[ "$*" == *"flake update"* ]]; then
+  [[ "${FAKE_NIX_FAIL_UPDATE:-}" == 1 ]] && { echo "error: unable to download" >&2; exit 1; }
+  printf 'relocked %s\n' "$(sed -n 's|.*nixpkgs/\([^"]*\)".*|\1|p' "$ANIX_SYSTEM_CONFIG/flake.nix")" > "$ANIX_SYSTEM_CONFIG/flake.lock"
+fi
+exit 0
+FAKENIX
+chmod +x "$tmp_nx/bin/nix"
+nx_env=(env ANIX_SYSTEM_CONFIG="$tmp_nx/cfg" ANIX_NO_SUDO=1 ANIX_ASSUME_YES=1 ANIX_NIXOS_STABLE_FILE="$tmp_nx/stable"
+  ANIX_NIX_BIN="$tmp_nx/bin/nix" FAKE_NIX_LOG="$tmp_nx/log" PATH="$tmp_nx/bin:$PATH" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh")
+nx_branch() { sed -n 's|.*nixpkgs/\([^"]*\)";.*|\1|p' "$tmp_nx/cfg/flake.nix"; }
+
+cp "$tmp_nx/flake.template" "$tmp_nx/cfg/flake.nix"
+_nx_status="$("${nx_env[@]}" bash scripts/anix.sh nixos 2>&1 || true)"
+if grep -q 'unstable (rolling' <<<"$_nx_status" && grep -q 'nixos-26.05' <<<"$_nx_status"; then
+  pass "runtime: anix nixos shows the release the system follows and what stable is"
+else
+  fail "runtime: anix nixos shows the release the system follows and what stable is"
+fi
+
+"${nx_env[@]}" bash scripts/anix.sh nixos stable >/dev/null 2>&1 || true
+if [[ "$(nx_branch)" == nixos-26.05 ]] \
+  && [[ "$(cat "$tmp_nx/cfg/abora/nixos-release")" == nixos-26.05 ]] \
+  && grep -qx "flake update nixpkgs --flake $tmp_nx/cfg" <(sed 's/^--extra-experimental-features nix-command flakes //' "$tmp_nx/log") \
+  && grep -q 'relocked nixos-26.05' "$tmp_nx/cfg/flake.lock" \
+  && grep -q 'outputs = { nixpkgs' "$tmp_nx/cfg/flake.nix"; then
+  pass "runtime: anix nixos stable edits the nixpkgs input, remembers it and relocks"
+else
+  fail "runtime: anix nixos stable edits the nixpkgs input, remembers it and relocks"
+  cat "$tmp_nx/cfg/flake.nix" "$tmp_nx/log" 2>/dev/null | sed 's/^/              /'
+fi
+
+"${nx_env[@]}" bash scripts/anix.sh nixos unstable >/dev/null 2>&1 || true
+if [[ "$(nx_branch)" == nixos-unstable ]] && [[ "$(cat "$tmp_nx/cfg/abora/nixos-release")" == nixos-unstable ]]; then
+  pass "runtime: anix nixos unstable switches back"
+else
+  fail "runtime: anix nixos unstable switches back"
+fi
+
+: > "$tmp_nx/log"
+cp "$tmp_nx/cfg/flake.nix" "$tmp_nx/before.nix"
+printf 'nixos-unstable\n' > "$tmp_nx/cfg/abora/nixos-release"
+printf 'original lock\n' > "$tmp_nx/cfg/flake.lock"
+_nx_fail_rc=0
+FAKE_NIX_FAIL_UPDATE=1 "${nx_env[@]}" bash scripts/anix.sh nixos stable >/dev/null 2>&1 || _nx_fail_rc=$?
+if [[ "$_nx_fail_rc" -ne 0 ]] && cmp -s "$tmp_nx/cfg/flake.nix" "$tmp_nx/before.nix" \
+  && [[ "$(cat "$tmp_nx/cfg/abora/nixos-release")" == nixos-unstable ]] \
+  && [[ "$(cat "$tmp_nx/cfg/flake.lock")" == "original lock" ]]; then
+  pass "runtime: anix nixos puts everything back when the new branch can't be resolved"
+else
+  fail "runtime: anix nixos puts everything back when the new branch can't be resolved"
+fi
+
+printf '{\n  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";\n  outputs = _: { };\n}\n' > "$tmp_nx/cfg/flake.nix"
+cp "$tmp_nx/cfg/flake.nix" "$tmp_nx/hand.nix"
+_nx_hand_rc=0
+_nx_hand="$("${nx_env[@]}" bash scripts/anix.sh nixos stable 2>&1)" || _nx_hand_rc=$?
+if [[ "$_nx_hand_rc" -ne 0 ]] && grep -q "wasn't written by Abora" <<<"$_nx_hand" && cmp -s "$tmp_nx/cfg/flake.nix" "$tmp_nx/hand.nix"; then
+  pass "runtime: anix nixos leaves a hand-written flake.nix alone"
+else
+  fail "runtime: anix nixos leaves a hand-written flake.nix alone"
+fi
+
 testlib_finish

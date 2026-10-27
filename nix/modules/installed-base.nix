@@ -1096,6 +1096,9 @@ in
     // lib.optionalAttrs (aboraCoreModule != null) {
       "abora/abora_core.py".source = aboraCoreModule;
     }
+    // lib.optionalAttrs (builtins.pathExists ./nixos-stable) {
+      "abora/nixos-stable".source = ./nixos-stable;
+    }
     // lib.optionalAttrs (abtScript != null) {
       "abora/abt.py".source = abtScript;
     }
