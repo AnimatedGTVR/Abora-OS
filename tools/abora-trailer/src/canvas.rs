@@ -109,12 +109,6 @@ impl Canvas {
         }
     }
 
-    pub fn set_bg(&mut self, x: i32, y: i32, bg: Rgb) {
-        if let Some(i) = self.idx(x, y) {
-            self.cells[i].bg = bg;
-        }
-    }
-
     pub fn text(&mut self, x: i32, y: i32, s: &str, fg: Rgb) {
         for (i, ch) in s.chars().enumerate() {
             self.set(x + i as i32, y, ch, fg);

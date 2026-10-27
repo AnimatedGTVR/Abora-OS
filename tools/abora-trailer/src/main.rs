@@ -20,16 +20,16 @@ Usage: abora-trailer [options]
 
   --version <text>    version shown under the logo        (default 4.2)
   --codename <text>   release codename                    (default SOLSTICE)
-  --tagline <text>    line typed under the version        (default \"NixOS, made friendly.\")
+  --tagline <text>    line typed under the version        (default: none)
   --url <text>        address shown at the end            (default aboraos.org)
-  --from <scene>      start at storm, gather, shine, terminal or finale
+  --from <scene>      start at storm, gather, strike or outro
   --only <scene>      play just that scene
   --loop              start over after the finale
   --speed <x>         playback speed (0.5 = half speed)
   --fps <n>           frames per second                   (default 60)
   --seed <n>          randomness seed, for a repeatable take
-  --frame <scene:s>   print one frame as plain text and exit (e.g. gather:4.5)
-  --size <WxH>        terminal size for --frame           (default 120x40)
+  --frame <scene:s>   print one frame as plain text and exit (e.g. strike:2.5)
+  --size <WxH>        terminal size for --frame           (default 140x42)
 
 Keys: space or → skips to the next scene, p pauses, q / Esc / Ctrl-C quits.
 Record in a large, dark terminal with a font that has box-drawing characters.";
@@ -51,7 +51,7 @@ fn parse_args() -> Result<Settings, String> {
             "--from" | "--only" => {
                 let name = value(&arg)?;
                 let i = SCENES.iter().position(|(n, _)| *n == name).ok_or(format!(
-                    "unknown scene {name}; scenes: storm gather shine terminal finale"
+                    "unknown scene {name}; scenes: storm gather strike outro"
                 ))?;
                 s.from = i;
                 s.only = arg == "--only";
