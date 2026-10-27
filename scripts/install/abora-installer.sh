@@ -2741,6 +2741,11 @@ EOF
     fi
 }
 
+write_password_hash() {
+    local file="$1" hash="$2"
+    ( umask 077 && printf '%s\n' "$hash" > "$file" ) && chmod 0600 "$file"
+}
+
 generate_nixos_config() {
     local root="${1:-/mnt}"
     local cfgdir="${root}/etc/nixos"
@@ -2837,8 +2842,15 @@ generate_nixos_config() {
         "$desktop_pkgs"
     [[ -n "$user_password_hash" ]] || die "User password hash is empty."
 
+    # The hashes live outside /etc/nixos: everything there is copied into the
+    # world-readable Nix store on every rebuild. NixOS reads these files when it
+    # creates the accounts (users are mutable, so passwd changes stick after).
+    local secrets_dir="/var/lib/abora/secrets"
+    install -d -m 0700 "${root}${secrets_dir}" || die "Could not create ${root}${secrets_dir}."
+    write_password_hash "${root}${secrets_dir}/user.hash" "$user_password_hash" || die "Could not write the password hash."
     if [[ -n "$root_password_hash" ]]; then
-        root_pw_line="  users.users.root.hashedPassword = \"${root_password_hash}\";"
+        write_password_hash "${root}${secrets_dir}/root.hash" "$root_password_hash" || die "Could not write the root password hash."
+        root_pw_line="  users.users.root.hashedPasswordFile = \"${secrets_dir}/root.hash\";"
     else
         root_pw_line="  users.users.root.hashedPassword = \"!\";"
     fi
@@ -2907,7 +2919,7 @@ EOF
   abora.extras.virtualizationGuests = false;
   abora.extras.mobileBroadband = false;
   abora.user.name = "${user_nix}";
-  abora.user.hashedPassword = "${user_password_hash}";
+  abora.user.hashedPasswordFile = "${secrets_dir}/user.hash";
 
   networking.networkmanager.enable = lib.mkForce true;
   i18n.supportedLocales = [
@@ -2918,14 +2930,8 @@ EOF
 ${root_pw_line}
 }
 EOF
-    # abora.user.hashedPassword above (and users.users.root.hashedPassword,
-    # when root_pw_line sets a separate root password) must not be
-    # world-readable -- the default umask leaves a freshly-created file at
-    # 0644, which would let any local user on the installed system read the
-    # hash and run an offline attack against it, exactly what /etc/shadow's
-    # own restrictive permissions exist to prevent. See the matching guard
-    # at the top of abora-config.sh's reads.
-    chmod 0600 "${cfgdir}/abora-local.nix"
+    # No secret in it any more, so users' tools (anix, the doctor) can read it.
+    chmod 0644 "${cfgdir}/abora-local.nix"
 
     write_installed_flake "$root"
 }

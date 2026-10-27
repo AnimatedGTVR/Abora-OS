@@ -102,7 +102,12 @@ in
       hashedPassword = lib.mkOption {
         type    = lib.types.str;
         default = "";
-        description = "Hashed password for the primary user. Generate with: mkpasswd";
+        description = "Hashed password for the primary user. Generate with: mkpasswd. Prefer hashedPasswordFile: this ends up in the world-readable Nix store.";
+      };
+      hashedPasswordFile = lib.mkOption {
+        type    = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Root-only file outside /etc/nixos holding the primary user's password hash (the installer uses /var/lib/abora/secrets/). Keeps the hash out of the Nix store.";
       };
       fullName = lib.mkOption {
         type    = lib.types.nullOr lib.types.str;
@@ -317,7 +322,8 @@ in
           createHome   = true;
           shell        = pkgs.zsh;
           extraGroups  = [ "wheel" "networkmanager" "audio" "video" ];
-          hashedPassword = cfg.user.hashedPassword;
+          hashedPassword = lib.mkIf (cfg.user.hashedPassword != "") cfg.user.hashedPassword;
+          hashedPasswordFile = lib.mkIf (cfg.user.hashedPasswordFile != null) cfg.user.hashedPasswordFile;
         };
 
         # NixOS treats an empty hashedPassword as "login without password"
@@ -326,8 +332,8 @@ in
         # passwordless wheel-group account instead of failing loudly.
         assertions = [
           {
-            assertion = cfg.user.hashedPassword != "";
-            message = "abora.user.hashedPassword is empty while abora.user.name is set (\"${cfg.user.name}\"). An empty hash means NixOS allows login without a password. Generate one with: mkpasswd";
+            assertion = cfg.user.hashedPassword != "" || cfg.user.hashedPasswordFile != null;
+            message = "abora.user.name is set (\"${cfg.user.name}\") but neither abora.user.hashedPasswordFile nor abora.user.hashedPassword is. Without one, NixOS would allow login without a password.";
           }
         ];
       }

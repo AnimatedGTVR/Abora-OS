@@ -549,8 +549,11 @@ CHECKS: tuple[Check, ...] = (
     # Same fixed-file guarantee for the installer's own first-time creation
     # path (abora-installer.sh, not the config-migration path above).
     Check(
-        'runtime: installer chmods a freshly-created abora-local.nix to 0600',
-        grep('-q', 'chmod 0600 "\\${cfgdir}/abora-local.nix"', 'scripts/abora-installer.sh'),
+        'runtime: installer keeps password hashes out of /etc/nixos (and so out of the Nix store)',
+        grep('-Fq', 'abora.user.hashedPasswordFile = "${secrets_dir}/user.hash";', 'scripts/abora-installer.sh'),
+        grep('-Fq', 'install -d -m 0700 "${root}${secrets_dir}"', 'scripts/abora-installer.sh'),
+        not_(grep('-Fq', 'abora.user.hashedPassword = "${user_password_hash}";', 'scripts/abora-installer.sh')),
+        grep('-Fq', 'hashedPasswordFile = lib.mkIf (cfg.user.hashedPasswordFile != null)', 'nix/modules/abora-options.nix'),
     ),
     # Static check for the self-elevation guard itself (abora-config.sh, right
     # after local_module is defined): a non-owning, non-root user reading a
