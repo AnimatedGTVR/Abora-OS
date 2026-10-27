@@ -1,0 +1,13 @@
+[package]
+name = "abora-grab"
+version = "1.0.0"
+edition = "2021"
+description = "grab: install an app from whichever provider has it (Nix/Lix, Flatpak, Snap)"
+license = "MIT"
+
+[[bin]]
+name = "grab"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = "1"

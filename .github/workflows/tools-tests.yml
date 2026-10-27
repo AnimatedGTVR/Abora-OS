@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        tool: [abora-installer, abora-plan-tool, abora-trailer]
+        tool: [abora-installer, abora-plan-tool, abora-trailer, abora-grab]
     defaults:
       run:
         working-directory: tools/${{ matrix.tool }}

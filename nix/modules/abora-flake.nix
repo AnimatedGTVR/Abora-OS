@@ -20,6 +20,7 @@ let
     "nix/modules/desktops:desktops"
     "nix/pkgs:pkgs"
     "tools/abora-plan-tool:plan-tool"
+    "tools/abora-grab:grab"
     "tools/abora-update:abora-update"
     "assets/wallpapers/collection:wallpapers"
     "assets/wallpaper-themes:themes"

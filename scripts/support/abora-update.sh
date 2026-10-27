@@ -1567,6 +1567,12 @@ install_abora_files() {
     copy_upstream_file "$upstream_dir/assets/fastfetch-config.jsonc" "$abora_dir/fastfetch-config.jsonc"
     copy_upstream_file "$upstream_dir/assets/plymouth/abora.plymouth" "$abora_dir/plymouth/abora.plymouth"
     copy_upstream_file "$upstream_dir/assets/plymouth/abora.script" "$abora_dir/plymouth/abora.script"
+    local splash_image
+    for splash_image in abora-logo.png bar-fill.png bar-track.png; do
+        if [[ -f "$upstream_dir/assets/plymouth/$splash_image" ]]; then
+            copy_upstream_file "$upstream_dir/assets/plymouth/$splash_image" "$abora_dir/plymouth/$splash_image"
+        fi
+    done
     install_mango_config_asset
     record_installed "$abora_dir/mango/config.conf"
     if [[ -f "$abora_dir/mango/config.conf" ]]; then
@@ -1623,6 +1629,10 @@ install_abora_files() {
     fi
     if [[ -f "$upstream_dir/nix/pkgs/abora-plan-tool-deps.json" ]]; then
         copy_upstream_file "$upstream_dir/nix/pkgs/abora-plan-tool-deps.json" "$abora_dir/pkgs/abora-plan-tool-deps.json"
+    fi
+    if [[ -f "$upstream_dir/nix/pkgs/abora-grab.nix" && -d "$upstream_dir/tools/abora-grab" ]]; then
+        copy_upstream_file "$upstream_dir/nix/pkgs/abora-grab.nix" "$abora_dir/pkgs/abora-grab.nix"
+        copy_upstream_dir "$upstream_dir/tools/abora-grab" "$abora_dir/grab"
     fi
     if [[ -d "$upstream_dir/tools/abora-plan-tool" ]]; then
         copy_upstream_dir "$upstream_dir/tools/abora-plan-tool" "$abora_dir/plan-tool"

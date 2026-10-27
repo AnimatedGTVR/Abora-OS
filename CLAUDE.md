@@ -94,6 +94,8 @@ All shell scripts source `abora-ui.sh` (or `/etc/abora/ui.sh` on-system) for sha
 
 ### Packages (TinyPM was removed in 4.2)
 
+`grab <app>` (`tools/abora-grab/`, Rust, binary `grab`) is TinyPM's grab command back without TinyPM: it installs an app from Nix/Lix, Flatpak or Snap, first exact match in that order, with a small catalog of pinned names (`zen-browser` → Flathub). Tests use a fake `Runner`; the tool is wired like the plan tool (overlay `./grab` dir in installed-base, installer copy, updater sync). Docs: `docs/wiki/Packages.md`.
+
 `anix package install/uninstall/search/upgrade/try/keep` installs nixpkgs packages into the user's Nix profile with `--inputs-from /etc/nixos`, so they use the system's pinned nixpkgs and need no config edit or rebuild. `anix package add/remove` stays the declarative path (`anix.packages` in `anix.nix`). Tests use `ANIX_NIX_BIN` to point at a fake `nix`. `anix.tinypm.*` options remain as no-ops so pre-4.2 `anix.nix` files still evaluate. Docs: `docs/wiki/Packages.md`.
 
 ### ASA / ABT (4.2)

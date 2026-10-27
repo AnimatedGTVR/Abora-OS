@@ -137,6 +137,16 @@ CHECKS: tuple[Check, ...] = (
         fail_name='nix/modules/abora-flake.nix must list every file abora-adopt-nixos.sh copies',
     ),
     Check(
+        'runtime: grab is packaged and travels with installs and updates',
+        grep('-q', 'abora-grab = final.callPackage ./nix/pkgs/abora-grab.nix', 'flake.nix'),
+        grep('-q', '"abora/grab".source = ../../tools/abora-grab;', 'nix/profiles/live.nix'),
+        grep('-q', 'lib.optional (pkgs ? abora-grab) pkgs.abora-grab', 'nix/modules/installed-base.nix'),
+        grep('-q', 'cp -a /etc/abora/grab/. ', 'scripts/abora-installer.sh'),
+        grep('-q', 'copy_upstream_dir "$upstream_dir/tools/abora-grab" "$abora_dir/grab"', 'scripts/abora-update.sh'),
+        test('-f', 'tools/abora-grab/Cargo.lock'),
+        grep('-q', '^## grab', 'docs/wiki/Packages.md'),
+    ),
+    Check(
         'runtime: abora.gpu accepts legacy/batch auto values as a no-op',
         grep('-Fq', 'type = lib.types.enum [ "auto" "nouveau" "nvidia" "nvidia-open" "amdgpu" "intel" "none" ];', 'nix/modules/abora-options.nix'),
         grep('-Fq', 'accepts "auto" as a compatibility-safe no-op', 'nix/modules/abora-options.nix'),

@@ -320,6 +320,7 @@ copy_if_exists "$repo_dir/nix/modules/anix.nix" "$abora_dir/anix-module.nix"
 copy_if_exists "$repo_dir/nix/modules/desktops" "$abora_dir/desktops"
 copy_if_exists "$repo_dir/nix/pkgs" "$abora_dir/pkgs"
 copy_if_exists "$repo_dir/tools/abora-plan-tool" "$abora_dir/plan-tool"
+copy_if_exists "$repo_dir/tools/abora-grab" "$abora_dir/grab"
 copy_if_exists "$repo_dir/tools/abora-update" "$abora_dir/abora-update"
 copy_if_exists "$repo_dir/assets/wallpapers/collection" "$abora_dir/wallpapers"
 # installed-base.nix's wallpaperThemeDir looks for ./themes (matching what

@@ -1,13 +1,40 @@
 # Packages
 
-Abora OS 4.2 Solstice installs software three ways. TinyPM, which wrapped all of them behind `grab`, was
-removed in 4.2.
+Abora OS 4.2 Solstice installs software these ways. `grab` is the quick one: name an app and it finds a
+source for it.
 
 | You want | Command | Rebuild? |
 | --- | --- | --- |
+| An app, from wherever it's available | `grab <app>` | No |
 | A Nix package right now, just for you | `anix package install <pkg>` | No |
 | A Nix package as part of the system | `anix package add <pkg>`, then `anix apply` | Yes |
 | A desktop app from Flathub | `abora apps` | No |
+
+## grab
+
+```sh
+grab zen-browser          # finds it and installs it
+grab htop ripgrep         # several at once
+grab info firefox         # where grab would get it, and the exact command
+grab search spotify       # matches from every source
+grab remove zen-browser   # uninstalls it from wherever it came from
+grab providers            # which sources this system has
+```
+
+`grab` asks the sources in this order and installs the first **exact** match:
+
+1. **Nix** (or **Lix**, which `grab` detects and names): `nix profile add nixpkgs#<app>`, using the
+   nixpkgs pinned in `/etc/nixos`, like `anix package install`.
+2. **Flatpak**, from Flathub: installed for your user (`--system` installs for everyone, with `sudo`).
+3. **Snap**, when `snapd` is installed (Abora doesn't ship it; Snap installs need `sudo`).
+
+A few names are pinned to a source because the obvious search would miss them: `zen-browser` comes from
+Flathub, since it isn't in nixpkgs. When nothing is called exactly what you typed, `grab` lists the close
+matches instead of guessing; install one by its id (`grab com.spotify.Client`). `--provider
+nix|lix|flatpak|snap` uses only that source, and `--dry-run` prints the commands without running them.
+
+Nothing `grab` installs touches `/etc/nixos`. To make a package part of the system, use
+`anix package add <pkg>` and `anix apply`.
 
 ## Install a package now
 

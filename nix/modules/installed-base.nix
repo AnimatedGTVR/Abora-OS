@@ -107,6 +107,8 @@ let
   setupLauncherScript  = ./setup-launcher.sh;
   setupDesktopFile     = ./setup.desktop;
   plymouthDir          = ./plymouth;
+  # Optional: the splash falls back to a text title without them.
+  plymouthImages       = [ "abora-logo.png" "bar-fill.png" "bar-track.png" ];
   bootloaderDir        = ./bootloader;
   limineWallpaperFile =
     if builtins.pathExists (bootloaderDir + "/limine-background.png") then
@@ -125,6 +127,8 @@ let
     then ./abora-update else null;
   planToolDir =
     if builtins.pathExists ./plan-tool then ./plan-tool else null;
+  grabDir =
+    if builtins.pathExists ./grab && builtins.pathExists ./pkgs/abora-grab.nix then ./grab else null;
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
   aboraApps = pkgs.writeShellScriptBin "abora-apps" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/apps.sh "$@"
@@ -378,8 +382,17 @@ let
     ${lib.optionalString minimal ''rm -r "$out/share/gnome-background-properties"''}
   '';
   aboraPlymouthTheme = pkgs.runCommandLocal "abora-plymouth-theme" { } ''
+    theme=$out/share/plymouth/themes/abora
     install -Dm0644 ${plymouthDir + "/abora.plymouth"} $out/share/plymouth/themes/abora/abora.plymouth
     install -Dm0644 ${plymouthDir + "/abora.script"} $out/share/plymouth/themes/abora/abora.script
+    ${lib.concatMapStrings (image:
+      lib.optionalString (builtins.pathExists (plymouthDir + "/${image}")) ''
+        install -Dm0644 ${plymouthDir + "/${image}"} $out/share/plymouth/themes/abora/${image}
+      '') plymouthImages}
+    # Plymouth resolves ScriptFile/ImageDir against its working directory, not the
+    # theme folder, so relative paths load nothing (a black splash). NixOS rewrites
+    # these store paths when it copies the theme into the initrd.
+    sed -i -e "s|^ImageDir=.*|ImageDir=$theme|" -e "s|^ScriptFile=.*|ScriptFile=$theme/abora.script|" "$theme/abora.plymouth"
   '';
 in
 {
@@ -418,6 +431,11 @@ in
         updateSrc = aboraUpdateDir;
       };
     }
+    // lib.optionalAttrs (grabDir != null) {
+      abora-grab = final.callPackage ./pkgs/abora-grab.nix {
+        toolSrc = grabDir;
+      };
+    }
     // lib.optionalAttrs (planToolDir != null) {
       abora-plan-tool = final.callPackage ./pkgs/abora-plan-tool.nix {
         toolSrc = planToolDir;
@@ -434,7 +452,9 @@ in
   boot.kernelPackages = lib.mkDefault pkgs.linuxPackages_latest;
   boot.initrd.systemd.enable = lib.mkDefault true;
   boot.initrd.verbose = lib.mkDefault false;
-  boot.kernelParams = lib.mkDefault [
+  # A plain list, not mkDefault: NixOS's own modules define kernelParams too,
+  # and any normal definition would drop a mkDefault list entirely.
+  boot.kernelParams = [
     "quiet"
     "splash"
     "udev.log_level=3"
@@ -547,8 +567,7 @@ in
     lib.mkIf (config.abora.browser == "zen" && config.services.flatpak.enable) {
       description     = "Install the Zen browser from Flathub (once)";
       after           = [ "abora-flatpak-setup.service" "network-online.target" ];
-      requires        = [ "abora-flatpak-setup.service" ];
-      wants           = [ "network-online.target" ];
+      wants           = [ "abora-flatpak-setup.service" "network-online.target" ];
       wantedBy        = [ "multi-user.target" ];
       unitConfig.ConditionPathExists = "!/var/lib/abora/browser-installed";
       unitConfig.StartLimitIntervalSec = 0;
@@ -558,7 +577,10 @@ in
         Restart         = "on-failure";
         RestartSec      = "60s";
       };
+      # Adds Flathub itself too: abora-flatpak-setup may still be retrying.
       script = ''
+        ${pkgs.flatpak}/bin/flatpak remote-add --system --if-not-exists flathub \
+          https://dl.flathub.org/repo/flathub.flatpakrepo
         ${pkgs.flatpak}/bin/flatpak install --system --noninteractive --or-update flathub ${zenFlatpak}
         mkdir -p /var/lib/abora
         touch /var/lib/abora/browser-installed
@@ -661,6 +683,7 @@ in
     ++ lib.optional (abtScript != null) aboraAbt
     ++ lib.optional (pkgs ? abora-update) pkgs.abora-update
     ++ lib.optional (pkgs ? abora-plan-tool) pkgs.abora-plan-tool
+    ++ lib.optional (pkgs ? abora-grab) pkgs.abora-grab
     ++ lib.optional (graphical && !minimal && welcomeGuiScript != null) aboraWelcomeGui
     ++ lib.optional (graphical && !minimal && configGuiScript != null) aboraConfigGui
     ++ lib.optional (gamingWelcomeGuiScript != null) aboraGamingWelcomeGui
@@ -1081,6 +1104,9 @@ in
     }
     // lib.optionalAttrs (aboraUpdateDir != null) {
       "abora/abora-update".source = aboraUpdateDir;
+    }
+    // lib.optionalAttrs (grabDir != null) {
+      "abora/grab".source = grabDir;
     }
     // lib.optionalAttrs (planToolDir != null) {
       "abora/plan-tool".source = planToolDir;

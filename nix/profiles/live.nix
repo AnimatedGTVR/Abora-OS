@@ -167,6 +167,15 @@ let
     mkdir -p "$out/share/plymouth/themes/abora"
     cp ${../../assets/plymouth/abora.plymouth} "$out/share/plymouth/themes/abora/abora.plymouth"
     cp ${../../assets/plymouth/abora.script} "$out/share/plymouth/themes/abora/abora.script"
+    cp ${../../assets/plymouth/abora-logo.png} "$out/share/plymouth/themes/abora/abora-logo.png"
+    cp ${../../assets/plymouth/bar-fill.png} "$out/share/plymouth/themes/abora/bar-fill.png"
+    cp ${../../assets/plymouth/bar-track.png} "$out/share/plymouth/themes/abora/bar-track.png"
+    theme=$out/share/plymouth/themes/abora
+    chmod u+w "$theme/abora.plymouth"
+    # Plymouth resolves ScriptFile/ImageDir against its working directory, not the
+    # theme folder, so relative paths load nothing (a black splash). NixOS rewrites
+    # these store paths when it copies the theme into the initrd.
+    sed -i -e "s|^ImageDir=.*|ImageDir=$theme|" -e "s|^ScriptFile=.*|ScriptFile=$theme/abora.script|" "$theme/abora.plymouth"
   '';
   wallpaperDir = ../../assets/wallpapers/collection;
   wallpaperThemeDir = ../../assets/wallpaper-themes;
@@ -434,6 +443,7 @@ in
     # ── Abora installer toolchain ────────────────────────────────────────────
     abora-update
     abora-plan-tool
+    abora-grab
     abora-installer
     aboraApps
     aboraCustomPackages
@@ -648,6 +658,9 @@ in
       };
       "abora/plymouth/abora.plymouth".source = ../../assets/plymouth/abora.plymouth;
       "abora/plymouth/abora.script".source = ../../assets/plymouth/abora.script;
+      "abora/plymouth/abora-logo.png".source = ../../assets/plymouth/abora-logo.png;
+      "abora/plymouth/bar-fill.png".source = ../../assets/plymouth/bar-fill.png;
+      "abora/plymouth/bar-track.png".source = ../../assets/plymouth/bar-track.png;
       "abora/nixpkgs".source = pkgs.path;
       "xdg/fastfetch/config.jsonc".source = ../../assets/fastfetch-config.jsonc;
       "xdg/fastfetch/abora-logo.txt".source = ../../assets/fastfetch-logo.txt;
@@ -693,8 +706,10 @@ in
       "abora/pkgs/vanta.nix".source = ../pkgs/vanta.nix;
       "abora/pkgs/abora-update.nix".source = ../pkgs/abora-update.nix;
       "abora/pkgs/abora-plan-tool.nix".source = ../pkgs/abora-plan-tool.nix;
+      "abora/pkgs/abora-grab.nix".source = ../pkgs/abora-grab.nix;
       "abora/abora-update".source = ../../tools/abora-update;
       "abora/plan-tool".source = ../../tools/abora-plan-tool;
+      "abora/grab".source = ../../tools/abora-grab;
       "abora/docs".source = ../../docs;
       "abora/anix-languages".source = ../../assets/anix-languages;
       "anix/languages".source = ../../assets/anix-languages;

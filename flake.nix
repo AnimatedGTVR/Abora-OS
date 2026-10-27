@@ -17,6 +17,7 @@
         vanta = final.callPackage ./nix/pkgs/vanta.nix {};
         abora-update = final.callPackage ./nix/pkgs/abora-update.nix {};
         abora-plan-tool = final.callPackage ./nix/pkgs/abora-plan-tool.nix {};
+        abora-grab = final.callPackage ./nix/pkgs/abora-grab.nix {};
         abora-desktop-preview = final.callPackage ./nix/pkgs/desktop-preview.nix {};
         abora-hardware-test = final.callPackage ./nix/pkgs/hardware-test.nix {};
         abora-installer = final.callPackage ./nix/pkgs/abora-installer.nix {};
@@ -88,6 +89,7 @@
         vanta = pkgs.vanta;
         abora-update = pkgs.abora-update;
         abora-plan-tool = pkgs.abora-plan-tool;
+        abora-grab = pkgs.abora-grab;
 
         default = self.nixosConfigurations.abora-live.config.system.build.isoImage;
       };

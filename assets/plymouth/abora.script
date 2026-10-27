@@ -1,34 +1,104 @@
-fun center_x(image) {
-    return Window.GetX() + Window.GetWidth() / 2 - image.GetWidth() / 2;
+# Abora OS boot splash: the logo, a loading bar and the current status.
+# Falls back to a text title when the images are missing (a system updated
+# by an older updater has only this script and abora.plymouth).
+# Plymouth script variables are local to a function unless written as
+# global.name, so every value a callback changes is assigned that way.
+
+Window.SetBackgroundTopColor(0.02, 0.05, 0.10);
+Window.SetBackgroundBottomColor(0.03, 0.08, 0.16);
+
+screen_w = Window.GetWidth();
+screen_h = Window.GetHeight();
+cx = Window.GetX() + screen_w / 2;
+cy = Window.GetY() + screen_h * 0.44;
+
+logo_src = Image("abora-logo.png");
+if (logo_src.GetWidth()) {
+    logo_w = Math.Min(logo_src.GetWidth(), screen_w * 0.42);
+    logo_img = logo_src.Scale(logo_w, logo_src.GetHeight() * logo_w / logo_src.GetWidth());
+} else {
+    logo_img = Image.Text("Abora OS", 0.70, 0.87, 1.00, 1, "Sans Bold 38");
+}
+logo = Sprite(logo_img);
+logo.SetX(cx - logo_img.GetWidth() / 2);
+logo.SetY(cy - logo_img.GetHeight() / 2);
+logo.SetOpacity(0);
+
+bar_w = Math.Int(logo_img.GetWidth() * 0.62);
+bar_h = 4;
+bar_x = cx - bar_w / 2;
+bar_y = cy + logo_img.GetHeight() / 2 + 42;
+seg_w = Math.Int(bar_w * 0.16);
+
+track_src = Image("bar-track.png");
+fill_src = Image("bar-fill.png");
+have_bar = 0;
+if (track_src.GetWidth()) {
+    if (fill_src.GetWidth()) {
+        have_bar = 1;
+    }
+}
+if (have_bar) {
+    track = Sprite(track_src.Scale(bar_w, bar_h));
+    track.SetX(bar_x);
+    track.SetY(bar_y);
+    fill = Sprite();
+    fill.SetX(bar_x);
+    fill.SetY(bar_y);
+    fill.SetZ(1);
+    glint = Sprite();
+    glint.SetY(bar_y);
+    glint.SetZ(2);
 }
 
-fun refresh_callback() {
-    cx  = Window.GetX() + Window.GetWidth() / 2;
-    top = Window.GetY() + Window.GetHeight() * 0.34;
-
-    title_sprite.SetX(cx - title_img.GetWidth() / 2);
-    title_sprite.SetY(top);
-
-    tagline_sprite.SetX(cx - tagline_img.GetWidth() / 2);
-    tagline_sprite.SetY(top + title_img.GetHeight() + 6);
-
-    divider_sprite.SetX(cx - divider_img.GetWidth() / 2);
-    divider_sprite.SetY(top + title_img.GetHeight() + tagline_img.GetHeight() + 18);
-
-    status_sprite.SetX(cx - status_img.GetWidth() / 2);
-    status_sprite.SetY(top + title_img.GetHeight() + tagline_img.GetHeight() + 44);
-}
-
+status = Sprite();
 fun set_status(text) {
     if (text == "") {
-        text = "Starting services...";
+        text = "Starting Abora OS";
     }
-    status_img = Image.Text(text, 0.55, 0.72, 0.92, "Sans 12", "center");
-    status_sprite.SetImage(status_img);
+    status_img = Image.Text(text, 0.45, 0.58, 0.76, 1, "Sans 11");
+    status.SetImage(status_img);
+    status.SetX(cx - status_img.GetWidth() / 2);
+    status.SetY(bar_y + 22);
+}
+set_status("");
+
+progress = 0;
+shown = 0;
+frame = 0;
+
+fun boot_progress(duration, value) {
+    global.progress = value;
+}
+
+fun refresh() {
+    global.frame = frame + 1;
+    logo.SetOpacity(Math.Min(1, frame / 40));
+    status.SetOpacity(Math.Min(1, frame / 40));
+    if (have_bar) {
+        # The bar follows Plymouth's own estimate, eased so it never jumps.
+        global.shown = shown + (progress - shown) * 0.08;
+        fill_px = Math.Int(shown * bar_w);
+        if (fill_px >= 1) {
+            fill.SetImage(fill_src.Scale(fill_px, bar_h));
+        }
+        # A soft glint sweeps the track, so the bar never looks stuck.
+        span = bar_w + seg_w;
+        pos = frame * 5 - Math.Int(frame * 5 / span) * span - seg_w;
+        left = Math.Max(pos, 0);
+        right = Math.Min(pos + seg_w, bar_w);
+        if (right - left >= 1) {
+            glint.SetImage(fill_src.Scale(right - left, bar_h));
+            glint.SetX(bar_x + left);
+            glint.SetOpacity(0.45);
+        } else {
+            glint.SetOpacity(0);
+        }
+    }
 }
 
 fun display_normal() {
-    set_status("Starting services...");
+    set_status("");
 }
 
 fun display_message(text) {
@@ -36,23 +106,11 @@ fun display_message(text) {
 }
 
 fun hide_message(text) {
-    set_status("Starting services...");
+    set_status("");
 }
 
-Window.SetBackgroundTopColor(0.01, 0.04, 0.10);
-Window.SetBackgroundBottomColor(0.00, 0.02, 0.07);
-
-title_img   = Image.Text("Abora OS",                    0.70, 0.87, 1.00, "Sans Bold 38", "center");
-tagline_img = Image.Text("A simpler path into NixOS",   0.36, 0.54, 0.78, "Sans 13",      "center");
-divider_img = Image.Text("──────────────────────────────────────", 0.14, 0.26, 0.44, "Sans 11", "center");
-status_img  = Image.Text("Starting services...",         0.55, 0.72, 0.92, "Sans 12",      "center");
-
-title_sprite   = Sprite(); title_sprite.SetImage(title_img);
-tagline_sprite = Sprite(); tagline_sprite.SetImage(tagline_img);
-divider_sprite = Sprite(); divider_sprite.SetImage(divider_img);
-status_sprite  = Sprite(); status_sprite.SetImage(status_img);
-
-Plymouth.SetRefreshFunction(refresh_callback);
+Plymouth.SetRefreshFunction(refresh);
+Plymouth.SetBootProgressFunction(boot_progress);
 Plymouth.SetDisplayNormalFunction(display_normal);
 Plymouth.SetDisplayMessageFunction(display_message);
 Plymouth.SetHideMessageFunction(hide_message);

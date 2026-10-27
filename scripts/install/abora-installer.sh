@@ -2635,12 +2635,21 @@ write_branding_assets() {
         cp /etc/abora/Abora-Text.png "${root}/etc/nixos/abora/Abora-Text.png"
     cp_required /etc/abora/plymouth/abora.plymouth "${root}/etc/nixos/abora/plymouth/abora.plymouth"
     cp_required /etc/abora/plymouth/abora.script   "${root}/etc/nixos/abora/plymouth/abora.script"
+    local splash_image
+    for splash_image in abora-logo.png bar-fill.png bar-track.png; do
+        if [[ -f "/etc/abora/plymouth/${splash_image}" ]]; then
+            cp "/etc/abora/plymouth/${splash_image}" "${root}/etc/nixos/abora/plymouth/${splash_image}"
+        fi
+    done
     install_mango_config_asset "$root"
     cp_required /etc/abora/pkgs/mango.nix          "${root}/etc/nixos/abora/pkgs/mango.nix"
     cp_required /etc/abora/pkgs/scenefx-0_5.nix    "${root}/etc/nixos/abora/pkgs/scenefx-0_5.nix"
     cp_required /etc/abora/pkgs/vanta.nix "${root}/etc/nixos/abora/pkgs/vanta.nix"
     cp_required /etc/abora/pkgs/abora-update.nix "${root}/etc/nixos/abora/pkgs/abora-update.nix"
     cp_required /etc/abora/pkgs/abora-plan-tool.nix "${root}/etc/nixos/abora/pkgs/abora-plan-tool.nix"
+    if [[ -f /etc/abora/pkgs/abora-grab.nix ]]; then
+        cp /etc/abora/pkgs/abora-grab.nix "${root}/etc/nixos/abora/pkgs/abora-grab.nix"
+    fi
     cp_required /etc/abora/target-flake.lock "${root}/etc/nixos/abora/target-flake.lock"
     cp_required /etc/abora/anix-module.nix         "${root}/etc/nixos/abora/anix-module.nix"
     cp_required /etc/abora/abora-options.nix       "${root}/etc/nixos/abora/abora-options.nix"
@@ -2663,6 +2672,11 @@ write_branding_assets() {
     if [[ -e /etc/abora/plan-tool ]]; then
         mkdir -p "${root}/etc/nixos/abora/plan-tool"
         cp -a /etc/abora/plan-tool/. "${root}/etc/nixos/abora/plan-tool/"
+    fi
+
+    if [[ -e /etc/abora/grab ]]; then
+        mkdir -p "${root}/etc/nixos/abora/grab"
+        cp -a /etc/abora/grab/. "${root}/etc/nixos/abora/grab/"
     fi
 
     if [[ -d /etc/abora/docs ]]; then
