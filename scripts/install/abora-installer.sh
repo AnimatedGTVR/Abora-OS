@@ -3661,7 +3661,13 @@ run_with_log_panel() {
     return "$rc"
 }
 
+# Parallel downloads: fast links want many, flaky ones (and VMs behind a user-mode
+# NAT) drop connections when there are too many. Override with
+# ABORA_INSTALL_HTTP_CONNECTIONS / ABORA_INSTALL_SUBSTITUTION_JOBS.
 install_nix_config() {
+    local connections="${ABORA_INSTALL_HTTP_CONNECTIONS:-32}" subst_jobs="${ABORA_INSTALL_SUBSTITUTION_JOBS:-32}"
+    [[ "$connections" =~ ^[0-9]{1,3}$ && "$connections" -ge 1 ]] || connections=32
+    [[ "$subst_jobs" =~ ^[0-9]{1,3}$ && "$subst_jobs" -ge 1 ]] || subst_jobs=32
     printf '%s\n' \
         "experimental-features = nix-command flakes" \
         "substituters = https://cache.nixos.org" \
@@ -3672,8 +3678,8 @@ install_nix_config() {
         "builders-use-substitutes = true" \
         "max-jobs = 2" \
         "cores = 2" \
-        "max-substitution-jobs = 32" \
-        "http-connections = 32"
+        "max-substitution-jobs = ${subst_jobs}" \
+        "http-connections = ${connections}"
 }
 
 run_install() {

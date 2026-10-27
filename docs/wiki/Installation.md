@@ -197,6 +197,17 @@ A hash mismatch can mean three different things, and the "Likely cause" line say
 | `hash mismatch in fixed-output derivation`, or a `github:` input | a pinned download changed upstream, or something on the network altered it | try again on another network; report it with the log if it repeats |
 | `NAR hash mismatch in input path:/mnt/etc/nixos` | an installer bug | report it with the log |
 
+`unable to download ... Failed sending data to the peer` (or `HTTP error 416`) in the log means the network
+dropped connections under the installer's 32 parallel downloads. Nix then falls back to compiling, which is
+what produces the confusing hash mismatch on a core package such as `xz`. On a weak connection, or a VM behind
+a user-mode NAT, start the installer with fewer connections:
+
+```sh
+ABORA_INSTALL_HTTP_CONNECTIONS=8 ABORA_INSTALL_SUBSTITUTION_JOBS=8 abora-install
+```
+
+Installing the stable NixOS release downloads about 5 GiB, so it is the install most likely to hit this.
+
 ## Existing NixOS Systems
 
 If you already run NixOS and want Abora without wiping the machine, use the
