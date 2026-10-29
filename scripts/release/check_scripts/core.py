@@ -19,6 +19,7 @@ class Context:
         self.failed = False
         self.resolver_bin: Path | None = None
         self.plan_tool_bin: Path | None = None
+        self.installer_bin: Path | None = None
         self._temp = tempfile.TemporaryDirectory(prefix="abora-check-")
         self.tmp = Path(self._temp.name)
 

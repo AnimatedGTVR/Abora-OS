@@ -302,7 +302,7 @@ if grep -q '^State: not downloaded$' <<<"$_labs_status" \
   && [[ "$_labs_cancel_rc" -eq 1 && ! -e "$tmp_labs_home/data/abora/labs" ]] \
   && grep -q 'Cancelled\.' "$tmp_labs_home/cancel.out" \
   && grep -q 'Type LABS to continue' scripts/apps/abora-labs.sh \
-  && grep -q 'abora.labs.enable = $(nix_bool "$labs_enabled");' scripts/install/abora-installer.sh \
+  && grep -q 'abora.labs.enable = {labs};' tools/abora-installer/src/nixcfg.rs \
   && grep -q 'source = ../../scripts/apps/abora-labs.sh;' nix/profiles/live.nix \
   && grep -q 'config.abora.labs.enable && labsScript != null' nix/modules/installed-base.nix \
   && grep -q 'scripts/apps/abora-labs.sh' scripts/support/abora-update.sh; then

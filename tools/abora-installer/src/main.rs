@@ -6,6 +6,8 @@ mod flake;
 mod flake_cli;
 mod install;
 mod logging;
+mod nixcfg;
+mod nixcfg_cli;
 mod runner;
 mod system;
 mod tui;
@@ -17,6 +19,7 @@ fn main() -> ExitCode {
     let subcommand = match raw.first().and_then(|a| a.to_str()) {
         Some("disk") => Some(disk_cli::run as fn(&[std::ffi::OsString]) -> Result<u8, String>),
         Some("flake") => Some(flake_cli::run as fn(&[std::ffi::OsString]) -> Result<u8, String>),
+        Some("config") => Some(nixcfg_cli::run as fn(&[std::ffi::OsString]) -> Result<u8, String>),
         _ => None,
     };
     if let Some(run) = subcommand {

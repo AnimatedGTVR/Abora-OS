@@ -172,6 +172,7 @@ def run(ctx: Context) -> None:
     # The updater and ANIX suites need the real resolver and plan tool: there is no Bash fallback.
     ctx.resolver_bin = vanta_update_tool(ctx)
     ctx.plan_tool_bin = build_cargo_tool(ctx, "abora-plan-tool", "tools/abora-plan-tool")
+    ctx.installer_bin = build_cargo_tool(ctx, "abora-installer", "tools/abora-installer")
 
     for file in BASH_SCRIPTS:
         path = ctx.path(file)

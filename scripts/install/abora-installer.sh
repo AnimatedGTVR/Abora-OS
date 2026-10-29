@@ -2784,34 +2784,10 @@ generate_nixos_config() {
     nixos-generate-config --root "$root" >> "$config_log" 2>&1
     write_branding_assets "$root"
 
-    local desktop_pkgs root_pw_line host_nix user_nix locale_nix timezone_nix keyboard_nix xkb_nix desktop_nix wallpaper_nix anix_import_line disk_nix gpu_nix
-    local gaming_enabled_nix gaming_steam_nix gaming_big_picture_nix gaming_autostart_nix gaming_gamescope_nix gaming_vulkan_nix gaming_controller_nix gaming_mangohud_nix gaming_gamemode_nix gaming_launchers_nix
+    local desktop_pkgs
     local install_gaming_enabled install_gaming_steam install_gaming_big_picture install_gaming_autostart install_gaming_gamescope install_gaming_vulkan install_gaming_controller install_gaming_mangohud install_gaming_gamemode install_gaming_launchers
-    local disk_bios_support_nix
     timezone_value="$(normalize_timezone "$timezone_value")"
     desktop_pkgs="$(abora_desktop_package_block "$desktop_profile")"
-    host_nix="$(nix_string "$hostname_value")"
-    user_nix="$(nix_string "$username_value")"
-    locale_nix="$(nix_string "$locale_value")"
-    timezone_nix="$(nix_string "$timezone_value")"
-    keyboard_nix="$(nix_string "$keyboard_value")"
-    xkb_nix="$(nix_string "$xkb_layout_value")"
-    desktop_nix="$(nix_string "$desktop_profile")"
-    wallpaper_nix="$(nix_string "$wallpaper_name")"
-    disk_nix="$(nix_string "$disk")"
-    gpu_nix="$(nix_string "$gpu_value")"
-    # "Use an existing partition" mode never creates a bios_grub partition
-    # (it never repartitions the disk at all) -- `limine bios-install`
-    # fails outright on a GPT disk with none. That failure is silent all
-    # the way up (nixpkgs' limine-install.py doesn't check the subprocess
-    # exit code), so a Legacy-BIOS machine using this mode would end up
-    # with a fully unbootable install and no error anywhere. UEFI boot
-    # through the reused ESP is unaffected either way.
-    if [[ "$install_disk_mode" == "existing" ]]; then
-        disk_bios_support_nix="false"
-    else
-        disk_bios_support_nix="true"
-    fi
     write_pending_gaming_plan "$root"
     install_gaming_enabled="$gaming_enabled"
     install_gaming_steam="$gaming_steam"
@@ -2835,16 +2811,6 @@ generate_nixos_config() {
         install_gaming_gamemode="no"
         install_gaming_launchers="no"
     fi
-    gaming_enabled_nix="$(nix_bool "$install_gaming_enabled")"
-    gaming_steam_nix="$(nix_bool "$install_gaming_steam")"
-    gaming_big_picture_nix="$(nix_bool "$install_gaming_big_picture")"
-    gaming_autostart_nix="$(nix_bool "$install_gaming_autostart")"
-    gaming_gamescope_nix="$(nix_bool "$install_gaming_gamescope")"
-    gaming_vulkan_nix="$(nix_bool "$install_gaming_vulkan")"
-    gaming_controller_nix="$(nix_bool "$install_gaming_controller")"
-    gaming_mangohud_nix="$(nix_bool "$install_gaming_mangohud")"
-    gaming_gamemode_nix="$(nix_bool "$install_gaming_gamemode")"
-    gaming_launchers_nix="$(nix_bool "$install_gaming_launchers")"
 
     # Persist the dotfiles Git URL (if any) so the first graphical session
     # can clone and import it automatically — see
@@ -2880,88 +2846,43 @@ generate_nixos_config() {
     write_password_hash "${root}${secrets_dir}/user.hash" "$user_password_hash" || die "Could not write the password hash."
     if [[ -n "$root_password_hash" ]]; then
         write_password_hash "${root}${secrets_dir}/root.hash" "$root_password_hash" || die "Could not write the root password hash."
-        root_pw_line="  users.users.root.hashedPasswordFile = \"${secrets_dir}/root.hash\";"
-    else
-        root_pw_line="  users.users.root.hashedPassword = \"!\";"
     fi
 
-    if [[ "$anix_enabled" == "yes" ]]; then
-        cat > "${cfgdir}/anix.nix" <<EOF
-{ ... }:
-{
-  anix.enable = true;
-  anix.hostname = "${host_nix}";
-  anix.timezone = "${timezone_nix}";
-  anix.keyboard.console = "${keyboard_nix}";
-  anix.keyboard.xkb = "${xkb_nix}";
-  anix.desktop = "${desktop_nix}";
-  anix.wallpaper = "${wallpaper_nix}";
-}
-EOF
-        anix_import_line="    ./anix.nix"
-    else
-        rm -f "${cfgdir}/anix.nix"
-        anix_import_line=""
-    fi
-
-    cat > "${cfgdir}/configuration.nix" <<EOF
-{ ... }:
-{
-  imports = [
-    ./hardware-configuration.nix
-    ./abora/installed-base.nix
-    ./abora/abora-options.nix
-    ./abora/anix-module.nix
-    ./abora/apps.nix
-    ./abora-local.nix
-${anix_import_line}
-  ];
-}
-EOF
-
-    cat > "${cfgdir}/abora-local.nix" <<EOF
-{ pkgs, lib, config, ... }:
-{
-  abora.hostname = "${host_nix}";
-  abora.locale = "${locale_nix}";
-  abora.timezone = "${timezone_nix}";
-  abora.keyboard.console = "${keyboard_nix}";
-  abora.keyboard.xkb = "${xkb_nix}";
-  abora.desktop = "${desktop_nix}";
-  abora.wallpaper = "${wallpaper_nix}";
-  abora.gpu = "${gpu_nix}";
-  abora.disk = "${disk_nix}";
-  abora.diskBiosSupport = ${disk_bios_support_nix};
-  abora.stateVersion = "26.05";
-  abora.gaming.enable = ${gaming_enabled_nix};
-  abora.gaming.steam = ${gaming_steam_nix};
-  abora.gaming.bigPictureShortcut = ${gaming_big_picture_nix};
-  abora.gaming.bigPictureAutostart = ${gaming_autostart_nix};
-  abora.gaming.gamescopeSession = ${gaming_gamescope_nix};
-  abora.gaming.controllerSupport = ${gaming_controller_nix};
-  abora.gaming.mangohud = ${gaming_mangohud_nix};
-  abora.gaming.gamemode = ${gaming_gamemode_nix};
-  abora.gaming.vulkanTools = ${gaming_vulkan_nix};
-  abora.gaming.launchers = ${gaming_launchers_nix};
-  abora.labs.enable = $(nix_bool "$labs_enabled");
-  abora.minimal = $(nix_bool "$install_minimal");
-  abora.extras.diagnostics = false;
-  abora.extras.virtualizationGuests = false;
-  abora.extras.mobileBroadband = false;
-  abora.user.name = "${user_nix}";
-  abora.user.hashedPasswordFile = "${secrets_dir}/user.hash";
-
-  networking.networkmanager.enable = lib.mkForce true;
-  i18n.supportedLocales = [
-    "\${config.abora.locale}/UTF-8"
-    "en_US.UTF-8/UTF-8"
-  ];
-
-${root_pw_line}
-}
-EOF
-    # No secret in it any more, so users' tools (anix, the doctor) can read it.
-    chmod 0644 "${cfgdir}/abora-local.nix"
+    # The engine escapes every value for Nix and writes configuration.nix,
+    # abora-local.nix and (when ANIX is on) anix.nix. Values lose any newline
+    # first, as the old Bash escaping did.
+    local setting
+    setting() { printf '%s=%s\n' "$1" "${2//$'\n'/}"; }
+    {
+        setting hostname "$hostname_value"
+        setting locale "$locale_value"
+        setting timezone "$timezone_value"
+        setting keyboard "$keyboard_value"
+        setting xkb "$xkb_layout_value"
+        setting desktop "$desktop_profile"
+        setting wallpaper "$wallpaper_name"
+        setting gpu "$gpu_value"
+        setting disk "$disk"
+        setting disk_mode "$install_disk_mode"
+        setting user "$username_value"
+        setting anix "$anix_enabled"
+        setting root_hash "$([[ -n "$root_password_hash" ]] && echo yes || echo no)"
+        setting secrets_dir "$secrets_dir"
+        setting labs "$labs_enabled"
+        setting minimal "$install_minimal"
+        setting gaming_enabled "$install_gaming_enabled"
+        setting gaming_steam "$install_gaming_steam"
+        setting gaming_big_picture "$install_gaming_big_picture"
+        setting gaming_autostart "$install_gaming_autostart"
+        setting gaming_gamescope "$install_gaming_gamescope"
+        setting gaming_vulkan "$install_gaming_vulkan"
+        setting gaming_controller "$install_gaming_controller"
+        setting gaming_mangohud "$install_gaming_mangohud"
+        setting gaming_gamemode "$install_gaming_gamemode"
+        setting gaming_launchers "$install_gaming_launchers"
+    } | "${ABORA_INSTALLER_BIN:-abora-installer}" config write --target "$root" >>"$config_log" 2>&1 \
+        || die "Could not write the system configuration. See ${config_log}."
+    unset -f setting
 
     write_installed_flake "$root"
 }

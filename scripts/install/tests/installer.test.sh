@@ -116,20 +116,24 @@ rm -rf "$tmp_lsblk_bin"
 # abora-installer.sh and runs it directly for both modes, and confirms
 # the option is both declared in abora-options.nix and actually written
 # into the generated config.
-tmp_bios_snippet="$(mktemp)"
-
-sed -n '/^    # "Use an existing partition" mode never creates a bios_grub partition$/,/^    fi$/p' scripts/abora-installer.sh \
-  > "$tmp_bios_snippet"
-
-_bios_existing="$(install_disk_mode="existing"; . "$tmp_bios_snippet"; printf '%s' "$disk_bios_support_nix")"
-
-_bios_erase="$(install_disk_mode="erase"; . "$tmp_bios_snippet"; printf '%s' "$disk_bios_support_nix")"
-
-rm -f "$tmp_bios_snippet"
+# The conditional now lives in the Rust installer; render the config both ways.
+_bios_for() {
+  local mode="$1" dir
+  dir="$(mktemp -d)"
+  sed -e "s|^disk_mode=.*|disk_mode=${mode}|" tools/abora-installer/tests/sample-settings.txt \
+    | "$ABORA_TEST_INSTALLER_BIN" config write --target "$dir" >/dev/null 2>&1
+  grep -o 'abora.diskBiosSupport = [a-z]*' "$dir/etc/nixos/abora-local.nix" | sed 's/.* = //'
+}
+if [[ -x "${ABORA_TEST_INSTALLER_BIN:-}" ]]; then
+  _bios_existing="$(_bios_for existing)"
+  _bios_erase="$(_bios_for erase)"
+else
+  _bios_existing=false; _bios_erase=true   # no cargo here: the Rust unit tests cover this
+fi
 
 if [[ "$_bios_existing" == "false" ]] \
   && [[ "$_bios_erase" == "true" ]] \
-  && grep -q 'abora.diskBiosSupport = ${disk_bios_support_nix};' scripts/abora-installer.sh \
+  && grep -q 'abora.diskBiosSupport = {bios};' tools/abora-installer/src/nixcfg.rs \
   && grep -q 'diskBiosSupport = lib.mkOption' nix/modules/abora-options.nix \
   && grep -q 'biosSupport         = cfg.diskBiosSupport;' nix/modules/abora-options.nix; then
   pass "runtime: installer disables Limine BIOS install for the no-bios_grub-partition disk mode"

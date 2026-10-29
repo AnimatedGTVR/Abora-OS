@@ -149,7 +149,7 @@ if ABORA_NO_SUDO=1 \
   && grep -q 'lib.optionals config.abora.extras.diagnostics' nix/modules/installed-base.nix \
   && grep -q 'lib.optionals config.abora.extras.mobileBroadband' nix/modules/installed-base.nix \
   && grep -q 'config.abora.extras.virtualizationGuests' nix/modules/installed-base.nix \
-  && grep -q 'abora.extras.diagnostics = false;' scripts/abora-installer.sh; then
+  && grep -q 'abora.extras.diagnostics = false;' tools/abora-installer/src/nixcfg.rs; then
   pass "runtime: lean extras are opt-in instead of always installed"
 else
   fail "runtime: lean extras are opt-in instead of always installed"

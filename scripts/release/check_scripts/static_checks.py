@@ -127,7 +127,7 @@ CHECKS: tuple[Check, ...] = (
         grep('-Fq', 'flatpak install --system --noninteractive --or-update flathub ${zenFlatpak}', 'nix/modules/installed-base.nix'),
         grep('-Fq', 'services.flatpak.enable = lib.mkDefault (!minimal);', 'nix/modules/installed-base.nix'),
         grep('-Fq', 'type = lib.types.enum [ "zen" "firefox" "none" ];', 'nix/modules/abora-options.nix'),
-        grep('-Fq', 'abora.minimal = $(nix_bool "$install_minimal");', 'scripts/abora-installer.sh'),
+        grep('-Fq', 'abora.minimal = {minimal};', 'tools/abora-installer/src/nixcfg.rs'),
     ),
     Check(
         'static: nixosModules.default lays out every file abora adopt-nixos copies',
@@ -422,8 +422,8 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', '^write_pending_gaming_plan()', 'scripts/abora-installer.sh'),
         grep('-q', 'deferred Abora Gaming package activation until first boot', 'scripts/abora-installer.sh'),
         grep('-q', 'install_gaming_enabled="no"', 'scripts/abora-installer.sh'),
-        grep('-q', 'abora.gaming.steam = ${gaming_steam_nix};', 'scripts/abora-installer.sh'),
-        grep('-q', 'abora.gaming.vulkanTools = ${gaming_vulkan_nix};', 'scripts/abora-installer.sh'),
+        grep('-q', 'abora.gaming.steam = {g_steam};', 'tools/abora-installer/src/nixcfg.rs'),
+        grep('-q', 'abora.gaming.vulkanTools = {g_vk};', 'tools/abora-installer/src/nixcfg.rs'),
         grep('-q', 'set_nix_bool_assignment "$abora_local" "abora.gaming.steam"', 'scripts/abora-installer.sh'),
         grep('-q', 'set_nix_bool_assignment "$abora_local" "abora.gaming.vulkanTools"', 'scripts/abora-installer.sh'),
     ),
@@ -570,7 +570,7 @@ CHECKS: tuple[Check, ...] = (
     # path (abora-installer.sh, not the config-migration path above).
     Check(
         'runtime: installer keeps password hashes out of /etc/nixos (and so out of the Nix store)',
-        grep('-Fq', 'abora.user.hashedPasswordFile = "${secrets_dir}/user.hash";', 'scripts/abora-installer.sh'),
+        grep('-Fq', 'abora.user.hashedPasswordFile = \"{secrets}/user.hash\";', 'tools/abora-installer/src/nixcfg.rs'),
         grep('-Fq', 'install -d -m 0700 "${root}${secrets_dir}"', 'scripts/abora-installer.sh'),
         not_(grep('-Fq', 'abora.user.hashedPassword = "${user_password_hash}";', 'scripts/abora-installer.sh')),
         grep('-Fq', 'hashedPasswordFile = lib.mkIf (cfg.user.hashedPasswordFile != null)', 'nix/modules/abora-options.nix'),
