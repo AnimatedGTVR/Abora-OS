@@ -1,6 +1,6 @@
 # Abora OS Roadmap
 
-This roadmap tracks Abora OS v4.2 Solstice: a cleaner codebase and a more reliable system. The release gate
+This roadmap tracks Abora OS v4.2 Solstice (a cleaner codebase and a more reliable system) and the direction of v5.0. The release gate
 and the state of each item are in [next-release-plan.md](next-release-plan.md).
 
 ## Abora OS v4.2 Solstice (in progress)
@@ -15,6 +15,37 @@ and the state of each item are in [next-release-plan.md](next-release-plan.md).
 - next: one command list for `live.nix` and `installed-base.nix`; `abt begin`/`commit` for the commands that
   edit and apply in one step; the two C# tools are already replaced by Rust ones; next is moving more installer steps into the Rust engine
 
+
+## Abora OS v5.0 (planned direction)
+
+v5.0 is a bigger v4.2: the same goals (a safer, simpler, more reliable Abora) carried further. Its main theme is
+**Shell as glue, not as the application**. This is a direction, not a committed feature list or date.
+
+Where Shell stands today (real files, symlinks not double-counted): 39 files, about 22,900 lines, of which about
+17,700 ship on the system and about 5,200 are tests. The biggest shipped scripts:
+
+| Script | Lines |
+| --- | --- |
+| `scripts/install/abora-installer.sh` | 4,896 |
+| `scripts/core/anix.sh` | 3,554 |
+| `scripts/support/abora-update.sh` | 2,112 |
+| `scripts/config/abora-desktop-profiles.sh` | 882 |
+| `scripts/config/abora-config.sh` | 824 |
+| `scripts/apps/abora-apps.sh` | 770 |
+| `scripts/apps/abora-gaming.sh` | 758 |
+
+How it gets there:
+
+- **Rust** takes what changes the system or runs as root; **Go** takes network, diagnostic, CLI and TUI tools;
+  **Nix** stays the system configuration; Shell is kept for launchers, systemd units and short wrappers.
+- One piece at a time. A piece moves only after the old and new code are run on the same inputs, including hostile
+  ones, and write the same files. (The installer's disk, flake and config steps were moved this way in 4.2.)
+- The `/etc/abora/*.sh` names that 4.0 and 4.1 updaters expect stay as thin wrappers.
+- Not all of Shell goes: NixOS itself and small glue will always have a few lines.
+
+Started in 4.2: the installer engine (`tools/abora-installer`: disk, flake, config). Next: the rest of the
+installer (build, `nixos-install`, boot checks, branding, the apps file, the flake lock), then the installer
+screens, `anix.sh` and the updater.
 
 ## Abora OS v4 Everest Delivered
 
