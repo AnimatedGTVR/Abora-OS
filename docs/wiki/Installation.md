@@ -47,8 +47,8 @@ The first screen also has **Debug installer**, which can tail
 `abora support-report` archive before any disk is touched.
 
 Advanced users who want to compile Abora themselves can open **Build from
-source** for the clone/check/build commands (`make doctor`, `make iso`, and
-`make iso-all`) and then jump into a terminal.
+source** for the clone/check/build commands (`make doctor` and
+`make iso`) and then jump into a terminal.
 
 If you are compiling from a GitHub checkout manually, the current short build
 target is:

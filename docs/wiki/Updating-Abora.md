@@ -100,7 +100,7 @@ Switch channels:
 
 ```sh
 sudo abora channel set stable
-sudo abora channel set unstable
+sudo abora channel set edge
 ```
 
 - `stable` tracks the latest tagged Abora release

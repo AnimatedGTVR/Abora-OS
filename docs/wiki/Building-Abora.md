@@ -83,14 +83,14 @@ The adoption path backs up `/etc/nixos`, imports Abora with
 `abora.user.name = null`, and defaults to `abora.desktop = "none"` so existing
 users, applications, and desktop settings stay in charge.
 
-## Build Every Edition ISO
+## Build The ISO
 
 ```sh
-make iso-all
+make iso
 ```
 
-`make iso-all` builds the Cosmic, Hyprland, GNOME, KDE Plasma, and Other
-Desktops edition ISOs.
+`make iso` builds the one universal installer ISO. There are no per-desktop
+editions: the installer asks which desktop to install.
 
 ## Boot The ISO In QEMU
 
@@ -124,7 +124,7 @@ make release
 
 `make release` builds:
 
-- all five edition ISOs
+- the universal installer ISO
 - the ANIX standalone tarball
 - checksums
 - release manifest

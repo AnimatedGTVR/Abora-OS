@@ -13,7 +13,7 @@ and the state of each item are in [next-release-plan.md](next-release-plan.md).
 - release names derive from one source and are checked
 - one installer: the bash TUI with gum; MINT and the GTK installer are removed, and the live ISO is an installer only (no live desktop session)
 - next: one command list for `live.nix` and `installed-base.nix`; `abt begin`/`commit` for the commands that
-  edit and apply in one step; fold the two C# tools into Python
+  edit and apply in one step; the two C# tools are already replaced by Rust ones; next is moving more installer steps into the Rust engine
 
 
 ## Abora OS v4 Everest Delivered
@@ -48,4 +48,4 @@ and the state of each item are in [next-release-plan.md](next-release-plan.md).
 - keep GitHub releases as the primary public ISO distribution path
 - attach ISO, checksums, manifest, release notes, and the ANIX package to release bundles
 - require `make check`, `make check-desktops`, one full VM install, and one installed-system boot before publishing
-- use `make iso` for fast ISO-only iteration, `make iso-all` before a release, `make release` only for full release bundles
+- use `make iso` for ISO-only iteration, `make release` only for full release bundles

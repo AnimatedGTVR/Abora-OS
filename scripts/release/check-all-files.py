@@ -328,6 +328,10 @@ class Sweep:
                 if re.match(r"\s*\$ ", block):
                     continue
                 block_file = Path(tmp) / f"block_{number}.{'nix' if lang == 'nix' else 'sh'}"
+                # <id>-style placeholders are documentation for a reader, not shell
+                # redirections: check the block as if the user had typed a value.
+                if lang != "nix":
+                    block = re.sub(r"<([A-Za-z][A-Za-z0-9_-]*)>", r"\1", block)
                 block_file.write_text(block + "\n", encoding="utf-8")
                 if lang == "nix":
                     if self.has["nix-instantiate"] and self.run(["nix-instantiate", "--parse", str(block_file)]).returncode != 0:

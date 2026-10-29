@@ -4045,8 +4045,7 @@ source_build_menu() {
     printf '\n'
     printf '  %bISO build commands%b\n' "${B}${CS}" "$R"
     printf '  %bmake doctor%b\n' "$CW" "$R"
-    printf '  %bmake iso%b        %b# default Cosmic edition%b\n' "$CW" "$D$CG" "$R"
-    printf '  %bmake iso-all%b    %b# all five editions%b\n' "$CW" "$D$CG" "$R"
+    printf '  %bmake iso%b        %b# the universal installer ISO%b\n' "$CW" "$D$CG" "$R"
     printf '\n'
     printf '  %bTip%b  Use the terminal option if you want to clone/build manually now.\n' "${B}${CY}" "$R"
     printf '\n'

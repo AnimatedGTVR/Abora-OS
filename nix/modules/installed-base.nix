@@ -402,6 +402,13 @@ in
     distroName = "Abora OS";
     vendorId = "abora";
     vendorName = "Abora OS";
+    # nixpkgs puts its own codename into /etc/lsb-release unless told otherwise.
+    extraLSBReleaseArgs = {
+      DISTRIB_RELEASE = "4.2";
+      LSB_VERSION = "4.2 (Solstice)";
+      DISTRIB_CODENAME = "solstice";
+      DISTRIB_DESCRIPTION = "Abora OS v4.2 Solstice";
+    };
     label = version;
     variant_id = lib.mkDefault "system";
     variantName = lib.mkDefault "Abora OS v4.2 Solstice";
@@ -409,7 +416,7 @@ in
       LOGO = "abora";
       VERSION = "v4.2 Solstice";
       VERSION_ID = "4.2";
-      VERSION_CODENAME = "horizon";
+      VERSION_CODENAME = "solstice";
       PRETTY_NAME = "Abora OS v4.2 Solstice";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/Abora-OS/Abora-OS/issues";

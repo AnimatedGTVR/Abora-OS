@@ -31,11 +31,29 @@ Released: **<RELEASE DATE>** · Tag: `v4.2` · Channel: `stable`
 - **ModuCPP, MAKO and the bundled Modularity are removed.** ANIX Native (`.anix` files) is the language ANIX
   ships. Software outside nixpkgs, Modularity included, installs from its GitHub flake with
   `anix package install github:owner/repo`; `abora apps custom` is gone.
-- **Two update channels.** `demo` and `dev` are gone; there is `stable` and `unstable`. A system still
-  saved on one of the old names follows `unstable` and says so. `anix channel set stable` for tagged releases.
+- **Two update channels.** `demo` and `dev` are gone; there is `stable` and `edge`. A system still
+  saved on one of the old names (or on `unstable`) follows `edge` and says so. `anix channel set stable` for tagged releases.
 - **Less to keep.** The zenity dialogs, `anix ringtone` and the login sound, and unused images are removed.
 - **One installer.** The terminal installer, drawn with gum, is the only one. MINT and the GTK installer are
-  removed, and the live ISO is an installer only, with no live desktop session.
+  removed, and the live ISO is an installer only, with no live desktop session. One ISO, no editions:
+  you pick the desktop (COSMIC, GNOME, KDE Plasma, XFCE, Hyprland, Cinnamon, or none) while installing.
+- **A Minimal install.** One switch keeps the system lean (no duplicate terminals or browsers, no extras)
+  and offers a small desktop: IceWM, LXQt, Lumina, Niri, Sway, Fluxbox, Openbox, or your own.
+- **Bring your own NixOS flake.** The installer can install your flake with Abora's hardware and disk
+  layout wrapped around it, and `abora adopt-nixos` brings an existing NixOS system to Abora by adding
+  Abora as a flake input (`nixosModules.default`) instead of editing your `flake.nix`.
+- **Choose your NixOS release.** Follow stable (`nixos-26.05`) or unstable, at install time or later with
+  `anix nixos [stable|unstable]`. The updater keeps your choice.
+- **`grab`.** A standalone app installer that finds a program in Nix, Lix, Flatpak or Snap and installs it:
+  `grab zen-browser`. `grab info <app>` says where it would come from first.
+- **Zen replaces Firefox** as the default browser, installed from Flathub on first boot.
+- **Passwords stay out of the Nix store.** Password hashes are kept in `/var/lib/abora/secrets`, not in
+  `/etc/nixos`, which is copied into the world-readable store on every rebuild.
+- **A boot splash that shows.** The Abora logo appears while the system loads.
+- **A smaller installer, written to be tested.** The disk, flake and configuration steps run in a Rust
+  engine, with every value escaped for Nix in one place; the Bash screens call it. No .NET tools remain.
+  See [How the installer works](docs/wiki/Installer.md).
+- **`abora-trailer`**, an all-ASCII animation of the Abora logo and the release name, for videos and demos.
 
 ## Fixed from DistroWatch's 4.0 review
 
@@ -68,6 +86,9 @@ Release files, once published: `abora-<edition>-<stamp>-x86_64-v4.2.iso` for eac
 
 - The install matrix (every edition, UEFI and BIOS, GPU choices) has not been run on 4.2 yet.
 - ABT can't protect a first install: there's no earlier generation to go back to.
+- The description line under a boot-menu entry (and `bootctl`) still names the NixOS release you follow, for example
+  "Abora OS Yarara 4.2 (Linux 6.x)". nixpkgs builds that text from a read-only option, so Abora cannot change it;
+  `/etc/os-release` and `/etc/lsb-release` say Abora's own name.
 
 ---
 

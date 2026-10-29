@@ -150,19 +150,11 @@ step will work as expected.
 
 ## How do I build the ISO?
 
-For quick Cosmic-edition testing:
-
 ```sh
 make iso
 ```
 
-For the full release set:
-
-```sh
-make iso-all
-```
-
-That builds Cosmic, Hyprland, GNOME, KDE Plasma, and Other Desktops editions.
+That builds the one universal installer ISO into `out/iso/`. You choose the desktop when you run the installer.
 
 Then boot it with:
 

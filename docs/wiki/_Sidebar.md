@@ -1,6 +1,7 @@
 - [Home](Home.md)
 - [Installation](Installation.md)
 - [Updating Abora](Updating-Abora.md)
+- [How the installer works](Installer.md)
 - [Building Abora](Building-Abora.md)
 - [Release Guide](Release-Guide.md)
 - [Abora Tools](Abora-Tools.md)

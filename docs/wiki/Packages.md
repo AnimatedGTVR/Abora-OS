@@ -101,5 +101,5 @@ flake's code runs in the build, so install only flakes you trust. This is how Mo
 | `term <app>` | `anix package uninstall <app>` |
 | `supdate` | `anix package upgrade` and `abora update` |
 
-Snap is no longer a source. `anix tinypm` now points to `anix package`. The old `anix.tinypm.enable` option
+`anix package` installs from nixpkgs only, so Snap is not one of its sources; `grab` still offers Snap. `anix tinypm` now points to `anix package`. The old `anix.tinypm.enable` option
 is still accepted so existing configs keep evaluating, but it does nothing.

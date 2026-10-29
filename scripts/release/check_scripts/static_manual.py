@@ -52,6 +52,10 @@ def branding(ctx: Context) -> None:
         grep("-q", f'VERSION = "{short}"', "nix/profiles/live.nix"),
         grep("-q", f'VERSION_ID = "{version}"', "nix/modules/installed-base.nix"),
         grep("-q", f'VERSION_ID = "{version}"', "nix/profiles/live.nix"),
+        grep("-q", f'VERSION_CODENAME = "{RELEASE_CODENAME.lower()}"', "nix/modules/installed-base.nix"),
+        grep("-q", f'VERSION_CODENAME = "{RELEASE_CODENAME.lower()}"', "nix/profiles/live.nix"),
+        grep("-q", f'DISTRIB_CODENAME = "{RELEASE_CODENAME.lower()}"', "nix/modules/installed-base.nix"),
+        grep("-q", f'DISTRIB_CODENAME = "{RELEASE_CODENAME.lower()}"', "nix/profiles/live.nix"),
         grep("-q", f'title="Abora OS {short} (${{tag}})"', ".github/workflows/release-iso.yml"),
     ).conditions_hold(ctx)
     ctx.result(passed, f"runtime: {short} branding is consistent (VERSION + {RELEASE_CODENAME})")
