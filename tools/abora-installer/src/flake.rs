@@ -206,9 +206,88 @@ impl Machine {
     }
 }
 
+/// The nixpkgs branch an installed system follows: `nixos-unstable` or a
+/// release like `nixos-26.05`. Anything else could escape the Nix string it
+/// is written into, so it is refused.
+pub fn branch_ok(branch: &str) -> bool {
+    if branch == "nixos-unstable" {
+        return true;
+    }
+    let Some(version) = branch.strip_prefix("nixos-") else { return false };
+    let Some((year, month)) = version.split_once('.') else { return false };
+    year.len() == 2 && month.len() == 2 && year.bytes().chain(month.bytes()).all(|b| b.is_ascii_digit())
+}
+
+/// The `flake.nix` of a plain Abora install on a nixpkgs branch.
+pub fn installed_flake_nix(branch: &str) -> Result<String, String> {
+    if !branch_ok(branch) {
+        return Err(format!(
+            "{branch:?} is not a NixOS release branch (expected nixos-unstable or nixos-YY.MM)"
+        ));
+    }
+    Ok(format!(
+        r#"{{
+  description = "Abora installed system";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/{branch}";
+  outputs = {{ nixpkgs, ... }}: {{
+    nixosConfigurations = {{
+      abora = nixpkgs.lib.nixosSystem {{
+        system = "x86_64-linux";
+        modules = [
+          ./configuration.nix
+        ];
+      }};
+    }};
+  }};
+}}
+"#
+    ))
+}
+
+/// Lines that point a flake at a path on the installer instead of the network:
+/// those would break the installed system the moment the ISO is gone.
+pub fn local_path_lines(text: &str) -> Vec<String> {
+    text.lines()
+        .filter(|line| {
+            let Some(at) = line.find("path:") else { return false };
+            let rest = &line[at..];
+            ["nixpkgs", "/etc/abora", "/mnt/etc/nixos"].iter().any(|needle| rest.contains(needle))
+        })
+        .map(|line| line.trim().to_string())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_real_release_branches_are_accepted() {
+        for ok in ["nixos-unstable", "nixos-26.05", "nixos-25.11"] {
+            assert!(branch_ok(ok), "{ok}");
+        }
+        for bad in ["", "nixos-", "nixos-26.5", "nixos-2605", "nixos-26.05\"; evil", "master", "nixos-26.05/../x", "nixos-ab.cd", "../nixos-26.05", "nixos-unstable "] {
+            assert!(!branch_ok(bad), "{bad:?}");
+        }
+        assert!(installed_flake_nix("nixos-26.05\"; rm -rf /").is_err());
+    }
+
+    #[test]
+    fn installed_flake_follows_the_branch_and_keeps_its_shape() {
+        let text = installed_flake_nix("nixos-26.05").unwrap();
+        assert!(text.contains("inputs.nixpkgs.url = \"github:NixOS/nixpkgs/nixos-26.05\";"));
+        assert!(text.contains("abora = nixpkgs.lib.nixosSystem {") && text.contains("./configuration.nix"));
+        assert_eq!(text.matches('{').count(), text.matches('}').count(), "braces balance");
+        assert!(text.starts_with("{\n") && text.ends_with("}\n"));
+    }
+
+    #[test]
+    fn local_paths_are_found_but_network_inputs_are_fine() {
+        let bad = "inputs.nixpkgs.url = \"path:/nix/store/abc-nixpkgs\";\n  x = \"path:/etc/abora/y\";";
+        assert_eq!(local_path_lines(bad).len(), 2);
+        assert!(local_path_lines("inputs.nixpkgs.url = \"github:NixOS/nixpkgs/nixos-26.05\";\n").is_empty());
+        assert!(local_path_lines("# path: of the problem, but nothing local").is_empty());
+    }
 
     #[test]
     fn splits_url_and_host() {

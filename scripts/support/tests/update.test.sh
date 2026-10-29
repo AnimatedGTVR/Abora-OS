@@ -68,7 +68,7 @@ fi
 # and copy the release-pinned target lock instead of regenerating it on the
 # half-installed target.
 if grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";' "$tmp_update_flake/flake.nix" \
-  && grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/${branch}";' scripts/abora-installer.sh \
+  && grep -q 'flake_engine write-installed --branch "$branch"' scripts/abora-installer.sh \
   && grep -q '/etc/abora/target-flake.lock' scripts/abora-installer.sh \
   && grep -q 'cp /etc/abora/target-flake.lock "${cfgdir}/flake.lock"' scripts/abora-installer.sh \
   && grep -q 'write_installed_flake "$root"' scripts/abora-installer.sh \

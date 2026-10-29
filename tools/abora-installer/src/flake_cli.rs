@@ -11,13 +11,20 @@ Usage:
   abora-installer flake judge --uefi <yes|no> --bios-boot <yes|no> < inspection
   abora-installer flake write --flake <flake> --host <config> --esp-uuid <uuid>
                               [--bios-disk <disk>] [--target <dir>]
+  abora-installer flake write-installed --branch <nixos-branch> [--target <dir>]
+  abora-installer flake audit <file>...
 
 check  validate a flake reference; prints url=<url> and host=<config or empty>
 judge  read the configuration's key=value inspection on stdin; print
        refuse=<reason> / warn=<note> lines, exit 1 if anything is refused
 write  write <target>/etc/nixos/{flake.nix,abora-machine.nix,README-abora.md}
        so <config> is installed with this machine's hardware and partitions
-       (expects <target>/etc/nixos/hardware-configuration.nix next to them)";
+       (expects <target>/etc/nixos/hardware-configuration.nix next to them)
+write-installed
+       write <target>/etc/nixos/flake.nix for a plain Abora install following
+       <nixos-branch>, and <target>/etc/nixos/abora/nixos-release
+audit  print every line of the given files that points at a path on the
+       installer (nixpkgs, /etc/abora, /mnt/etc/nixos); exit 1 if any";
 
 fn write_atomic(path: &Path, contents: &str) -> Result<(), String> {
     let tmp = path.with_extension("abora-tmp");
@@ -67,12 +74,33 @@ pub fn run(raw: &[OsString]) -> Result<u8, String> {
             write(&machine, Path::new(&target))?;
             Ok(0)
         }
+        Some("write-installed") => {
+            let branch = option(&args[1..], "--branch")?.ok_or("write-installed needs --branch")?;
+            let target = option(&args[1..], "--target")?.unwrap_or_else(|| "/mnt".into());
+            let text = flake::installed_flake_nix(&branch)?;
+            let dir = Path::new(&target).join("etc/nixos");
+            fs::create_dir_all(dir.join("abora")).map_err(|e| format!("could not create {}: {e}", dir.display()))?;
+            write_atomic(&dir.join("flake.nix"), &text)?;
+            write_atomic(&dir.join("abora/nixos-release"), &format!("{branch}\n"))?;
+            Ok(0)
+        }
+        Some("audit") => {
+            let mut found = false;
+            for file in &args[1..] {
+                let text = fs::read_to_string(file).map_err(|e| format!("could not read {file}: {e}"))?;
+                for line in flake::local_path_lines(&text) {
+                    println!("{file}: {line}");
+                    found = true;
+                }
+            }
+            Ok(u8::from(found))
+        }
         Some("-h" | "--help") => {
             println!("{USAGE}");
             Ok(0)
         }
         Some(other) => Err(format!("unknown flake action: {other}")),
-        None => Err("flake needs an action: check or write".into()),
+        None => Err("flake needs an action: check, judge, write, write-installed or audit".into()),
     }
 }
 
@@ -94,6 +122,7 @@ fn option(args: &[String], name: &str) -> Result<Option<String>, String> {
             "--target",
             "--uefi",
             "--bios-boot",
+            "--branch",
         ]
         .contains(&arg.as_str())
         {
@@ -196,5 +225,53 @@ mod tests {
             .unwrap()
             .contains("\"desk\""));
         fs::remove_dir_all(&target).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod engine_tests {
+    use super::*;
+
+    fn run_args(args: &[&str]) -> Result<u8, String> {
+        let raw: Vec<OsString> = args.iter().map(OsString::from).collect();
+        run(&raw)
+    }
+
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("abora-flake-cli-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn write_installed_writes_the_flake_and_the_release_marker() {
+        let root = scratch("write");
+        let target = root.to_str().unwrap();
+        assert_eq!(run_args(&["write-installed", "--branch", "nixos-26.05", "--target", target]).unwrap(), 0);
+        let flake = fs::read_to_string(root.join("etc/nixos/flake.nix")).unwrap();
+        assert!(flake.contains("github:NixOS/nixpkgs/nixos-26.05"));
+        assert_eq!(fs::read_to_string(root.join("etc/nixos/abora/nixos-release")).unwrap(), "nixos-26.05\n");
+        // Hostile branch names are refused before anything is written.
+        let other = scratch("refuse");
+        let err = run_args(&["write-installed", "--branch", "x\"; evil", "--target", other.to_str().unwrap()]).unwrap_err();
+        assert!(err.contains("not a NixOS release branch"), "{err}");
+        assert!(!other.join("etc/nixos/flake.nix").exists());
+        assert!(run_args(&["write-installed", "--target", target]).is_err(), "--branch is required");
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(other);
+    }
+
+    #[test]
+    fn audit_exits_one_only_when_a_local_path_is_present() {
+        let dir = scratch("audit");
+        let clean = dir.join("clean");
+        let dirty = dir.join("dirty");
+        fs::write(&clean, "url = \"github:NixOS/nixpkgs/nixos-26.05\";\n").unwrap();
+        fs::write(&dirty, "url = \"path:/etc/abora/nixpkgs\";\n").unwrap();
+        assert_eq!(run_args(&["audit", clean.to_str().unwrap()]).unwrap(), 0);
+        assert_eq!(run_args(&["audit", clean.to_str().unwrap(), dirty.to_str().unwrap()]).unwrap(), 1);
+        assert!(run_args(&["audit", dir.join("missing").to_str().unwrap()]).is_err());
+        let _ = fs::remove_dir_all(dir);
     }
 }

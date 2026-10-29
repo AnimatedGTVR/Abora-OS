@@ -2750,24 +2750,10 @@ write_installed_flake() {
     branch="$(nixos_branch)"
     [[ -n "$branch" ]] || die "This ISO does not name a stable NixOS release. Choose the unstable release."
     [[ -f /etc/abora/target-flake.lock ]] || die "Release target-flake.lock is missing."
-    cat > "${cfgdir}/flake.nix" <<EOF
-{
-  description = "Abora installed system";
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/${branch}";
-  outputs = { nixpkgs, ... }: {
-    nixosConfigurations = {
-      abora = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        modules = [
-          ./configuration.nix
-        ];
-      };
-    };
-  };
-}
-EOF
-
-    printf '%s\n' "$branch" > "${cfgdir}/abora/nixos-release"
+    # The engine checks the branch name before it goes into the flake, then
+    # writes flake.nix and abora/nixos-release.
+    flake_engine write-installed --branch "$branch" --target "$root" >>"$config_log" 2>&1 \
+        || die "Could not write the system flake for ${branch}. See ${config_log}."
     if [[ "$nixos_release" == "stable" ]]; then
         # No lock ships for stable: resolve the branch now, so the system starts
         # on its latest security fixes rather than the ISO's build date.
@@ -2777,10 +2763,10 @@ EOF
     else
         cp /etc/abora/target-flake.lock "${cfgdir}/flake.lock"
     fi
-    if grep -Eq 'path:.*(nixpkgs|/etc/abora|/mnt/etc/nixos)' "${cfgdir}/flake.nix"; then
+    if flake_engine audit "${cfgdir}/flake.nix" >>"$config_log" 2>&1; then :; else
         die "Generated flake.nix still contains a local nixpkgs path. See ${config_log}."
     fi
-    if grep -Eq 'path:.*(nixpkgs|/etc/abora|/mnt/etc/nixos)' "${cfgdir}/flake.lock"; then
+    if flake_engine audit "${cfgdir}/flake.lock" >>"$config_log" 2>&1; then :; else
         die "Release target-flake.lock contains a local nixpkgs path. See ${config_log}."
     fi
 }
