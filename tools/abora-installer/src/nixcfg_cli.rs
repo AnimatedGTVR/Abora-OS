@@ -17,12 +17,16 @@ are refused, so a typo can't silently fall back to a default.";
 fn write_atomic(path: &Path, contents: &str, mode: u32) -> Result<(), String> {
     let tmp = path.with_extension("abora-tmp");
     fs::write(&tmp, contents).map_err(|e| format!("could not write {}: {e}", tmp.display()))?;
-    fs::set_permissions(&tmp, fs::Permissions::from_mode(mode)).map_err(|e| format!("could not set the mode of {}: {e}", tmp.display()))?;
+    fs::set_permissions(&tmp, fs::Permissions::from_mode(mode))
+        .map_err(|e| format!("could not set the mode of {}: {e}", tmp.display()))?;
     fs::rename(&tmp, path).map_err(|e| format!("could not write {}: {e}", path.display()))
 }
 
 pub fn run(raw: &[OsString]) -> Result<u8, String> {
-    let args: Vec<String> = raw.iter().map(|a| a.to_string_lossy().into_owned()).collect();
+    let args: Vec<String> = raw
+        .iter()
+        .map(|a| a.to_string_lossy().into_owned())
+        .collect();
     match args.first().map(String::as_str) {
         Some("write") => {
             let target = match args.get(1..).unwrap_or_default() {
@@ -31,7 +35,8 @@ pub fn run(raw: &[OsString]) -> Result<u8, String> {
                 _ => return Err("config write takes only --target <dir>".into()),
             };
             let mut text = String::new();
-            std::io::Read::read_to_string(&mut std::io::stdin(), &mut text).map_err(|e| format!("could not read the settings: {e}"))?;
+            std::io::Read::read_to_string(&mut std::io::stdin(), &mut text)
+                .map_err(|e| format!("could not read the settings: {e}"))?;
             write(&Settings::parse(&text)?, Path::new(&target))?;
             Ok(0)
         }
@@ -52,8 +57,16 @@ pub fn write(settings: &Settings, target: &Path) -> Result<(), String> {
     } else {
         let _ = fs::remove_file(dir.join("anix.nix"));
     }
-    write_atomic(&dir.join("configuration.nix"), &settings.configuration_nix(), 0o644)?;
+    write_atomic(
+        &dir.join("configuration.nix"),
+        &settings.configuration_nix(),
+        0o644,
+    )?;
     // No secret in it (the hashes live under /var/lib/abora/secrets), so the
     // user's tools can read it.
-    write_atomic(&dir.join("abora-local.nix"), &settings.abora_local_nix(), 0o644)
+    write_atomic(
+        &dir.join("abora-local.nix"),
+        &settings.abora_local_nix(),
+        0o644,
+    )
 }
