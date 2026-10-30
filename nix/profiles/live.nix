@@ -386,8 +386,8 @@ in
     "nixos-config=/etc/nixos/configuration.nix"
   ];
   boot.kernelPackages = pkgs.linuxPackages_latest;
-  boot.initrd.systemd.enable = true;
-  boot.initrd.verbose = false;
+  # The systemd initrd is the only initrd now: nixpkgs removed boot.initrd.systemd.enable and
+  # boot.initrd.verbose, and fails evaluation if they are still set.
   # Ventoy boots an ISO by presenting it as a real by-label block device to
   # the target kernel (exactly the mechanism NixOS's own iso-image.nix
   # `/iso` mount relies on), but bridging "GRUB-level ISO loopback" into
