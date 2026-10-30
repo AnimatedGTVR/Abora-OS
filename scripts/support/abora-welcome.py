@@ -91,7 +91,7 @@ def flathub_configured() -> bool:
 
 
 def show_status() -> None:
-    channel = os.environ.get("ABORA_DEFAULT_CHANNEL") or "unstable"
+    channel = os.environ.get("ABORA_DEFAULT_CHANNEL") or "edge"
     channel_file = Path("/etc/nixos/abora/channel")
     if channel_file.is_file():
         channel = "".join(channel_file.read_text(encoding="utf-8").split())
