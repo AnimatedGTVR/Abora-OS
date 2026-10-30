@@ -32,9 +32,32 @@ pub fn nix_bool(value: &str) -> &'static str {
 }
 
 const KEYS: &[&str] = &[
-    "hostname", "locale", "timezone", "keyboard", "xkb", "desktop", "wallpaper", "gpu", "disk", "disk_mode", "user", "anix", "root_hash",
-    "secrets_dir", "labs", "minimal", "gaming_enabled", "gaming_steam", "gaming_big_picture", "gaming_autostart", "gaming_gamescope",
-    "gaming_vulkan", "gaming_controller", "gaming_mangohud", "gaming_gamemode", "gaming_launchers",
+    "hostname",
+    "locale",
+    "timezone",
+    "keyboard",
+    "xkb",
+    "desktop",
+    "wallpaper",
+    "gpu",
+    "disk",
+    "disk_mode",
+    "user",
+    "anix",
+    "root_hash",
+    "secrets_dir",
+    "labs",
+    "minimal",
+    "gaming_enabled",
+    "gaming_steam",
+    "gaming_big_picture",
+    "gaming_autostart",
+    "gaming_gamescope",
+    "gaming_vulkan",
+    "gaming_controller",
+    "gaming_mangohud",
+    "gaming_gamemode",
+    "gaming_launchers",
 ];
 
 /// What the installer decided, as `key=value` lines.
@@ -48,7 +71,9 @@ impl Settings {
             if line.trim().is_empty() {
                 continue;
             }
-            let (key, value) = line.split_once('=').ok_or_else(|| format!("line {}: expected key=value", n + 1))?;
+            let (key, value) = line
+                .split_once('=')
+                .ok_or_else(|| format!("line {}: expected key=value", n + 1))?;
             if !KEYS.contains(&key) {
                 return Err(format!("line {}: unknown setting {key:?}", n + 1));
             }
@@ -93,7 +118,11 @@ impl Settings {
     }
 
     pub fn configuration_nix(&self) -> String {
-        let anix_import = if self.anix_enabled() { "    ./anix.nix\n" } else { "\n" };
+        let anix_import = if self.anix_enabled() {
+            "    ./anix.nix\n"
+        } else {
+            "\n"
+        };
         format!(
             "{{ ... }}:\n{{\n  imports = [\n    ./hardware-configuration.nix\n    ./abora/installed-base.nix\n    ./abora/abora-options.nix\n    ./abora/anix-module.nix\n    ./abora/apps.nix\n    ./abora-local.nix\n{anix_import}  ];\n}}\n"
         )
@@ -103,7 +132,11 @@ impl Settings {
         let secrets = nix_string(self.get("secrets_dir"));
         // "Use an existing partition" never makes a bios_grub partition, so
         // BIOS boot support must be off there: limine fails silently without one.
-        let bios = if self.get("disk_mode") == "existing" { "false" } else { "true" };
+        let bios = if self.get("disk_mode") == "existing" {
+            "false"
+        } else {
+            "true"
+        };
         let root_pw = if self.get("root_hash") == "yes" {
             format!("  users.users.root.hashedPasswordFile = \"{secrets}/root.hash\";")
         } else {
@@ -197,27 +230,46 @@ mod tests {
 
     #[test]
     fn hostile_values_stay_inside_their_string() {
-        let text = sample().replace("hostname=abora", "hostname=x\";services.openssh.enable=true;a=\"");
+        let text = sample().replace(
+            "hostname=abora",
+            "hostname=x\";services.openssh.enable=true;a=\"",
+        );
         let out = Settings::parse(&text).unwrap().abora_local_nix();
-        assert!(out.contains("abora.hostname = \"x\\\";services.openssh.enable=true;a=\\\"\";"), "{out}");
+        assert!(
+            out.contains("abora.hostname = \"x\\\";services.openssh.enable=true;a=\\\"\";"),
+            "{out}"
+        );
         let dollar = sample().replace("user=ada", "user=${builtins.readFile /etc/shadow}");
-        assert!(Settings::parse(&dollar).unwrap().abora_local_nix().contains("abora.user.name = \"\\${builtins"));
+        assert!(Settings::parse(&dollar)
+            .unwrap()
+            .abora_local_nix()
+            .contains("abora.user.name = \"\\${builtins"));
     }
 
     #[test]
     fn settings_must_be_complete_and_known() {
         assert!(Settings::parse(&sample()).is_ok());
-        assert!(Settings::parse(&sample().replace("gpu=auto\n", "")).unwrap_err().contains("missing setting gpu"));
-        assert!(Settings::parse(&format!("{}gpuu=auto\n", sample())).unwrap_err().contains("unknown setting"));
-        assert!(Settings::parse(&format!("{}gpu=nvidia\n", sample())).unwrap_err().contains("twice"));
-        assert!(Settings::parse("nonsense").unwrap_err().contains("key=value"));
+        assert!(Settings::parse(&sample().replace("gpu=auto\n", ""))
+            .unwrap_err()
+            .contains("missing setting gpu"));
+        assert!(Settings::parse(&format!("{}gpuu=auto\n", sample()))
+            .unwrap_err()
+            .contains("unknown setting"));
+        assert!(Settings::parse(&format!("{}gpu=nvidia\n", sample()))
+            .unwrap_err()
+            .contains("twice"));
+        assert!(Settings::parse("nonsense")
+            .unwrap_err()
+            .contains("key=value"));
     }
 
     #[test]
     fn existing_partition_mode_turns_bios_support_off() {
         let on = Settings::parse(&sample()).unwrap().abora_local_nix();
         assert!(on.contains("abora.diskBiosSupport = true;"));
-        let off = Settings::parse(&sample().replace("disk_mode=erase", "disk_mode=existing")).unwrap().abora_local_nix();
+        let off = Settings::parse(&sample().replace("disk_mode=erase", "disk_mode=existing"))
+            .unwrap()
+            .abora_local_nix();
         assert!(off.contains("abora.diskBiosSupport = false;"));
     }
 
@@ -225,15 +277,24 @@ mod tests {
     fn root_password_line_follows_whether_a_root_hash_exists() {
         let locked = Settings::parse(&sample()).unwrap().abora_local_nix();
         assert!(locked.contains("users.users.root.hashedPassword = \"!\";"));
-        let set = Settings::parse(&sample().replace("root_hash=no", "root_hash=yes")).unwrap().abora_local_nix();
-        assert!(set.contains("users.users.root.hashedPasswordFile = \"/var/lib/abora/secrets/root.hash\";"));
-        assert!(set.contains("${config.abora.locale}/UTF-8"), "the Nix interpolation is written literally");
+        let set = Settings::parse(&sample().replace("root_hash=no", "root_hash=yes"))
+            .unwrap()
+            .abora_local_nix();
+        assert!(set.contains(
+            "users.users.root.hashedPasswordFile = \"/var/lib/abora/secrets/root.hash\";"
+        ));
+        assert!(
+            set.contains("${config.abora.locale}/UTF-8"),
+            "the Nix interpolation is written literally"
+        );
     }
 
     #[test]
     fn configuration_imports_anix_only_when_enabled() {
         let with = Settings::parse(&sample()).unwrap();
-        assert!(with.configuration_nix().contains("    ./abora-local.nix\n    ./anix.nix\n  ];"));
+        assert!(with
+            .configuration_nix()
+            .contains("    ./abora-local.nix\n    ./anix.nix\n  ];"));
         assert!(with.anix_nix().contains("anix.desktop = \"gnome\";"));
         let without = Settings::parse(&sample().replace("anix=yes", "anix=no")).unwrap();
         assert!(!without.anix_enabled() && !without.configuration_nix().contains("anix.nix"));
@@ -246,9 +307,17 @@ mod layout_tests {
 
     #[test]
     fn settings_keep_their_two_space_indent() {
-        let out = Settings::parse(&super::tests::sample()).unwrap().abora_local_nix();
-        assert!(out.starts_with("{ pkgs, lib, config, ... }:\n{\n  abora.hostname = \"abora\";\n"), "{out}");
+        let out = Settings::parse(&super::tests::sample())
+            .unwrap()
+            .abora_local_nix();
+        assert!(
+            out.starts_with("{ pkgs, lib, config, ... }:\n{\n  abora.hostname = \"abora\";\n"),
+            "{out}"
+        );
         assert!(out.contains("\n\n  networking.networkmanager.enable = lib.mkForce true;\n  i18n.supportedLocales = [\n    \"${config.abora.locale}/UTF-8\"\n"));
-        assert!(out.ends_with("\n  users.users.root.hashedPassword = \"!\";\n}\n"), "{out}");
+        assert!(
+            out.ends_with("\n  users.users.root.hashedPassword = \"!\";\n}\n"),
+            "{out}"
+        );
     }
 }

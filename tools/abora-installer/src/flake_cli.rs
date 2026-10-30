@@ -79,7 +79,8 @@ pub fn run(raw: &[OsString]) -> Result<u8, String> {
             let target = option(&args[1..], "--target")?.unwrap_or_else(|| "/mnt".into());
             let text = flake::installed_flake_nix(&branch)?;
             let dir = Path::new(&target).join("etc/nixos");
-            fs::create_dir_all(dir.join("abora")).map_err(|e| format!("could not create {}: {e}", dir.display()))?;
+            fs::create_dir_all(dir.join("abora"))
+                .map_err(|e| format!("could not create {}: {e}", dir.display()))?;
             write_atomic(&dir.join("flake.nix"), &text)?;
             write_atomic(&dir.join("abora/nixos-release"), &format!("{branch}\n"))?;
             Ok(0)
@@ -87,7 +88,8 @@ pub fn run(raw: &[OsString]) -> Result<u8, String> {
         Some("audit") => {
             let mut found = false;
             for file in &args[1..] {
-                let text = fs::read_to_string(file).map_err(|e| format!("could not read {file}: {e}"))?;
+                let text =
+                    fs::read_to_string(file).map_err(|e| format!("could not read {file}: {e}"))?;
                 for line in flake::local_path_lines(&text) {
                     println!("{file}: {line}");
                     found = true;
@@ -238,7 +240,8 @@ mod engine_tests {
     }
 
     fn scratch(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("abora-flake-cli-{name}-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("abora-flake-cli-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
@@ -248,16 +251,39 @@ mod engine_tests {
     fn write_installed_writes_the_flake_and_the_release_marker() {
         let root = scratch("write");
         let target = root.to_str().unwrap();
-        assert_eq!(run_args(&["write-installed", "--branch", "nixos-26.05", "--target", target]).unwrap(), 0);
+        assert_eq!(
+            run_args(&[
+                "write-installed",
+                "--branch",
+                "nixos-26.05",
+                "--target",
+                target
+            ])
+            .unwrap(),
+            0
+        );
         let flake = fs::read_to_string(root.join("etc/nixos/flake.nix")).unwrap();
         assert!(flake.contains("github:NixOS/nixpkgs/nixos-26.05"));
-        assert_eq!(fs::read_to_string(root.join("etc/nixos/abora/nixos-release")).unwrap(), "nixos-26.05\n");
+        assert_eq!(
+            fs::read_to_string(root.join("etc/nixos/abora/nixos-release")).unwrap(),
+            "nixos-26.05\n"
+        );
         // Hostile branch names are refused before anything is written.
         let other = scratch("refuse");
-        let err = run_args(&["write-installed", "--branch", "x\"; evil", "--target", other.to_str().unwrap()]).unwrap_err();
+        let err = run_args(&[
+            "write-installed",
+            "--branch",
+            "x\"; evil",
+            "--target",
+            other.to_str().unwrap(),
+        ])
+        .unwrap_err();
         assert!(err.contains("not a NixOS release branch"), "{err}");
         assert!(!other.join("etc/nixos/flake.nix").exists());
-        assert!(run_args(&["write-installed", "--target", target]).is_err(), "--branch is required");
+        assert!(
+            run_args(&["write-installed", "--target", target]).is_err(),
+            "--branch is required"
+        );
         let _ = fs::remove_dir_all(root);
         let _ = fs::remove_dir_all(other);
     }
@@ -270,7 +296,10 @@ mod engine_tests {
         fs::write(&clean, "url = \"github:NixOS/nixpkgs/nixos-26.05\";\n").unwrap();
         fs::write(&dirty, "url = \"path:/etc/abora/nixpkgs\";\n").unwrap();
         assert_eq!(run_args(&["audit", clean.to_str().unwrap()]).unwrap(), 0);
-        assert_eq!(run_args(&["audit", clean.to_str().unwrap(), dirty.to_str().unwrap()]).unwrap(), 1);
+        assert_eq!(
+            run_args(&["audit", clean.to_str().unwrap(), dirty.to_str().unwrap()]).unwrap(),
+            1
+        );
         assert!(run_args(&["audit", dir.join("missing").to_str().unwrap()]).is_err());
         let _ = fs::remove_dir_all(dir);
     }
