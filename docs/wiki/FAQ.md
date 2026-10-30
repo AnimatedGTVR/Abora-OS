@@ -6,16 +6,23 @@ Abora OS is a distro project built on top of NixOS with a focus on a simpler fir
 
 ## Is Abora just NixOS?
 
-Abora is still NixOS-based, but it adds its own live image flow, installer experience, branding, update path, desktop profiles, support tools, ANIX workflows, and TinyPM-flavored app commands.
+Abora is still NixOS-based, but it adds its own live image flow, installer experience, branding, update path, desktop profiles, support tools, and ANIX workflows, including `anix package` for installing nixpkgs packages without a rebuild.
 
-## What is Abora OS v4.1 Horizon?
+## What is Abora OS v4.2 Solstice?
 
-Abora OS v4.1 Horizon is the current alpha release line. It builds on Everest with installer and update reliability work, community tools, a simplified ANIX language set, and first-class GPU support.
+Abora OS v4.2 Solstice is the current alpha release line: a safer, simpler Abora. `anix` becomes the one
+command (`abora` is its old name), system changes run as transactions that roll themselves back when they
+fail ([ASA](ASA.md)), `anix doctor` explains and repairs problems, `anix package install` replaces TinyPM,
+and the installer explains failures precisely. See [RELEASE_NOTES.md](../../RELEASE_NOTES.md).
+
+## What was Abora OS v4.1 Horizon?
+
+Abora OS v4.1 Horizon built on Everest with installer and update reliability work, community tools, a simplified ANIX language set, and first-class GPU support.
 
 Key additions over DENALI 3.14:
 
 - five edition ISOs (Cosmic, Hyprland, GNOME, KDE, Other) via `make iso-all`, instead of one general-purpose ISO
-- ANIX v2: configuration can be written in ANIX Native or ModuCPP, both resolving to the same Plan JSON — see `anix language list`
+- ANIX v2: configuration can be written in a `.anix` file (ANIX Native; ModuCPP was available in 4.0 and 4.1) that resolves to a Plan JSON — see `anix language list`
 - `abora.gpu` option and an installer GPU step: choose nouveau, nvidia, nvidia-open, amdgpu, intel, or none, with NVIDIA hardware auto-detected and defaulted to the license-free `nouveau` driver
 - `abora hardware-test` now points at the GPU step and `abora config set gpu` when it detects NVIDIA hardware
 
@@ -143,19 +150,11 @@ step will work as expected.
 
 ## How do I build the ISO?
 
-For quick Cosmic-edition testing:
-
 ```sh
 make iso
 ```
 
-For the full release set:
-
-```sh
-make iso-all
-```
-
-That builds Cosmic, Hyprland, GNOME, KDE Plasma, and Other Desktops editions.
+That builds the one universal installer ISO into `out/iso/`. You choose the desktop when you run the installer.
 
 Then boot it with:
 
@@ -169,32 +168,23 @@ After install, boot the virtual disk with:
 make qemu-disk
 ```
 
-## Does TinyPM v0.8 install permanent NixOS system packages?
+## What happened to TinyPM?
 
-TinyPM is part of the Abora ecosystem, but it is not a full replacement for declarative NixOS configuration.
-
-In Abora it provides two commands: `grab` for installing/removing/updating packages, and `tinypm` for search, info, checks, and diagnostics such as `tinypm doctor` and `tinypm providers`.
+TinyPM was removed in Abora OS 4.2 Solstice. `anix package install <pkg>` installs any nixpkgs package
+right away, from the same nixpkgs revision as your system and without editing `flake.nix`;
+`anix package add <pkg>` makes it part of the system config instead. Flatpak apps are `abora apps`. See
+[Packages](Packages.md) for the full TinyPM-to-ANIX mapping.
 
 ## Is Modularity available in Abora?
 
-Yes. Modularity is a game engine editor by Tareno Labs and is included in the Developer app bundle.
-
-Install it after setup:
-
-```sh
-grab modularity
-```
-
-Or select it from the Developer bundle during installation.
-
-Modularity is backed by a custom Nix derivation with PhysX, Vulkan, and Mono support built in.
-
-To update the standalone Modularity Stable payload without waiting for a full
-Abora release, download the Linux zip and run:
+Not as part of the OS since 4.2. Modularity (a game engine editor by Tareno Labs) used to be bundled and
+updated through a special zip helper. It installs like any other program now: from its GitHub flake,
 
 ```sh
-sudo abora apps custom update modularity-stable --zip ~/Downloads/Modularity-7.0.0-Linux.zip
+anix package install github:<owner>/<repo>
 ```
+
+and `anix package keep <name>` makes it part of the system. See [Packages](Packages.md).
 
 ## Where are the project docs?
 

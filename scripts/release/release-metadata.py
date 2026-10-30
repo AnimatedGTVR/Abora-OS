@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Generate release checksums, manifest and notes into out/release/.
 
-Reads ISOs from out/iso/ and TinyPM/ANIX packages from out/packages/, writes
+Reads ISOs from out/iso/ and the ANIX package from out/packages/, writes
 SHA256SUMS-<tag>.txt, RELEASE_MANIFEST-<tag>.txt and RELEASE_NOTES-<tag>.md,
 then prints the version tag.
 
 Environment overrides (empty counts as unset):
-  ABORA_RELEASE_NAME   release title (default "Abora OS v4.1 Horizon")
+  ABORA_RELEASE_NAME   release title (default "Abora OS v<VERSION> <RELEASE_CODENAME>")
   ABORA_OUT_DIR        output root (default <repo>/out)
   ABORA_ISO_DIR        default $ABORA_OUT_DIR/iso
   ABORA_PACKAGE_DIR    default $ABORA_OUT_DIR/packages
@@ -26,9 +26,9 @@ from datetime import datetime, timezone
 from fractions import Fraction
 from pathlib import Path
 
-from abora_release import as_tag, env, repo_root, sanitize
+from abora_release import RELEASE_CODENAME, as_tag, env, repo_root, sanitize
 
-DEFAULT_RELEASE_NAME = "Abora OS v4.1 Horizon"
+DEFAULT_RELEASE_NAME = f"Abora OS {{version}} {RELEASE_CODENAME}"  # {version} is "v<VERSION>"
 IEC_UNITS = ("K", "M", "G", "T", "P", "E", "Z", "Y")
 
 
@@ -90,7 +90,7 @@ def newest_iso_stamp(iso_dir: Path, tag: str) -> str | None:
 
 def package_files(package_dir: Path, tag: str) -> list[Path]:
     found = []
-    for name in ("tinypm", "anix"):
+    for name in ("anix",):
         pattern = re.compile(rf"{name}-.*-abora-{re.escape(tag)}\.tar\.gz")
         found += [p for p in visible_files(package_dir) if pattern.fullmatch(p.name)]
     return found
@@ -99,7 +99,7 @@ def package_files(package_dir: Path, tag: str) -> list[Path]:
 def main() -> int:
     repo = repo_root(__file__)
     tag = version_tag(repo)
-    release_name = env("ABORA_RELEASE_NAME") or DEFAULT_RELEASE_NAME
+    release_name = env("ABORA_RELEASE_NAME") or DEFAULT_RELEASE_NAME.format(version=tag)
     out_dir = Path(env("ABORA_OUT_DIR") or repo / "out")
     iso_dir = Path(env("ABORA_ISO_DIR") or out_dir / "iso")
     package_dir = Path(env("ABORA_PACKAGE_DIR") or out_dir / "packages")

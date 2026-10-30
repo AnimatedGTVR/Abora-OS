@@ -22,4 +22,5 @@
   ./herbstluftwm.nix
   ./cosmic.nix
   ./mangowm.nix
+  ./lumina.nix
 ]

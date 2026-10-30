@@ -75,13 +75,14 @@ The update helper:
 
 ## Channels
 
-Abora OS v4.1 Horizon is currently an alpha release line, so new installs
+Abora OS v4.2 Solstice is currently an alpha release line, so new installs
 default to `unstable`, which tracks the `edge` branch. `stable` remains
 available for final tagged releases and older installed systems.
 
-The Abora channel controls Abora project files. Abora v4.1 alpha tracks
-NixOS's rolling `nixos-unstable` package branch so desktop environments,
-drivers, and regular Nix apps move forward with `sudo abora update`.
+The Abora channel controls Abora project files. Which NixOS packages you get is a separate choice, the
+**NixOS release**: by default the rolling `nixos-unstable` branch, so desktop environments, drivers and
+regular Nix apps move forward with `sudo abora update`, or the stable release (see
+[Installation](Installation.md#choosing-the-nixos-release)). `abora update` keeps whichever you chose.
 
 Show the current channel:
 
@@ -99,13 +100,12 @@ Switch channels:
 
 ```sh
 sudo abora channel set stable
-sudo abora channel set demo
-sudo abora channel set unstable
+sudo abora channel set edge
 ```
 
 - `stable` tracks the latest tagged Abora release
-- `demo` tracks tagged demo/dev builds for the installed release line
-- `unstable` tracks the `edge` branch and is the v4.1 Horizon alpha default
+- there used to be `demo` and `dev` channels; they were removed in 4.2, and a system still saved on one follows `unstable`
+- `unstable` tracks the `edge` branch and is the v4.2 Solstice alpha default
 
 Abora's development branch is `edge`. If an older config or test command asks
 for `main`, use `edge` instead:
@@ -172,7 +172,7 @@ anix rollback nix
 - `anix save`: local `/etc/nixos` snapshot
 - `anix diff nix <profile>`: preview profile changes
 - `anix test nix <profile>`: test-activate a profile
-- `tinypm providers`: show app/package provider status
+- `anix package upgrade`: upgrade packages installed with `anix package install`
 
 ## Notes
 

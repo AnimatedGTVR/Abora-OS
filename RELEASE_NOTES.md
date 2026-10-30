@@ -1,3 +1,97 @@
+# Abora OS v4.2 Solstice
+
+**Draft.** Solstice is not released yet: the install, update and rollback matrix in
+[docs/next-release-plan.md](docs/next-release-plan.md) has to pass first.
+
+A safer, simpler Abora: one command instead of two, system changes that undo themselves when they fail, a
+doctor that explains and repairs, and an installer that says exactly what went wrong.
+
+Released: **<RELEASE DATE>** · Tag: `v4.2` · Channel: `stable`
+
+## Highlights
+
+- **`anix` is the one command.** Everything `abora` did is now `anix <command>`: `anix update`,
+  `anix doctor`, `anix apps`, `anix gaming`, `anix recovery`. `abora` still works as its old name, so
+  `abora update` and `anix update` are the same thing.
+- **Safe system changes (ASA).** `anix apply`, `anix config apply`, `anix apps` and `anix update` run as
+  transactions: checked, snapshotted, applied, verified, and rolled back to the previous generation and
+  config if anything fails, including a service that newly fails. `anix history` lists them; `anix undo <id>`
+  reverses one, and `anix undo --keep-edits <id>` brings back the edits a failed change rolled back. See [ASA](docs/wiki/ASA.md).
+- **`anix doctor`** checks the bootloader, Nix, the ANIX config, the update channel, the desktop and login
+  screen, the GPU driver, network and DNS, disk space and a read-only root, failed services and Flatpak,
+  explains each problem in plain language, and fixes what it safely can (`anix doctor repair`).
+  `anix doctor --json` is for bug reports, and support reports include it.
+- **Packages without a rebuild.** `anix package install <pkg>` installs any nixpkgs package right away,
+  from the exact nixpkgs your system is pinned to, without touching `flake.nix`. `anix package keep` makes
+  it part of the system. **TinyPM is removed**; see [Packages](docs/wiki/Packages.md) for the mapping.
+- **Installer failures you can act on.** Three kinds of "hash mismatch" are told apart (a damaged USB
+  stick or RAM, a changed download, an installer bug), a **What failed** block names the failed build, the
+  path and both hashes, and **Save logs to a USB drive** keeps the log through a reboot.
+- **A clearer timezone question**: UTC or Region/City in any case, and a city on its own lists matches.
+- **ModuCPP, MAKO and the bundled Modularity are removed.** ANIX Native (`.anix` files) is the language ANIX
+  ships. Software outside nixpkgs, Modularity included, installs from its GitHub flake with
+  `anix package install github:owner/repo`; `abora apps custom` is gone.
+- **Two update channels.** `demo` and `dev` are gone; there is `stable` and `edge`. A system still
+  saved on one of the old names (or on `unstable`) follows `edge` and says so. `anix channel set stable` for tagged releases.
+- **Less to keep.** The zenity dialogs, `anix ringtone` and the login sound, and unused images are removed.
+- **One installer.** The terminal installer, drawn with gum, is the only one. MINT and the GTK installer are
+  removed, and the live ISO is an installer only, with no live desktop session. One ISO, no editions:
+  you pick the desktop (COSMIC, GNOME, KDE Plasma, XFCE, Hyprland, Cinnamon, or none) while installing.
+- **A Minimal install.** One switch keeps the system lean (no duplicate terminals or browsers, no extras)
+  and offers a small desktop: IceWM, LXQt, Lumina, Niri, Sway, Fluxbox, Openbox, or your own.
+- **Bring your own NixOS flake.** The installer can install your flake with Abora's hardware and disk
+  layout wrapped around it, and `abora adopt-nixos` brings an existing NixOS system to Abora by adding
+  Abora as a flake input (`nixosModules.default`) instead of editing your `flake.nix`.
+- **Choose your NixOS release.** Follow stable (`nixos-26.05`) or unstable, at install time or later with
+  `anix nixos [stable|unstable]`. The updater keeps your choice.
+- **`grab`.** A standalone app installer that finds a program in Nix, Lix, Flatpak or Snap and installs it:
+  `grab zen-browser`. `grab info <app>` says where it would come from first.
+- **Zen replaces Firefox** as the default browser, installed from Flathub on first boot.
+- **Passwords stay out of the Nix store.** Password hashes are kept in `/var/lib/abora/secrets`, not in
+  `/etc/nixos`, which is copied into the world-readable store on every rebuild.
+- **A boot splash that shows.** The Abora logo appears while the system loads.
+- **A smaller installer, written to be tested.** The disk, flake and configuration steps run in a Rust
+  engine, with every value escaped for Nix in one place; the Bash screens call it. No .NET tools remain.
+  See [How the installer works](docs/wiki/Installer.md).
+- **`abora-trailer`**, an all-ASCII animation of the Abora logo and the release name, for videos and demos.
+
+## Fixed from DistroWatch's 4.0 review
+
+Thanks to **Jesse Smith of DistroWatch** for testing Abora OS 4.0 across several attempts and publishing
+direct, constructive criticism.
+
+| Issue | Status |
+| --- | --- |
+| Confusing release and version information | 4.1 aligned the names; 4.2 makes every shipped file derive its release name from one place and fails the build when one doesn't |
+| Manual partitioning | fixed in 4.1.1 |
+| Install failures with hash mismatches | diagnosis and logs improved (above); the 4.0 failure itself is **not yet reproduced** |
+| Timezone entry unclear | fixed (above) |
+| Live ISO layout (desktop editions boot to a TUI installer) | by design: Abora's live image is an installer, not a live desktop. Documented in [Installation](docs/wiki/Installation.md) |
+
+## Upgrading
+
+```
+sudo anix update
+```
+
+- **On 4.1 or 4.1.1:** one update is enough. The updater hands over to 4.2's own updater, which installs the
+  new files (ABT, the shared core) along with everything else.
+- **On 4.0:** run `sudo abora update` twice. The 4.0 updater can't hand over mid-update, so the first run
+  installs the newer updater and the second uses it.
+
+Release files, once published: `abora-<edition>-<stamp>-x86_64-v4.2.iso` for each edition, with
+`SHA256SUMS-v4.2.txt`. Check the ISO against it before writing the USB stick.
+
+## Known limitations
+
+- The install matrix (every edition, UEFI and BIOS, GPU choices) has not been run on 4.2 yet.
+- ABT can't protect a first install: there's no earlier generation to go back to.
+- The description line under a boot-menu entry (and `bootctl`) still names the NixOS release you follow, for example
+  "Abora OS Yarara 4.2 (Linux 6.x)". nixpkgs builds that text from a read-only option, so Abora cannot change it;
+  `/etc/os-release` and `/etc/lsb-release` say Abora's own name.
+
+---
+
 # Abora OS v4.1.1
 
 A small update to Horizon that fixes how `abora update` handles files.
@@ -39,7 +133,7 @@ No reinstall is needed, and the ISOs are only refreshed with the new version num
 
 # Abora OS v4.1 Horizon
 
-![Abora OS v4.1 Horizon](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/Images/v4.1-horizon-banner.png)
+![Abora OS v4.1 Horizon](https://raw.githubusercontent.com/Abora-OS/Abora-OS/edge/assets/Images/v4.1-horizon-banner.png)
 
 
 Abora OS v4.1 Horizon is the reliability-focused follow-up to Everest: a safer installer, corrected update and configuration paths, improved diagnostics, built-in community and learning tools, and a smaller ANIX language surface.
@@ -51,7 +145,7 @@ Released: **<RELEASE DATE>** · Tag: `v4.1` · Channel: `stable`
 ---
 # Highlights
 
-![Highlights](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/highlights_converted.gif)
+![Highlights](https://raw.githubusercontent.com/Abora-OS/Abora-OS/edge/assets/highlights_converted.gif)
 
 Horizon includes the Everest feature set and adds:
 
@@ -96,7 +190,7 @@ Every bundle is optional.
 
 # What's New
 
-![What's New](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/whatsnew_converted.gif)
+![What's New](https://raw.githubusercontent.com/Abora-OS/Abora-OS/edge/assets/whatsnew_converted.gif)
 
 ## Abora Labs
 
@@ -264,7 +358,7 @@ Horizon continues to include Limine, Plymouth, Abora wallpapers, light desktop d
 
 # Changes
 
-![Changes](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/Changes_converted.gif)
+![Changes](https://raw.githubusercontent.com/Abora-OS/Abora-OS/edge/assets/Changes_converted.gif)
 
 ## `abora update`
 
@@ -399,7 +493,7 @@ Along with:
 
 # Known Issues
 
-![Known Issues](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/KnownIssues_converted.gif)
+![Known Issues](https://raw.githubusercontent.com/Abora-OS/Abora-OS/edge/assets/KnownIssues_converted.gif)
 
 ## xone-dongle-firmware
 
@@ -472,7 +566,7 @@ before powering off.
 
 # Download
 
-![Download](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/download_converted.gif)
+![Download](https://raw.githubusercontent.com/Abora-OS/Abora-OS/edge/assets/download_converted.gif)
 
 Horizon ships in five editions:
 

@@ -38,20 +38,27 @@ def release_files(ctx: Context) -> None:
     if not ctx.result(bool(block) and not missing, name):
         ctx.detail("\n".join(f"missing from release-required-paths.txt: {path}" for path in missing))
 
+    # The updater already installed on 4.0/4.1 refuses a release missing any path in its own fixed list
+    # (legacy-required-paths.txt is a copy of it). A cleanup that deletes one strands every system on 4.1.
+    legacy = [line for line in ctx.path("scripts/release/legacy-required-paths.txt").read_text(encoding="utf-8").splitlines()
+              if line and not line.startswith("#")]
+    gone = [path for path in legacy if not ctx.path(path).exists()]
+    if not ctx.result(bool(legacy) and not gone, "runtime: every path the installed 4.1 updater requires still exists (so 4.1 can update to this release)"):
+        ctx.detail("\n".join(f"missing, and 4.1 systems would refuse to update: {path}" for path in gone))
+
     ctx.result(manifest_ok and Check(
-        "runtime: release manifest includes ANIX adapters, Modularity skeleton, and gaming layer",
+        "runtime: release manifest includes the ANIX adapter directory and gaming layer",
         *(grep("-q", f"^{path}$", REQUIRED_PATHS) for path in (
-            "assets/anix-languages", "nix/pkgs/moducpp-anix.nix", "tools/moducpp-anix", "scripts/abora-build.sh",
+            "assets/anix-languages", "scripts/abora-build.sh",
             "scripts/abora-adopt-nixos.sh", "scripts/abora-gaming.sh", "scripts/abora-custom-packages.sh",
             "assets/Abora-LOGO.png", "assets/Abora-Text.png", "docs/wiki/Abora-Gaming.md",
-            "docs/wiki/ANIX-V2-Languages.md", "docs/wiki/Updating-Abora.md", "vendor/modularity",
+            "docs/wiki/ANIX-V2-Languages.md", "docs/wiki/Updating-Abora.md",
         )),
         *(test("-f", path) for path in (
-            "assets/anix-languages/moducpp.json", "nix/pkgs/moducpp-anix.nix",
-            "tools/moducpp-anix", "vendor/modularity/README.md", "assets/Abora-LOGO.png", "assets/Abora-Text.png",
+            "assets/anix-languages/README.md", "assets/Abora-LOGO.png", "assets/Abora-Text.png",
             "scripts/abora-gaming.sh", "docs/wiki/Abora-Gaming.md",
         )),
-    ).conditions_hold(ctx), "runtime: release manifest includes ANIX adapters, Modularity skeleton, and gaming layer")
+    ).conditions_hold(ctx), "runtime: release manifest includes the ANIX adapter directory and gaming layer")
 
 
 def packages_and_metadata(ctx: Context, tag: str) -> None:
@@ -67,9 +74,7 @@ def packages_and_metadata(ctx: Context, tag: str) -> None:
         if packages:
             with tarfile.open(packages[0]) as archive:
                 listing.write_text("".join(f"{member.name}{'/' if member.isdir() else ''}\n" for member in archive.getmembers()))
-        ctx.result(bool(packages) and not ctx.grep("-q", "anix/share/anix/languages/mako.json", str(listing)) and all(ctx.grep("-q", entry, str(listing)) for entry in (
-            "anix/share/anix/languages/moducpp.json",
-            "anix/share/anix/tools/moducpp-anix",
+        ctx.result(bool(packages) and not ctx.grep("-q", "anix/share/anix/languages/moducpp.json", str(listing)) and not ctx.grep("-q", "anix/share/anix/tools/moducpp-anix", str(listing)) and all(ctx.grep("-q", entry, str(listing)) for entry in (
             "anix/share/anix/docs/wiki/ANIX-V2-Languages.md",
             "anix/share/anix/docs/wiki/Abora-Gaming.md",
         )), name)
@@ -77,9 +82,7 @@ def packages_and_metadata(ctx: Context, tag: str) -> None:
         out = work / "metadata"
         for directory in ("iso", "packages", "release"):
             (out / directory).mkdir(parents=True)
-        for edition in ("cosmic", "hyprland", "gnome", "kde", "other"):
-            (out / "iso" / f"abora-{edition}-test-x86_64-{tag}.iso").touch()
-        (out / "packages" / f"tinypm-v0.0.0-abora-{tag}.tar.gz").touch()
+        (out / "iso" / f"abora-test-x86_64-{tag}.iso").touch()
         (out / "packages" / f"anix-v0.0.0-abora-{tag}.tar.gz").touch()
         sums = out / "release" / f"SHA256SUMS-{tag}.txt"
         generated = subprocess.run(["scripts/release-metadata.py"], cwd=ctx.repo, env=_env(ABORA_OUT_DIR=str(out), ABORA_RELEASE_STAMP="test"), stdout=subprocess.DEVNULL)
@@ -88,26 +91,22 @@ def packages_and_metadata(ctx: Context, tag: str) -> None:
             and sums.is_file()
             and (out / "release" / f"RELEASE_MANIFEST-{tag}.txt").is_file()
             and (out / "release" / f"RELEASE_NOTES-{tag}.md").is_file()
-            and all(ctx.grep("-q", f"abora-{edition}-test-x86_64-{tag}.iso", str(sums)) for edition in ("cosmic", "hyprland", "gnome", "kde", "other"))
-            and ctx.grep("-q", f"tinypm-v0.0.0-abora-{tag}.tar.gz", str(sums))
+            and ctx.grep("-q", f"abora-test-x86_64-{tag}.iso", str(sums))
             and ctx.grep("-q", f"anix-v0.0.0-abora-{tag}.tar.gz", str(sums)),
-            "runtime: release-metadata checksum generation includes every edition",
+            "runtime: release-metadata checksum generation includes the universal ISO",
         )
 
         fallback = work / "fallback"
         for directory in ("iso", "packages", "release"):
             (fallback / directory).mkdir(parents=True)
-        for edition in ("cosmic", "gnome"):
-            (fallback / "iso" / f"abora-{edition}-2026.01.01-x86_64-{tag}.iso").touch()
-        for edition in ("cosmic", "hyprland", "gnome", "kde", "other"):
-            (fallback / "iso" / f"abora-{edition}-2026.07.27-x86_64-{tag}.iso").touch()
+        (fallback / "iso" / f"abora-2026.01.01-x86_64-{tag}.iso").touch()
+        (fallback / "iso" / f"abora-2026.07.27-x86_64-{tag}.iso").touch()
         fallback_sums = fallback / "release" / f"SHA256SUMS-{tag}.txt"
         generated = subprocess.run(["scripts/release-metadata.py"], cwd=ctx.repo, env=_env(ABORA_OUT_DIR=str(fallback)), stdout=subprocess.DEVNULL)
         ctx.result(
             generated.returncode == 0
             and fallback_sums.is_file()
-            and ctx.grep("-q", f"abora-cosmic-2026.07.27-x86_64-{tag}.iso", str(fallback_sums))
-            and ctx.grep("-q", f"abora-other-2026.07.27-x86_64-{tag}.iso", str(fallback_sums))
+            and ctx.grep("-q", f"abora-2026.07.27-x86_64-{tag}.iso", str(fallback_sums))
             and not ctx.grep("-q", "2026.01.01", str(fallback_sums)),
             "runtime: release-metadata falls back to newest local ISO stamp",
         )
@@ -123,24 +122,17 @@ def workflows(ctx: Context) -> None:
         "runtime: GitHub workflows publish generated release bundle paths",
         grep("-q", "out/iso/.*iso", ".github/workflows/build-iso.yml"),
         lambda c: c.grep("-q", "edge", stdin=c.grep_output("-A2", "branches:", ".github/workflows/build-iso.yml")),
-        lambda c: c.grep("-q", "edge", stdin=c.grep_output("-A2", "branches:", ".github/workflows/publish-tinypm-package.yml")),
         grep("-q", "edge only", ".github/workflows/flake-check.yml"),
-        grep("-q", "vendor/tinypm/Cargo.toml", ".github/workflows/publish-tinypm-package.yml"),
-        grep("-q", "out/packages/tinypm", ".github/workflows/build-iso.yml"),
         grep("-q", "out/packages/anix", ".github/workflows/build-iso.yml"),
         grep("-q", "out/release/SHA256SUMS", ".github/workflows/build-iso.yml"),
-        grep("-q", "out/packages/tinypm", ".github/workflows/release-iso.yml"),
         grep("-q", "out/packages/anix", ".github/workflows/release-iso.yml"),
         grep("-q", "out/release/RELEASE_NOTES", ".github/workflows/release-iso.yml"),
-        grep("-q", "Abora OS v4.1 Horizon (${tag})", ".github/workflows/release-iso.yml"),
     ).run(ctx)
     Check(
-        "runtime: TinyPM container builds the real Rust binaries",
-        grep("-q", "COPY --from=build /build/target/release/tinypm /usr/local/bin/tinypm", "packaging/tinypm/Dockerfile"),
-        grep("-q", "COPY --from=build /build/target/release/grab /usr/local/bin/grab", "packaging/tinypm/Dockerfile"),
-        grep("-q", "cargo build --release --locked", "packaging/tinypm/Dockerfile"),
-        test("-f", "vendor/tinypm/Cargo.toml"),
-        test("-f", "vendor/tinypm/src/bin/grab.rs"),
+        "runtime: TinyPM is gone from the build, packaging and workflows (removed in 4.2)",
+        lambda c: not (c.repo / "vendor/tinypm").exists(),
+        lambda c: not (c.repo / ".github/workflows/publish-tinypm-package.yml").exists(),
+        lambda c: not c.grep("-qi", "tinypm", ".github/workflows/build-iso.yml", ".github/workflows/release-iso.yml", "Makefile"),
     ).run(ctx)
 
 

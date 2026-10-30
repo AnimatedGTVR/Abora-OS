@@ -1,6 +1,6 @@
 # Installation
 
-This page covers the normal Abora OS install flow for v2.5+ through Abora OS v4.1 Horizon.
+This page covers the normal Abora OS install flow for v2.5+ through Abora OS v4.2 Solstice.
 
 Horizon can optionally install the Abora Labs workspace manager. Leave it off
 for a normal product installation. Enabling it does not download Labs during
@@ -28,7 +28,7 @@ When the ISO starts, Abora should take over `tty1` and launch the live boot flow
 The live image should:
 
 - start NetworkManager
-- open the guided installer (MINT, see below)
+- open the installer (see below)
 - allow Wi-Fi setup through `nmtui` or `nmcli`
 - provide a fallback live shell if the installer exits
 
@@ -47,8 +47,8 @@ The first screen also has **Debug installer**, which can tail
 `abora support-report` archive before any disk is touched.
 
 Advanced users who want to compile Abora themselves can open **Build from
-source** for the clone/check/build commands (`make doctor`, `make iso`, and
-`make iso-all`) and then jump into a terminal.
+source** for the clone/check/build commands (`make doctor` and
+`make iso`) and then jump into a terminal.
 
 If you are compiling from a GitHub checkout manually, the current short build
 target is:
@@ -71,21 +71,25 @@ prompt. Two accounts exist for exactly that case:
 
 ## Installer Flow
 
-The default guided installer is **MINT** (`mint abora install`), a small Go/Bubble Tea front-end that walks through every step and then hands the confirmed plan to the existing bash installer (`abora-installer.sh`) as its backend — the bash installer never went away, it's just the execution layer now instead of the thing you interact with directly. Run it manually with:
+Abora has one installer: a terminal UI (`abora-installer.sh`, menus drawn with
+[gum](https://github.com/charmbracelet/gum)). The live ISO starts it on `tty1`; from a live shell, run
+`abora-install`. The live ISO is an installer only: desktop editions set which desktop gets installed, and
+there's no live desktop session.
 
-```sh
-mint abora install --tty --pre-alpha
-```
-
-The flow is a step-by-step wizard, not a single linear pass — every screen (edition, hostname, timezone, disk layout, and so on) can be backed out of with `Esc` or the `← Back` list entry, re-showing the previous screen with whatever you already typed still filled in. Screens show a "Step X of Y" indicator so it's clear how far along you are.
+Menus have a **Back** entry where a choice can be changed, and nothing is written to disk before the final review.
 
 The current flow includes:
 
 - network setup
 - hostname, username, keyboard, and password setup
-- timezone selection: pick a region first (Americas, Europe, Africa, Asia, Australia & Oceania, or UTC), then search the real IANA timezones within it — states/regions with more than one zone (Indiana's eight, for example) all show up individually
+- timezone: typed, with suggestions (see [Typing a timezone](#typing-a-timezone))
 - desktop profile selection
 - starter app bundle selection
+- install style: **Standard** (Zen browser, Flatpak, the welcome and settings apps, wallpapers) or **Minimal**
+  (sets `abora.minimal = true`). Minimal asks the style before the desktop and offers light desktops: None, IceWM,
+  LXQt, XFCE, Lumina, Niri, Sway, Fluxbox, Openbox, or **Custom** for every desktop Abora supports. It installs no
+  browser, no Flatpak and no extra apps, and only the Titlis Alps wallpaper. Window managers without a terminal get
+  xterm instead of Konsole.
 - optional dotfiles import for Hyprland and Other Environment installs
 - ANIX and GitHub options
 - disk selection
@@ -93,17 +97,116 @@ The current flow includes:
 - generated-config validation before `nixos-install`
 - install progress and clear logs
 
-Prefer the older bash-only flow instead of MINT? Pass `--batch` (or `--reconfig`/`-r`) to the installer launcher:
+For scripted installs, pass `--batch`; to reconfigure an installed system, `--reconfig` (or `-r`):
 
 ```sh
 abora-install --batch
 ```
 
-Or run the bash installer directly, bypassing the MINT/backend choice entirely:
+### Browser and terminal
+
+The default browser is [Zen](https://zen-browser.app). It isn't in nixpkgs, so it installs from Flathub once, on the first
+boot with a network, and Flathub keeps it updated. If you remove it, it stays removed. `abora.browser = "firefox";` installs
+Firefox from nixpkgs instead, and `"none"` installs no browser.
+
+Each desktop uses its own terminal (GNOME Console, COSMIC Terminal, Konsole, xfce4-terminal, ...). Konsole is installed
+only for the window managers that don't come with one.
+
+### Choosing the NixOS release
+
+The installer asks which NixOS package set the system follows:
+
+- **Unstable (rolling)** is `nixos-unstable`: the newest software and desktops. The ISO is built from it, so
+  it installs offline. This is the default.
+- **Stable** (currently NixOS 26.05 "Yarara"): steadier, with security and bug fixes only. It needs internet
+  while installing, because the stable packages aren't on the ISO. The installer locks the branch at install
+  time, so you start on the latest fixes rather than the ISO's build date.
+
+Switch later with `anix nixos`:
 
 ```sh
-abora-installer
+anix nixos            # which release the system follows
+anix nixos stable     # or: anix nixos unstable
+anix apply            # rebuild with it
 ```
+
+Switching edits the `nixpkgs` input of `/etc/nixos/flake.nix`, relocks it, and remembers the choice in
+`/etc/nixos/abora/nixos-release`, so `abora update` keeps you on it. Going to stable moves some packages back
+to older versions; programs that already upgraded their data may not read it. A failed `anix apply` rolls
+back on its own. `anix nixos` won't touch a `flake.nix` you wrote yourself. Batch installs set
+`nixos_release=stable` in the params file.
+
+### Installing your own NixOS flake
+
+After network setup the installer asks what to install: **Abora OS**, or **My own NixOS flake**. The second
+installs your NixOS configuration instead of Abora's. Abora still handles the disk, the hardware and the
+password; your configuration decides everything else (desktop, packages, users, bootloader).
+
+1. Enter the flake, for example `github:you/nixos-config#laptop`. GitHub, GitLab, SourceHut, `git+https://`,
+   `git+ssh://` and `https://` work. The part after `#` names the `nixosConfigurations` entry; leave it out
+   to pick from a list. Local paths are refused because the installed system couldn't find them again, so
+   push the flake somewhere first. For a private repository, set up a key from **Open terminal**, then use `git+ssh://`.
+2. The installer evaluates the configuration **before touching any disk** and refuses it if:
+   - it isn't `x86_64-linux`
+   - it enables no bootloader
+   - its bootloader doesn't match how this machine boots (systemd-boot on a BIOS machine, or BIOS-only GRUB on a UEFI one)
+   - it needs a BIOS-boot partition the chosen disk mode won't create
+
+   It warns about other mounts, such as `/home` on a disk that isn't in this machine, because boot would stop in
+   emergency mode waiting for them. Fix and push the configuration, then choose **Check again**.
+3. Choose the disk as usual (erase or dual-boot), and a password. Users your configuration leaves without a
+   password get this one. Users that already have one keep it.
+
+The installed `/etc/nixos/flake.nix` is a small wrapper. It takes your configuration as the input `config` and
+adds `abora-machine.nix`, which imports `hardware-configuration.nix` and sets `/` and `/boot` to the partitions
+the installer created. Rebuild with `sudo nixos-rebuild switch --flake /etc/nixos#abora`. To pick up new commits
+of your configuration, run `sudo nix flake update config --flake /etc/nixos` first. To rebuild from your own repo
+instead, copy `abora-machine.nix` and `hardware-configuration.nix` into it and import `abora-machine.nix` from
+that host, or the machine won't find its disks (see `/etc/nixos/README-abora.md`).
+
+Abora's own tools (`abora`, `anix`, updates) are not part of such an install unless your configuration imports them.
+
+Batch installs set `config_source=flake`, `flake_url` and `flake_host` in the params file.
+
+### Typing a timezone
+
+The installer asks for the timezone as text. It accepts
+`UTC`, or an IANA `Region/City` name such as `Europe/Berlin`, `America/New_York` or `Asia/Tokyo`, in any
+capitalization. The common US abbreviations (`EST`, `PST`, `Eastern`, ...) work too. A city on its own, such
+as `Berlin` or `new york`, lists the matching names to choose from instead of being rejected.
+
+## If The Install Fails
+
+The installer stops, says why in plain language ("Likely cause"), and shows a **What failed** block with
+the exact failing build, the path whose hash didn't match, and the expected and actual hashes. The same
+lines, plus the build log of the failed package (`nix log`), go into `/tmp/abora-install.log`.
+
+`/tmp` is lost when the live system reboots, so keep the log first:
+
+- **Save logs to a USB drive** in the failure menu copies the install log, the config log and a redacted
+  support report onto any FAT, exFAT, NTFS or ext4 USB stick (not the Abora install stick itself).
+- If the target disk was already mounted, a copy is also written to its root as
+  `abora-install-failed-<date>.log`.
+- From the live shell: `abora support-report --output-dir /path/to/usb`.
+
+A hash mismatch can mean three different things, and the "Likely cause" line says which:
+
+| What the log says | What it usually means | What to do |
+| --- | --- | --- |
+| `hash mismatch importing path`, `NAR hash mismatch in input 'path:/nix/store/...'`, `is corrupt` | a package copied from the USB stick (or the cache) was damaged | check the ISO against `SHA256SUMS`, write the USB stick again or use another, run a memory test |
+| `hash mismatch in fixed-output derivation`, or a `github:` input | a pinned download changed upstream, or something on the network altered it | try again on another network; report it with the log if it repeats |
+| `NAR hash mismatch in input path:/mnt/etc/nixos` | an installer bug | report it with the log |
+
+`unable to download ... Failed sending data to the peer` (or `HTTP error 416`) in the log means the network
+dropped connections under the installer's 32 parallel downloads. Nix then falls back to compiling, which is
+what produces the confusing hash mismatch on a core package such as `xz`. On a weak connection, or a VM behind
+a user-mode NAT, start the installer with fewer connections:
+
+```sh
+ABORA_INSTALL_HTTP_CONNECTIONS=8 ABORA_INSTALL_SUBSTITUTION_JOBS=8 abora-install
+```
+
+Installing the stable NixOS release downloads about 5 GiB, so it is the install most likely to hit this.
 
 ## Existing NixOS Systems
 
@@ -117,13 +220,13 @@ updates an existing checkout) and hands off to the real wizard, which asks
 a couple of questions and shows the exact plan before touching anything:
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/scripts/abora-adopt-bootstrap.sh | bash
+curl -sSL https://raw.githubusercontent.com/Abora-OS/Abora-OS/edge/scripts/abora-adopt-bootstrap.sh | bash
 ```
 
 That's equivalent to cloning yourself and running the wizard directly:
 
 ```sh
-git clone https://github.com/AnimatedGTVR/Abora-OS.git
+git clone https://github.com/Abora-OS/Abora-OS.git
 cd Abora-OS
 ./abora adopt-nixos
 ```
@@ -142,6 +245,34 @@ sudo nixos-rebuild switch
 The command writes a backup under `/etc/nixos/abora-backups/` before changing
 anything.
 
+### If your NixOS config is a flake
+
+Add Abora as a flake input instead. Nothing is copied into `/etc/nixos`, and Abora updates come with
+`nix flake update abora`:
+
+```nix
+{
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.abora.url = "github:Abora-OS/Abora-OS";
+
+  outputs = { nixpkgs, abora, ... }: {
+    nixosConfigurations.laptop = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ./configuration.nix
+        abora.nixosModules.default
+        # Optional, same choices as the wizard:
+        # { abora.desktop = "gnome"; abora.gaming.enable = true; }
+      ];
+    };
+  };
+}
+```
+
+This is the same adoption the wizard does: your users, homes and desktop are kept, `abora.desktop` defaults to
+`"none"`, and setting `abora.user.name` hands that user to Abora. Then run
+`sudo nixos-rebuild switch --flake .#laptop`.
+
 ## After Install
 
 When installation finishes:
@@ -152,7 +283,7 @@ When installation finishes:
 4. confirm networking works
 5. run `abora doctor`
 6. run `anix quickstart`
-7. run `tinypm providers`
+7. run `anix package list`
 8. run `sudo abora update` when ready to test updates
 
 The installed system is intentionally lean. Extra diagnostics, VM guest agents,
@@ -168,8 +299,7 @@ abora doctor
 anix status
 anix doctor
 anix --gui
-tinypm doctor
-tinypm providers
+anix package list
 ```
 
 For tiling desktop installs, you can import dotfiles again or test a local

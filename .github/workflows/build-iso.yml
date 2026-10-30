@@ -89,7 +89,6 @@ jobs:
           name: abora-${{ steps.version.outputs.tag }}-${{ github.run_number }}
           path: |
             out/iso/*-${{ steps.version.outputs.tag }}.iso
-            out/packages/tinypm-*-abora-${{ steps.version.outputs.tag }}.tar.gz
             out/packages/anix-*-abora-${{ steps.version.outputs.tag }}.tar.gz
             out/release/SHA256SUMS-${{ steps.version.outputs.tag }}.txt
             out/release/RELEASE_MANIFEST-${{ steps.version.outputs.tag }}.txt

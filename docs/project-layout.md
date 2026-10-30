@@ -1,6 +1,6 @@
 # Project Layout
 
-This is the quick map of the Abora OS repo for the Abora OS v4.1 Horizon release.
+This is the quick map of the Abora OS repo for the Abora OS v4.2 Solstice release.
 
 ## Top Level
 
@@ -10,6 +10,52 @@ This is the quick map of the Abora OS repo for the Abora OS v4.1 Horizon release
 - `LICENSE`: project license
 - `Makefile`: command entrypoint for building, checking, QEMU testing, and releasing
 - `flake.nix` and `flake.lock`: Nix flake entrypoint and pinned dependencies
+
+## Architecture
+
+Abora is six layers. Each lives in its own place, and a layer only calls the ones below it in this table.
+
+| Layer | Where | Language | What it is |
+| --- | --- | --- | --- |
+| CLI | `scripts/core/anix.sh` (`anix`; `abora.sh` is its old name) | Shell | the one user-facing command; routes Abora system commands to their tools |
+| GUI | `scripts/*/*-gui.py` (welcome, config, gaming, feedback) | Python (GTK4) | front-ends; every action is also a CLI command |
+| Safety and recovery (ASA) | `scripts/safety/` (ABT), `scripts/support/` (doctor, recovery, support report) | Python | transactions, health checks and repairs ([ASA](wiki/ASA.md)) |
+| Tools | `scripts/apps/`, `scripts/config/`, `scripts/support/abora-update.sh` | Shell, Python | apps, settings, desktops, updates |
+| Installer | `scripts/install/` (the TUI, drawn with gum), `tools/abora-installer/` (launcher and disk engine: `abora-installer disk erase/existing/mount`) | Shell, Rust | live boot, install, adopt an existing NixOS |
+| System config | `nix/` | Nix | the live ISO and the installed system |
+
+Shared code today: `scripts/core/abora-ui.sh` for shell (UI, `abora_abt_prefix`) and
+`scripts/support/abora_core.py` for Python (UI, redaction).
+
+### Languages
+
+Abora's tools are mostly shell and Python today. They are being split up by job, starting after 4.2:
+
+| Language | Job | Rule of thumb |
+| --- | --- | --- |
+| **Rust** | anything that can damage the system: the installer's partitioning engine, ABT, `anix`'s config editing | if a bug could brick or wipe a machine, Rust |
+| **Go** | anything that talks to the network or the user, and read-only diagnostics: the updater, the doctor's checks, the support report, plan validation, the installer's screens | otherwise, Go |
+| **Nix** | system config | |
+| **Shell** | glue only: wrappers at the old `/etc/abora/*.sh` paths, systemd units, one-line launchers | no logic, no data structures |
+| **Python** | the existing GTK apps, until they are ported | no new tools |
+
+Not used: C#/.NET (removed in 4.2: the plan tool is Rust now, and the update resolver's job is done by the Vanta
+`abora-update`), and Java/Kotlin (a JVM is too heavy for an installer or
+recovery tool). Zig and C++ are allowed only where a job clearly needs them (for example Pancake, the desktop
+environment planned for Abora). Isora is a separate project (a sandboxed language for game mods) and is not part of
+the system.
+
+Two constraints apply to every port. Systems already installed call tools by their old names (`/etc/abora/doctor.sh`,
+`anix.sh`, ...), so each port keeps a thin shell wrapper at the old path. And a compiled tool has to be built, not
+copied, so Abora needs a binary cache or users compile on `anix update`.
+
+### Stable, new, and experimental
+
+| Status | What |
+| --- | --- |
+| **Stable** | the installer TUI, the desktop profiles, `anix` config/profiles/snapshots/rollback, `abora update`, `abora apps`, the support tools |
+| **New in 4.2** (alpha until the [release gate](next-release-plan.md#release-gate) passes) | `anix` as the one command, `anix package install`, the whole-system `anix doctor`, ABT transactions |
+| **Experimental** (not part of the installed system unless chosen) | Abora Labs (`automation/abora_labs`, opt-in at install), `experiments/` (language comparisons, never shipped), ANIX v2 languages beyond ANIX Native and ModuCPP |
 
 ## Main Directories
 
@@ -78,11 +124,11 @@ Important files:
 - `scripts/abora-desktop-profiles.sh`: supported desktop profile definitions
 - `scripts/abora-session-setup.sh`: first-session defaults
 - `scripts/support/`: doctor, recovery, welcome, support report, full check, and hardware test (Python)
+- `scripts/safety/`: ABT, the transaction engine of ASA (`abora-abt`)
 - `scripts/check-scripts.py`: repo script and runtime sanity checks
 - `scripts/check-all-files.py`: broad syntax, links, YAML, JSON, and docs sweep
 - `scripts/check-desktops.py`: evaluates every supported desktop profile
 - `scripts/build-iso.py`: ISO-only build path
-- `scripts/package-tinypm.py`: TinyPM release package path
 - `scripts/release-metadata.py`: checksums, manifest, and release notes
 - `scripts/run-qemu.py`: QEMU ISO, fresh-disk, disk-only, and serial helpers
 
@@ -90,7 +136,6 @@ Important files:
 
 Vendored external code that Abora uses directly.
 
-- `vendor/tinypm/`: TinyPM v0.8 Rust crate source, built into the `tinypm` and `grab` binaries shipped system-wide
 
 ## Generated Output
 
@@ -101,7 +146,7 @@ Generated build output. Do not treat this as source.
 It can contain:
 
 - `out/iso/`: built ISO files
-- `out/packages/`: TinyPM release tarballs and other generated packages
+- `out/packages/`: the ANIX release tarball and other generated packages
 - `out/release/`: checksum files, release manifests, and generated release notes
 - `out/qemu/`: QEMU disks and firmware state
 - `out/logs/`: QEMU serial logs and build logs

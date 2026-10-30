@@ -11,7 +11,7 @@ rustPlatform.buildRustPackage {
 
   meta = with lib; {
     description = "Abora OS installer front controller";
-    homepage = "https://github.com/AnimatedGTVR/Abora-OS";
+    homepage = "https://github.com/Abora-OS/Abora-OS";
     license = licenses.mit;
     platforms = platforms.linux;
     mainProgram = "abora-installer";

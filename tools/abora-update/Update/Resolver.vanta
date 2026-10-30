@@ -126,8 +126,8 @@ pub func Resolve(
     if channel == "pre-alpha" || channel == "prealpha" {
         return Found(preAlphaRef, "pre-alpha build requested explicitly");
     }
-    if channel == "unstable" {
-        return Found("edge", "unstable channel tracks edge");
+    if channel == "edge" || channel == "unstable" {
+        return Found("edge", "edge channel tracks nightly builds");
     }
     if channel == "demo" || channel == "dev" {
         return DemoChannel(tags, currentVersion);

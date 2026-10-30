@@ -5,14 +5,43 @@ This page is the fast path when an Abora install boots but something is wrong.
 ## First Checks
 
 ```sh
-abora doctor
-abora logs --lines 200
-abora network
+anix doctor              # check the whole system and explain what's wrong
+anix doctor repair       # list the fixes for what it found
+anix logs --lines 200
+anix network
 anix status
-anix doctor
-anix --gui
-tinypm doctor
 ```
+
+## Doctor
+
+`anix doctor` (or `abora doctor`, the same thing) checks:
+
+| Area | What it looks at |
+| --- | --- |
+| Abora files | `flake.nix`, `abora-local.nix`, and the tools in `/etc/abora` |
+| Bootloader | UEFI or BIOS, the EFI partition mounted at `/boot`, free space on it |
+| Nix | `nix` and `nixos-rebuild`, `flake.lock`, the Nix daemon |
+| ANIX config | `anix.nix`, flake evaluation, the snapshot Git repo |
+| Updates | the update channel |
+| Desktop | the desktop profile, and whether the login screen started |
+| GPU | which GPU is installed, `abora.gpu`, and whether that driver is loaded |
+| Network | a network connection and working DNS |
+| Disk | a read-only root filesystem, free space for the next update |
+| Services | failed systemd units |
+| Apps | Flatpak and Flathub |
+
+Every problem comes with an explanation, and most come with a fix:
+
+```sh
+anix doctor repair                 # what can be fixed, and the exact command each fix runs
+anix doctor repair gc-generations  # run one (it asks first)
+anix doctor repair rebuild --yes   # without asking
+```
+
+A fix only ever runs an ordinary Abora, ANIX or NixOS command, shown before it runs. For a bug report,
+`anix doctor --json` prints the same findings as JSON, and `anix support-report` includes it as
+`doctor.json`. `anix doctor --fix` still creates missing ANIX config basics (`anix.nix`, the snapshot
+repo).
 
 ## Roll Back
 
@@ -71,8 +100,8 @@ Reboot when ready.
 ## Repair App Sources
 
 ```sh
-tinypm doctor
-tinypm providers
+abora apps          # Flatpak / Flathub setup
+anix package list   # Nix packages installed without a rebuild
 ```
 
 If Flatpak is the issue:

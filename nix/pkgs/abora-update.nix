@@ -41,13 +41,13 @@ stdenvNoCC.mkDerivation {
   installCheckPhase = ''
     runHook preInstallCheck
     ${vanta}/bin/vanta run ${updateSrc}/tests.vanta
-    test "$("$out/bin/abora-update" resolve-ref --channel unstable --current-version 4.0)" = "$(printf 'edge\tunstable channel tracks edge')"
+    test "$("$out/bin/abora-update" resolve-ref --channel edge --current-version 4.0)" = "$(printf 'edge\tedge channel tracks nightly builds')"
     runHook postInstallCheck
   '';
 
   meta = with lib; {
     description = "Vanta core of abora update: channel resolution and downgrade guard";
-    homepage = "https://github.com/AboraOS-Project/Abora-Labs";
+    homepage = "https://github.com/Abora-OS/Abora-OS";
     license = licenses.gpl3Plus;
     platforms = platforms.linux;
     mainProgram = "abora-update";

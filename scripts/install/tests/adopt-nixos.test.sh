@@ -13,7 +13,7 @@ adopt_help_out="$(scripts/abora-adopt-nixos.sh --help 2>&1)"
 
 if printf '%s' "$adopt_help_out" | grep -q 'abora adopt-nixos' \
   && printf '%s' "$adopt_help_out" | grep -q 'without erasing /home' \
-  && ./abora --help | grep -q 'abora adopt-nixos' \
+  && ./abora --help | grep -q 'anix adopt-nixos' \
   && grep -q 'abora.user.name = null;' scripts/abora-adopt-nixos.sh \
   && grep -q 'desktop="none"' scripts/abora-adopt-nixos.sh \
   && grep -q 'abora-backups' scripts/abora-adopt-nixos.sh \
@@ -36,8 +36,8 @@ fi
 # that had drifted, missing ~15 required files/dirs including
 # adopt-nixos.sh itself, plus a destination-name bug (wallpaper-themes
 # instead of the themes name installed-base.nix actually looks for) and a
-# missing-parent-directory bug in copy_if_exists() (vendor/modularity and
-# tools/moducpp-anix both failed to copy: "cp: cannot create directory").
+# missing-parent-directory bug in copy_if_exists() (nested destinations like
+# vendor/x failed to copy: "cp: cannot create directory").
 # `sudo abora adopt-nixos --apply` followed by its own documented next
 # step (`sudo nixos-rebuild test`) could not have completed a real
 # adoption before this fix, regardless of the configuration.nix fixes

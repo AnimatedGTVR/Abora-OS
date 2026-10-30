@@ -4,12 +4,11 @@ Use this after a local release build or after the GitHub ISO workflow succeeds.
 
 ## Build Output
 
-- run `make iso` for quick Cosmic ISO validation
-- run `make iso-all` to build Cosmic, Hyprland, GNOME, KDE, and Other edition ISOs
+- run `make iso` to build the universal installer ISO
 - run `make release` only when preparing the full release bundle
-- verify the edition ISOs exist in `out/iso/`
+- verify the ISO exists in `out/iso/` (`abora-<date>-x86_64-<version>.iso`)
 - verify the checksum in `out/release/SHA256SUMS-<version>.txt`
-- confirm `out/release/RELEASE_MANIFEST-<version>.txt` matches every published ISO plus the TinyPM and ANIX packages
+- confirm `out/release/RELEASE_MANIFEST-<version>.txt` matches every published ISO plus the ANIX package
 - confirm each artifact name and ISO filename match the intended version
 
 ## Repository Checks
@@ -20,16 +19,15 @@ Use this after a local release build or after the GitHub ISO workflow succeeds.
 - run `./scripts/check-desktops.py`
 - confirm `docs/screenshots.md` matches the current installer flow
 - confirm the setup launcher files are tracked by Git so flakes can include them
-- confirm `make -n iso` builds the default Cosmic ISO
-- confirm `make -n iso-all` builds all five edition ISOs
-- confirm `make -n release` runs all edition ISOs, TinyPM package, ANIX package, and metadata steps
-- confirm the GitHub ISO workflow publishes the edition ISOs and the release workflow uploads the smaller artifacts from `out/packages/` and `out/release/`
+- confirm `make -n iso` builds the installer ISO
+- confirm `make -n release` runs the ISO, the ANIX package, and metadata steps
+- confirm the GitHub ISO workflow publishes the ISO and the release workflow uploads the smaller artifacts from `out/packages/` and `out/release/`
 
 ## Live Boot
 
 - boot the ISO in a VM with `make qemu-fresh`
 - confirm the live boot flow takes over `tty1`
-- confirm MINT renders with color and shows the packaged Abora logo
+- confirm the installer TUI renders with color and shows the packaged Abora logo
 - confirm NetworkManager is running before the network step
 - confirm `nmtui` opens from the installer
 - confirm Fastfetch shows the Abora logo in the live shell
@@ -65,15 +63,14 @@ Use this after a local release build or after the GitHub ISO workflow succeeds.
 
 ## ANIX Language Gate
 
-- confirm `anix language list` shows ANIX Native and ModuCPP, with no built-in MAKO adapter
-- confirm `.moducpp` examples still use `add ANIX;`
-- confirm `tools/moducpp-anix` is executable and included in the ANIX package
+- confirm `anix language list` shows ANIX Native only (ModuCPP and MAKO were removed in 4.2)
+- confirm `scripts/release/legacy-required-paths.txt` still passes: every path the installed 4.1 updater requires exists
 - confirm the standalone ANIX package includes `docs/wiki/Abora-Gaming.md`
 
 ## Release Gate
 
 - if tagging from GitHub, review the draft release created by the workflow
-- if install test passes, publish all edition ISOs, checksums, manifest, release notes, TinyPM package, and ANIX package
+- if install test passes, publish the ISO, checksums, manifest, release notes, and the ANIX package
 - if install test fails, do not publish; fix the blocker first
 
 ## Last-Minute Failure Triage

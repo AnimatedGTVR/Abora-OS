@@ -12,6 +12,16 @@ import re
 
 from .core import Check, grep, no_match, not_, test
 
+
+def _adopt_layout() -> list[str]:
+    """Every "source:installed-name" pair abora-adopt-nixos.sh copies."""
+    from pathlib import Path
+    script = Path(__file__).resolve().parents[3] / "scripts/install/abora-adopt-nixos.sh"
+    text = script.read_text(encoding="utf-8")
+    pairs = re.findall(r'^copy_if_exists "\$repo_dir/([^"]+)" "\$abora_dir/([^"]+)"$', text, re.M)
+    pairs += re.findall(r'^  "([^":]+):([^"]+)"(?: \\|; do)$', text, re.M)
+    return [f"{src}:{dest}" for src, dest in pairs]
+
 CHECKS: tuple[Check, ...] = (
     Check(
         'runtime: desktop session setup has a systemd fallback for non-XDG-autostart sessions',
@@ -60,17 +70,21 @@ CHECKS: tuple[Check, ...] = (
     ),
     Check(
         'runtime: installer bounds destructive disk commands and device settling',
-        grep('-q', '^run_disk_command()', 'scripts/abora-installer.sh'),
-        grep('-q', 'timeout --signal=TERM --kill-after=5s', 'scripts/abora-installer.sh'),
-        grep('-q', 'udevadm settle --timeout="$seconds"', 'scripts/abora-installer.sh'),
-        grep('-q', 'run_disk_command 30 wipefs -af "$disk"', 'scripts/abora-installer.sh'),
-        grep('-q', 'run_disk_command 120 mkfs.ext4 -F -L ABORA_ROOT', 'scripts/abora-installer.sh'),
+        grep('-q', '^disk_engine()', 'scripts/abora-installer.sh'),
+        grep('-q', 'disk_engine erase "$disk"', 'scripts/abora-installer.sh'),
+        grep('-Fq', 'Command::new("timeout")', 'tools/abora-installer/src/system.rs'),
+        grep('-Fq', '"--kill-after=5s"', 'tools/abora-installer/src/system.rs'),
+        grep('-Fq', '"udevadm", "settle", "--timeout=15"', 'tools/abora-installer/src/disk.rs'),
+        grep('-Fq', 'host.run(30, argv)?', 'tools/abora-installer/src/disk.rs'),
+        grep('-Fq', '&["wipefs", "-af", disk]', 'tools/abora-installer/src/disk.rs'),
+        grep('-Fq', 'host.run(120, &["mkfs.ext4", "-F", "-L", ROOT_LABEL', 'tools/abora-installer/src/disk.rs'),
     ),
     Check(
         'runtime: installer validates reused ESPs and registers the selected EFI partition',
-        grep('-q', '^check_existing_esp()', 'scripts/abora-installer.sh'),
-        grep('-q', '536870912', 'scripts/abora-installer.sh'),
-        grep('-q', 'check_existing_esp "$target_esp" || return 1', 'scripts/abora-installer.sh'),
+        grep('-q', '^pub fn check_esp(', 'tools/abora-installer/src/disk.rs'),
+        grep('-q', 'MIN_ESP_BYTES: u64 = 536_870_912', 'tools/abora-installer/src/disk.rs'),
+        grep('-Fq', 'check_esp(host, esp)?;', 'tools/abora-installer/src/disk.rs'),
+        grep('-Fq', 'disk_engine existing "$disk" --root "$target_partition" --esp "$target_esp"', 'scripts/abora-installer.sh'),
         grep('-q', 'lsblk -dnro PARTN "$efi_part"', 'scripts/abora-installer.sh'),
         grep('-q', '--', '--part "$efi_part_num"', 'scripts/abora-installer.sh'),
         not_(grep('-q', '--', '--part 2', 'scripts/abora-installer.sh')),
@@ -79,8 +93,7 @@ CHECKS: tuple[Check, ...] = (
         'runtime: installer preflight checks release lock and offline package assets',
         grep('-q', 'target-flake.lock', 'nix/profiles/live.nix'),
         grep('-q', '/etc/abora/target-flake.lock', 'scripts/abora-installer.sh'),
-        grep('-q', '/etc/abora/pkgs/abora-update-resolver-deps.json', 'scripts/abora-installer.sh'),
-        grep('-q', '/etc/abora/pkgs/abora-plan-tool-deps.json', 'scripts/abora-installer.sh'),
+        grep('-q', '/etc/abora/plan-tool/Cargo.lock', 'scripts/abora-installer.sh'),
     ),
     Check(
         'runtime: Rust installer front controller is packaged and wired into the live ISO',
@@ -88,8 +101,60 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'mod cli;', 'tools/abora-installer/src/main.rs'),
         grep('-q', 'mod install;', 'tools/abora-installer/src/main.rs'),
         grep('-q', 'mod runner;', 'tools/abora-installer/src/main.rs'),
+        grep('-q', 'mod disk;', 'tools/abora-installer/src/main.rs'),
+        grep('-q', 'ABORA_INSTALLER_BIN', 'tools/abora-installer/src/runner.rs'),
         grep('-q', 'abora-installer = final.callPackage ./nix/pkgs/abora-installer.nix', 'flake.nix'),
         grep('-q', 'pkgs.abora-installer}/bin/abora-installer --legacy-script /etc/abora/installer.sh', 'nix/profiles/live.nix'),
+    ),
+    Check(
+        'runtime: installer can install a user flake, checked before any disk is touched',
+        grep('-q', 'mod flake;', 'tools/abora-installer/src/main.rs'),
+        grep('-Fq', 'pub fn judge(', 'tools/abora-installer/src/flake.rs'),
+        grep('-Fq', 'extendModules', 'tools/abora-installer/src/flake.rs'),
+        grep('-q', '^release_config_source()', 'scripts/abora-installer.sh'),
+        grep('-Fq', 'flake_engine judge --uefi', 'scripts/abora-installer.sh'),
+        grep('-Fq', 'install_from_flake', 'scripts/abora-installer.sh'),
+        grep('-q', 'Installing your own NixOS flake', 'docs/wiki/Installation.md'),
+    ),
+    Check(
+        'static: installs carry no duplicate terminal/browser, and minimal installs stay lean',
+        grep('-Fq', 'needsFallbackTerminal = graphical && !(nativeTerminals ? ${desktop});', 'nix/modules/installed-base.nix'),
+        grep('-Fq', 'lib.optional (needsFallbackTerminal && !minimal) kdePackages.konsole', 'nix/modules/installed-base.nix'),
+        grep('-Fq', 'cp ${wallpaperDir}/${minimalWallpaper} ', 'nix/modules/installed-base.nix'),
+        grep('-Fq', 'printf \'%s\\n\' none icewm lxqt xfce lumina niri sway fluxbox openbox', 'scripts/abora-installer.sh'),
+        grep('-Fq', 'system=${system.pkgs.stdenv.hostPlatform.system}', 'scripts/abora-installer.sh'),
+        not_(grep('-Eq', '^    (firefox|starship|xterm|kdePackages.konsole)$', 'nix/modules/installed-base.nix')),
+        grep('-Fq', 'flatpak install --system --noninteractive --or-update flathub ${zenFlatpak}', 'nix/modules/installed-base.nix'),
+        grep('-Fq', 'services.flatpak.enable = lib.mkDefault (!minimal);', 'nix/modules/installed-base.nix'),
+        grep('-Fq', 'type = lib.types.enum [ "zen" "firefox" "none" ];', 'nix/modules/abora-options.nix'),
+        grep('-Fq', 'abora.minimal = {minimal};', 'tools/abora-installer/src/nixcfg.rs'),
+    ),
+    Check(
+        'static: nixosModules.default lays out every file abora adopt-nixos copies',
+        grep('-Fq', 'default = import ./nix/modules/abora-flake.nix { inherit self nixpkgs; };', 'flake.nix'),
+        grep('-Fq', 'abora.nixosModules.default', 'scripts/abora-adopt-nixos.sh'),
+        *(grep('-Fq', f'"{pair}"', 'nix/modules/abora-flake.nix') for pair in _adopt_layout()),
+        fail_name='nix/modules/abora-flake.nix must list every file abora-adopt-nixos.sh copies',
+    ),
+    Check(
+        'runtime: grab is packaged and travels with installs and updates',
+        grep('-q', 'abora-grab = final.callPackage ./nix/pkgs/abora-grab.nix', 'flake.nix'),
+        grep('-q', '"abora/grab".source = ../../tools/abora-grab;', 'nix/profiles/live.nix'),
+        grep('-q', 'lib.optional (pkgs ? abora-grab) pkgs.abora-grab', 'nix/modules/installed-base.nix'),
+        grep('-q', 'cp -a /etc/abora/grab/. ', 'scripts/abora-installer.sh'),
+        grep('-q', 'copy_upstream_dir "$upstream_dir/tools/abora-grab" "$abora_dir/grab"', 'scripts/abora-update.sh'),
+        test('-f', 'tools/abora-grab/Cargo.lock'),
+        grep('-q', '^## grab', 'docs/wiki/Packages.md'),
+    ),
+    Check(
+        'runtime: the NixOS release (stable or unstable) is chosen in the installer, kept by the updater and switched by anix',
+        grep('-Eq', '^nixos-[0-9]{2}\\.[0-9]{2}$', 'NIXOS_STABLE'),
+        grep('-q', '"abora/nixos-stable".source = ../../NIXOS_STABLE;', 'nix/profiles/live.nix'),
+        grep('-q', '^release_nixos()', 'scripts/abora-installer.sh'),
+        grep('-q', 'abora/nixos-release', 'scripts/abora-installer.sh'),
+        grep('-q', 'nixos-release', 'scripts/abora-update.sh'),
+        grep('-q', '^do_nixos()', 'scripts/anix.sh'),
+        grep('-q', '^### Choosing the NixOS release', 'docs/wiki/Installation.md'),
     ),
     Check(
         'runtime: abora.gpu accepts legacy/batch auto values as a no-op',
@@ -129,7 +194,7 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'resolve_helper abora-gaming.sh', 'scripts/abora.sh'),
         grep('-q', 'exec abora-update channel "$@"', 'scripts/abora.sh'),
         not_(grep('-q', 'ABORA_UPDATE_COMMAND=nixos abora-update channel', 'scripts/abora.sh')),
-        grep('-q', 'abora channel set <stable|demo|unstable>', 'scripts/abora-update.sh'),
+        grep('-q', 'abora channel set <stable|edge>', 'scripts/abora-update.sh'),
     ),
     Check(
         'runtime: updater can fall back between edge and main branches',
@@ -158,33 +223,28 @@ CHECKS: tuple[Check, ...] = (
         fail_name='runtime: NixOS modules must use pkgs.makeDesktopItem, not xdg.desktopEntries',
     ),
     Check(
-        'runtime: ModuCPP manifest matches examples and MAKO is not shipped',
-        grep('-q', '"id": "moducpp"', 'assets/anix-languages/moducpp.json'),
-        grep('-q', '".moducpp"', 'assets/anix-languages/moducpp.json'),
-        grep('-q', '".mcpp"', 'assets/anix-languages/moducpp.json'),
-        grep('-q', '"command": \\["moducpp-anix"\\]', 'assets/anix-languages/moducpp.json'),
-        grep('-q', 'add ANIX;', 'examples/anix-v2/simple.moducpp'),
-        grep('-q', 'add ANIX;', 'examples/anix-v2/workstation.moducpp'),
+        'runtime: MAKO and ModuCPP are gone (removed in 4.2): no manifests, examples, or tool wiring',
+        not_(test('-e', 'assets/anix-languages/moducpp.json')),
         not_(test('-e', 'assets/anix-languages/mako.json')),
+        no_match('examples/anix-v2/*.moducpp'),
         no_match('examples/anix-v2/*.mko'),
+        not_(grep('-rqi', 'moducpp-anix', 'nix', 'flake.nix', 'scripts/install', 'scripts/support/abora-update.sh')),
     ),
     Check(
-        'runtime: release docs describe multi-edition, ANIX, and gaming flow',
+        'runtime: release docs describe ANIX and gaming flow',
         grep('-q', 'sudo abora update', 'docs/wiki/FAQ.md'),
-        grep('-q', 'make iso-all', 'docs/wiki/Building-Abora.md'),
         grep('-q', 'abora build --from-source', 'docs/wiki/Building-Abora.md'),
         grep('-q', 'nix build .#nixosConfigurations.abora.config.system.build.toplevel', 'docs/wiki/Building-Abora.md'),
         grep('-q', 'ANIX standalone tarball', 'docs/wiki/Building-Abora.md'),
-        grep('-q', 'abora-cosmic-', 'RELEASE_NOTES.md'),
         grep('-q', 'ANIX standalone package', 'RELEASE_NOTES.md'),
         grep('-q', 'Abora Gaming', 'RELEASE_NOTES.md'),
         grep('-q', 'abora hardware-test', 'RELEASE_NOTES.md'),
-        grep('-q', 'abora gaming status', 'README.md'),
-        grep('-q', 'abora gaming install steam', 'README.md'),
+        grep('-q', 'abora gaming status', 'docs/wiki/Abora-Gaming.md'),
+        grep('-q', 'abora gaming install steam', 'docs/wiki/Abora-Gaming.md'),
         grep('-q', 'abora gaming doctor', 'scripts/abora.sh'),
         grep('-q', 'abora gaming repair-cache', 'scripts/abora.sh'),
-        grep('-q', 'abora gaming doctor', 'nix/modules/installed-base.nix'),
-        grep('-q', 'abora gaming repair-cache', 'nix/modules/installed-base.nix'),
+        grep('-Eq', '(abora|anix) gaming doctor', 'nix/modules/installed-base.nix'),
+        grep('-Eq', '(abora|anix) gaming repair-cache', 'nix/modules/installed-base.nix'),
         grep('-q', 'abora gaming steam on', 'RELEASE_NOTES.md'),
         grep('-q', 'abora gaming install wine winetricks', 'RELEASE_NOTES.md'),
         grep('-q', 'Wine and Winetricks', 'RELEASE_NOTES.md'),
@@ -206,7 +266,7 @@ CHECKS: tuple[Check, ...] = (
         not_(grep('-q', 'abora-support-report', 'DISCORD_CHANGELOG.md')),
         grep('-q', 'abora support-report', 'docs/install-checklist.md'),
         grep('-q', 'sudo abora update', 'docs/wiki/Abora-Tools.md'),
-        grep('-q', 'sudo abora update', 'nix/modules/installed-base.nix'),
+        grep('-Eq', 'sudo (abora|anix) update', 'nix/modules/installed-base.nix'),
     ),
     Check(
         'runtime: installer first screen exposes terminal, debug, and source-build tools',
@@ -219,7 +279,7 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'abora hardware-test --with-report', 'scripts/abora-installer.sh'),
         grep('-q', 'abora build --from-source', 'scripts/abora-installer.sh'),
         grep('-q', 'nixosConfigurations.abora.config.system.build.toplevel', 'scripts/abora-installer.sh'),
-        grep('-q', 'make iso-all', 'scripts/abora-installer.sh'),
+        grep('-q', 'the universal installer ISO', 'scripts/abora-installer.sh'),
         grep('-q', 'check_install_environment live', 'scripts/abora-installer.sh'),
         grep('-q', 'check_install_environment final', 'scripts/abora-installer.sh'),
         grep('-q', 'Selected install values will be checked after disk and user setup', 'scripts/abora-installer.sh'),
@@ -249,36 +309,39 @@ CHECKS: tuple[Check, ...] = (
         'runtime: installer copies ANIX language adapters',
         grep('-q', '/etc/abora/anix-languages', 'scripts/abora-installer.sh'),
         grep('-q', 'etc/nixos/abora/anix-languages', 'scripts/abora-installer.sh'),
-        grep('-q', '/etc/abora/pkgs/moducpp-anix.nix', 'scripts/abora-installer.sh'),
-        grep('-q', 'etc/nixos/abora/pkgs/moducpp-anix.nix', 'scripts/abora-installer.sh'),
-        grep('-q', '"abora/pkgs/moducpp-anix.nix"', 'nix/profiles/live.nix'),
         grep('-q', '"abora/anix-languages".source = anixLanguagesDir', 'nix/modules/installed-base.nix'),
-        grep('-q', 'moducpp-anix = final.callPackage ./pkgs/moducpp-anix.nix', 'nix/modules/installed-base.nix'),
     ),
-    # Regression test: a real fresh install (reproduced by actually running the
-    # installer through nixos-install in QEMU, not just static review) failed
-    # with "path '/mnt/etc/nixos/abora/pkgs/abora-update-resolver-deps.json'
-    # does not exist" -- nix/pkgs/abora-update-resolver.nix's/abora-plan-tool.nix's
-    # `nugetDeps = ./abora-*-deps.json;` is a path relative to wherever the .nix
-    # file itself ends up, so the deps.json has to be shipped and copied
-    # alongside its .nix file at every hop (live ISO -> installed target ->
-    # later abora update syncs), not just the .nix file itself.
+    # Regression test: a real fresh install once failed with "path
+    # '/mnt/etc/nixos/abora/pkgs/abora-update-resolver-deps.json' does not exist":
+    # a package's lock file is read relative to wherever its .nix file ends up,
+    # so it has to travel with the tool at every hop (live ISO -> installed
+    # target -> later abora update syncs). The plan tool's Cargo.lock lives in
+    # its source directory, which every hop copies whole.
     Check(
-        'runtime: installer and updater ship nugetDeps json alongside the C# tool .nix files',
-        grep('-q', '"abora/pkgs/abora-update-resolver-deps.json".source = ../pkgs/abora-update-resolver-deps.json', 'nix/profiles/live.nix'),
-        grep('-q', '"abora/pkgs/abora-plan-tool-deps.json".source = ../pkgs/abora-plan-tool-deps.json', 'nix/profiles/live.nix'),
-        grep('-q', 'cp_required /etc/abora/pkgs/abora-update-resolver-deps.json', 'scripts/abora-installer.sh'),
-        grep('-q', 'cp_required /etc/abora/pkgs/abora-plan-tool-deps.json', 'scripts/abora-installer.sh'),
-        grep('-q', 'copy_upstream_file "$upstream_dir/nix/pkgs/abora-update-resolver-deps.json"', 'scripts/abora-update.sh'),
-        grep('-q', 'copy_upstream_file "$upstream_dir/nix/pkgs/abora-plan-tool-deps.json"', 'scripts/abora-update.sh'),
+        'runtime: installer and updater ship the plan tool with its Cargo.lock',
+        grep('-Fq', 'cargoLock.lockFile = toolSrc + "/Cargo.lock";', 'nix/pkgs/abora-plan-tool.nix'),
+        test('-f', 'tools/abora-plan-tool/Cargo.lock'),
+        grep('-q', '"abora/plan-tool".source = ../../tools/abora-plan-tool', 'nix/profiles/live.nix'),
+        grep('-q', 'cp -a /etc/abora/plan-tool/. ', 'scripts/abora-installer.sh'),
+        grep('-q', 'copy_upstream_dir "$upstream_dir/tools/abora-plan-tool"', 'scripts/abora-update.sh'),
+        grep('-Fq', 'tools/abora-plan-tool/Cargo.lock', 'scripts/abora-update.sh'),
+    ),
+    # 4.0/4.1 updaters refuse a release without the old resolver's files, and a
+    # rolled-back older installed-base.nix may still call its .nix: the
+    # placeholder forwards to abora-update (same CLI) instead of failing.
+    Check(
+        'runtime: the removed C# tools leave only legacy placeholders behind',
+        grep('-Fq', 'exec abora-update "$@"', 'nix/pkgs/abora-update-resolver.nix'),
+        not_(grep('-q', 'buildDotnetModule', 'nix/pkgs/abora-update-resolver.nix', 'nix/pkgs/abora-plan-tool.nix')),
+        not_(grep('-q', 'abora-update-resolver', 'flake.nix', 'nix/profiles/live.nix', 'nix/modules/installed-base.nix')),
+        not_(test('-e', 'tools/abora-plan-tool/AboraPlanTool.csproj')),
+        not_(test('-e', 'nix/pkgs/abora-plan-tool-deps.json')),
     ),
     Check(
-        'runtime: installed systems tolerate either Abora startup sound filename',
-        grep('-q', 'effectsAudioFile', 'nix/modules/installed-base.nix'),
-        grep('-q', 'builtins.pathExists ./effects/v3StartingAbora.mp3', 'nix/modules/installed-base.nix'),
-        grep('-q', 'builtins.pathExists ./effects/LaunchingAbora.mp3', 'nix/modules/installed-base.nix'),
-        grep('-q', '/etc/abora/effects/LaunchingAbora.mp3', 'scripts/abora-installer.sh'),
-        grep('-q', 'assets/Effects/LaunchingAbora.mp3', 'scripts/abora-update.sh'),
+        'runtime: the startup sound is gone (removed in 4.2): no ringtone command, no login sound, no sound files',
+        not_(grep('-rqiE', 'ringtone|launch_sound|ANIX_SOUND_FILE|v3StartingAbora', 'scripts/core', 'scripts/config', 'nix', 'scripts/install', 'scripts/support/abora-update.sh')),
+        not_(test('-e', 'assets/Effects/v3StartingAbora.mp3')),
+        test('-e', 'assets/Effects/LaunchingAbora.mp3'),
     ),
     Check(
         'runtime: installed systems expose dotfiles import and source build helper',
@@ -298,8 +361,6 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', '/etc/abora/desktops', 'scripts/abora-installer.sh'),
         grep('-q', '/etc/abora/wallpapers', 'scripts/abora-installer.sh'),
         grep('-q', '/etc/abora/themes', 'scripts/abora-installer.sh'),
-        grep('-q', '/etc/abora/vendor/modularity', 'scripts/abora-installer.sh'),
-        grep('-q', 'etc/nixos/abora/vendor/modularity', 'scripts/abora-installer.sh'),
         grep('-q', 'cp -a /etc/abora/wallpapers/.', 'scripts/abora-installer.sh'),
         grep('-q', 'cp -a /etc/abora/themes/.', 'scripts/abora-installer.sh'),
         grep('-q', '../../assets/wallpapers/collection', 'nix/modules/abora-options.nix'),
@@ -313,7 +374,7 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', '/etc/abora/docs/wiki/ANIX-V2-Languages.md', 'scripts/abora-installer.sh'),
         grep('-q', '/etc/abora/docs/wiki/Abora-Gaming.md', 'scripts/abora-installer.sh'),
         grep('-q', '/etc/abora/docs/wiki/Updating-Abora.md', 'scripts/abora-installer.sh'),
-        grep('-q', 'for doc in ANIX-V1 ANIX-V2-Languages TinyPM Abora-Tools Abora-Gaming Recovery Updating-Abora', 'scripts/abora-installer.sh'),
+        grep('-q', 'for doc in ANIX-V1 ANIX-V2-Languages Packages Abora-Tools Abora-Gaming Recovery Updating-Abora', 'scripts/abora-installer.sh'),
     ),
     Check(
         'runtime: diagnostics include dotfiles import log',
@@ -361,8 +422,8 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', '^write_pending_gaming_plan()', 'scripts/abora-installer.sh'),
         grep('-q', 'deferred Abora Gaming package activation until first boot', 'scripts/abora-installer.sh'),
         grep('-q', 'install_gaming_enabled="no"', 'scripts/abora-installer.sh'),
-        grep('-q', 'abora.gaming.steam = ${gaming_steam_nix};', 'scripts/abora-installer.sh'),
-        grep('-q', 'abora.gaming.vulkanTools = ${gaming_vulkan_nix};', 'scripts/abora-installer.sh'),
+        grep('-q', 'abora.gaming.steam = {g_steam};', 'tools/abora-installer/src/nixcfg.rs'),
+        grep('-q', 'abora.gaming.vulkanTools = {g_vk};', 'tools/abora-installer/src/nixcfg.rs'),
         grep('-q', 'set_nix_bool_assignment "$abora_local" "abora.gaming.steam"', 'scripts/abora-installer.sh'),
         grep('-q', 'set_nix_bool_assignment "$abora_local" "abora.gaming.vulkanTools"', 'scripts/abora-installer.sh'),
     ),
@@ -394,7 +455,6 @@ CHECKS: tuple[Check, ...] = (
         'runtime: Nix ANIX package bundles v2 language support and gaming docs',
         grep('-q', 'dontBuild = true;', 'nix/pkgs/anix.nix'),
         grep('-q', 'jq', 'nix/pkgs/anix.nix'),
-        grep('-q', 'moducpp-anix', 'nix/pkgs/anix.nix'),
         grep('-q', 'ANIX_SYSTEM_LANGUAGE_DIR', 'nix/pkgs/anix.nix'),
         grep('-q', 'assets/anix-languages', 'nix/pkgs/anix.nix'),
         grep('-q', 'Abora-Gaming.md', 'nix/pkgs/anix.nix'),
@@ -509,8 +569,11 @@ CHECKS: tuple[Check, ...] = (
     # Same fixed-file guarantee for the installer's own first-time creation
     # path (abora-installer.sh, not the config-migration path above).
     Check(
-        'runtime: installer chmods a freshly-created abora-local.nix to 0600',
-        grep('-q', 'chmod 0600 "\\${cfgdir}/abora-local.nix"', 'scripts/abora-installer.sh'),
+        'runtime: installer keeps password hashes out of /etc/nixos (and so out of the Nix store)',
+        grep('-Fq', 'abora.user.hashedPasswordFile = \"{secrets}/user.hash\";', 'tools/abora-installer/src/nixcfg.rs'),
+        grep('-Fq', 'install -d -m 0700 "${root}${secrets_dir}"', 'scripts/abora-installer.sh'),
+        not_(grep('-Fq', 'abora.user.hashedPassword = "${user_password_hash}";', 'scripts/abora-installer.sh')),
+        grep('-Fq', 'hashedPasswordFile = lib.mkIf (cfg.user.hashedPasswordFile != null)', 'nix/modules/abora-options.nix'),
     ),
     # Static check for the self-elevation guard itself (abora-config.sh, right
     # after local_module is defined): a non-owning, non-root user reading a
@@ -552,19 +615,6 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'write_anix_gaming_dependencies', 'scripts/anix.sh'),
         grep('-q', 'gaming.bigPictureAutostart', 'scripts/anix.sh'),
     ),
-    # Regression test: abora-custom-packages.sh's install_modularity_zip() hard
-    # requires unzip ("unzip is required to install Modularity Stable", exit 1
-    # otherwise) to run `abora apps custom update modularity-stable --zip
-    # <file>`, a real documented feature (abora.sh's own help text, this
-    # script's usage). unzip was never declared in installed-base.nix's
-    # environment.systemPackages, so on a genuinely clean install this feature
-    # would fail every time with no way to fix it short of installing unzip
-    # out of band. Static check since this is a package-declaration fact, not
-    # behavior to execute.
-    Check(
-        'runtime: installed-base.nix declares unzip (required by abora apps custom update --zip)',
-        grep('-qE', '^\\s*unzip\\s*$', 'nix/modules/installed-base.nix'),
-    ),
     # Regression test: scripts/abora-setup.desktop is installed identically on
     # both the live ISO and every installed system (nix/modules/installed-base.nix),
     # but commit 15dc9ec89453f5e376cc8c97d3bb06485c072d4f changed its Name/Comment
@@ -587,7 +637,6 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'local synced_ui="\\$config_dir/abora/ui.sh"', 'scripts/abora-update.sh'),
         grep('-q', 'ABORA_UI_LIB="\\${synced_ui}"', 'scripts/abora-update.sh'),
         grep('-q', 'resolve_resolver_bin()', 'scripts/abora-update.sh'),
-        grep('-q', 'tools/abora-update-resolver/bin/Debug/net10.0/abora-update-resolver', 'scripts/abora-update.sh'),
         grep('-q', 'resolver_bin="$(resolve_resolver_bin)"', 'scripts/abora-update.sh'),
         grep('-q', 'abora-update-build.log', 'scripts/abora-update.sh'),
         grep('-q', 'Checking the new Abora system', 'scripts/abora-update.sh'),

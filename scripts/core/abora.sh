@@ -23,6 +23,25 @@ resolve_helper() {
     return 1
 }
 
+# `abora` and `anix` are permanent, equal entry points. ANIX is the recommended
+# interface, while `abora` preserves the familiar command users already know.
+# This file carries the Abora system commands (anix routes them here), and
+# hands everything else, including help and learn, to anix. On the
+# installed system `anix` is a wrapper that sets ANIX_SYSTEM_CONFIG, so
+# prefer it over running anix.sh directly.
+forward_to_anix() {
+    if [[ -n "${ABORA_FROM_ANIX:-}" ]]; then
+        return 1
+    fi
+    if command -v anix >/dev/null 2>&1; then
+        exec anix "$@"
+    fi
+    if [[ -f "$script_dir/anix.sh" ]]; then
+        exec bash "$script_dir/anix.sh" "$@"
+    fi
+    return 1
+}
+
 show_learn() {
     cat <<'EOF'
 Abora quick start
@@ -50,8 +69,7 @@ Change the system:
 Apps and extras:
   abora apps catalog                  see app bundles
   sudo abora apps bundle gaming       install a curated app bundle
-  abora apps custom list              list standalone custom packages
-  sudo abora apps custom update modularity-stable --zip ~/Downloads/Modularity.zip
+  anix package install <package>      install any nixpkgs package right away
   abora labs status                    inspect the opt-in experimental workspace
 
 Gaming:
@@ -88,7 +106,7 @@ Abora commands:
   abora welcome         first-boot welcome and quick actions
   abora welcome-gui     graphical first-steps and update-check app
   abora doctor          check Abora system health
-  abora check-full      collect full ANIX, TinyPM, desktop, driver, and Nix logs
+  abora check-full      collect full ANIX, package, desktop, driver, and Nix logs
   abora build --from-source
                         clone/use source and build Abora with Nix
   abora adopt-nixos     add Abora to an existing NixOS install without wiping
@@ -105,7 +123,6 @@ Abora commands:
   abora gaming          gaming layer status and Steam Big Picture helper
   abora labs            opt-in Abora Labs experimental workspace manager
   abora apps            install curated apps
-  abora apps custom     update standalone custom packages
   abora config          view or edit installed-system settings
   abora config-gui      graphical settings editor
   abora update          update Abora
@@ -225,7 +242,7 @@ EOF
 }
 
 create_github_issue() {
-    local repo="${ABORA_ISSUE_REPO:-AnimatedGTVR/Abora-OS}"
+    local repo="${ABORA_ISSUE_REPO:-Abora-OS/Abora-OS}"
     local title=""
     local body_file=""
     local tmp_body=""
@@ -272,7 +289,7 @@ Create a GitHub issue with the Abora bug report template using the GitHub CLI.
 
 Options:
   --title TEXT            Issue title. If omitted, Abora prompts for one.
-  --repo OWNER/REPO       Target repository. Default: AnimatedGTVR/Abora-OS
+  --repo OWNER/REPO       Target repository. Default: Abora-OS/Abora-OS
   --body-file FILE        Use an existing issue body file.
   --with-support-report   Create a support archive and mention its path.
   --web                   Open the issue in the browser before submitting.
@@ -363,7 +380,7 @@ EOF
 
 case "${1:-help}" in
     learn|cheatsheet|commands)
-        show_learn
+        forward_to_anix learn || show_learn
         ;;
     apps)
         shift
@@ -412,7 +429,13 @@ case "${1:-help}" in
         ;;
     doctor)
         shift
-        exec abora-doctor "$@"
+        if command -v abora-doctor >/dev/null 2>&1; then
+            exec abora-doctor "$@"
+        fi
+        # A checkout has it as support/abora-doctor.py, and as the
+        # scripts/abora-doctor.sh compatibility link.
+        helper="$(resolve_helper abora-doctor.py 2>/dev/null || resolve_helper abora-doctor.sh)"
+        exec python3 "$helper" "$@"
         ;;
     check-full)
         shift
@@ -542,9 +565,11 @@ EOF
         exec abora-update install "$@"
         ;;
     help|--help|-h|"")
-        show_help
+        forward_to_anix help || show_help
         ;;
     *)
+        # anix status, anix set, anix apply, ... all work as abora <command>.
+        forward_to_anix "$@" || true
         printf 'Unknown Abora command: %s\n' "$1" >&2
         exit 1
         ;;

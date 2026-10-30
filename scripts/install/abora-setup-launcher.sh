@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Abora OS Setup Launcher
-# Launched from the desktop app menu. The live ISO uses the MINT-powered TUI
-# installer. On an installed system it opens the TUI reconfiguration flow.
+# Launched from the desktop app menu. The live ISO runs the installer TUI
+# (abora-installer.sh, drawn with gum). On an installed system it opens the TUI reconfiguration flow.
 
 set -euo pipefail
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_url="${ABORA_REPO_URL:-https://github.com/AnimatedGTVR/Abora-OS.git}"
-repo_urls="${ABORA_REPO_URLS:-$repo_url https://github.com/AboraProject/Abora-OS.git}"
+repo_url="${ABORA_REPO_URL:-https://github.com/Abora-OS/Abora-OS.git}"
+# Only URLs the project owns (see abora-update.sh): the Abora-OS organization, then the old home.
+repo_urls="${ABORA_REPO_URLS:-$repo_url https://github.com/AnimatedGTVR/Abora-OS.git}"
 repo_ref="${ABORA_REPO_REF:-edge}"
 default_checkout="${ABORA_SOURCE_DIR:-${HOME:-/tmp}/Abora-OS}"
 target="${ABORA_BUILD_TARGET:-.#nixosConfigurations.abora.config.system.build.toplevel}"

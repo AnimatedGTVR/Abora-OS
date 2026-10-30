@@ -11,7 +11,7 @@
 # written or `sudo` is invoked.
 set -euo pipefail
 
-repo_url="${ABORA_REPO_URL:-https://github.com/AnimatedGTVR/Abora-OS.git}"
+repo_url="${ABORA_REPO_URL:-https://github.com/Abora-OS/Abora-OS.git}"
 repo_ref="${ABORA_REPO_REF:-edge}"
 clone_dir="${ABORA_CLONE_DIR:-$HOME/Abora-OS}"
 

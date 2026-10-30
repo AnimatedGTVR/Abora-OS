@@ -8,37 +8,61 @@ from .core import Check, Context, grep, not_
 SELF_EXCLUDES = ("--exclude=static_manual.py",)
 
 
+# Every Abora release codename so far. A shipped file naming any of them with a version other than this
+# tree's own (VERSION + abora_release.RELEASE_CODENAME) is the drift that left 4.0 saying 4.1 and 4.1.1
+# saying 4.1: the website, ISO, installer and docs disagreeing about which release this is.
+CODENAMES = ("Denali", "Everest", "Horizon", "Solstice")
+SHIPPED = ("scripts", "nix", ".github")
+
+
 def branding(ctx: Context) -> None:
+    from abora_release import RELEASE_CODENAME, release_short
+
+    short = release_short(ctx.repo)  # "v4.2 Solstice"
+    version = short.split()[0][1:]
     old_branding = ctx.grep_output(
         "-RIEn", *SELF_EXCLUDES,
         "2026[.]7[.]27|current stable release|Tracks `main` directly",
         "README.md", "RELEASE_NOTES.md", "docs", "scripts", "nix",
     )
-    passed = not old_branding and Check(
-        "runtime: v4.1 Horizon branding is consistent",
-        grep("-q", "Abora OS v4.1 Horizon", "RELEASE_NOTES.md"),
-        grep("-q", "git tag v4.1", "docs/wiki/Release-Guide.md"),
-        grep("-q", "x86_64-v4.1.iso", "RELEASE_NOTES.md"),
-        grep("-q", "SHA256SUMS-v4.1.txt", "RELEASE_NOTES.md"),
+    pattern = r"v[0-9]+[.][0-9]+([.][0-9]+)? (" + "|".join(CODENAMES) + r")\b"
+    stale = [
+        line for line in ctx.grep_output("-RIEno", *SELF_EXCLUDES, "--exclude-dir=tests", "--exclude-dir=check_scripts", pattern, *SHIPPED).splitlines()
+        if not line.endswith(f":{short}")
+    ]
+    passed = not old_branding and not stale and Check(
+        f"runtime: {short} branding is consistent",
+        grep("-q", f"Abora OS {short}", "RELEASE_NOTES.md"),
+        grep("-q", f"git tag v{version}", "docs/wiki/Release-Guide.md"),
+        grep("-q", f"x86_64-v{version}.iso", "RELEASE_NOTES.md"),
+        grep("-q", f"SHA256SUMS-v{version}.txt", "RELEASE_NOTES.md"),
         grep("-q", 'abora_release_stage="${ABORA_RELEASE_STAGE:-alpha}"', "scripts/abora-installer.sh"),
         grep("-q", 'abora_release_channel="${ABORA_RELEASE_CHANNEL:-unstable}"', "scripts/abora-installer.sh"),
-        grep("-q", "Abora OS v4.1 Horizon", "scripts/abora-installer.sh"),
-        grep("-q", "ABORA OS  —  v4.1 Horizon", "scripts/abora-boot.sh"),
+        grep("-q", f"Abora OS {short}", "scripts/abora-installer.sh"),
+        grep("-q", f"ABORA OS  —  {short}", "scripts/abora-boot.sh"),
         grep("-qF", 'os.environ.get("ABORA_DEFAULT_CHANNEL") or "unstable"', "scripts/support/abora-welcome.py"),
         grep("-q", "ABORA_DEFAULT_CHANNEL', 'unstable'", "scripts/abora-welcome-gui.py"),
         grep("-qF", 'os.environ.get("ABORA_DEFAULT_CHANNEL") or "unstable"', "scripts/support/abora-doctor.py"),
-        grep("-q", "v4.1 Horizon alpha default", "docs/wiki/Updating-Abora.md"),
-        grep("-qF", 'os.environ.get("ABORA_RELEASE_NAME") or "Abora OS v4.1 Horizon"', "scripts/support/abora-support-report.py"),
-        grep("-q", "printf 'v4.1 Horizon'", "scripts/abora-ui.sh"),
-        grep("-q", 'RELEASE_SHORT = "v4.1 Horizon"', "scripts/check-desktops.py"),
-        grep("-q", 'PRETTY_NAME = "Abora OS v4.1 Horizon"', "nix/profiles/live.nix"),
-        grep("-q", 'PRETTY_NAME = "Abora OS v4.1 Horizon"', "nix/modules/installed-base.nix"),
-        grep("-q", 'VERSION = "v4.1 Horizon"', "nix/profiles/live.nix"),
-        grep("-q", 'VERSION_ID = "4.1"', "nix/modules/installed-base.nix"),
+        grep("-q", f"{short} alpha default", "docs/wiki/Updating-Abora.md"),
+        grep("-qF", f'os.environ.get("ABORA_RELEASE_NAME") or "Abora OS {short}"', "scripts/support/abora-support-report.py"),
+        grep("-q", f"printf '{short}'", "scripts/abora-ui.sh"),
+        grep("-q", f'RELEASE_SHORT = "{short}"', "scripts/check-desktops.py"),
+        grep("-q", f'PRETTY_NAME = "Abora OS {short}"', "nix/profiles/live.nix"),
+        grep("-q", f'PRETTY_NAME = "Abora OS {short}"', "nix/modules/installed-base.nix"),
+        grep("-q", f'VERSION = "{short}"', "nix/profiles/live.nix"),
+        grep("-q", f'VERSION_ID = "{version}"', "nix/modules/installed-base.nix"),
+        grep("-q", f'VERSION_ID = "{version}"', "nix/profiles/live.nix"),
+        grep("-q", f'VERSION_CODENAME = "{RELEASE_CODENAME.lower()}"', "nix/modules/installed-base.nix"),
+        grep("-q", f'VERSION_CODENAME = "{RELEASE_CODENAME.lower()}"', "nix/profiles/live.nix"),
+        grep("-q", f'DISTRIB_CODENAME = "{RELEASE_CODENAME.lower()}"', "nix/modules/installed-base.nix"),
+        grep("-q", f'DISTRIB_CODENAME = "{RELEASE_CODENAME.lower()}"', "nix/profiles/live.nix"),
+        grep("-q", f'title="Abora OS {short} (${{tag}})"', ".github/workflows/release-iso.yml"),
     ).conditions_hold(ctx)
-    ctx.result(passed, "runtime: v4.1 Horizon branding is consistent")
+    ctx.result(passed, f"runtime: {short} branding is consistent (VERSION + {RELEASE_CODENAME})")
     if not passed and old_branding:
         ctx.detail(old_branding)
+    if stale:
+        ctx.detail("names another release:\n" + "\n".join(stale))
 
 
 def pure_eval(ctx: Context) -> None:
@@ -78,12 +102,13 @@ def updater_sync(ctx: Context) -> None:
             "-q", '! version_lt "$(tag_base_version "$selected_ref")" "4.0"',
             stdin=c.grep_output("-A5", "release_has_welcome_config_gui", "scripts/abora-update.sh"),
         ),
-        grep("-q", 'repo_git_url="${ABORA_REPO_GIT_URL:-https://github.com/AnimatedGTVR/Abora-OS.git}"', "scripts/abora-update.sh"),
-        grep("-q", "https://github.com/AboraProject/Abora-OS.git", "scripts/abora-update.sh"),
+        grep("-q", 'repo_git_url="${ABORA_REPO_GIT_URL:-https://github.com/Abora-OS/Abora-OS.git}"', "scripts/abora-update.sh"),
+        grep("-q", "https://github.com/AnimatedGTVR/Abora-OS.git", "scripts/abora-update.sh"),
+        not_(grep("-rqE", "AboraProject|AboraOS-Project", "scripts/support", "scripts/install", "scripts/apps", "nix")),
         not_(grep(
             "-RIE", *SELF_EXCLUDES, "-q",
-            "github(:|\\.com/)AnimatedGTVR/abora-os|AnimatedGTVR/abora-os|abora-os[.]git",
-            "README.md", "RELEASE_NOTES.md", "DISCORD_CHANGELOG.md", "docs", "scripts", "nix", "packaging", "flake.nix", "Makefile",
+            "github(:|\\.com/)abora-os/abora-os|abora-os/abora-os|abora-os[.]git",
+            "README.md", "RELEASE_NOTES.md", "DISCORD_CHANGELOG.md", "docs", "scripts", "nix", "flake.nix", "Makefile",
         )),
         grep("-q", "scripts/abora-build.sh", "scripts/abora-update.sh"),
         grep("-q", 'copy_upstream_file "$upstream_dir/scripts/abora-build.sh" "$abora_dir/build.sh"', "scripts/abora-update.sh"),
@@ -98,8 +123,6 @@ def updater_sync(ctx: Context) -> None:
         grep("-q", 'cp /etc/abora/Abora-Text.png "${root}/etc/nixos/abora/Abora-Text.png"', "scripts/abora-installer.sh"),
         grep("-q", '"abora/Abora-LOGO.png".source = ../../assets/Abora-LOGO.png', "nix/profiles/live.nix"),
         grep("-q", '"abora/Abora-Text.png".source = ../../assets/Abora-Text.png', "nix/profiles/live.nix"),
-        grep("-q", "vendor/modularity", "scripts/abora-update.sh"),
-        grep("-q", 'copy_upstream_dir "$upstream_dir/vendor/modularity" "$abora_dir/vendor/modularity"', "scripts/abora-update.sh"),
         grep("-q", "docs/wiki/ANIX-V2-Languages.md", "scripts/abora-update.sh"),
         grep("-q", "docs/wiki/Updating-Abora.md", "scripts/abora-update.sh"),
         grep("-q", "Check your internet connection, then run: sudo abora update", "scripts/abora-update.sh"),

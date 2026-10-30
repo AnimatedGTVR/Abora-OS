@@ -4,8 +4,7 @@
 The archive is a self-contained bin/ + share/ tree with its own install.sh, so
 `anix` and its docs/languages bundle work outside the Abora ISO entirely (the
 generated bin/anix wrapper sets ANIX_* env vars pointing at the bundled
-share/anix/ paths instead of relying on /etc/abora). TinyPM is a separate Rust
-CLI distributed through its own release archives, not bundled here.
+share/anix/ paths instead of relying on /etc/abora).
 
 The bundled bin/anix and install.sh stay shell for now because they launch
 anix.sh, which is still Bash; they move when ANIX does.
@@ -34,7 +33,7 @@ REQUIRED_FILES = (
     ("scripts/abora-ui.sh", "abora-ui.sh", 0o644),
     ("nix/modules/anix.nix", "anix-module.nix", 0o644),
     ("docs/wiki/ANIX-V1.md", "docs/wiki/ANIX-V1.md", 0o644),
-    ("docs/wiki/TinyPM.md", "docs/wiki/TinyPM.md", 0o644),
+    ("docs/wiki/Packages.md", "docs/wiki/Packages.md", 0o644),
     ("docs/wiki/Abora-Tools.md", "docs/wiki/Abora-Tools.md", 0o644),
     ("docs/wiki/Recovery.md", "docs/wiki/Recovery.md", 0o644),
     ("docs/wiki/ANIX-V2-Languages.md", "docs/wiki/ANIX-V2-Languages.md", 0o644),
@@ -59,7 +58,6 @@ export ABORA_UI_LIB="$share_dir/abora-ui.sh"
 export ANIX_DOCS_DIR="$share_dir/docs/wiki"
 export ANIX_SYSTEM_LANGUAGE_DIR="$share_dir/languages"
 export ANIX_WALLPAPER_DIR="$share_dir/wallpapers"
-export ANIX_SOUND_FILE="$share_dir/effects/v3StartingAbora.mp3"
 export PATH="$share_dir/tools:$PATH"
 
 exec bash "$share_dir/anix.sh" "$@"
@@ -99,12 +97,10 @@ This installs:
 - `bin/anix`
 - `share/anix/anix-module.nix`
 - bundled docs
-- bundled ANIX v2 language manifests
-- bundled ModuCPP ANIX adapter helper
+- bundled ANIX v2 language adapter directory
 
-TinyPM is a separate Rust CLI (`tinypm`/`grab`) with its own release
-archives -- see the TinyPM docs bundled here (`share/anix/docs/wiki/TinyPM.md`)
-for how to install it alongside ANIX.
+Packages: `anix package install <pkg>` installs from nixpkgs without a
+rebuild; see `share/anix/docs/wiki/Packages.md`.
 
 ## Flake Usage
 
@@ -112,7 +108,7 @@ With this repository directly:
 
 ```nix
 {
-  inputs.abora.url = "github:AnimatedGTVR/Abora-OS";
+  inputs.abora.url = "github:Abora-OS/Abora-OS";
 
   outputs = { nixpkgs, abora, ... }: {
     nixosConfigurations.my-host = nixpkgs.lib.nixosSystem {
@@ -164,19 +160,10 @@ def main() -> int:
     if languages.is_dir():
         entries += tree_entries(languages, f"{share}/languages")
 
-    moducpp = repo / "tools/moducpp-anix"
-    if moducpp.is_file():
-        entries.append(Entry(f"{share}/tools/moducpp-anix", moducpp, 0o755))
-
     wallpapers = repo / "assets/wallpapers/collection"
     if wallpapers.is_dir():
         entries.append(Entry(f"{share}/wallpapers"))
         entries += tree_entries(wallpapers, f"{share}/wallpapers")
-
-    sound = repo / "assets/Effects/v3StartingAbora.mp3"
-    if sound.is_file():
-        entries.append(Entry(f"{share}/effects"))
-        entries.append(Entry(f"{share}/effects/v3StartingAbora.mp3", sound, 0o644))
 
     package_dir.mkdir(parents=True, exist_ok=True)
     package_path = package_dir / f"anix-{anix_tag}-abora-{version_tag}.tar.gz"

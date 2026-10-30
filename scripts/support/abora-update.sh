@@ -103,13 +103,21 @@ else
     }
 fi
 
+# From abora-ui.sh (ASA/ABT); without it, rebuilds run as before.
+if ! declare -F abora_abt_prefix >/dev/null; then
+    abora_abt_prefix() { ABORA_ABT_PREFIX=(); }
+fi
+
 config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
 command_name="${ABORA_UPDATE_COMMAND:-$(basename "$0")}"
-# The AboraProject org fallback is intentional (a registered organization
-# the repo may move to), not a stray/untrusted URL — list_release_tags()
-# below tries each of these in order and uses whichever answers first.
-repo_git_url="${ABORA_REPO_GIT_URL:-https://github.com/AnimatedGTVR/Abora-OS.git}"
-repo_git_fallbacks="${ABORA_REPO_GIT_URLS:-$repo_git_url https://github.com/AboraProject/Abora-OS.git}"
+# Every URL here must be one the project owns: list_release_tags() below tries
+# them in order and installs from whichever answers first, so an unowned name
+# is an update channel anyone could register. (Until 4.2 the fallback was an
+# organization name that was never registered.) The repo lives
+# in the Abora-OS organization; AnimatedGTVR/Abora-OS is where it came from,
+# and GitHub redirects it there.
+repo_git_url="${ABORA_REPO_GIT_URL:-https://github.com/Abora-OS/Abora-OS.git}"
+repo_git_fallbacks="${ABORA_REPO_GIT_URLS:-$repo_git_url https://github.com/AnimatedGTVR/Abora-OS.git}"
 repo_ref="${ABORA_REPO_REF:-edge}"
 upstream_dir="${ABORA_UPSTREAM_DIR:-$config_dir/.abora-upstream}"
 flake_config_name="${ABORA_FLAKE_CONFIG_NAME:-abora}"
@@ -125,16 +133,12 @@ switch_timeout="${ABORA_SWITCH_TIMEOUT:-1800}"
 # The channel/version decision logic in resolve_update_ref/
 # guard_against_accidental_downgrade below is delegated to abora-update, the
 # Vanta core of the updater (tools/abora-update), which more of this script
-# moves into over time. It replaces the Native AOT C# abora-update-resolver,
-# kept as a fallback with the identical CLI until the Vanta path has shipped.
-# Both only decide: this script still owns every bit of I/O (git ls-remote,
-# reading VERSION, printing colored UI text) and shells out for the decision.
-# Defaults to relying on PATH (present via Nix systemPackages on any real
-# Abora system); source checkouts may also have the debug C# binary from
-# make check's dotnet build, which keeps `bash scripts/abora-update.sh
-# --check` useful before an ISO has shipped the new package.
+# moves into over time. It only decides: this script still owns every bit of
+# I/O (git ls-remote, reading VERSION, printing colored UI text). The C#
+# abora-update-resolver it replaced (same CLI) was removed in 4.2; a system
+# that still has it on PATH, mid-update from 4.1, may use it.
 resolve_resolver_bin() {
-    local candidate repo_dir
+    local candidate
 
     if [[ -n "${ABORA_UPDATE_RESOLVER_BIN:-}" ]]; then
         printf '%s\n' "$ABORA_UPDATE_RESOLVER_BIN"
@@ -151,22 +155,7 @@ resolve_resolver_bin() {
         return 0
     fi
 
-    repo_dir="$script_dir"
-    while [[ "$repo_dir" != "/" && ! -f "$repo_dir/flake.nix" ]]; do
-        repo_dir="$(dirname "$repo_dir")"
-    done
-    for candidate in \
-        "$repo_dir/tools/abora-update-resolver/bin/Debug/net10.0/abora-update-resolver" \
-        "$repo_dir/tools/abora-update-resolver/bin/Release/net10.0/abora-update-resolver" \
-        "$script_dir/update-resolver/bin/Debug/net10.0/abora-update-resolver" \
-        "$script_dir/update-resolver/bin/Release/net10.0/abora-update-resolver"; do
-        if [[ -x "$candidate" ]]; then
-            printf '%s\n' "$candidate"
-            return 0
-        fi
-    done
-
-    printf '%s\n' abora-update-resolver
+    printf '%s\n' abora-update
 }
 
 resolver_bin="$(resolve_resolver_bin)"
@@ -220,15 +209,27 @@ channel_file() {
     printf '%s/abora/channel' "$config_dir"
 }
 
+# Abora has two channels: Stable and Edge. Old demo, dev, and unstable values
+# migrate to Edge, the rolling nightly/development channel.
+normalize_channel() {
+    case "$1" in
+        demo|dev|unstable)
+            printf "abora: the '%s' update channel is now 'edge'. Run 'sudo abora channel set stable' for tagged releases only.\n" "$1" >&2
+            printf 'edge'
+            ;;
+        *) printf '%s' "$1" ;;
+    esac
+}
+
 read_channel() {
     local cf
     if [[ -n "${ABORA_RELEASE_CHANNEL:-}" ]]; then
-        printf '%s' "$ABORA_RELEASE_CHANNEL"
+        normalize_channel "$ABORA_RELEASE_CHANNEL"
         return
     fi
     cf="$(channel_file)"
     if [[ -f "$cf" ]]; then
-        tr -d '[:space:]' < "$cf"
+        normalize_channel "$(tr -d '[:space:]' < "$cf")"
     else
         printf 'stable'
     fi
@@ -403,7 +404,7 @@ resolve_update_ref() {
     effective_ref_reason="${output#*$'\t'}"
 
     if [[ "$effective_ref_reason" == "unknown channel fallback to edge" ]]; then
-        abora_warn "Unknown channel '${channel}' — using unstable/edge." >&2
+        abora_warn "Unknown channel '${channel}' — using edge." >&2
     fi
 }
 
@@ -456,7 +457,7 @@ usage() {
     printf '  %babora channel list%b  /  %bnixos channel list%b\n' "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  List all available channels."
     printf '\n'
-    printf '  %babora channel set <stable|demo|unstable>%b  /  %bnixos channel set <stable|demo|unstable>%b\n' \
+    printf '  %babora channel set <stable|edge>%b  /  %bnixos channel set <stable|edge>%b\n' \
         "$ABORA_CYAN" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
     abora_dim_line "  Switch to a different update channel."
     printf '\n'
@@ -598,9 +599,9 @@ handle_channel_command() {
             abora_dim_line "  Show the current update channel."
             printf '\n'
             printf '  %babora channel list%b\n' "$ABORA_CYAN" "$ABORA_NC"
-            abora_dim_line "  List stable, demo, and unstable channels."
+            abora_dim_line "  List the Stable and Edge channels."
             printf '\n'
-            printf '  %bsudo abora channel set <stable|demo|unstable>%b\n' "$ABORA_CYAN" "$ABORA_NC"
+            printf '  %bsudo abora channel set <stable|edge>%b\n' "$ABORA_CYAN" "$ABORA_NC"
             abora_dim_line "  Save the selected update channel."
             printf '\n'
             ;;
@@ -612,11 +613,8 @@ handle_channel_command() {
                 stable)
                     abora_dim_line "  Tracks tagged Abora releases. Recommended for most users."
                     ;;
-                unstable)
-                    abora_dim_line "  Tracks the edge development branch. May include breaking changes."
-                    ;;
-                demo|dev)
-                    abora_dim_line "  Tracks tagged demo/dev builds for the installed release line."
+                edge)
+                    abora_dim_line "  Tracks nightly builds from the edge branch. May include breaking changes."
                     ;;
             esac
             printf '\n'
@@ -627,10 +625,9 @@ handle_channel_command() {
 
             abora_card_start "Available Channels"
 
-            local marker_stable="" marker_demo="" marker_unstable=""
+            local marker_stable="" marker_edge=""
             [[ "$channel" == "stable" ]]   && marker_stable=" %b◀ current%b"
-            [[ "$channel" == "demo" || "$channel" == "dev" ]] && marker_demo=" %b◀ current%b"
-            [[ "$channel" == "unstable" ]] && marker_unstable=" %b◀ current%b"
+            [[ "$channel" == "edge" ]] && marker_edge=" %b◀ current%b"
 
             printf '  %b│%b  %bstable%b' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
             # shellcheck disable=SC2059
@@ -640,17 +637,9 @@ handle_channel_command() {
                 "$ABORA_BLUE" "$ABORA_NC" "$ABORA_DIM" "$ABORA_NC"
             printf '\n'
 
-            printf '  %b│%b  %bdemo%b' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
+            printf '  %b│%b  %bedge%b' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
             # shellcheck disable=SC2059
-            [[ -n "$marker_demo" ]] && printf "  $marker_demo" "$ABORA_GREEN" "$ABORA_NC"
-            printf '\n'
-            printf '  %b│%b  %bTagged demo/dev builds for the installed release line.%b\n' \
-                "$ABORA_BLUE" "$ABORA_NC" "$ABORA_DIM" "$ABORA_NC"
-            printf '\n'
-
-            printf '  %b│%b  %bunstable%b' "$ABORA_BLUE" "$ABORA_NC" "$ABORA_CYAN" "$ABORA_NC"
-            # shellcheck disable=SC2059
-            [[ -n "$marker_unstable" ]] && printf "  $marker_unstable" "$ABORA_GREEN" "$ABORA_NC"
+            [[ -n "$marker_edge" ]] && printf "  $marker_edge" "$ABORA_GREEN" "$ABORA_NC"
             printf '\n'
             printf '  %b│%b  %bDevelopment builds from the edge branch. May include breaking changes.%b\n' \
                 "$ABORA_BLUE" "$ABORA_NC" "$ABORA_DIM" "$ABORA_NC"
@@ -663,7 +652,11 @@ handle_channel_command() {
         set)
             local new_channel="${2:-}"
             case "$new_channel" in
-                stable | demo | dev | unstable)
+                demo | dev)
+                    abora_error "The '${new_channel}' channel was removed in Abora OS 4.2. Use 'stable' or 'edge'."
+                    exit 1
+                    ;;
+                stable | edge)
                     run_as_root env \
                         ABORA_SYSTEM_CONFIG="$config_dir" \
                         bash -c '
@@ -676,11 +669,11 @@ handle_channel_command() {
                     printf '\n'
                     ;;
                 "")
-                    abora_error "Specify a channel: stable, demo, or unstable"
+                    abora_error "Specify a channel: stable or edge"
                     exit 1
                     ;;
                 *)
-                    abora_error "Unknown channel: ${new_channel}. Use 'stable', 'demo', or 'unstable'."
+                    abora_error "Unknown channel: ${new_channel}. Use 'stable' or 'edge'."
                     exit 1
                     ;;
             esac
@@ -1126,11 +1119,35 @@ release_has_plan_tool() {
     ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
 }
 
+# What a 4.1 release (C# plan tool) contains, for updates to 4.1 itself.
+csharp_plan_tool_paths() {
+    printf '%s\n' \
+        tools/abora-plan-tool/AboraPlanTool.csproj \
+        tools/abora-plan-tool/Program.cs \
+        nix/pkgs/abora-plan-tool.nix \
+        nix/pkgs/abora-plan-tool-deps.json
+}
+
+# 4.2 rewrote the plan tool in Rust (same name and CLI as the C# one before it).
+release_has_rust_plan_tool() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "edge" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.2"
+}
+
 release_has_gaming_welcome_gui() {
     local selected_ref="$1"
     [[ "$selected_ref" == "edge" ]] && return 0
     is_final_release_tag "$selected_ref" || return 1
     ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
+}
+
+release_has_abora_core() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "edge" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.2"
 }
 
 release_has_labs() {
@@ -1174,17 +1191,14 @@ assets/bootloader/background.png
 assets/bootloader/theme.txt
 assets/plymouth/abora.plymouth
 assets/plymouth/abora.script
-assets/Effects/LaunchingAbora.mp3
 assets/wallpapers/collection
 assets/wallpaper-themes
-vendor/modularity
 EOF
 
     if release_uses_modern_layout "$selected_ref"; then
         cat <<'EOF'
 nix/modules/desktops
 nix/pkgs/mango.nix
-nix/pkgs/modularity.nix
 scripts/abora-repair-flake-purity.sh
 assets/mango/config.conf
 EOF
@@ -1193,8 +1207,6 @@ EOF
     if release_has_anix_languages "$selected_ref"; then
         cat <<'EOF'
 assets/anix-languages
-nix/pkgs/moducpp-anix.nix
-tools/moducpp-anix
 EOF
     fi
 
@@ -1220,6 +1232,13 @@ EOF
     if release_has_labs "$selected_ref"; then
         cat <<'EOF'
 scripts/apps/abora-labs.sh
+EOF
+    fi
+
+    if release_has_abora_core "$selected_ref"; then
+        cat <<'EOF'
+scripts/support/abora_core.py
+scripts/safety/abora-abt.py
 EOF
     fi
 
@@ -1270,13 +1289,15 @@ nix/pkgs/abora-update.nix
 EOF
     fi
 
-    if release_has_plan_tool "$selected_ref"; then
+    if release_has_rust_plan_tool "$selected_ref"; then
         cat <<'EOF'
-tools/abora-plan-tool/AboraPlanTool.csproj
-tools/abora-plan-tool/Program.cs
+tools/abora-plan-tool/Cargo.toml
+tools/abora-plan-tool/Cargo.lock
+tools/abora-plan-tool/src/main.rs
 nix/pkgs/abora-plan-tool.nix
-nix/pkgs/abora-plan-tool-deps.json
 EOF
+    elif release_has_plan_tool "$selected_ref"; then
+        csharp_plan_tool_paths
     fi
 }
 
@@ -1466,6 +1487,9 @@ install_abora_files() {
     installed_paths=()
     mkdir -p "$abora_dir/plymouth" "$abora_dir/bootloader" "$abora_dir/effects" "$abora_dir/mango" "$abora_dir/vendor"
     copy_upstream_file "$upstream_dir/VERSION" "$abora_dir/VERSION"
+    if [[ -f "$upstream_dir/NIXOS_STABLE" ]]; then
+        copy_upstream_file "$upstream_dir/NIXOS_STABLE" "$abora_dir/nixos-stable"
+    fi
     copy_upstream_file "$upstream_dir/nix/modules/abora-options.nix" "$abora_dir/abora-options.nix"
     if [[ -d "$upstream_dir/nix/modules/desktops" ]]; then
         copy_upstream_dir "$upstream_dir/nix/modules/desktops" "$abora_dir/desktops"
@@ -1486,12 +1510,15 @@ install_abora_files() {
     if [[ -d "$upstream_dir/docs" ]]; then
         copy_upstream_dir "$upstream_dir/docs" "$abora_dir/docs"
     fi
-    if [[ -d "$upstream_dir/vendor/modularity" ]]; then
-        copy_upstream_dir "$upstream_dir/vendor/modularity" "$abora_dir/vendor/modularity"
-    fi
     copy_upstream_file "$upstream_dir/scripts/abora-doctor.sh" "$abora_dir/doctor.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-recovery.sh" "$abora_dir/recovery.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-welcome.sh" "$abora_dir/welcome.sh"
+    if [[ -f "$upstream_dir/scripts/support/abora_core.py" ]]; then
+        copy_upstream_file "$upstream_dir/scripts/support/abora_core.py" "$abora_dir/abora_core.py"
+    fi
+    if [[ -f "$upstream_dir/scripts/safety/abora-abt.py" ]]; then
+        copy_upstream_file "$upstream_dir/scripts/safety/abora-abt.py" "$abora_dir/abt.py"
+    fi
     if [[ -f "$upstream_dir/scripts/support/abora-community.py" && -f "$upstream_dir/nix/modules/community.nix" ]]; then
         copy_upstream_file "$upstream_dir/scripts/support/abora-community.py" "$abora_dir/community.py"
         copy_upstream_file "$upstream_dir/nix/modules/community.nix" "$abora_dir/community.nix"
@@ -1541,12 +1568,14 @@ install_abora_files() {
     fi
     copy_upstream_file "$upstream_dir/assets/fastfetch-logo.txt" "$abora_dir/fastfetch-logo.txt"
     copy_upstream_file "$upstream_dir/assets/fastfetch-config.jsonc" "$abora_dir/fastfetch-config.jsonc"
-    copy_first_existing_upstream_file \
-        "$abora_dir/effects/v3StartingAbora.mp3" \
-        "$upstream_dir/assets/Effects/v3StartingAbora.mp3" \
-        "$upstream_dir/assets/Effects/LaunchingAbora.mp3"
     copy_upstream_file "$upstream_dir/assets/plymouth/abora.plymouth" "$abora_dir/plymouth/abora.plymouth"
     copy_upstream_file "$upstream_dir/assets/plymouth/abora.script" "$abora_dir/plymouth/abora.script"
+    local splash_image
+    for splash_image in abora-logo.png bar-fill.png bar-track.png; do
+        if [[ -f "$upstream_dir/assets/plymouth/$splash_image" ]]; then
+            copy_upstream_file "$upstream_dir/assets/plymouth/$splash_image" "$abora_dir/plymouth/$splash_image"
+        fi
+    done
     install_mango_config_asset
     record_installed "$abora_dir/mango/config.conf"
     if [[ -f "$abora_dir/mango/config.conf" ]]; then
@@ -1578,16 +1607,6 @@ install_abora_files() {
     if [[ -f "$upstream_dir/nix/pkgs/mango.nix" ]]; then
         copy_upstream_file "$upstream_dir/nix/pkgs/mango.nix" "$abora_dir/pkgs/mango.nix"
     fi
-    if [[ -f "$upstream_dir/nix/pkgs/modularity.nix" ]]; then
-        copy_upstream_file "$upstream_dir/nix/pkgs/modularity.nix" "$abora_dir/pkgs/modularity.nix"
-    fi
-    if [[ -f "$upstream_dir/nix/pkgs/moducpp-anix.nix" ]]; then
-        copy_upstream_file "$upstream_dir/nix/pkgs/moducpp-anix.nix" "$abora_dir/pkgs/moducpp-anix.nix"
-    fi
-    if [[ -f "$upstream_dir/tools/moducpp-anix" ]]; then
-        copy_upstream_file "$upstream_dir/tools/moducpp-anix" "$abora_dir/tools/moducpp-anix"
-        chmod 0755 "$abora_dir/tools/moducpp-anix" 2>/dev/null || true
-    fi
     if [[ -f "$upstream_dir/nix/pkgs/abora-update-resolver.nix" ]]; then
         copy_upstream_file "$upstream_dir/nix/pkgs/abora-update-resolver.nix" "$abora_dir/pkgs/abora-update-resolver.nix"
     fi
@@ -1613,6 +1632,10 @@ install_abora_files() {
     fi
     if [[ -f "$upstream_dir/nix/pkgs/abora-plan-tool-deps.json" ]]; then
         copy_upstream_file "$upstream_dir/nix/pkgs/abora-plan-tool-deps.json" "$abora_dir/pkgs/abora-plan-tool-deps.json"
+    fi
+    if [[ -f "$upstream_dir/nix/pkgs/abora-grab.nix" && -d "$upstream_dir/tools/abora-grab" ]]; then
+        copy_upstream_file "$upstream_dir/nix/pkgs/abora-grab.nix" "$abora_dir/pkgs/abora-grab.nix"
+        copy_upstream_dir "$upstream_dir/tools/abora-grab" "$abora_dir/grab"
     fi
     if [[ -d "$upstream_dir/tools/abora-plan-tool" ]]; then
         copy_upstream_dir "$upstream_dir/tools/abora-plan-tool" "$abora_dir/plan-tool"
@@ -1686,6 +1709,13 @@ write_installed_flake() {
     local removed=0
 
     mkdir -p "$config_dir"
+    # `anix nixos stable|unstable` and the installer save the branch here; a
+    # missing or odd value means the rolling default every system started with.
+    local nixos_branch="nixos-unstable" saved_branch=""
+    saved_branch="$(tr -d '[:space:]' 2>/dev/null < "$config_dir/abora/nixos-release" || true)"
+    if [[ "$saved_branch" =~ ^nixos-([0-9]{2}\.[0-9]{2}|unstable)$ ]]; then
+        nixos_branch="$saved_branch"
+    fi
     flake_tmp="$(mktemp "${flake_file}.tmp.XXXXXX")"
     update_tmp_files+=("$flake_tmp")
 
@@ -1695,7 +1725,7 @@ write_installed_flake() {
   # Keep installed systems on the rolling NixOS package set used by Abora
   # v4 alpha. Avoid path:/etc/... here: on NixOS that path resolves through
   # /etc/static, which pure flake evaluation rejects as an absolute path.
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/${nixos_branch}";
   outputs = { nixpkgs, ... }: {
     nixosConfigurations = {
       "${flake_config_name}" = nixpkgs.lib.nixosSystem {
@@ -2064,8 +2094,13 @@ fi
 require_minimum_free_space /nix/store || exit 1
 
 switch_status=0
+# As an ABT transaction where abora-abt exists: a switch that fails or leaves a
+# newly failed service goes back to the generation from before the update.
+# Outside the timeout, so a timeout can't stop ABT part-way through. No config
+# snapshot: this script keeps its own backups of everything it rewrites.
+abora_abt_prefix "abora update" -
 abora_wu_run "Switching to the new Abora system" "/tmp/abora-update-rebuild.log" -- \
-    timeout "$switch_timeout" \
+    "${ABORA_ABT_PREFIX[@]}" timeout "$switch_timeout" \
     nixos-rebuild switch --flake "$config_dir#${flake_config_name}" || switch_status=$?
 if [[ "$switch_status" -ne 0 ]]; then
     explain_step_failure "$switch_status" "/tmp/abora-update-rebuild.log" "$switch_timeout"

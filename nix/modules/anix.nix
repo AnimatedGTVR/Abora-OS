@@ -42,7 +42,7 @@ in
         "none" "gnome" "plasma" "hyprland" "sway" "xfce" "cinnamon" "mate"
         "budgie" "lxqt" "pantheon" "i3" "awesome"
         "openbox" "niri" "river" "qtile" "bspwm" "fluxbox" "icewm"
-        "herbstluftwm" "cosmic" "mangowm"
+        "herbstluftwm" "cosmic" "mangowm" "lumina"
       ]);
       default = null;
       description = "Optional desktop override (requires Abora OS for full effect).";
@@ -232,32 +232,21 @@ in
       };
     };
 
+    # TinyPM was removed in 4.2 (packages are `anix package` now). These
+    # stay as no-ops because every anix.nix written by `anix init` before
+    # 4.2 sets anix.tinypm.enable, and removing the option would make those
+    # configs fail to evaluate on the first rebuild after updating.
     tinypm = {
       enable = lib.mkOption {
         type = lib.types.bool;
-        default = true;
-        description = ''
-          Historical option, kept only so existing `anix.tinypm.enable`
-          settings in installed systems' abora-local.nix still evaluate.
-          TinyPM was rewritten from a bash multicall tree (with its own
-          per-user "flavor" install step) into a real Rust crate that
-          ships as an ordinary system package -- see
-          nix/profiles/live.nix's `tinypmPackage`. There is no longer a
-          per-user install step for this option to gate: `tinypm`/`grab`
-          are on PATH for every user as soon as the system is built, the
-          same as any other systemPackages entry. This option no longer
-          does anything.
-        '';
+        default = false;
+        description = "Removed in Abora OS 4.2 together with TinyPM. Ignored.";
       };
 
       flavor = lib.mkOption {
         type = lib.types.str;
         default = "abora";
-        description = ''
-          Historical option, kept only for eval compatibility with
-          existing configs -- the Rust TinyPM has no flavor/branding
-          system. Unused.
-        '';
+        description = "Removed in Abora OS 4.2 together with TinyPM. Ignored.";
       };
     };
   };
@@ -397,9 +386,5 @@ in
         options = cfg.garbageCollect.options;
       };
     })
-    # cfg.tinypm.enable/flavor are intentionally unused now -- see their
-    # option descriptions above. There is no per-user tinypm-init service
-    # anymore: TinyPM ships system-wide via nix/profiles/live.nix's
-    # tinypmPackage, the same as any other systemPackages entry.
   ]);
 }

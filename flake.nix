@@ -14,15 +14,14 @@
         anix = final.callPackage ./nix/pkgs/anix.nix {};
         scenefx-0_5 = final.callPackage ./nix/pkgs/scenefx-0_5.nix {};
         mango = final.callPackage ./nix/pkgs/mango.nix {};
-        modularity = final.callPackage ./nix/pkgs/modularity.nix {};
-        moducpp-anix = final.callPackage ./nix/pkgs/moducpp-anix.nix {};
-        abora-update-resolver = final.callPackage ./nix/pkgs/abora-update-resolver.nix {};
         vanta = final.callPackage ./nix/pkgs/vanta.nix {};
         abora-update = final.callPackage ./nix/pkgs/abora-update.nix {};
         abora-plan-tool = final.callPackage ./nix/pkgs/abora-plan-tool.nix {};
+        abora-grab = final.callPackage ./nix/pkgs/abora-grab.nix {};
         abora-desktop-preview = final.callPackage ./nix/pkgs/desktop-preview.nix {};
         abora-hardware-test = final.callPackage ./nix/pkgs/hardware-test.nix {};
         abora-installer = final.callPackage ./nix/pkgs/abora-installer.nix {};
+        abora-trailer = final.callPackage ./nix/pkgs/abora-trailer.nix {};
       };
 
       pkgs = import nixpkgs {
@@ -31,7 +30,6 @@
 
         config.allowUnfreePredicate = pkg:
           builtins.elem (nixpkgs.lib.getName pkg) [
-            "modularity"
             "steam"
             "steam-original"
             "steam-run"
@@ -53,8 +51,7 @@
 
               config.allowUnfreePredicate = pkg:
                 builtins.elem (nixpkgs.lib.getName pkg) [
-                  "modularity"
-                  "steam"
+                        "steam"
                   "steam-original"
                   "steam-run"
                   "steam-unwrapped"
@@ -68,6 +65,7 @@
       overlays.default = overlay;
 
       nixosModules = {
+        default = import ./nix/modules/abora-flake.nix { inherit self nixpkgs; };
         installed-base = import ./nix/modules/installed-base.nix;
         anix = import ./nix/modules/anix.nix;
         branding = import ./nix/modules/branding.nix;
@@ -76,35 +74,24 @@
       nixosConfigurations = {
         abora = mkLive "cosmic";
         abora-live = mkLive "cosmic";
-        abora-live-cosmic = mkLive "cosmic";
-        abora-live-hyprland = mkLive "hyprland";
-        abora-live-gnome = mkLive "gnome";
-        abora-live-kde = mkLive "kde";
-        abora-live-other = mkLive "other";
       };
 
       packages.${system} = {
         anix = pkgs.anix;
 
-        iso = self.nixosConfigurations.abora-live-cosmic.config.system.build.isoImage;
-        iso-cosmic = self.nixosConfigurations.abora-live-cosmic.config.system.build.isoImage;
-        iso-hyprland = self.nixosConfigurations.abora-live-hyprland.config.system.build.isoImage;
-        iso-gnome = self.nixosConfigurations.abora-live-gnome.config.system.build.isoImage;
-        iso-kde = self.nixosConfigurations.abora-live-kde.config.system.build.isoImage;
-        iso-other = self.nixosConfigurations.abora-live-other.config.system.build.isoImage;
+        iso = self.nixosConfigurations.abora-live.config.system.build.isoImage;
 
         mango = pkgs.mango;
-        modularity = pkgs.modularity;
-        moducpp-anix = pkgs.moducpp-anix;
         abora-desktop-preview = pkgs.abora-desktop-preview;
         abora-hardware-test = pkgs.abora-hardware-test;
         abora-installer = pkgs.abora-installer;
-        abora-update-resolver = pkgs.abora-update-resolver;
+        abora-trailer = pkgs.abora-trailer;
         vanta = pkgs.vanta;
         abora-update = pkgs.abora-update;
         abora-plan-tool = pkgs.abora-plan-tool;
+        abora-grab = pkgs.abora-grab;
 
-        default = self.nixosConfigurations.abora-live-cosmic.config.system.build.isoImage;
+        default = self.nixosConfigurations.abora-live.config.system.build.isoImage;
       };
 
       apps.${system} = {

@@ -1,59 +1,27 @@
 { lib
-, buildDotnetModule
-, dotnetCorePackages
-, clang
-  # Two possible locations depending on whether this is evaluated from the
-  # repo's own flake.nix (../../tools/...) or from an installed system's
-  # copy under /etc/nixos/abora (../plan-tool) -- same dual-path pattern
-  # nix/modules/installed-base.nix uses for mango/modularity/tinypm.
+, rustPlatform
+  # From the repo's flake (../../tools/...) or an installed system's copy
+  # under /etc/nixos/abora (../plan-tool).
 , toolSrc ?
     if builtins.pathExists ../../tools/abora-plan-tool
     then ../../tools/abora-plan-tool
     else ../plan-tool
 }:
-# anix.sh's validate_plan_json/apply_plan_json/do_diff_plan parsed and
-# shape-validated ANIX Plan JSON through many small `jq` shell-outs (one
-# subprocess per field per operation). This packages a C# port of just the
-# JSON-shape validation (tools/abora-plan-tool, real xunit-tested) as a
-# Native AOT binary -- no .NET runtime needed at deploy time. ANIX-specific
-# business rules that must stay a single source of truth with other
-# commands (feature_to_anix_key, do_set's per-key value validation) are
-# deliberately NOT duplicated here -- see PlanParser.cs's doc comment.
-buildDotnetModule rec {
+# Shape validation for ANIX Plan JSON and the ANIX Native parser, used by
+# anix.sh (validate-plan, diff-plan, apply-plan, run). Rust since 4.2; it
+# replaced a C# Native AOT build with the same name and CLI.
+rustPlatform.buildRustPackage {
   pname = "abora-plan-tool";
-  version = "1.0.0";
+  version = "2.0.0";
 
-  # builtins.path with a fixed name gives the source the SAME store path (and so the same derivation) wherever
-  # it is evaluated from: the repo's own flake (which built the live ISO) or the copy the installer puts in
-  # /etc/nixos. A plain path would be copied under its directory name, so the installed system would get a
-  # different derivation and rebuild this Native AOT package from source (slow, and it runs out of memory in VMs).
+  # A fixed name gives the source the same store path from the repo's flake and
+  # from the installed copy, so installed systems reuse the ISO's build.
   src = builtins.path { path = toolSrc; name = "abora-plan-tool-src"; };
-
-  projectFile = "AboraPlanTool.csproj";
-  # Generated via `nuget-to-json` (nuget-to-nix's replacement in current
-  # nixpkgs) -- requires network access. Run once on a machine with Nix +
-  # network, from this directory (same step as
-  # nix/pkgs/abora-update-resolver.nix):
-  #   nix run nixpkgs#nuget-to-json -- . > ../../nix/pkgs/abora-plan-tool-deps.json
-  nugetDeps = ./abora-plan-tool-deps.json;
-
-  dotnet-sdk = dotnetCorePackages.sdk_10_0;
-  dotnet-runtime = dotnetCorePackages.runtime_10_0;
-
-  # Native AOT's ILCompiler needs a real C linker on PATH at publish time.
-  nativeBuildInputs = [ clang ];
-
-  selfContainedBuild = true;
-  useAppHost = true;
-
-  dotnetInstallFlags = [ "-p:PublishAot=true" ];
-  dotnetPublishFlags = [ "-p:PublishAot=true" ];
-
-  executables = [ "abora-plan-tool" ];
+  cargoLock.lockFile = toolSrc + "/Cargo.lock";
 
   meta = with lib; {
-    description = "Structural validation for ANIX Plan JSON, extracted from bash";
-    homepage = "https://github.com/AnimatedGTVR/Abora-OS";
+    description = "Shape validation for ANIX Plan JSON, and ANIX Native to Plan JSON";
+    homepage = "https://github.com/Abora-OS/Abora-OS";
     license = licenses.mit;
     platforms = platforms.linux;
     mainProgram = "abora-plan-tool";

@@ -5,8 +5,8 @@ Walks every .sh, .nix, .py, .md, .yml/.yaml, .json/.jsonc and .desktop file
 actually on disk (skipping out/, .git/, vendor/ and the TinyPM/ submodule --
 like vendor/, third-party-shaped with its own conventions and CI) and
 validates each by type, plus every extensionless-but-shebanged shell script
-(e.g. tools/moducpp-anix), every wallpaper theme .conf (sourced as shell), and
-every ANIX v2 source file (.anix/.moducpp) via `anix diff-plan`, so a new
+(e.g. the legacy placeholders), every wallpaper theme .conf (sourced as shell), and
+every ANIX v2 source file (.anix) via `anix diff-plan`, so a new
 file that nobody registered anywhere still gets checked.
 
 Usage:
@@ -52,7 +52,7 @@ def find_files(root: Path, ext: str) -> list[str]:
 
 
 def find_shebang_scripts(root: Path) -> list[str]:
-    """Executable files with no extension but a bash/sh shebang, like tools/moducpp-anix."""
+    """Executable files with no extension but a bash/sh shebang, like helper tools."""
 
     def is_shell_script(path: Path) -> bool:
         if "." in path.name or not os.access(path, os.X_OK):
@@ -94,7 +94,7 @@ class Sweep:
         self.c = codes if color else dict.fromkeys(codes, "")
         self.failed = self.warned = self.elevated = False
         self.counts = dict.fromkeys(("sh", "nix", "py", "md", "orphan", "anix", "yaml", "json", "desktop", "conf", "anix_skipped"), 0)
-        self.has = {tool: shutil.which(tool) is not None for tool in ("shellcheck", "nix-instantiate", "jq", "dotnet")}
+        self.has = {tool: shutil.which(tool) is not None for tool in ("shellcheck", "nix-instantiate", "jq", "cargo")}
         self.plan_tool: Path | None = None
         self.yaml = _load_yaml()
 
@@ -141,21 +141,16 @@ class Sweep:
 
     # ── plan tool ──
     def build_plan_tool(self) -> None:
-        """`anix diff-plan` needs a real abora-plan-tool. Build a Debug one (faster than the
-        AOT publish the Nix package uses) and expose it through ABORA_PLAN_TOOL_BIN."""
-        project = self.root / "tools/abora-plan-tool/AboraPlanTool.csproj"
-        if not (self.has["dotnet"] and project.is_file()):
+        """`anix diff-plan` needs a real abora-plan-tool: build a debug one and expose it
+        through ABORA_PLAN_TOOL_BIN."""
+        manifest = self.root / "tools/abora-plan-tool/Cargo.toml"
+        if not (self.has["cargo"] and manifest.is_file()):
             return
-        build = self.run(["dotnet", "build", str(project), "-c", "Debug"], env={**os.environ, "MSBuildEnableWorkloadResolver": "false"})
-        if build.returncode != 0:
+        if self.run(["cargo", "build", "--quiet", "--manifest-path", str(manifest)]).returncode != 0:
             return
-        dll = self.root / "tools/abora-plan-tool/bin/Debug/net10.0/abora-plan-tool.dll"
-        handle, name = tempfile.mkstemp(prefix="abora-plan-tool-")
-        with os.fdopen(handle, "w") as wrapper:
-            wrapper.write(f"#!/usr/bin/env python3\nimport os, sys\nos.execvp('dotnet', ['dotnet', {str(dll)!r}, *sys.argv[1:]])\n")
-        os.chmod(name, 0o755)
-        self.plan_tool = Path(name)
-        os.environ["ABORA_PLAN_TOOL_BIN"] = name
+        binary = self.root / "tools/abora-plan-tool/target/debug/abora-plan-tool"
+        self.plan_tool = binary
+        os.environ["ABORA_PLAN_TOOL_BIN"] = str(binary)
 
     # ── shell scripts ──
     def check_shell(self, file: str) -> None:
@@ -333,6 +328,10 @@ class Sweep:
                 if re.match(r"\s*\$ ", block):
                     continue
                 block_file = Path(tmp) / f"block_{number}.{'nix' if lang == 'nix' else 'sh'}"
+                # <id>-style placeholders are documentation for a reader, not shell
+                # redirections: check the block as if the user had typed a value.
+                if lang != "nix":
+                    block = re.sub(r"<([A-Za-z][A-Za-z0-9_-]*)>", r"\1", block)
                 block_file.write_text(block + "\n", encoding="utf-8")
                 if lang == "nix":
                     if self.has["nix-instantiate"] and self.run(["nix-instantiate", "--parse", str(block_file)]).returncode != 0:
@@ -348,7 +347,7 @@ class Sweep:
     # ── ANIX v2 plans ──
     def check_anix_plan(self, file: str) -> None:
         """`anix diff-plan` parses, compiles and validates a plan without applying anything.
-        A missing language adapter (MKO/ModuCPP toolchains install separately) is an
+        A missing language adapter (third-party toolchains install separately) is an
         environment gap, so it counts as skipped rather than failed."""
         self.counts["anix"] += 1
         if not self.has["jq"] or not (self.root / "scripts/anix.sh").is_file() or self.plan_tool is None:
@@ -443,11 +442,7 @@ class Sweep:
     # ── run ──
     def run_all(self) -> int:
         self.build_plan_tool()
-        try:
-            return self._run_sections()
-        finally:
-            if self.plan_tool is not None:
-                self.plan_tool.unlink(missing_ok=True)
+        return self._run_sections()
 
     def _run_sections(self) -> int:
         root, c = self.root, self.c
@@ -482,9 +477,8 @@ class Sweep:
         self.section("ANIX v2 plan sources (anix diff-plan, non-destructive)")
         if not self.has["jq"]:
             self.ok("jq unavailable (anix plan checks skipped)")
-        for ext in ("anix", "moducpp"):
-            for file in find_files(root, ext):
-                self.check_anix_plan(file)
+        for file in find_files(root, "anix"):
+            self.check_anix_plan(file)
 
         self.section("YAML files (GitHub Actions workflows, etc.)")
         if self.yaml is None:

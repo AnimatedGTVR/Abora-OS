@@ -4,6 +4,7 @@ let
 in
 {
   config = lib.mkIf (common.enabled "river") {
+    environment.systemPackages = [ pkgs.foot ];
     services.xserver = common.xserver;
     programs.river = {
       enable = true;

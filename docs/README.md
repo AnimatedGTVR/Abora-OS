@@ -6,14 +6,15 @@ This documentation covers installing, using, testing, recovering, building, and 
 
 - [Installation](wiki/Installation.md): ISO installation, partition choices, desktop selection, and adoption on an existing NixOS system
 - [Updating Abora](wiki/Updating-Abora.md): channels, update checks, normal updates, disk-full recovery, and rollback
-- [Abora Tools](wiki/Abora-Tools.md): `abora`, diagnostics, configuration, desktop management, and support commands
+- [Abora Tools](wiki/Abora-Tools.md): `anix` and `abora`, diagnostics, configuration, desktop management, and support commands
 - [Recovery](wiki/Recovery.md): generations, rebuilds, networking, support reports, and live-ISO recovery
 - [Abora Gaming](wiki/Abora-Gaming.md): Steam, Wine, Gamescope, GameMode, MangoHud, and cache repair
-- [TinyPM](wiki/TinyPM.md): package discovery, providers, transactions, and standalone packages
-- [FAQ](wiki/FAQ.md): editions, stability, hardware, installation, and troubleshooting
+- [Packages](wiki/Packages.md): `grab`, `anix package`, Flatpak, and what replaced TinyPM
+- [FAQ](wiki/FAQ.md): stability, hardware, installation, and troubleshooting
 
-## ANIX
+## Safety and ANIX
 
+- [ASA and ABT](wiki/ASA.md): how system changes are checked, applied, verified, and rolled back
 - [ANIX v1](wiki/ANIX-V1.md): current system-management commands
 - [ANIX v2 Languages](wiki/ANIX-V2-Languages.md): language adapters and development direction
 - [ANIX on existing NixOS](wiki/ANIX-Standalone.md): adoption and configuration guidance
@@ -29,6 +30,7 @@ This documentation covers installing, using, testing, recovering, building, and 
 
 - [Contributing](../CONTRIBUTING.md): workflow, validation, commits, and code style
 - [Project layout](project-layout.md): source-tree responsibilities
+- [How the installer works](wiki/Installer.md): the screens, the Rust engine, what it writes, and how to test it
 - [Building Abora](wiki/Building-Abora.md): ISO and VM builds
 - [Release guide](wiki/Release-Guide.md): normal release workflow
 - [Release checklist](release-checklist.md): required release gates

@@ -18,7 +18,7 @@ What broke?
 ## Where It Happened
 
 - Live ISO installer / installed system / update / first boot:
-- Edition: Cosmic / Hyprland / GNOME / KDE / Other:
+- Desktop chosen in the installer (COSMIC / GNOME / KDE / Hyprland / other / none), and whether Minimal was on:
 - Real hardware or VM:
 - Wired, Wi-Fi, or offline:
 

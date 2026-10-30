@@ -6,9 +6,10 @@
 # tools, so they are Bash too; each one moves to its tool's new language when
 # that tool is ported, and this file goes when the last suite does.
 #
-# scripts/check-scripts.py runs the suites. It builds the C# tools first and
-# passes them in ABORA_TEST_RESOLVER_BIN and ABORA_TEST_PLAN_TOOL_BIN (empty
-# when dotnet is unavailable, which the suites treat as "skip").
+# scripts/check-scripts.py runs the suites. It prepares the Vanta resolver and
+# builds the Rust plan tool first, and passes them in ABORA_TEST_RESOLVER_BIN and
+# ABORA_TEST_PLAN_TOOL_BIN (empty when Vanta or cargo is unavailable, which the
+# suites treat as "skip").
 #
 # Provides: repo_dir (and cd's there), release_tag, resolver_bin,
 # plan_tool_bin, pass/fail, tmp_ok/tmp_empty scratch directories removed on

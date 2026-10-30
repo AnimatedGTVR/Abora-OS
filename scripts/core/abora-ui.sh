@@ -16,7 +16,7 @@ _abora_ui_resolve_version() {
         tr -d '[:space:]' < /etc/abora/VERSION
         return
     fi
-    printf 'v4.1 Horizon'
+    printf 'v4.2 Solstice'
 }
 
 ABORA_UI_VERSION="$(_abora_ui_resolve_version)"
@@ -601,4 +601,42 @@ abora_wu_run() {
         abora_log_tail "$logfile"
     fi
     return "$status"
+}
+
+# ── ASA: system changes as ABT transactions ───────────────────────────────────
+# Sets ABORA_ABT_PREFIX to the words that run a command as an ABT transaction
+# (see scripts/safety/abora-abt.py): checked, snapshotted, verified, and
+# rolled back to the previous generation and config if it fails. Callers put
+# it inside their own privilege escalation:
+#
+#   abora_abt_prefix "anix apply" "$config_dir"
+#   run_as_root "${ABORA_ABT_PREFIX[@]}" nixos-rebuild switch --flake ...
+#
+# Empty (so the command runs as before) when abora-abt isn't installed --
+# plain NixOS, or a system part-way through updating from a release without
+# it -- or when ABORA_NO_ABT is set. A config dir of "-" skips the snapshot.
+abora_abt_prefix() {
+    local name="$1" config="${2:--}"
+    ABORA_ABT_PREFIX=()
+    case "${ABORA_NO_ABT:-}" in 1|yes|true) return 0 ;; esac
+    command -v abora-abt >/dev/null 2>&1 || return 0
+    ABORA_ABT_PREFIX=(abora-abt run --name "$name")
+    [[ "$config" == "-" ]] || ABORA_ABT_PREFIX+=(--config "$config")
+    ABORA_ABT_PREFIX+=(--)
+}
+
+# Call before editing the system config: opens the pending ABT transaction for
+# the config dir, or reuses the one an earlier edit opened, so the next
+# rebuild through abora_abt_prefix rolls back these edits too if it fails
+# (and keeps them for `anix undo --keep-edits`). Pass the caller's privilege
+# escalation after the config dir. Never stops the edit: without abora-abt,
+# or if it fails, the edit goes ahead as it always has.
+#
+#   abora_abt_pending "anix set" "$config_dir" run_as_root
+abora_abt_pending() {
+    local name="$1" config="$2"
+    shift 2
+    case "${ABORA_NO_ABT:-}" in 1|yes|true) return 0 ;; esac
+    command -v abora-abt >/dev/null 2>&1 || return 0
+    "$@" abora-abt pending --name "$name" --config "$config" >/dev/null 2>&1 || true
 }

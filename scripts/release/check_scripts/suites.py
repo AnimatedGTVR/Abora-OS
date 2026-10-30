@@ -22,6 +22,7 @@ def run(ctx: Context) -> None:
         **os.environ,
         "ABORA_TEST_RESOLVER_BIN": str(ctx.resolver_bin or ""),
         "ABORA_TEST_PLAN_TOOL_BIN": str(ctx.plan_tool_bin or ""),
+        "ABORA_TEST_INSTALLER_BIN": str(ctx.installer_bin or ""),
     }
     suites = sorted([*ctx.repo.glob("scripts/*/tests/*.test.sh"), *ctx.repo.glob("scripts/*/tests/*.test.py")])
     for suite in suites:

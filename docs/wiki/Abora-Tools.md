@@ -1,8 +1,22 @@
 # Abora Tools
 
-Abora includes a small command layer for distro-specific tasks.
+Abora includes a small command layer for distro-specific tasks: health, setup, recovery, desktop selection,
+updates, support reports, and system configuration.
 
-Use these commands for Abora health, setup, recovery, desktop selection, updates, support reports, and system configuration.
+## `anix` and `abora`
+
+Since 4.2 Solstice, `anix` is the one command for Abora, and `abora` is its old name. Every command below
+works with either: `anix update` and `abora update` are the same thing. The tables use `abora` because
+that's what earlier releases and most guides use.
+
+Two names mean slightly different things under each:
+
+| Command | Under `anix` | Under `abora` |
+| --- | --- | --- |
+| `config` | system settings; `config set snapshots.push` is ANIX's own setting | system settings |
+| `install` | `anix install <pkg>` installs a package; `anix install pre-alpha` as before | `abora install pre-alpha` |
+
+`anix rollback` and `abora rollback` both go back to the previous system generation.
 
 ## Main Commands
 
@@ -11,7 +25,7 @@ Use these commands for Abora health, setup, recovery, desktop selection, updates
 | `abora learn` | Show the short beginner cheat sheet |
 | `abora welcome` | Show first-step status and useful actions |
 | `abora welcome-gui` | Graphical version of the above — status card, update check, and quick actions in a window. Opens once automatically on first desktop login |
-| `abora doctor` | Check install health, Flatpak, themes, boot assets, updates, and ANIX |
+| `abora doctor` | Check bootloader, Nix, ANIX config, update channel, desktop, GPU driver, network/DNS, disk, services, and Flatpak; `doctor repair` fixes, `doctor --json` for support. See [Recovery](Recovery.md#doctor) |
 | `abora network` | Diagnose Wi-Fi, DNS, NetworkManager, and Abora cache/update reachability |
 | `abora logs` | Show recent live installer/config logs if present |
 | `abora bug-report` | Print a copy-pasteable Discord/GitHub bug report template |
@@ -27,7 +41,6 @@ Use these commands for Abora health, setup, recovery, desktop selection, updates
 | `abora gaming steam on` | Enable Steam plus required controller support |
 | `abora config set gaming true` | Enable the optional gaming layer |
 | `abora apps` | App bundle and catalog helpers |
-| `abora apps custom` | Update standalone custom packages such as Modularity Stable |
 | `abora support-report` | Collect support diagnostics |
 | `abora update` | Update Abora |
 | `abora update --check` | Check whether an update is available without installing it |
@@ -43,7 +56,7 @@ abora doctor
 anix status
 anix learn
 anix --gui
-tinypm providers
+anix package list
 abora apps custom list
 sudo abora update
 ```
@@ -119,24 +132,10 @@ anix set desktop hyprland
 anix apply
 ```
 
-## Custom Packages
+## Software outside nixpkgs
 
-Standalone packages that do not come from normal Nixpkgs can be updated with
-the custom package helper. Modularity Stable is the first supported package:
-
-```sh
-abora apps custom info modularity-stable
-sudo abora apps custom update modularity-stable --zip ~/Downloads/Modularity-7.0.0-Linux.zip
-```
-
-Bundled wallpapers: `titlis-alps.jpg`, `aurora-lofoten.jpg`, `alpine-glacier.jpg`,
-`tannheimer-mountains.jpg`, plus the `abora-dark.svg`/`abora-light.svg`
-originals. Source and license for each photo are in
-[assets/wallpapers/CREDITS.md](../../assets/wallpapers/CREDITS.md).
-
-```sh
-abora config set wallpaper titlis-alps.jpg
-```
+`abora apps custom` was removed in 4.2. A program that lives in a GitHub flake installs with
+`anix package install github:owner/repo`; see [Packages](Packages.md).
 
 ## Graphical Tools
 
@@ -185,13 +184,15 @@ incoming dotfiles to overwrite files already in your home folder.
 
 ## App Layer
 
-Use TinyPM for apps:
+Install packages with ANIX (no rebuild) or Flatpak apps with `abora apps`:
 
 ```sh
-grab firefox
-tinypm search krita
-tinypm providers
+anix package install firefox
+anix package search krita
+abora apps
 ```
+
+See [Packages](Packages.md) for declared vs. installed packages.
 
 Use ANIX or Abora config for system-level changes.
 
@@ -259,5 +260,4 @@ Run health checks:
 ```sh
 abora doctor
 anix doctor
-tinypm doctor
 ```

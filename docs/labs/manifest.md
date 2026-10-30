@@ -34,7 +34,7 @@ make safe. String commands still run, but `validate` warns about each one and
 suggests an argv list, and it also warns about `.sh`/`.bash` files in an
 implementation. Work that needs several steps, pipes or redirects is better
 placed in the implementation's build tool, such as a Makefile (see
-`experiments/updater/vanta/Makefile`) or CMake workflow presets.
+an implementation's own Makefile) or CMake workflow presets.
 
 Commands run with the implementation directory as the working directory, so
 the area's specification is always at `../shared`.

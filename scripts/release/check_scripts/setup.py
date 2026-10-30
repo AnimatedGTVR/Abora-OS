@@ -1,4 +1,4 @@
-"""Tool builds, MINT's Go checks, syntax and executable bits, required files, flake evaluation."""
+"""Tool builds, syntax and executable bits, required files, flake evaluation."""
 
 from __future__ import annotations
 
@@ -58,8 +58,6 @@ PYTHON_SCRIPTS = (
     "scripts/release/abora_release.py",
     "scripts/release/tarball.py",
     "scripts/package-anix.py",
-    "scripts/build-tinypm-image.py",
-    "scripts/package-tinypm.py",
     "scripts/preflight.py",
     "scripts/check-release-files.py",
     "scripts/release/abora_ui.py",
@@ -74,6 +72,8 @@ PYTHON_SCRIPTS = (
     "scripts/abora-gaming-welcome-gui.py",
     "scripts/support/abora-check-full.py",
     "scripts/support/abora-doctor.py",
+    "scripts/safety/abora-abt.py",
+    "scripts/safety/tests/abt.test.py",
     "scripts/support/abora-hardware-test.py",
     "scripts/support/abora-recovery.py",
     "scripts/support/abora-support-report.py",
@@ -86,15 +86,12 @@ REQUIRED_FILES = (
     "scripts/abora-setup.desktop",
     "docs/wiki/ANIX-V1.md",
     "docs/wiki/ANIX-V2-Languages.md",
-    "docs/wiki/TinyPM.md",
+    "docs/wiki/Packages.md",
     "docs/wiki/Abora-Tools.md",
     "docs/wiki/Abora-Gaming.md",
     "docs/wiki/Recovery.md",
     "docs/wiki/Updating-Abora.md",
     "docs/bug-report-template.md",
-    "vendor/tinypm/Cargo.toml",
-    "vendor/tinypm/src/main.rs",
-    "vendor/tinypm/src/bin/grab.rs",
 )
 
 NIX_UNAVAILABLE = (
@@ -104,21 +101,18 @@ NIX_UNAVAILABLE = (
 )
 
 
-def build_dotnet_tool(ctx: Context, label: str, project: str, dll: str):
-    """A plain Debug build (not the slower AOT publish the Nix package uses) is enough for
-    behavioural tests. The tools are called as single executables, so wrap `dotnet <dll>`."""
-    if not shutil.which("dotnet"):
-        ctx.ok(f"dotnet unavailable ({label} runtime tests skipped)")
+def build_cargo_tool(ctx: Context, label: str, crate: str):
+    """A debug build is enough for behavioural tests."""
+    if not shutil.which("cargo"):
+        ctx.ok(f"cargo unavailable ({label} runtime tests skipped)")
         return None
-    built = ctx.run(["dotnet", "build", str(ctx.repo / project), "-c", "Debug"], env={"MSBuildEnableWorkloadResolver": "false"}, quiet=True)
+    manifest = str(ctx.repo / crate / "Cargo.toml")
+    built = ctx.run(["cargo", "build", "--quiet", "--manifest-path", manifest], quiet=True)
     if built.returncode != 0:
-        ctx.fail(f"{label}: dotnet build failed")
+        ctx.fail(f"{label}: cargo build failed")
         return None
-    wrapper = ctx.tmp / label
-    wrapper.write_text(f"#!/usr/bin/env python3\nimport os, sys\nos.execvp('dotnet', ['dotnet', {str(ctx.repo / dll)!r}, *sys.argv[1:]])\n")
-    wrapper.chmod(0o755)
     ctx.ok(f"{label}: built for runtime tests")
-    return wrapper
+    return ctx.repo / crate / "target" / "debug" / label
 
 
 # A program that only runs on a Vanta with the language features Abora's tools use.
@@ -160,7 +154,7 @@ def vanta_update_tool(ctx: Context):
     """tools/abora-update's unit tests, and an `abora-update` executable for the updater suite."""
     vanta = find_vanta(ctx)
     if vanta is None:
-        ctx.ok("vanta unavailable (abora-update Vanta tests skipped; updater suite uses the C# resolver)")
+        ctx.ok("vanta unavailable (abora-update Vanta tests and the updater's resolver tests skipped)")
         return None
     tests = ctx.run([vanta, "run", "tools/abora-update/tests.vanta"], capture=True)
     if not ctx.result(tests.returncode == 0, "abora-update: Vanta unit tests"):
@@ -175,26 +169,10 @@ def vanta_update_tool(ctx: Context):
 
 
 def run(ctx: Context) -> None:
-    # The updater and ANIX suites need real resolver/plan-tool binaries: there is no Bash fallback.
-    # The updater prefers the Vanta abora-update; the C# resolver remains its fallback.
-    csharp_resolver = build_dotnet_tool(
-        ctx, "abora-update-resolver", "tools/abora-update-resolver/AboraUpdateResolver.csproj",
-        "tools/abora-update-resolver/bin/Debug/net10.0/abora-update-resolver.dll",
-    )
-    ctx.resolver_bin = vanta_update_tool(ctx) or csharp_resolver
-    ctx.plan_tool_bin = build_dotnet_tool(
-        ctx, "abora-plan-tool", "tools/abora-plan-tool/AboraPlanTool.csproj",
-        "tools/abora-plan-tool/bin/Debug/net10.0/abora-plan-tool.dll",
-    )
-
-    # vendor/mint had no automated verification before: only the manual `make
-    # test-installer*` targets. go vet/test are its baseline safety net.
-    if shutil.which("go"):
-        for step in ("build", "vet", "test"):
-            done = ctx.run(["go", step, "./..."], cwd=ctx.repo / "vendor/mint", quiet=True)
-            ctx.result(done.returncode == 0, f"vendor/mint: go {step}")
-    else:
-        ctx.ok("go unavailable (vendor/mint build/vet/test skipped)")
+    # The updater and ANIX suites need the real resolver and plan tool: there is no Bash fallback.
+    ctx.resolver_bin = vanta_update_tool(ctx)
+    ctx.plan_tool_bin = build_cargo_tool(ctx, "abora-plan-tool", "tools/abora-plan-tool")
+    ctx.installer_bin = build_cargo_tool(ctx, "abora-installer", "tools/abora-installer")
 
     for file in BASH_SCRIPTS:
         path = ctx.path(file)

@@ -9,7 +9,6 @@ set -uo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 installer="$root/scripts/install/abora-installer.sh"
 config="$root/scripts/config/abora-config.sh"
-gui="$root/scripts/install/abora-installer-gui.py"
 
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
@@ -53,18 +52,6 @@ expect fr-latin1 fr
 expect cz-lat2 cz
 # Names that are already layouts stay as they are.
 for same in us de fr es it ru pl nl kr; do expect "$same" "$same"; done
-
-# The GUI installer keeps its own table of (console keymap, layout, label). Every pair in it where the console
-# keymap really is the layout's keymap must agree with this function. (Entries that use the "us" console map
-# for a language with no console keymap, like Chinese and Korean, are skipped.)
-checked=0
-while IFS="'" read -r _ console _ layout _; do
-    [[ -n "$console" && -n "$layout" && "$console" != "us" ]] || continue
-    checked=$((checked + 1))
-    got="$(console_keymap_to_xkb "$console")"
-    if [[ "$got" == "$layout" ]]; then pass "GUI table: $console -> $layout"; else fail "GUI table says $console -> $layout but the shell mapping gives '$got'"; fi
-done < <(sed -n '/^KEYBOARDS = \[/,/^\]/p' "$gui" | grep "^    ('")
-[[ "$checked" -ge 8 ]] || fail "expected to check at least 8 entries from the GUI installer's KEYBOARDS table, checked $checked"
 
 if [[ "$failures" -eq 0 ]]; then
     printf '\nAll keyboard layout checks passed.\n'

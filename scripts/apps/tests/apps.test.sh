@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Behaviour tests for the app manager, catalog and custom packages (scripts/apps/abora-apps.sh).
+# Behaviour tests for the app manager and catalog (scripts/apps/abora-apps.sh).
 #
 # Run by scripts/check-scripts.py, one suite per Bash tool. These tests
 # exercise Bash code directly (running it in sandboxes, or sourcing
@@ -263,62 +263,30 @@ tmp_root_helpers="$(mktemp -d)"
 
 sed -n '/^run_as_root() {/,/^}$/p' scripts/abora-apps.sh > "$tmp_root_helpers/apps.sh"
 
-sed -n '/^run_as_root() {/,/^}$/p' scripts/abora-custom-packages.sh > "$tmp_root_helpers/custom.sh"
-
 set +e
 
 bash -c 'source "$1"; ABORA_NO_SUDO=1; run_as_root false' bash "$tmp_root_helpers/apps.sh"
 
 _apps_root_helper_status=$?
 
-bash -c 'source "$1"; ABORA_NO_SUDO=1; run_as_root false' bash "$tmp_root_helpers/custom.sh"
-
-_custom_root_helper_status=$?
-
 set -e
 
 rm -rf "$tmp_root_helpers"
 
-if [[ "$_apps_root_helper_status" -ne 0 && "$_custom_root_helper_status" -ne 0 ]]; then
+if [[ "$_apps_root_helper_status" -ne 0 ]]; then
   pass "runtime: app root helpers preserve command failures"
 else
   fail "runtime: app root helpers preserve command failures"
-  printf '              abora-apps rc: %s, custom-packages rc: %s\n' \
-    "$_apps_root_helper_status" "$_custom_root_helper_status"
+  printf '              abora-apps rc: %s\n' "$_apps_root_helper_status"
 fi
 
-# Regression test: abora-custom-packages.sh used to rely on two separate
-# `trap ... RETURN` calls (one per function) to clean up its temp
-# extraction dir and downloaded zip. Both were broken: `trap ... RETURN`
-# never fires on `exit` (only a normal function return), and every real
-# error path here calls `exit`; and `trap` isn't function-scoped in bash,
-# so the inner function's trap silently overwrote the outer one's, so even
-# the success path leaked the downloaded zip. Reproduced directly: `abora
-# apps custom update modularity-stable --zip <bad.zip>` (missing the
-# expected bin/Modularity executable, a real user mistake -- wrong zip,
-# corrupted download) left its extraction tmp dir behind in /tmp every
-# time. Runs the real script end-to-end against a real, deliberately
-# malformed zip fixture and diffs /tmp before/after.
-if command -v zip >/dev/null 2>&1 && command -v unzip >/dev/null 2>&1; then
-  tmp_badzip_dir="$(mktemp -d)"
-  mkdir -p "$tmp_badzip_dir/Modularity-1.0.0-Linux/bin"
-  touch "$tmp_badzip_dir/Modularity-1.0.0-Linux/bin/NOT_Modularity"
-  (cd "$tmp_badzip_dir" && zip -qr bad.zip Modularity-1.0.0-Linux)
-  _tmp_before="$(find /tmp -maxdepth 1 -name 'tmp.*' 2>/dev/null | sort)"
-  ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" \
-    bash scripts/abora-custom-packages.sh update modularity-stable \
-    --zip "$tmp_badzip_dir/bad.zip" --version 1.0.0 >/dev/null 2>&1 || true
-  _tmp_after="$(find /tmp -maxdepth 1 -name 'tmp.*' 2>/dev/null | sort)"
-  _tmp_leaked="$(comm -13 <(printf '%s\n' "$_tmp_before") <(printf '%s\n' "$_tmp_after"))"
-  rm -rf "$tmp_badzip_dir" $_tmp_leaked
-  if [[ -z "$_tmp_leaked" ]]; then
-    pass "runtime: abora-custom-packages.sh cleans up its temp extraction dir on a bad zip"
-  else
-    fail "runtime: abora-custom-packages.sh cleans up its temp extraction dir on a bad zip"
-    printf '              leaked: %s\n' "$_tmp_leaked"
-  fi
+# `abora apps custom` was removed in 4.2 (it only managed Modularity). The script stays as a stub that says so and
+# exits non-zero; the updater already installed on 4.0/4.1 requires the file to exist.
+_custom_out="$(bash scripts/abora-custom-packages.sh update modularity-stable 2>&1)" && _custom_rc=0 || _custom_rc=$?
+if [[ "$_custom_rc" -ne 0 ]] && grep -q 'removed in Abora OS 4.2' <<<"$_custom_out" && grep -q 'anix package install' <<<"$_custom_out"; then
+  pass "runtime: abora apps custom says it was removed and points at anix package"
 else
-  pass "zip/unzip unavailable (custom-packages temp-cleanup test skipped)"
+  fail "runtime: abora apps custom says it was removed and points at anix package"
 fi
 
 # Labs must remain opt-in and detached from the critical install/update path.
@@ -334,7 +302,7 @@ if grep -q '^State: not downloaded$' <<<"$_labs_status" \
   && [[ "$_labs_cancel_rc" -eq 1 && ! -e "$tmp_labs_home/data/abora/labs" ]] \
   && grep -q 'Cancelled\.' "$tmp_labs_home/cancel.out" \
   && grep -q 'Type LABS to continue' scripts/apps/abora-labs.sh \
-  && grep -q 'abora.labs.enable = $(nix_bool "$labs_enabled");' scripts/install/abora-installer.sh \
+  && grep -q 'abora.labs.enable = {labs};' tools/abora-installer/src/nixcfg.rs \
   && grep -q 'source = ../../scripts/apps/abora-labs.sh;' nix/profiles/live.nix \
   && grep -q 'config.abora.labs.enable && labsScript != null' nix/modules/installed-base.nix \
   && grep -q 'scripts/apps/abora-labs.sh' scripts/support/abora-update.sh; then

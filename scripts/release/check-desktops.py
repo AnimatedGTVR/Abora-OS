@@ -31,7 +31,7 @@ from pathlib import Path
 
 from abora_release import repo_root
 
-RELEASE_SHORT = "v4.1 Horizon"
+RELEASE_SHORT = "v4.2 Solstice"
 
 # Every profile must be representable by the CLI and the Nix option types.
 PROFILE_LISTS = ("scripts/anix.sh", "scripts/abora-config.sh", "nix/modules/abora-options.nix", "nix/modules/anix.nix")
@@ -48,17 +48,13 @@ STAGED_FILES = (
     ("assets/mango/config.conf", "mango/config.conf"),
     ("assets/plymouth/abora.plymouth", "plymouth/abora.plymouth"),
     ("assets/plymouth/abora.script", "plymouth/abora.script"),
-    ("assets/Effects/v3StartingAbora.mp3", "effects/v3StartingAbora.mp3"),
     ("nix/modules/installed-base.nix", "installed-base.nix"),
     ("nix/modules/abora-options.nix", "abora-options.nix"),
     ("nix/modules/anix.nix", "anix-module.nix"),
     ("nix/pkgs/mango.nix", "pkgs/mango.nix"),
     ("nix/pkgs/scenefx-0_5.nix", "pkgs/scenefx-0_5.nix"),
-    ("nix/pkgs/modularity.nix", "pkgs/modularity.nix"),
-    ("nix/pkgs/moducpp-anix.nix", "pkgs/moducpp-anix.nix"),
     ("nix/pkgs/vanta.nix", "pkgs/vanta.nix"),
     ("nix/pkgs/abora-update.nix", "pkgs/abora-update.nix"),
-    ("tools/moducpp-anix", "tools/moducpp-anix"),
     ("scripts/abora-ui.sh", "ui.sh"),
     ("scripts/abora-config.sh", "config.sh"),
     ("scripts/abora.sh", "abora.sh"),
@@ -95,8 +91,6 @@ STAGED_FLAT_DIRS = (
 # (repo directory, staged directory): whole trees, symlinks kept.
 STAGED_TREES = (
     ("nix/modules/desktops", "desktops"),
-    ("vendor/modularity", "vendor/modularity"),
-    ("vendor/tinypm", "tinypm"),
     ("tools/abora-update", "abora-update"),
 )
 

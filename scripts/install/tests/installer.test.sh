@@ -116,20 +116,24 @@ rm -rf "$tmp_lsblk_bin"
 # abora-installer.sh and runs it directly for both modes, and confirms
 # the option is both declared in abora-options.nix and actually written
 # into the generated config.
-tmp_bios_snippet="$(mktemp)"
-
-sed -n '/^    # "Use an existing partition" mode never creates a bios_grub partition$/,/^    fi$/p' scripts/abora-installer.sh \
-  > "$tmp_bios_snippet"
-
-_bios_existing="$(install_disk_mode="existing"; . "$tmp_bios_snippet"; printf '%s' "$disk_bios_support_nix")"
-
-_bios_erase="$(install_disk_mode="erase"; . "$tmp_bios_snippet"; printf '%s' "$disk_bios_support_nix")"
-
-rm -f "$tmp_bios_snippet"
+# The conditional now lives in the Rust installer; render the config both ways.
+_bios_for() {
+  local mode="$1" dir
+  dir="$(mktemp -d)"
+  sed -e "s|^disk_mode=.*|disk_mode=${mode}|" tools/abora-installer/tests/sample-settings.txt \
+    | "$ABORA_TEST_INSTALLER_BIN" config write --target "$dir" >/dev/null 2>&1
+  grep -o 'abora.diskBiosSupport = [a-z]*' "$dir/etc/nixos/abora-local.nix" | sed 's/.* = //'
+}
+if [[ -x "${ABORA_TEST_INSTALLER_BIN:-}" ]]; then
+  _bios_existing="$(_bios_for existing)"
+  _bios_erase="$(_bios_for erase)"
+else
+  _bios_existing=false; _bios_erase=true   # no cargo here: the Rust unit tests cover this
+fi
 
 if [[ "$_bios_existing" == "false" ]] \
   && [[ "$_bios_erase" == "true" ]] \
-  && grep -q 'abora.diskBiosSupport = ${disk_bios_support_nix};' scripts/abora-installer.sh \
+  && grep -q 'abora.diskBiosSupport = {bios};' tools/abora-installer/src/nixcfg.rs \
   && grep -q 'diskBiosSupport = lib.mkOption' nix/modules/abora-options.nix \
   && grep -q 'biosSupport         = cfg.diskBiosSupport;' nix/modules/abora-options.nix; then
   pass "runtime: installer disables Limine BIOS install for the no-bios_grub-partition disk mode"
@@ -218,5 +222,129 @@ if grep -q 'for _branding_git_path in' scripts/abora-installer.sh \
 else
   fail "runtime: installer's branding git-add stages each path independently"
 fi
+
+# The disk steps are thin calls into the Rust engine (`abora-installer disk`).
+# A fake engine checks the arguments, the efi=/root= parsing and that an
+# engine error is shown and logged rather than captured as the layout.
+tmp_engine_dir="$(mktemp -d)"
+sed -n '/^log_install_step()/,/^cp_required()/p' scripts/abora-installer.sh | sed '$d' > "$tmp_engine_dir/funcs.sh"
+cat > "$tmp_engine_dir/engine" <<'ENGINE'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$FAKE_ENGINE_CALLS"
+if [[ "${FAKE_ENGINE_FAIL:-}" == 1 ]]; then
+  echo "abora-installer: EFI partition /dev/sda1 is not FAT (ntfs)." >&2
+  exit 1
+fi
+case "$2" in
+  erase) printf 'efi=%sp2\nroot=%sp3\n' "$3" "$3" ;;
+  existing) printf 'efi=%s\nroot=%s\n' "$7" "$5" ;;
+esac
+ENGINE
+chmod +x "$tmp_engine_dir/engine"
+engine_run() {
+  ABORA_INSTALLER_BIN="$tmp_engine_dir/engine" FAKE_ENGINE_CALLS="$tmp_engine_dir/calls" \
+    install_log="$tmp_engine_dir/log" bash -c "
+      err() { printf 'ERR %s\n' \"\$1\"; }
+      source '$tmp_engine_dir/funcs.sh'
+      disk=/dev/nvme0n1 target_partition=/dev/nvme0n1p4 target_esp=/dev/nvme0n1p1
+      $1"
+}
+erase_out="$(engine_run 'partition_disk && mount_target && echo "$efi_part $root_part"')"
+existing_out="$(engine_run 'partition_disk_existing && echo "$efi_part $root_part"')"
+fail_out="$(FAKE_ENGINE_FAIL=1 engine_run 'partition_disk_existing || echo "refused efi=[$efi_part]"' 2>&1)"
+if [[ "$erase_out" == "/dev/nvme0n1p2 /dev/nvme0n1p3" \
+  && "$existing_out" == "/dev/nvme0n1p1 /dev/nvme0n1p4" \
+  && "$fail_out" == *"ERR abora-installer: EFI partition /dev/sda1 is not FAT (ntfs)."* \
+  && "$fail_out" == *"refused efi=[]"* ]] \
+  && grep -qx "disk erase /dev/nvme0n1 --log $tmp_engine_dir/log" "$tmp_engine_dir/calls" \
+  && grep -qx "disk mount --root /dev/nvme0n1p3 --efi /dev/nvme0n1p2 --log $tmp_engine_dir/log" "$tmp_engine_dir/calls" \
+  && grep -qx "disk existing /dev/nvme0n1 --root /dev/nvme0n1p4 --esp /dev/nvme0n1p1 --log $tmp_engine_dir/log" "$tmp_engine_dir/calls" \
+  && grep -q "is not FAT" "$tmp_engine_dir/log"; then
+  pass "runtime: installer disk steps call the Rust disk engine and use its layout"
+else
+  fail "runtime: installer disk steps call the Rust disk engine and use its layout"
+fi
+rm -rf "$tmp_engine_dir"
+
+# Own-flake installs: users the configuration left without a password get the
+# chosen one; users with a password, system users and nixbld users are untouched.
+tmp_pw_root="$(mktemp -d)"
+mkdir -p "$tmp_pw_root/etc"
+sed -n '/^set_shadow_hash()/,/^validate_flake_install()/p' scripts/abora-installer.sh | sed '$d' > "$tmp_pw_root/funcs.sh"
+cat > "$tmp_pw_root/etc/passwd" <<'PASSWD'
+root:x:0:0:System administrator:/root:/run/current-system/sw/bin/bash
+sshd:x:998:998::/var/empty:/run/current-system/sw/bin/nologin
+nixbld1:x:30001:30000:Nix build user 1:/var/empty:/run/current-system/sw/bin/nologin
+alice:x:1000:100::/home/alice:/run/current-system/sw/bin/zsh
+bob:x:1001:100::/home/bob:/run/current-system/sw/bin/bash
+PASSWD
+cat > "$tmp_pw_root/etc/shadow" <<'SHADOW'
+root:!:1::::::
+sshd:!:1::::::
+nixbld1:!:1::::::
+alice:!:1::::::
+bob:$6$keep$bobshash:1::::::
+SHADOW
+chmod 600 "$tmp_pw_root/etc/shadow"
+pw_out="$(install_log=/dev/null user_password_hash='$6$new$hash' bash -c "
+  ok() { printf 'OK %s\n' \"\$1\"; }; warn() { printf 'WARN %s\n' \"\$1\"; }; msg() { printf 'MSG %s\n' \"\$1\"; }
+  source '$tmp_pw_root/funcs.sh'
+  set_flake_user_passwords '$tmp_pw_root'")"
+if grep -qx 'alice:$6$new$hash:1::::::' "$tmp_pw_root/etc/shadow" \
+  && grep -qx 'bob:$6$keep$bobshash:1::::::' "$tmp_pw_root/etc/shadow" \
+  && grep -qx 'root:!:1::::::' "$tmp_pw_root/etc/shadow" \
+  && grep -qx 'nixbld1:!:1::::::' "$tmp_pw_root/etc/shadow" \
+  && [[ "$(stat -c %a "$tmp_pw_root/etc/shadow")" == 600 ]] \
+  && [[ "$pw_out" == *"OK Password set for alice"* && "$pw_out" == *"MSG bob keeps"* ]]; then
+  pass "runtime: own-flake install sets passwords only where the configuration left none"
+else
+  fail "runtime: own-flake install sets passwords only where the configuration left none"
+fi
+rm -rf "$tmp_pw_root"
+
+# Minimal installs offer their own light desktops, and Custom opens the full list.
+tmp_min="$(mktemp)"
+sed -n '/^minimal_desktop_profiles()/,/^release_desktop()/p' scripts/abora-installer.sh | sed '$d' > "$tmp_min"
+min_out="$(bash -c "
+  source scripts/config/abora-desktop-profiles.sh
+  source '$tmp_min'
+  release_all_desktops() { desktop_profile=full-list; }
+  menu() { shift; printf '%s\n' \"\$@\" > '$tmp_min.rows'; MENU_RESULT=\"\$PICK\"; }
+  PICK=4; release_minimal_desktop; printf 'pick4=%s\n' \"\$desktop_profile\"
+  PICK=9; release_minimal_desktop; printf 'pick9=%s\n' \"\$desktop_profile\"
+")"
+if [[ "$min_out" == *"pick4=lumina"* && "$min_out" == *"pick9=full-list"* ]] \
+  && [[ "$(cut -d'|' -f1 "$tmp_min.rows" | tr '\n' ',')" == "No desktop,IceWM,LXQt,XFCE,Lumina,Niri,Sway,Fluxbox,Openbox,Custom," ]]; then
+  pass "runtime: minimal installs offer the light desktop list, and Custom opens every desktop"
+else
+  fail "runtime: minimal installs offer the light desktop list, and Custom opens every desktop"
+fi
+rm -f "$tmp_min" "$tmp_min.rows"
+
+# NixOS release step: stable is only offered when the ISO names a stable branch,
+# and the branch the installer writes comes from that file, never from a literal.
+tmp_rel="$(mktemp -d)"
+sed -n '/^nixos_stable_branch()/,/^release_style()/p' scripts/abora-installer.sh | sed '$d' > "$tmp_rel/funcs.sh"
+rel_run() {
+  bash -c "
+    release_header() { :; }; msg() { :; }
+    menu() { MENU_RESULT=\"\$PICK\"; }
+    source '$tmp_rel/funcs.sh'
+    nixos_release=unstable
+    $1" 
+}
+printf 'nixos-26.05\n' > "$tmp_rel/stable"
+printf 'banana\n' > "$tmp_rel/odd"
+rel_stable="$(ABORA_NIXOS_STABLE_FILE="$tmp_rel/stable" PICK=1 rel_run 'release_nixos >/dev/null; printf "%s %s" "$nixos_release" "$(nixos_branch)"')"
+rel_rolling="$(ABORA_NIXOS_STABLE_FILE="$tmp_rel/stable" PICK=0 rel_run 'release_nixos >/dev/null; printf "%s %s" "$nixos_release" "$(nixos_branch)"')"
+rel_none="$(ABORA_NIXOS_STABLE_FILE="$tmp_rel/missing" PICK=1 rel_run 'release_nixos >/dev/null; printf "%s %s" "$nixos_release" "$(nixos_branch)"')"
+rel_odd="$(ABORA_NIXOS_STABLE_FILE="$tmp_rel/odd" PICK=1 rel_run 'release_nixos >/dev/null; printf "%s" "$nixos_release"')"
+if [[ "$rel_stable" == "stable nixos-26.05" && "$rel_rolling" == "unstable nixos-unstable" \
+  && "$rel_none" == "unstable nixos-unstable" && "$rel_odd" == "unstable" ]]; then
+  pass "runtime: installer offers the stable NixOS release only when the ISO names one"
+else
+  fail "runtime: installer offers the stable NixOS release only when the ISO names one ($rel_stable | $rel_rolling | $rel_none | $rel_odd)"
+fi
+rm -rf "$tmp_rel"
 
 testlib_finish

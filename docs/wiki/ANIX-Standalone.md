@@ -10,7 +10,7 @@ config) as an ordinary flake input. If you want the full `abora`/`anix`
 command set and branding on your existing NixOS install in one step
 instead, see [Existing NixOS Systems](Installation.md#existing-nixos-systems)
 in the Installation guide — `curl -sSL
-https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/scripts/abora-adopt-bootstrap.sh
+https://raw.githubusercontent.com/Abora-OS/Abora-OS/edge/scripts/abora-adopt-bootstrap.sh
 | bash` walks through a couple of questions and shows the plan before
 changing anything.
 
@@ -22,7 +22,7 @@ Add this repository as an input and use both the module and package:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
-    abora.url = "github:AnimatedGTVR/Abora-OS";
+    abora.url = "github:Abora-OS/Abora-OS";
   };
 
   outputs = { nixpkgs, abora, ... }: {
@@ -72,10 +72,10 @@ anix doctor
 If you just want the CLI in your current profile:
 
 ```sh
-nix profile install github:AnimatedGTVR/Abora-OS#anix
+nix profile install github:Abora-OS/Abora-OS#anix
 ```
 
-That installs the standalone `anix` command with bundled docs, the `tinypm`/`grab` binaries on `PATH`, and the ANIX module at:
+That installs the standalone `anix` command with bundled docs and the ANIX module at:
 
 ```text
 share/anix/anix-module.nix
@@ -93,10 +93,7 @@ The tarball includes:
 
 - `bin/anix`
 - `share/anix/anix-module.nix`
-- ANIX and TinyPM docs
-
-TinyPM itself is a separate Rust CLI with its own release archives -- see
-the bundled `TinyPM.md` doc for how to install `tinypm`/`grab` alongside it.
+- ANIX and package docs
 
 You can unpack the ANIX tarball and run:
 
@@ -115,7 +112,7 @@ same way:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
-    abora.url = "github:AnimatedGTVR/Abora-OS";
+    abora.url = "github:Abora-OS/Abora-OS";
   };
 
   outputs = { nixpkgs, abora, ... }: {
@@ -149,8 +146,8 @@ package blocks Abora would use for a profile, so you can copy them into
 your own `configuration.nix`. No checkout needed:
 
 ```sh
-nix run github:AnimatedGTVR/Abora-OS#desktop-preview -- gnome
-nix run github:AnimatedGTVR/Abora-OS#desktop-preview -- hyprland de myuser   # xkb layout + username
+nix run github:Abora-OS/Abora-OS#desktop-preview -- gnome
+nix run github:Abora-OS/Abora-OS#desktop-preview -- hyprland de myuser   # xkb layout + username
 ```
 
 Or from a checkout of this repo:
@@ -170,8 +167,8 @@ test target (firmware/UEFI, CPU/memory, storage, GPU, Wi-Fi) — none of it
 requires an actual Abora install, so it's packaged the same way:
 
 ```sh
-nix run github:AnimatedGTVR/Abora-OS#hardware-test
-nix run github:AnimatedGTVR/Abora-OS#hardware-test -- --with-report
+nix run github:Abora-OS/Abora-OS#hardware-test
+nix run github:Abora-OS/Abora-OS#hardware-test -- --with-report
 ```
 
 Or from a checkout: `./scripts/support/abora-hardware-test.py`. `--with-report`

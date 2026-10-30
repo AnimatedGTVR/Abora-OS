@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_url="${ABORA_REPO_URL:-https://github.com/AnimatedGTVR/Abora-OS.git}"
+repo_url="${ABORA_REPO_URL:-https://github.com/Abora-OS/Abora-OS.git}"
 config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
 script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$script_dir"
@@ -24,7 +24,7 @@ path instead -- by default that's a dry run; pass --apply to copy Abora
 modules into the existing NixOS config and add a tiny import file.
 
 Examples:
-  git clone https://github.com/AnimatedGTVR/Abora-OS.git
+  git clone https://github.com/Abora-OS/Abora-OS.git
   cd Abora-OS
   ./abora adopt-nixos
   sudo ./abora adopt-nixos --apply
@@ -71,7 +71,7 @@ done
 
 valid_desktop() {
   case "$1" in
-    none|gnome|plasma|hyprland|sway|xfce|cinnamon|mate|budgie|lxqt|pantheon|i3|awesome|openbox|niri|river|qtile|bspwm|fluxbox|icewm|herbstluftwm|cosmic|mangowm)
+    none|gnome|plasma|hyprland|sway|xfce|cinnamon|mate|budgie|lxqt|pantheon|i3|awesome|openbox|niri|river|qtile|bspwm|fluxbox|icewm|herbstluftwm|cosmic|mangowm|lumina)
       return 0
       ;;
     *)
@@ -136,7 +136,7 @@ run_interactive_wizard() {
 
   printf 'Desktop profile to let Abora manage (leave blank to keep your current one):\n'
   printf '  none gnome plasma hyprland sway xfce cinnamon mate budgie lxqt pantheon\n'
-  printf '  i3 awesome openbox niri river qtile bspwm fluxbox icewm herbstluftwm\n'
+  printf '  i3 awesome openbox niri river qtile bspwm fluxbox icewm herbstluftwm lumina\n'
   printf '  cosmic mangowm\n'
   printf 'Desktop [none]: '
   read -r answer_desktop || answer_desktop=""
@@ -177,11 +177,10 @@ copy_if_exists() {
   rm -rf "$dest"
   # cp -R needs $dest's parent to already exist -- true for every
   # top-level entry under $abora_dir, but not for a nested destination
-  # like vendor/modularity or tools/moducpp-anix, whose own parent
-  # (vendor/, tools/) is never separately created. Confirmed as a real,
-  # pre-existing failure by actually running this against a real repo
-  # checkout: "cp: cannot create directory '.../vendor/modularity': No
-  # such file or directory".
+  # like vendor/x or tools/y, whose own parent (vendor/, tools/) is
+  # never separately created. Confirmed as a real failure by running
+  # this against a real repo checkout: "cp: cannot create directory
+  # '.../vendor/modularity': No such file or directory".
   mkdir -p "$(dirname "$dest")"
   cp -RL "$source" "$dest"
 }
@@ -315,12 +314,16 @@ abora_dir="$config_dir/abora"
 mkdir -p "$abora_dir"
 
 copy_if_exists "$repo_dir/VERSION" "$abora_dir/VERSION"
+copy_if_exists "$repo_dir/NIXOS_STABLE" "$abora_dir/nixos-stable"
 copy_if_exists "$repo_dir/nix/modules/abora-options.nix" "$abora_dir/abora-options.nix"
 copy_if_exists "$repo_dir/nix/modules/installed-base.nix" "$abora_dir/installed-base.nix"
 copy_if_exists "$repo_dir/nix/modules/anix.nix" "$abora_dir/anix-module.nix"
 copy_if_exists "$repo_dir/nix/modules/desktops" "$abora_dir/desktops"
 copy_if_exists "$repo_dir/nix/pkgs" "$abora_dir/pkgs"
-copy_if_exists "$repo_dir/assets/wallpapers" "$abora_dir/wallpapers"
+copy_if_exists "$repo_dir/tools/abora-plan-tool" "$abora_dir/plan-tool"
+copy_if_exists "$repo_dir/tools/abora-grab" "$abora_dir/grab"
+copy_if_exists "$repo_dir/tools/abora-update" "$abora_dir/abora-update"
+copy_if_exists "$repo_dir/assets/wallpapers/collection" "$abora_dir/wallpapers"
 # installed-base.nix's wallpaperThemeDir looks for ./themes (matching what
 # abora-installer.sh's write_branding_assets() also copies to, on a real
 # install), not ./wallpaper-themes -- was silently wrong here, so an
@@ -332,8 +335,6 @@ copy_if_exists "$repo_dir/assets/Effects" "$abora_dir/effects"
 copy_if_exists "$repo_dir/assets/mango" "$abora_dir/mango"
 copy_if_exists "$repo_dir/assets/anix-languages" "$abora_dir/anix-languages"
 copy_if_exists "$repo_dir/docs" "$abora_dir/docs"
-copy_if_exists "$repo_dir/vendor/modularity" "$abora_dir/vendor/modularity"
-copy_if_exists "$repo_dir/tools/moducpp-anix" "$abora_dir/tools/moducpp-anix"
 copy_if_exists "$repo_dir/assets/abora-title.txt" "$abora_dir/title.txt"
 copy_if_exists "$repo_dir/assets/fastfetch-logo.txt" "$abora_dir/fastfetch-logo.txt"
 copy_if_exists "$repo_dir/assets/fastfetch-config.jsonc" "$abora_dir/fastfetch-config.jsonc"
@@ -382,6 +383,8 @@ for pair in \
   "scripts/abora-adopt-nixos.sh:adopt-nixos.sh" \
   "scripts/abora-welcome-gui.py:welcome-gui.py" \
   "scripts/support/abora-community.py:community.py" \
+  "scripts/support/abora_core.py:abora_core.py" \
+  "scripts/safety/abora-abt.py:abt.py" \
   "nix/modules/community.nix:community.nix" \
   "scripts/abora-config-gui.py:config-gui.py" \
   "scripts/abora-gaming-welcome-gui.py:gaming-welcome-gui.py"; do
@@ -422,9 +425,12 @@ EOF
 if [[ -f "$configuration_nix" ]]; then
   ensure_import_in_configuration
 elif [[ -f "$flake_nix" ]]; then
-  printf '\nFlake config detected. Add ./abora-adopt.nix to your NixOS module list.\n'
-  printf 'Example:\n'
+  printf '\nFlake config detected. Add ./abora-adopt.nix to your NixOS module list:\n'
   printf '  modules = [ ./configuration.nix ./abora-adopt.nix ];\n'
+  printf '\nOr skip the copied files and use Abora as a flake input, updated with\n'
+  printf '`nix flake update abora`:\n'
+  printf '  inputs.abora.url = "github:Abora-OS/Abora-OS";\n'
+  printf '  modules = [ ./configuration.nix abora.nixosModules.default ];\n'
 else
   printf '\nNo configuration.nix or flake.nix found in %s.\n' "$config_dir"
   printf 'Import %s from your real NixOS configuration.\n' "$target_import"

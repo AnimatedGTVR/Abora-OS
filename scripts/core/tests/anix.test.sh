@@ -565,7 +565,7 @@ unset ABORA_PLAN_TOOL_BIN
 
 else
 
-  pass "runtime: anix plan-JSON tests skipped (dotnet unavailable)"
+  pass "runtime: anix plan-JSON tests skipped (cargo unavailable)"
 
 fi
 
@@ -615,7 +615,8 @@ tmp_installed_anix_lang="$tmp_ok/installed-anix-languages"
 mkdir -p "$tmp_installed_anix_lang/etc/nixos/abora/anix-languages" \
          "$tmp_installed_anix_lang/etc/anix"
 
-cp assets/anix-languages/*.json "$tmp_installed_anix_lang/etc/nixos/abora/anix-languages/"
+# Abora ships no adapter manifests (ModuCPP and MAKO were removed in 4.2): copy whatever the directory holds.
+find assets/anix-languages -name '*.json' -exec cp {} "$tmp_installed_anix_lang/etc/nixos/abora/anix-languages/" \;
 
 ln -s "$tmp_installed_anix_lang/etc/nixos/abora/anix-languages" \
       "$tmp_installed_anix_lang/etc/anix/languages"
@@ -629,19 +630,167 @@ installed_anix_language_list_output="$(
 )"
 
 if ! printf '%s' "$installed_anix_language_list_output" | grep -q "MAKO" \
-  && printf '%s' "$installed_anix_language_list_output" | grep -q "ModuCPP" \
+  && ! printf '%s' "$installed_anix_language_list_output" | grep -q "ModuCPP" \
+  && printf '%s' "$installed_anix_language_list_output" | grep -q "ANIX Native" \
   && grep -q 'builtins.pathExists ./anix-languages' nix/modules/installed-base.nix \
   && grep -q '"anix/languages".source = anixLanguagesDir' nix/modules/installed-base.nix; then
-  pass "runtime: installed systems expose real ANIX language adapters"
+  pass "runtime: installed systems expose ANIX Native and no removed adapters"
 else
-  fail "runtime: installed systems expose real ANIX language adapters"
+  fail "runtime: installed systems expose ANIX Native and no removed adapters"
 fi
 
 # ── ANIX v2 end-to-end: real example files through real adapters ───────────
 # Each example is run through the actual `anix run`, with the real adapter
 # manifests in assets/anix-languages, against an isolated config dir. This
-# exercises the whole path (adapter resolution -> real moducpp-anix
-# process -> plan validation -> transactional write), not just the plan
+# exercises the whole path (language resolution -> plan validation ->
+# transactional write), not just the plan
+# engine in isolation like the tests above. Skips per-frontend when the
+# frontend's own tool isn't installed, matching the existing `command -v
+# nix` skip pattern, rather than failing the whole suite on a missing dev
+# tool that isn't part of this repo.
+
+
+anix_e2e_run() {
+  local example="$1" config_dir="$2"
+  ANIX_NO_SUDO=1 \
+    ANIX_ASSUME_YES=1 \
+    ANIX_SYSTEM_CONFIG="$config_dir" \
+    ANIX_SYSTEM_LANGUAGE_DIR="$repo_dir/assets/anix-languages" \
+    ANIX_USER_LANGUAGE_DIR="$tmp_empty/no-user-languages" \
+    ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+    scripts/anix.sh run "$example" --yes >/dev/null 2>&1
+}
+
+if [[ -n "$plan_tool_bin" ]]; then
+export ABORA_PLAN_TOOL_BIN="$plan_tool_bin"
+tmp_anix_e2e_anix="$tmp_ok/anix-e2e-anix"
+mkdir -p "$tmp_anix_e2e_anix"
+anix_e2e_run "examples/anix-v2/simple.anix" "$tmp_anix_e2e_anix" || true
+if grep -Eq 'anix\.hostname[[:space:]]*=[[:space:]]*"everest"' "$tmp_anix_e2e_anix/anix.nix" 2>/dev/null; then
+  pass "runtime: e2e .anix simple example applies through anix run"
+else
+  fail "runtime: e2e .anix simple example applies through anix run"
+fi
+
+# do_set only bans '"', '\', and '${' for timezone/keyboard.xkb/gc.days/
+# gc.dates -- a systemd OnCalendar-style gc.dates value like "Sun 03:00:00"
+# is legal there and via a JSON Plan's "value" field, but
+# NativePlanBuilder's `set` used to require exactly 3 whitespace-split
+# tokens, silently truncating/rejecting any value containing a space.
+tmp_anix_e2e_spaced_value="$tmp_ok/anix-e2e-spaced-value"
+
+mkdir -p "$tmp_anix_e2e_spaced_value"
+
+printf 'set gc.dates Sun 03:00:00\n' > "$tmp_anix_e2e_spaced_value/plan.anix"
+
+anix_e2e_run "$tmp_anix_e2e_spaced_value/plan.anix" "$tmp_anix_e2e_spaced_value" || true
+
+if grep -Eq 'anix\.garbageCollect\.dates[[:space:]]*=[[:space:]]*"Sun 03:00:00"' "$tmp_anix_e2e_spaced_value/anix.nix" 2>/dev/null; then
+  pass "runtime: native .anix 'set' preserves a space-containing value"
+else
+  fail "runtime: native .anix 'set' preserves a space-containing value"
+fi
+
+tmp_anix_e2e_anix_ws="$tmp_ok/anix-e2e-anix-workstation"
+
+mkdir -p "$tmp_anix_e2e_anix_ws"
+
+anix_e2e_run "examples/anix-v2/workstation.anix" "$tmp_anix_e2e_anix_ws" || true
+
+if grep -Eq 'anix\.hostname[[:space:]]*=[[:space:]]*"everest-workstation"' "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.services\.bluetooth[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.gaming\.enable[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null \
+  && grep -Eq 'anix\.gaming\.bigPictureShortcut[[:space:]]*=[[:space:]]*true' "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null \
+  && grep -q "firefox" "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null \
+  && grep -q "git" "$tmp_anix_e2e_anix_ws/anix.nix" 2>/dev/null; then
+  pass "runtime: e2e .anix workstation example applies through anix run"
+else
+  fail "runtime: e2e .anix workstation example applies through anix run"
+fi
+
+unset ABORA_PLAN_TOOL_BIN
+
+else
+
+  pass "runtime: anix plan-JSON tests skipped (cargo unavailable)"
+
+fi
+
+tmp_anix_lang_dir="$tmp_ok/anix-language"
+
+tmp_anix_lang_adapters="$tmp_ok/anix-language-adapters"
+
+mkdir -p "$tmp_anix_lang_dir" "$tmp_anix_lang_adapters"
+
+printf '%s\n' \
+  '{' \
+  '  "id": "stub",' \
+  '  "name": "Stub",' \
+  '  "extensions": [".stub"],' \
+  '  "command": ["cat"],' \
+  '  "planVersion": 1' \
+  '}' > "$tmp_anix_lang_adapters/stub.json"
+
+anix_language_list_output="$(
+  ANIX_SYSTEM_CONFIG="$tmp_anix_lang_dir" \
+    ANIX_SYSTEM_LANGUAGE_DIR="$tmp_anix_lang_adapters" \
+    ANIX_USER_LANGUAGE_DIR="$tmp_empty/no-user-languages" \
+    ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+    scripts/anix.sh language list 2>&1
+)"
+
+if printf '%s' "$anix_language_list_output" | grep -q "Stub"; then
+  pass "runtime: anix language list shows an installed adapter manifest"
+else
+  fail "runtime: anix language list shows an installed adapter manifest"
+fi
+
+if ANIX_SYSTEM_CONFIG="$tmp_anix_lang_dir" \
+  ANIX_SYSTEM_LANGUAGE_DIR="$tmp_anix_lang_adapters" \
+  ANIX_USER_LANGUAGE_DIR="$tmp_empty/no-user-languages" \
+  ANIX_NO_SUDO=1 \
+  ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+  scripts/anix.sh language use stub >/dev/null 2>&1 \
+  && grep -q "language=stub" "$tmp_anix_lang_dir/.anix/config" 2>/dev/null; then
+  pass "runtime: anix language use persists the default frontend"
+else
+  fail "runtime: anix language use persists the default frontend"
+fi
+
+tmp_installed_anix_lang="$tmp_ok/installed-anix-languages"
+
+mkdir -p "$tmp_installed_anix_lang/etc/nixos/abora/anix-languages" \
+         "$tmp_installed_anix_lang/etc/anix"
+
+# Abora ships no adapter manifests (ModuCPP and MAKO were removed in 4.2): copy whatever the directory holds.
+find assets/anix-languages -name '*.json' -exec cp {} "$tmp_installed_anix_lang/etc/nixos/abora/anix-languages/" \;
+
+ln -s "$tmp_installed_anix_lang/etc/nixos/abora/anix-languages" \
+      "$tmp_installed_anix_lang/etc/anix/languages"
+
+installed_anix_language_list_output="$(
+  ANIX_SYSTEM_CONFIG="$tmp_installed_anix_lang/etc/nixos" \
+    ANIX_SYSTEM_LANGUAGE_DIR="$tmp_installed_anix_lang/etc/anix/languages" \
+    ANIX_USER_LANGUAGE_DIR="$tmp_empty/no-user-languages" \
+    ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+    scripts/anix.sh language list 2>&1
+)"
+
+if ! printf '%s' "$installed_anix_language_list_output" | grep -q "MAKO" \
+  && ! printf '%s' "$installed_anix_language_list_output" | grep -q "ModuCPP" \
+  && printf '%s' "$installed_anix_language_list_output" | grep -q "ANIX Native" \
+  && grep -q 'builtins.pathExists ./anix-languages' nix/modules/installed-base.nix \
+  && grep -q '"anix/languages".source = anixLanguagesDir' nix/modules/installed-base.nix; then
+  pass "runtime: installed systems expose ANIX Native and no removed adapters"
+else
+  fail "runtime: installed systems expose ANIX Native and no removed adapters"
+fi
+
+# ── ANIX v2 end-to-end: real example files through real adapters ───────────
+# Each example is run through the actual `anix run`, with the real adapter
+# manifests in assets/anix-languages, against an isolated config dir. This
+# exercises the whole path (language resolution -> plan validation ->
+# transactional write), not just the plan
 # engine in isolation like the tests above. Skips per-frontend when the
 # frontend's own tool isn't installed, matching the existing `command -v
 # nix` skip pattern, rather than failing the whole suite on a missing dev
@@ -737,7 +886,7 @@ unset ABORA_PLAN_TOOL_BIN
 
 else
 
-  pass "runtime: anix e2e run tests skipped (dotnet unavailable)"
+  pass "runtime: anix e2e run tests skipped (cargo unavailable)"
 
 fi
 
@@ -835,20 +984,20 @@ unset ABORA_PLAN_TOOL_BIN
 
 else
 
-  pass "runtime: anix plan failure-path tests skipped (dotnet unavailable)"
+  pass "runtime: anix plan failure-path tests skipped (cargo unavailable)"
 
 fi
 
 # Regression test: anix.sh's "ANIX Control Center" terminal menus had the
 # same bug, but worse -- do_set/do_toggle/do_switch/do_rollback/do_save/
-# do_tool_config/do_tinypm/do_package/do_doctor/do_apply all call `exit`
+# do_tool_config/do_package/do_doctor/do_apply all call `exit`
 # (not `return`) on failure, so even a subshell-less `|| true` at the call
 # site couldn't have caught it; each call needed wrapping in its own `(
 # ... )` subshell so the exit only ends that subshell. Reproduced directly:
 # typing a hostname containing a space into "Settings > Hostname" killed
 # the entire `anix --gui` session before it ever returned to the settings
 # menu or the control center. Runs the real terminal UI end-to-end (no
-# DISPLAY/zenity, so it falls back to do_gui_terminal) against a sandboxed
+# DISPLAY, so it goes to do_gui_terminal) against a sandboxed
 # ANIX_SYSTEM_CONFIG, entering Settings (2) -> Hostname (2) -> an invalid
 # value, and checks the control center/settings banners rendered more than
 # once and the whole process exited cleanly.
@@ -879,7 +1028,7 @@ if [[ "$_anix_menu_status" -eq 0 && "$_anix_menu_renders" -ge 3 ]] \
   && grep -q '( do_rollback ) || true' scripts/anix.sh \
   && grep -q '( do_save "\${message:-anix: local config snapshot}" ) || true' scripts/anix.sh \
   && grep -q '( do_tool_config show ) || true' scripts/anix.sh \
-  && grep -q '( do_tinypm install ) || true' scripts/anix.sh \
+  && grep -q '( do_package install "\$pkg" ) || true' scripts/anix.sh \
   && grep -q '( do_package add "\$pkg" ) || true' scripts/anix.sh \
   && grep -q '( do_doctor ) || true' scripts/anix.sh \
   && grep -q '( do_apply ) || true' scripts/anix.sh; then
@@ -921,5 +1070,198 @@ else
 fi
 
 rm -rf "$tmp_thermald_render"
+
+# anix package install/uninstall/try (4.2, replacing TinyPM): a fake nix
+# records every call and keeps a one-line-per-package "profile", so these
+# check the real commands ANIX hands to nix, not just what it prints.
+tmp_pkg_cfg="$(mktemp -d)"
+tmp_pkg_bin="$(mktemp -d)"
+testlib_cleanup_paths+=("$tmp_pkg_cfg" "$tmp_pkg_bin")
+printf '{}\n' > "$tmp_pkg_cfg/flake.lock"
+printf '{ ... }:\n{\n  anix.allowUnfree = true;\n  anix.packages = with pkgs; [ git ];\n}\n' > "$tmp_pkg_cfg/anix.nix"
+cat > "$tmp_pkg_bin/nix" <<'FAKENIX'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FAKE_NIX_LOG"
+profile="$FAKE_NIX_PROFILE"
+touch "$profile"
+case "$1 $2" in
+  "profile add") exit 0 ;;
+  "profile install")
+    for a in "$@"; do
+      [[ "$a" == nixpkgs#* ]] && printf '%s\n' "${a#nixpkgs#}" >> "$profile"
+      [[ "$a" == github:* ]] && { r="${a#github:}"; r="${r%%#*}"; printf '%s\n' "$(echo "$r" | cut -d/ -f2)" >> "$profile"; }
+    done
+    [[ "$*" == *nixpkgs#nosuchpkg* ]] && { echo "error: flake 'flake:nixpkgs' does not provide attribute 'nosuchpkg'" >&2; exit 1; }
+    exit 0 ;;
+  "profile remove") grep -vFx -- "$3" "$profile" > "$profile.new" || true; mv "$profile.new" "$profile"; exit 0 ;;
+  "profile list")
+    printf '{"version":3,"elements":{'; sep=""
+    while read -r n; do printf '%s"%s":{}' "$sep" "$n"; sep=","; done < "$profile"
+    printf '}}\n'; exit 0 ;;
+esac
+exit 0
+FAKENIX
+chmod +x "$tmp_pkg_bin/nix"
+# `profile add --help` must fail so this fake looks like an older nix that
+# only knows `profile install`.
+sed -i 's/^  "profile add") exit 0 ;;/  "profile add") exit 1 ;;/' "$tmp_pkg_bin/nix"
+
+pkg_env=(env ANIX_SYSTEM_CONFIG="$tmp_pkg_cfg" ANIX_NO_SUDO=1 ANIX_ASSUME_YES=1
+  ANIX_NIX_BIN="$tmp_pkg_bin/nix" FAKE_NIX_LOG="$tmp_pkg_bin/log" FAKE_NIX_PROFILE="$tmp_pkg_bin/profile"
+  PATH="$tmp_pkg_bin:$PATH" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh")
+
+"${pkg_env[@]}" bash scripts/anix.sh package install htop >/dev/null 2>&1 || true
+if grep -qx 'profile install --inputs-from '"$tmp_pkg_cfg"' --impure nixpkgs#htop' "$tmp_pkg_bin/log" \
+  && grep -qx htop "$tmp_pkg_bin/profile" \
+  && ! grep -q htop "$tmp_pkg_cfg/anix.nix"; then
+  pass "runtime: anix package install uses the system's pinned nixpkgs and leaves anix.nix alone"
+else
+  fail "runtime: anix package install uses the system's pinned nixpkgs and leaves anix.nix alone"
+  cat "$tmp_pkg_bin/log" 2>/dev/null | sed 's/^/              /'
+fi
+
+_pkg_list="$("${pkg_env[@]}" bash scripts/anix.sh package list 2>&1 || true)"
+if grep -q 'git' <<<"$_pkg_list" && grep -q 'htop' <<<"$_pkg_list"; then
+  pass "runtime: anix package list shows declared and installed packages"
+else
+  fail "runtime: anix package list shows declared and installed packages"
+fi
+
+_pkg_missing_rc=0
+_pkg_missing="$("${pkg_env[@]}" bash scripts/anix.sh package install nosuchpkg 2>&1)" || _pkg_missing_rc=$?
+if [[ "$_pkg_missing_rc" -ne 0 ]] && grep -q 'nixpkgs has no package by that name' <<<"$_pkg_missing"; then
+  pass "runtime: anix package install explains a missing package"
+else
+  fail "runtime: anix package install explains a missing package"
+fi
+
+_pkg_bad_rc=0
+"${pkg_env[@]}" bash scripts/anix.sh package install -- --impure >/dev/null 2>&1 || _pkg_bad_rc=$?
+"${pkg_env[@]}" bash scripts/anix.sh package install '../x' >/dev/null 2>&1 || _pkg_bad_rc=$((_pkg_bad_rc + $?))
+if [[ "$_pkg_bad_rc" -ne 0 ]] && ! grep -q -- 'nixpkgs#--impure\|nixpkgs#\.\./x' "$tmp_pkg_bin/log"; then
+  pass "runtime: anix package install rejects option-like and path-like names"
+else
+  fail "runtime: anix package install rejects option-like and path-like names"
+fi
+
+# A program that lives in a GitHub flake installs as itself, not through nixpkgs; anything that isn't a plain
+# flake ref (options, other schemes, path tricks) is refused before nix sees it.
+"${pkg_env[@]}" bash scripts/anix.sh package install github:Some-Org/modularity-flake >/dev/null 2>&1 || true
+_flake_bad=0
+for bad in 'github:x/y --impure' 'file:///etc/passwd' 'github:../etc' 'path:/etc'; do
+  "${pkg_env[@]}" bash scripts/anix.sh package install "$bad" >/dev/null 2>&1 && _flake_bad=1
+done
+if grep -qx 'profile install --inputs-from '"$tmp_pkg_cfg"' --impure github:Some-Org/modularity-flake' "$tmp_pkg_bin/log" \
+  && grep -qx modularity-flake "$tmp_pkg_bin/profile" && [[ "$_flake_bad" -eq 0 ]] \
+  && ! grep -qE 'file:|path:|--impure --impure|github:x/y' "$tmp_pkg_bin/log"; then
+  pass "runtime: anix package install takes a GitHub flake and refuses anything that isn't a plain flake ref"
+else
+  fail "runtime: anix package install takes a GitHub flake and refuses anything that isn't a plain flake ref"
+  sed 's/^/              /' "$tmp_pkg_bin/log"
+fi
+
+_pkg_un="$("${pkg_env[@]}" bash scripts/anix.sh package uninstall git 2>&1 || true)"
+"${pkg_env[@]}" bash scripts/anix.sh package uninstall htop >/dev/null 2>&1 || true
+if grep -q 'comes from anix.packages' <<<"$_pkg_un" \
+  && grep -qx 'profile remove htop' "$tmp_pkg_bin/log" \
+  && ! grep -qx htop "$tmp_pkg_bin/profile"; then
+  pass "runtime: anix package uninstall removes one-off installs and points declared ones at anix.nix"
+else
+  fail "runtime: anix package uninstall removes one-off installs and points declared ones at anix.nix"
+fi
+
+"${pkg_env[@]}" bash scripts/anix.sh package keep ripgrep >/dev/null 2>&1 || true
+if grep -Eq 'anix.packages = with pkgs; \[ git +ripgrep \];' "$tmp_pkg_cfg/anix.nix"; then
+  pass "runtime: anix package keep declares the package in anix.nix"
+else
+  fail "runtime: anix package keep declares the package in anix.nix"
+fi
+
+_pkg_tinypm_rc=0
+_pkg_tinypm="$("${pkg_env[@]}" bash scripts/anix.sh tinypm status 2>&1)" || _pkg_tinypm_rc=$?
+if [[ "$_pkg_tinypm_rc" -ne 0 ]] && grep -q 'TinyPM was removed' <<<"$_pkg_tinypm" \
+  && grep -q 'anix package install' <<<"$_pkg_tinypm"; then
+  pass "runtime: anix tinypm says TinyPM is gone and where packages come from now"
+else
+  fail "runtime: anix tinypm says TinyPM is gone and where packages come from now"
+fi
+
+# anix nixos: which nixpkgs branch the generated flake follows. A fake nix
+# records `flake update`; the config dir is a throwaway copy of an Abora flake.
+tmp_nx="$(mktemp -d)"
+testlib_cleanup_paths+=("$tmp_nx")
+mkdir -p "$tmp_nx/cfg/abora" "$tmp_nx/bin"
+cat > "$tmp_nx/flake.template" <<'FLAKE'
+{
+  description = "Abora installed system";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  outputs = { nixpkgs, ... }: { };
+}
+FLAKE
+printf 'nixos-26.05\n' > "$tmp_nx/stable"
+cat > "$tmp_nx/bin/nix" <<'FAKENIX'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FAKE_NIX_LOG"
+if [[ "$*" == *"flake update"* ]]; then
+  [[ "${FAKE_NIX_FAIL_UPDATE:-}" == 1 ]] && { echo "error: unable to download" >&2; exit 1; }
+  printf 'relocked %s\n' "$(sed -n 's|.*nixpkgs/\([^"]*\)".*|\1|p' "$ANIX_SYSTEM_CONFIG/flake.nix")" > "$ANIX_SYSTEM_CONFIG/flake.lock"
+fi
+exit 0
+FAKENIX
+chmod +x "$tmp_nx/bin/nix"
+nx_env=(env ANIX_SYSTEM_CONFIG="$tmp_nx/cfg" ANIX_NO_SUDO=1 ANIX_ASSUME_YES=1 ANIX_NIXOS_STABLE_FILE="$tmp_nx/stable"
+  ANIX_NIX_BIN="$tmp_nx/bin/nix" FAKE_NIX_LOG="$tmp_nx/log" PATH="$tmp_nx/bin:$PATH" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh")
+nx_branch() { sed -n 's|.*nixpkgs/\([^"]*\)";.*|\1|p' "$tmp_nx/cfg/flake.nix"; }
+
+cp "$tmp_nx/flake.template" "$tmp_nx/cfg/flake.nix"
+_nx_status="$("${nx_env[@]}" bash scripts/anix.sh nixos 2>&1 || true)"
+if grep -q 'unstable (rolling' <<<"$_nx_status" && grep -q 'nixos-26.05' <<<"$_nx_status"; then
+  pass "runtime: anix nixos shows the release the system follows and what stable is"
+else
+  fail "runtime: anix nixos shows the release the system follows and what stable is"
+fi
+
+"${nx_env[@]}" bash scripts/anix.sh nixos stable >/dev/null 2>&1 || true
+if [[ "$(nx_branch)" == nixos-26.05 ]] \
+  && [[ "$(cat "$tmp_nx/cfg/abora/nixos-release")" == nixos-26.05 ]] \
+  && grep -qx "flake update nixpkgs --flake $tmp_nx/cfg" <(sed 's/^--extra-experimental-features nix-command flakes //' "$tmp_nx/log") \
+  && grep -q 'relocked nixos-26.05' "$tmp_nx/cfg/flake.lock" \
+  && grep -q 'outputs = { nixpkgs' "$tmp_nx/cfg/flake.nix"; then
+  pass "runtime: anix nixos stable edits the nixpkgs input, remembers it and relocks"
+else
+  fail "runtime: anix nixos stable edits the nixpkgs input, remembers it and relocks"
+  cat "$tmp_nx/cfg/flake.nix" "$tmp_nx/log" 2>/dev/null | sed 's/^/              /'
+fi
+
+"${nx_env[@]}" bash scripts/anix.sh nixos unstable >/dev/null 2>&1 || true
+if [[ "$(nx_branch)" == nixos-unstable ]] && [[ "$(cat "$tmp_nx/cfg/abora/nixos-release")" == nixos-unstable ]]; then
+  pass "runtime: anix nixos unstable switches back"
+else
+  fail "runtime: anix nixos unstable switches back"
+fi
+
+: > "$tmp_nx/log"
+cp "$tmp_nx/cfg/flake.nix" "$tmp_nx/before.nix"
+printf 'nixos-unstable\n' > "$tmp_nx/cfg/abora/nixos-release"
+printf 'original lock\n' > "$tmp_nx/cfg/flake.lock"
+_nx_fail_rc=0
+FAKE_NIX_FAIL_UPDATE=1 "${nx_env[@]}" bash scripts/anix.sh nixos stable >/dev/null 2>&1 || _nx_fail_rc=$?
+if [[ "$_nx_fail_rc" -ne 0 ]] && cmp -s "$tmp_nx/cfg/flake.nix" "$tmp_nx/before.nix" \
+  && [[ "$(cat "$tmp_nx/cfg/abora/nixos-release")" == nixos-unstable ]] \
+  && [[ "$(cat "$tmp_nx/cfg/flake.lock")" == "original lock" ]]; then
+  pass "runtime: anix nixos puts everything back when the new branch can't be resolved"
+else
+  fail "runtime: anix nixos puts everything back when the new branch can't be resolved"
+fi
+
+printf '{\n  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";\n  outputs = _: { };\n}\n' > "$tmp_nx/cfg/flake.nix"
+cp "$tmp_nx/cfg/flake.nix" "$tmp_nx/hand.nix"
+_nx_hand_rc=0
+_nx_hand="$("${nx_env[@]}" bash scripts/anix.sh nixos stable 2>&1)" || _nx_hand_rc=$?
+if [[ "$_nx_hand_rc" -ne 0 ]] && grep -q "wasn't written by Abora" <<<"$_nx_hand" && cmp -s "$tmp_nx/cfg/flake.nix" "$tmp_nx/hand.nix"; then
+  pass "runtime: anix nixos leaves a hand-written flake.nix alone"
+else
+  fail "runtime: anix nixos leaves a hand-written flake.nix alone"
+fi
 
 testlib_finish

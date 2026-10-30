@@ -13,6 +13,18 @@ import sys
 from pathlib import Path
 
 
+# The release this tree is: VERSION has its number, this its name. Every "v<number> <name>" in a shipped
+# file has to match the two (the branding check in check_scripts/static_manual.py), so bumping a release
+# is VERSION, this line, and whatever that check then lists.
+RELEASE_CODENAME = "Solstice"
+
+
+def release_short(repo: Path) -> str:
+    """"v4.2 Solstice" for VERSION 4.2."""
+    version = (repo / "VERSION").read_text(encoding="utf-8").strip()
+    return f"v{version} {RELEASE_CODENAME}"
+
+
 def env(name: str) -> str | None:
     """An environment variable, with empty treated as unset (like Bash's ${VAR:-default})."""
     return os.environ.get(name) or None
@@ -63,5 +75,5 @@ def first_quoted_value(path: Path, line_pattern: str) -> str:
 
 
 def component_tag(path: Path, line_pattern: str) -> str:
-    """A component's own version tag (TinyPM, ANIX), "vunknown" if it cannot be read."""
+    """A component's own version tag (e.g. ANIX), "vunknown" if it cannot be read."""
     return as_tag(sanitize(first_quoted_value(path, line_pattern) or "unknown") or "unknown")

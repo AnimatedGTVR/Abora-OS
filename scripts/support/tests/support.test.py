@@ -47,6 +47,9 @@ def check(name: str):
 def load(tool: str):
     spec = importlib.util.spec_from_file_location(tool.replace("-", "_"), SUPPORT / f"{tool}.py")
     module = importlib.util.module_from_spec(spec)
+    # Registered first, as a real import would be: dataclasses (the doctor's findings) look their
+    # module up in sys.modules.
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -224,6 +227,110 @@ def _():
         assert not log.is_symlink() and log.read_text() == "anix doctor output\n", "the log was not recreated as a real file"
 
 
+@check("runtime: doctor checks the GPU driver against abora.gpu and the PCI devices")
+def _():
+    doctor = load("abora-doctor")
+    with tempfile.TemporaryDirectory() as tmp:
+        sysfs = Path(tmp, "sys")
+        device = sysfs / "bus/pci/devices/0000:01:00.0"
+        device.mkdir(parents=True)
+        (device / "class").write_text("0x030000\n")
+        (device / "vendor").write_text("0x10de\n")
+        config = Path(tmp, "abora-local.nix")
+        config.write_text('{ abora.gpu = "nvidia"; }\n'.replace("{ ", "{\n  ").replace("; }", ";\n}"))
+        with mock.patch.object(doctor, "sysfs", sysfs), mock.patch.object(doctor, "local_config", config):
+            doctor.findings.clear()
+            doctor.check_gpu()
+            missing = doctor.findings[-1]
+            (sysfs / "module/nvidia").mkdir(parents=True)
+            doctor.findings.clear()
+            doctor.check_gpu()
+            loaded = doctor.findings[-1]
+            config.write_text("{\n}\n")
+            (sysfs / "module/nvidia").rmdir()
+            (sysfs / "module/nouveau").mkdir(parents=True)
+            doctor.findings.clear()
+            doctor.check_gpu()
+            nouveau = doctor.findings[-1]
+    assert (missing.id, missing.status) == ("gpu-driver", "fail"), missing
+    assert "reboot" in missing.explanation and "Secure Boot" in missing.explanation
+    assert loaded.status == "ok", loaded
+    assert nouveau.status == "warn" and "nvidia-open" in nouveau.explanation, nouveau
+
+
+@check("runtime: doctor catches a read-only root, an unmounted ESP, and no network")
+def _():
+    doctor = load("abora-doctor")
+    with tempfile.TemporaryDirectory() as tmp:
+        mounts, route, sysfs = Path(tmp, "mounts"), Path(tmp, "route"), Path(tmp, "sys")
+        (sysfs / "firmware/efi").mkdir(parents=True)
+        mounts.write_text("/dev/sda2 / ext4 ro,relatime 0 0\n")
+        route.write_text("Iface\tDestination\tGateway\nwlan0\t0001A8C0\t00000000\n")
+        with mock.patch.object(doctor, "mounts_file", mounts), mock.patch.object(doctor, "route_file", route), \
+                mock.patch.object(doctor, "sysfs", sysfs):
+            doctor.findings.clear()
+            doctor.check_disk()
+            doctor.check_bootloader()
+            doctor.check_network()
+            by_id = {f.id: f for f in doctor.findings}
+            mounts.write_text("/dev/sda2 / ext4 rw 0 0\n/dev/sda1 /boot vfat rw 0 0\n")
+            doctor.findings.clear()
+            doctor.check_bootloader()
+            mounted = doctor.findings[-1]
+    assert by_id["disk-readonly"].status == "fail" and "fsck" in by_id["disk-readonly"].explanation
+    assert by_id["boot-esp-mounted"].status == "fail"
+    assert by_id["network"].status == "warn" and "anix network" in by_id["network"].explanation
+    assert mounted.id in ("boot", "boot-space") and mounted.status in ("ok", "warn"), mounted
+
+
+@check("runtime: doctor reads ANIX's checks line by line and asks anix for just those")
+def _():
+    if not POSIX:
+        raise Skip("needs a POSIX shell for the fake anix")
+    doctor = load("abora-doctor")
+    with tempfile.TemporaryDirectory() as tmp:
+        fake_command(Path(tmp), "anix", 'printf "  \\033[38;5;77m✓\\033[0m  flake outputs evaluate\\n"; '
+                     'printf "  ✗  ANIX config preflight failed\\n"; printf "  ✗  Doctor found 1 problem(s)\\n"; '
+                     'printf "layer=%s\\n" "$ANIX_DOCTOR_LAYER_ONLY" > "$(dirname "$0")/env"; exit 1')
+        with mock.patch.object(doctor, "anix_log", str(Path(tmp, "log"))), \
+                mock.patch.dict(os.environ, {"PATH": f"{tmp}:{os.environ['PATH']}"}), silenced():
+            doctor.findings.clear()
+            doctor.check_anix()
+        layer = Path(tmp, "env").read_text()
+    statuses = [(f.status, f.summary) for f in doctor.findings]
+    assert statuses == [("ok", "flake outputs evaluate"), ("fail", "ANIX config preflight failed")], statuses
+    assert doctor.findings[1].repair and doctor.findings[1].repair.command == ["anix", "doctor", "--fix"]
+    assert layer == "layer=1\n", layer
+
+
+@check("runtime: doctor --json is machine-readable and repair runs only listed fixes")
+def _():
+    if not POSIX:
+        raise Skip("needs a POSIX shell for the fake anix")
+    with tempfile.TemporaryDirectory() as tmp:
+        bin_dir, cfg, etc = Path(tmp, "bin"), Path(tmp, "nixos"), Path(tmp, "abora")
+        bin_dir.mkdir(); cfg.mkdir(); etc.mkdir()
+        (cfg / "flake.nix").write_text("{}\n")
+        (cfg / "abora-local.nix").write_text('{\n  abora.desktop = "none";\n}\n')
+        fake_command(bin_dir, "anix", 'echo "$*" >> "$(dirname "$0")/calls"')
+        env = {"PATH": f"{bin_dir}:{os.environ['PATH']}", "ABORA_SYSTEM_CONFIG": str(cfg), "ABORA_DIR": str(etc),
+               "ABORA_DOCTOR_DNS_HOST": "localhost"}
+        report = run_tool("abora-doctor", "--json", env=env)
+        listed = run_tool("abora-doctor", "repair", env=env)
+        unknown = run_tool("abora-doctor", "repair", "no-such-fix", env=env)
+        refused = run_tool("abora-doctor", "repair", "rebuild", env=env, input="")
+        done = run_tool("abora-doctor", "repair", "rebuild", "--yes", env=env)
+        calls = (bin_dir / "calls").read_text() if (bin_dir / "calls").exists() else ""
+    payload = __import__("json").loads(report.stdout)
+    assert report.returncode == 1 and payload["schema"] == 1 and payload["summary"]["fail"] >= 1, payload["summary"]
+    files = next(f for f in payload["findings"] if f["id"] == "abora-files")
+    assert files["repair"]["id"] == "rebuild" and files["details"]["missing"], files
+    expect(listed.stdout, "rebuild", "runs: anix apply")
+    assert unknown.returncode == 2 and "No such repair" in unknown.stdout
+    assert refused.returncode == 1 and "add --yes" in refused.stdout
+    assert done.returncode == 0 and "apply" in calls.splitlines(), (done.stdout, calls)
+
+
 @check("runtime: support report redacts copied logs")
 def _():
     with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as out:
@@ -258,20 +365,34 @@ def _():
     expect(unknown.stdout, "unknown argument: --bogus", "abora support-report [--output-dir DIR]")
 
 
-@check("runtime: redaction is identical in abora-check-full.py and abora-support-report.py")
+@check("runtime: the support tools share abora_core.py instead of each carrying a copy of its code")
 def _():
-    # Each tool must be self-contained (see the block's own comment), so
-    # nothing else keeps the two copies from drifting apart.
-    report = block("abora-support-report", "# ── redaction", "# ── end redaction")
-    check_full = block("abora-check-full", "# ── redaction", "# ── end redaction")
-    assert report == check_full, "the redaction blocks differ"
+    # They used to carry identical copies of the UI and redaction code, kept in step by this file.
+    for tool in TOOLS:
+        text = (SUPPORT / f"{tool}.py").read_text(encoding="utf-8")
+        assert "from abora_core import" in text, f"{tool}.py doesn't import abora_core"
+        for marker in ("# ── UI", "# ── redaction", "def redact_line(", "def brand_header("):
+            assert marker not in text, f"{tool}.py carries its own copy again ({marker!r})"
 
 
-@check("runtime: the UI block is identical in every support tool that has one")
+@check("runtime: every way the support tools reach a system also brings abora_core.py")
 def _():
-    copies = {tool: block(tool, "# ── UI", "# ── end UI") for tool in ("abora-doctor", "abora-recovery", "abora-welcome", "abora-hardware-test")}
-    differing = [tool for tool, text in copies.items() if text != copies["abora-doctor"]]
-    assert not differing, f"UI block differs from abora-doctor.py in: {differing}"
+    # A tool without the core beside it (or in /etc/abora) dies on its first import.
+    places = {
+        "nix/profiles/live.nix (the live ISO's /etc/abora)": ('"abora/abora_core.py".source = ../../scripts/support/abora_core.py',),
+        "nix/modules/installed-base.nix (an installed system's /etc/abora)": ("./abora_core.py", '"abora/abora_core.py".source = aboraCoreModule'),
+        "scripts/install/abora-installer.sh (live ISO to the new system)": ("labs.sh abora_core.py abt.py; do",),
+        "scripts/install/abora-adopt-nixos.sh (adopting a NixOS install)": ('"scripts/support/abora_core.py:abora_core.py"',),
+        "scripts/support/abora-update.sh (updates)": (
+            "\nscripts/support/abora_core.py\n",
+            'copy_upstream_file "$upstream_dir/scripts/support/abora_core.py" "$abora_dir/abora_core.py"',
+        ),
+        "nix/pkgs/hardware-test.nix (the standalone package)": ('"$src/scripts/support/abora_core.py"',),
+    }
+    for place, needles in places.items():
+        text = (REPO / place.split(" (")[0]).read_text(encoding="utf-8")
+        for needle in needles:
+            assert needle in text, f"{place} doesn't bring abora_core.py ({needle!r})"
 
 
 @check("runtime: redaction handles Nix indented-string PSKs and full authorization headers")

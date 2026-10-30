@@ -1,20 +1,16 @@
 # ANIX v2 — choose your configuration language
 
-ANIX v2 will let each project choose the language used to describe system
-changes. The two built-in frontends are:
+ANIX v2 describes system changes in a file instead of one command at a time. The built-in format is
+**ANIX Native** (`.anix`). Other languages can be installed as adapters. Abora OS ships none: ModuCPP and
+MAKO were removed in 4.2.
 
-1. **ANIX Native** — the short command language ANIX uses today
-2. **ModuCPP** — a compiled C++-style frontend for native tooling
-
-Additional languages can be installed as adapters. The language changes how a
-plan is written, not how ANIX validates or applies it.
+The language changes how a plan is written, not how ANIX validates or applies it.
 
 ## One engine, several frontends
 
 ```text
 ANIX Native ─┐
-ModuCPP ─────┼─> ANIX Plan JSON ─> validate ─> diff/dry-build ─> apply
-Other ───────┘
+Adapters ────┴─> ANIX Plan JSON ─> validate ─> diff/dry-build ─> apply
 ```
 
 Every frontend must produce the same versioned **ANIX Plan**. Only the ANIX
@@ -37,11 +33,10 @@ The first working interface is:
 ```sh
 anix language list
 anix language use anix
-anix language use moducpp
-anix run workstation.moducpp
+anix run workstation.anix
 anix validate-plan plan.json
 anix apply-plan plan.json
-anix diff-plan workstation.moducpp
+anix diff-plan workstation.anix
 ```
 
 The selected default belongs in `.anix/config`; it is a tool preference, not
@@ -49,9 +44,9 @@ system state. A file extension or explicit `--language` flag may override it
 for one run.
 
 ANIX Native `.anix` files work now for `set`, `enable`, `disable`, `package
-add`, and `package remove`. They apply as one state transaction. ModuCPP
-and third-party execution becomes available when a matching adapter manifest
-and command are installed; `anix language list` reports readiness honestly.
+add`, and `package remove`. They apply as one state transaction. Third-party
+languages become available when a matching adapter manifest and command are
+installed; `anix language list` reports readiness honestly.
 `anix diff-plan` compares any source or Plan JSON with current state and labels
 operations `ADD`, `CHANGE`, `REMOVE`, or `SAME` without writing anything.
 
@@ -62,7 +57,7 @@ Adapters write JSON to standard output and diagnostics to standard error:
 ```json
 {
   "planVersion": 1,
-  "language": "moducpp",
+  "language": "anix",
   "operations": [
     { "op": "set", "key": "hostname", "value": "everest" },
     { "op": "enable", "feature": "bluetooth" },
@@ -81,12 +76,10 @@ The core rejects unknown versions, operations, keys, and value types before
 touching state. Plans cannot contain shell fragments. Commands for systemd
 units remain structured argv arrays and retain the v1 allowlists.
 
-The workstation examples in `examples/anix-v2/` show the same gaming-enabled
-plan in ANIX Native and ModuCPP:
+The workstation example in `examples/anix-v2/` shows a gaming-enabled plan:
 
 ```sh
 anix run examples/anix-v2/workstation.anix
-anix run examples/anix-v2/workstation.moducpp
 ```
 
 ## Adapter manifest
@@ -96,10 +89,10 @@ version:
 
 ```json
 {
-  "id": "moducpp",
-  "name": "ModuCPP",
-  "extensions": [".moducpp", ".mcpp"],
-  "command": ["moducpp-anix"],
+  "id": "mylang",
+  "name": "My Language",
+  "extensions": [".mylang"],
+  "command": ["mylang-anix"],
   "planVersion": 1
 }
 ```
@@ -108,7 +101,7 @@ System adapters live in `/etc/anix/languages/`; user adapters may live in
 `~/.config/anix/languages/`. ANIX resolves the command without a shell and
 passes the source path as one argv value.
 
-## Default frontend goals
+## The built-in frontend
 
 ### ANIX Native
 
@@ -116,49 +109,6 @@ The fastest path for direct system changes. Existing commands remain valid,
 and a file form will group them into one reviewable transaction. See
 `examples/anix-v2/simple.anix` for the smallest possible plan and
 `examples/anix-v2/workstation.anix` for a multi-operation one.
-
-### ModuCPP
-
-ModuCPP now has a dedicated `add ANIX;` plan module and `moducpp-anix` command
-rather than using engine scene APIs. Compilation happens as the normal user;
-the resulting program emits a plan and never applies system changes itself.
-ANIX reports the frontend ready when `moducpp-anix` is installed on `PATH`.
-
-Abora OS ships `moducpp-anix` as its own package (`nix/pkgs/moducpp-anix.nix`,
-built from `tools/moducpp-anix`) — it's on `PATH` on the live ISO and every
-installed system, with no Modularity checkout required, since the script
-embeds the small ANIX plan header it needs at compile time. Flake users can
-also add it directly:
-
-```nix
-environment.systemPackages = [ abora.packages.${pkgs.system}.moducpp-anix ];
-```
-
-From a Modularity source checkout instead (e.g. while developing the header
-itself), install the same script manually:
-
-```bash
-install -Dm755 tools/moducpp-anix ~/.local/bin/moducpp-anix
-```
-
-```moducpp
-add ANIX;
-
-int main() {
-    ANIX::Plan plan;
-    plan.Set("hostname", "everest");
-    plan.Enable("bluetooth");
-    plan.Package("firefox");
-    plan.Finish();
-    return 0;
-}
-```
-
-See `examples/anix-v2/simple.moducpp` for the smallest possible plan,
-`examples/anix-v2/workstation.moducpp` for a multi-operation one, and the
-[official ModuCPP documentation](https://www.moduengine.xyz/docs), especially
-the [complete guide](https://www.moduengine.xyz/docs/moducpp-guide) and
-[language reference](https://www.moduengine.xyz/docs/moducpp-reference).
 
 ## Delivery order
 
@@ -169,14 +119,12 @@ the [complete guide](https://www.moduengine.xyz/docs/moducpp-guide) and
    dry-build-and-confirm closes the whole plan).
 3. **Done:** add `anix run`, `anix validate-plan`, and `anix apply-plan`.
 4. **Done:** ship the first ANIX Native file frontend.
-5. **Done:** ship the standalone ModuCPP plan module and adapter contract, and
-   package `moducpp-anix` (`nix/pkgs/moducpp-anix.nix`) so it's on `PATH` on
-   the live ISO and every installed system without a Modularity checkout.
+5. **Removed in 4.2:** the ModuCPP frontend and its `moducpp-anix` package.
 6. **Done:** `anix language list` reports readiness with a reason (missing
    command, bad manifest, unsupported plan version), and `anix diff-plan`
    compares real current state instead of assuming every operation is new.
-7. **Done:** end-to-end coverage for `simple`/`workstation` examples across
-   both built-in frontends, plus failure-path tests proving invalid plans,
+7. **Done:** end-to-end coverage for the `simple`/`workstation` examples, plus
+   failure-path tests proving invalid plans,
    malformed JSON, unresolvable languages, and failing adapters never
    mutate `anix.nix` (`scripts/core/tests/anix.test.sh`).
 8. Open third-party adapter discovery after the security boundary is tested.

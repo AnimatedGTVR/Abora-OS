@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
-"""Build Abora ISO(s) with Nix and copy them into out/iso/.
+"""Build the universal Abora installer ISO and copy it into out/iso/.
 
 Environment overrides (empty counts as unset):
-  ABORA_EDITION      cosmic (default), hyprland, gnome, kde, other, or all
   ABORA_OUT_DIR      output root (default <repo>/out)
   ABORA_ISO_DIR      default $ABORA_OUT_DIR/iso
   ABORA_NIX_OUT_DIR  where Nix result links go (default $ABORA_OUT_DIR/nix)
   ABORA_VERSION_ID   Abora version instead of VERSION
   NIX_CONFIG         default enables nix-command and flakes
 
-Each ISO is named abora-<edition>-<YYYY.MM.DD>-x86_64-<tag>.iso; older ISOs of
-the same edition and tag are replaced. A cosmic build also writes the
-pre-multi-edition name abora-<date>-x86_64-<tag>.iso.
+The ISO is named abora-<YYYY.MM.DD>-x86_64-<tag>.iso. Desktop selection belongs
+to the installer rather than separate release images.
 """
 
 from __future__ import annotations
@@ -24,9 +22,6 @@ from datetime import datetime
 from pathlib import Path
 
 from abora_release import abora_version_tag, env, repo_root
-
-EDITIONS = ("cosmic", "hyprland", "gnome", "kde", "other")
-
 
 class BuildError(Exception):
     pass
@@ -49,8 +44,8 @@ def locate_iso(build_link: Path) -> Path | None:
     return None
 
 
-def build_one(repo: Path, edition: str, iso_dir: Path, nix_out_dir: Path, build_date: str, version_tag: str) -> None:
-    package = f"iso-{edition}"
+def build_iso(repo: Path, iso_dir: Path, nix_out_dir: Path, build_date: str, version_tag: str) -> None:
+    package = "iso"
     nix_target = f"{repo}#packages.x86_64-linux.{package}"
     build_link = nix_out_dir / f"{package}-result"
 
@@ -79,12 +74,12 @@ def build_one(repo: Path, edition: str, iso_dir: Path, nix_out_dir: Path, build_
     if iso_source is None:
         raise BuildError(f"Unable to locate ISO file in Nix build output: {build_link}")
 
-    prefix = f"abora-{edition}-"
+    prefix = "abora-"
     suffix = f"-{version_tag}.iso"
     for old in iso_dir.iterdir():
         if old.name.startswith(prefix) and old.name.endswith(suffix) and len(old.name) >= len(prefix) + len(suffix):
             old.unlink()
-    target = iso_dir / f"abora-{edition}-{build_date}-x86_64-{version_tag}.iso"
+    target = iso_dir / f"abora-{build_date}-x86_64-{version_tag}.iso"
     shutil.copyfile(iso_source, target)
     print(f"ISO output: {target}", flush=True)
 
@@ -95,8 +90,6 @@ def main() -> int:
     iso_dir = Path(env("ABORA_ISO_DIR") or out_dir / "iso")
     nix_out_dir = Path(env("ABORA_NIX_OUT_DIR") or out_dir / "nix")
     build_date = datetime.now().strftime("%Y.%m.%d")
-    edition = env("ABORA_EDITION") or "cosmic"
-
     if not shutil.which("nix"):
         print("nix command not found. Install Nix with flakes support first.", file=sys.stderr)
         return 1
@@ -106,31 +99,12 @@ def main() -> int:
     nix_out_dir.mkdir(parents=True, exist_ok=True)
     os.environ["NIX_CONFIG"] = env("NIX_CONFIG") or "experimental-features = nix-command flakes"
 
-    if edition == "all":
-        targets = EDITIONS
-    elif edition in EDITIONS:
-        targets = (edition,)
-    else:
-        print(f"Unsupported ABORA_EDITION: {edition}", file=sys.stderr)
-        print(f"Supported editions: {' '.join(EDITIONS)} all", file=sys.stderr)
-        return 1
-
     try:
-        for name in targets:
-            build_one(repo, name, iso_dir, nix_out_dir, build_date, version_tag)
+        build_iso(repo, iso_dir, nix_out_dir, build_date, version_tag)
     except BuildError as exc:
         print(exc, file=sys.stderr)
         return 1
 
-    # COSMIC is the single-ISO default `make iso` builds; also drop a copy under
-    # the old pre-multi-edition filename (no "-cosmic-" segment) so tooling or
-    # docs still expecting that name (from before editions existed) keep working.
-    if edition == "cosmic":
-        latest = iso_dir / f"abora-cosmic-{build_date}-x86_64-{version_tag}.iso"
-        legacy = iso_dir / f"abora-{build_date}-x86_64-{version_tag}.iso"
-        if latest.is_file():
-            shutil.copyfile(latest, legacy)
-            print(f"Legacy ISO output: {legacy}")
     return 0
 
 

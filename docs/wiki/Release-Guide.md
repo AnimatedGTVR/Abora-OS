@@ -8,22 +8,9 @@ This page covers the normal Abora release flow.
 make iso
 ```
 
-Use this for fast installer and live-image iteration on the default Cosmic
-edition.
-
-To build every release edition:
-
-```sh
-make iso-all
-```
-
-This builds:
-
-- Cosmic Edition
-- Hyprland Edition
-- GNOME Edition
-- KDE Plasma Edition
-- Other Desktops Edition
+This builds the one universal Abora installer ISO into `out/iso/`. It has no
+editions and no live desktop: the installer asks which desktop to install, so
+there is only ever one image to build, boot and test.
 
 ## Local Release Build
 
@@ -31,20 +18,14 @@ This builds:
 make release
 ```
 
-Use this when preparing a full release bundle. It builds all five edition ISOs,
-the TinyPM package, the ANIX package, checksums, manifest, and generated release
-notes.
+Use this when preparing a full release bundle. It builds the ISO, the ANIX
+package, checksums, manifest, and generated release notes.
 
 ## What To Publish
 
 The normal release bundle includes:
 
-- `abora-cosmic-<date>-x86_64-<version>.iso`
-- `abora-hyprland-<date>-x86_64-<version>.iso`
-- `abora-gnome-<date>-x86_64-<version>.iso`
-- `abora-kde-<date>-x86_64-<version>.iso`
-- `abora-other-<date>-x86_64-<version>.iso`
-- `tinypm-*-abora-<version>.tar.gz`
+- `abora-<date>-x86_64-<version>.iso`
 - `anix-*-abora-<version>.tar.gz`
 - `SHA256SUMS-<version>.txt`
 - `RELEASE_MANIFEST-<version>.txt`
@@ -52,11 +33,11 @@ The normal release bundle includes:
 
 ## Tagging A Release
 
-For the current Abora OS v4.1 Horizon line:
+For the current Abora OS v4.2 Solstice line:
 
 ```sh
-git tag v4.1
-git push origin v4.1
+git tag v4.2
+git push origin v4.2
 ```
 
 That triggers the GitHub release workflow for the tagged version.
@@ -69,9 +50,9 @@ Make sure these checks are done:
 - `./scripts/check-scripts.py`
 - `./scripts/check-all-files.py`
 - `./scripts/check-desktops.py`
-- every edition ISO builds successfully
-- at least the default Cosmic live image boots
-- the installer completes one real install
+- the ISO builds successfully
+- the ISO boots to the installer
+- the installer completes one real install, for each desktop you ship (COSMIC, GNOME, KDE Plasma, Hyprland, and so on)
 - the installed system boots without the ISO attached
 - `abora doctor` works on the installed system
 - `sudo abora update` works on the installed system

@@ -84,7 +84,6 @@ jobs:
           # step publishes it separately. This keeps the ISO out of both the
           # workflow artifact and the GitHub Release assets below.
           path: |
-            out/packages/tinypm-*-abora-${{ steps.version.outputs.tag }}.tar.gz
             out/packages/anix-*-abora-${{ steps.version.outputs.tag }}.tar.gz
             out/release/SHA256SUMS-${{ steps.version.outputs.tag }}.txt
             out/release/RELEASE_MANIFEST-${{ steps.version.outputs.tag }}.txt
@@ -98,15 +97,14 @@ jobs:
         run: |
           set -euxo pipefail
           tag="${{ steps.version.outputs.tag }}"
-          title="Abora OS v4.1 Horizon (${tag})"
+          title="Abora OS v4.2 Solstice (${tag})"
           notes_file="out/release/RELEASE_NOTES-${tag}.md"
           shopt -s nullglob
           # ISO is intentionally not attached to the GitHub Release — it is
           # published separately by the ISO workflow/hosting step. Only the
-          # smaller release artifacts (TinyPM package, checksums, manifest)
+          # smaller release artifacts (ANIX package, checksums, manifest)
           # go here.
           assets=(
-            out/packages/tinypm-*-abora-"$tag".tar.gz
             out/packages/anix-*-abora-"$tag".tar.gz
             out/release/SHA256SUMS-"$tag".txt
             out/release/RELEASE_MANIFEST-"$tag".txt

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-Abora OS is a NixOS-based Linux distribution that wraps NixOS in a friendlier live image, installer TUI, and OS management CLI layer. The repo builds to a bootable ISO via Nix flakes. Current development release: **HORIZON 4.1**.
+Abora OS is a NixOS-based Linux distribution that wraps NixOS in a friendlier live image, installer TUI, and OS management CLI layer. The repo builds to a bootable ISO via Nix flakes. Current development release: **SOLSTICE 4.2**.
 
 ## Branch Policy
 
@@ -26,7 +26,7 @@ make qemu-serial      # Headless QEMU, output in terminal
 make check            # Run repo script checks (syntax + runtime tests)
 make check-desktops   # Validate all desktop profiles against nixpkgs
 make preflight        # Full release preflight checks
-make release          # Build ISO + TinyPM package + checksums + release notes
+make release          # Build ISO + ANIX package + checksums + release notes
 make metadata         # Refresh release metadata only (no ISO rebuild)
 ```
 
@@ -44,7 +44,7 @@ Before pushing any change, run `make check` — it validates bash syntax, execut
 
 ### Build System
 
-`flake.nix` is the Nix entrypoint. It pins `nixpkgs/nixos-26.05`, exposes `nixosModules` (installed-base, anix), and produces the `abora-live` ISO. The only NixOS configuration used at build time is `nix/profiles/live.nix`.
+`flake.nix` is the Nix entrypoint. It tracks `nixpkgs/nixos-unstable` (the ISO is built from it; `NIXOS_STABLE` names the stable branch, `nixos-26.05`), exposes `nixosModules` (installed-base, anix), and produces the `abora-live` ISO. The only NixOS configuration used at build time is `nix/profiles/live.nix`.
 
 `scripts/build-iso.py` calls `nix build` targeting `#packages.x86_64-linux.iso-<edition>` and copies the result to `out/iso/`.
 
@@ -86,11 +86,29 @@ All shell scripts source `abora-ui.sh` (or `/etc/abora/ui.sh` on-system) for sha
 
 ### Vanta tools
 
-`tools/abora-update/` is the Vanta core of `abora update` (release channel resolution and the downgrade guard so far), called by `scripts/abora-update.sh` through the same CLI as the C# `tools/abora-update-resolver` it replaces, which stays as a fallback for now. It runs on the Vanta interpreter packaged in `nix/pkgs/vanta.nix` (pinned to a Vanta commit) and ships as `nix/pkgs/abora-update.nix`. Unit tests: `vanta run tools/abora-update/tests.vanta` (also run by `make check` when a new-enough Vanta is found).
+`tools/abora-update/` is the Vanta core of `abora update` (release channel resolution and the downgrade guard so far), called by `scripts/abora-update.sh` through the CLI the removed C# `abora-update-resolver` had. `tools/abora-update-resolver/` and `nix/pkgs/abora-update-resolver*` are placeholders kept only because 4.0/4.1 updaters require those paths (`scripts/release/legacy-required-paths.txt`); don't delete them. It runs on the Vanta interpreter packaged in `nix/pkgs/vanta.nix` (pinned to a Vanta commit) and ships as `nix/pkgs/abora-update.nix`. Unit tests: `vanta run tools/abora-update/tests.vanta` (also run by `make check` when a new-enough Vanta is found).
 
-### TinyPM
+### NixOS release
 
-`vendor/tinypm/` is a vendored copy of TinyPM v4. It provides `grab`, `search`, `term`, `start`, `supdate`, and Abora/ANIX/Nix bridge commands. Packaging happens via `scripts/package-tinypm.py` → `out/packages/`.
+An installed system follows `nixos-unstable` (default) or the stable branch named in `NIXOS_STABLE`. The generated `/etc/nixos/flake.nix` holds it as its `nixpkgs` input and `/etc/nixos/abora/nixos-release` remembers it, so the updater (`write_installed_flake`) regenerates the same flake. The installer asks (`release_nixos`; stable resolves its lock at install time and needs internet); `anix nixos [stable|unstable]` switches later and refuses a flake.nix Abora didn't write. Abora's modules were checked to evaluate on both branches.
+
+### Plan tool
+
+`tools/abora-plan-tool/` (Rust, rewritten from C# in 4.2 with the same name and CLI) validates ANIX Plan JSON and turns `.anix` files into it for `anix validate-plan/diff-plan/apply-plan/run`. `make check` builds it with cargo for the anix suite.
+
+### Packages (TinyPM was removed in 4.2)
+
+`grab <app>` (`tools/abora-grab/`, Rust, binary `grab`) is TinyPM's grab command back without TinyPM: it installs an app from Nix/Lix, Flatpak or Snap, first exact match in that order, with a small catalog of pinned names (`zen-browser` → Flathub). Tests use a fake `Runner`; the tool is wired like the plan tool (overlay `./grab` dir in installed-base, installer copy, updater sync). Docs: `docs/wiki/Packages.md`.
+
+`anix package install/uninstall/search/upgrade/try/keep` installs nixpkgs packages into the user's Nix profile with `--inputs-from /etc/nixos`, so they use the system's pinned nixpkgs and need no config edit or rebuild. `anix package add/remove` stays the declarative path (`anix.packages` in `anix.nix`). Tests use `ANIX_NIX_BIN` to point at a fake `nix`. `anix.tinypm.*` options remain as no-ops so pre-4.2 `anix.nix` files still evaluate. Docs: `docs/wiki/Packages.md`.
+
+### ASA / ABT (4.2)
+
+`scripts/safety/abora-abt.py` (installed as `/etc/abora/abt.py`, command `abora-abt`) runs a system change as a transaction: PLAN → VALIDATE → SNAPSHOT → APPLY → VERIFY → ROLLBACK on failure. Shell tools get it through `abora_abt_prefix` in `abora-ui.sh` (empty when `abora-abt` is absent or `ABORA_NO_ABT=1`); anix, abora-config, abora-apps and the updater's final switch use it. Tests: `scripts/safety/tests/abt.test.py` (fake system profile). Docs: `docs/wiki/ASA.md`.
+
+### Doctor (4.2)
+
+`anix doctor` on Abora is `scripts/support/abora-doctor.py`: a list of checks producing findings (id, area, status, explanation, optional repair), `--json`, `repair [<id>]`. It runs anix.sh's own config checks with `ANIX_DOCTOR_LAYER_ONLY=1`; on plain NixOS those are the whole doctor.
 
 ### Desktop Profiles
 
@@ -101,6 +119,8 @@ All shell scripts source `abora-ui.sh` (or `/etc/abora/ui.sh` on-system) for sha
 After installation, user-facing config lives in `/etc/nixos/abora-local.nix`. The `abora config` command (backed by `scripts/abora-config.sh`) reads and modifies this file without requiring Nix knowledge. `user` and `disk` keys are intentionally read-only through that CLI.
 
 ## Key Conventions
+
+- **Languages:** new system tools are not written in shell. Rust is for anything that can damage the system (disks, boot, generations, config writes), Go for network, diagnostics and user-facing screens, shell for glue only. No new C#/.NET. See `docs/project-layout.md`.
 
 - All scripts use `set -euo pipefail` and locate the repo root via `CDPATH= cd -- "$(dirname -- "$0")/.." && pwd`.
 - The `out/` directory is generated — never commit files there.

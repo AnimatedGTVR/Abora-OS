@@ -2,14 +2,14 @@
 
 Use this after building a release candidate ISO and after running one real install.
 
-## Live Session
+## Installer Boot (the ISO has no live desktop)
 
 - ISO reaches the live boot flow without dropping to an emergency shell
 - live boot flow opens on `tty1`
 - NetworkManager starts before the installer network step
 - installer opens without dropping into a shell first
 - Omarchy-inspired welcome screen appears before disk/account questions
-- networking works in the live session
+- networking works in the installer
 - `/etc/abora/setup.desktop` exists
 - `/etc/abora/setup-launcher.sh` exists and is executable
 - `/etc/abora/default-wallpaper.png` exists
@@ -27,12 +27,12 @@ Use this after building a release candidate ISO and after running one real insta
 
 ## Installer
 
-- MINT renders with color on `tty1`
+- the installer TUI renders with color on `tty1`, with gum menus
 - Abora text/logo appears without a `logo not found` fallback
 - first screen offers Open terminal, Debug installer, and Build from source
 - preflight failure offers Network tools, Debug tools, Open terminal, and retry
 - Debug installer can show recent install/config logs before partitioning
-- Build from source shows `make doctor`, `make iso`, and `make iso-all`
+- Build from source shows `make doctor` and `make iso`
 - network step can open `nmtui`
 - network step can run Quick Wi-Fi connect without `nmtui`
 - network step can turn Wi-Fi on and rescan
@@ -86,9 +86,9 @@ Use [Bug Report Template](bug-report-template.md) for full reports.
 
 ## ANIX Languages
 
-- `anix language list` shows ANIX Native and ModuCPP
+- `anix language list` shows ANIX Native (and no ModuCPP or MAKO)
 - `anix run examples/anix-v2/simple.anix --yes` works in a test config
-- `anix diff-plan examples/anix-v2/workstation.moducpp` resolves through `moducpp-anix`
+- `anix diff-plan examples/anix-v2/workstation.anix` previews the plan
 
 ## Installed System
 
@@ -97,9 +97,10 @@ Use [Bug Report Template](bug-report-template.md) for full reports.
 - login prompt starts
 - selected username exists and the live-media accounts (`liveuser`, `aboraos`) do not
 - networking is enabled and functional
-- Firefox is available without a separate Flatpak installation
+- Zen is the default browser: it installs from Flathub on first boot with a network, and keeps working offline afterwards if it was already installed
+- `grab zen-browser` reports the app as installed, and `grab info <app>` names where an app would come from
 - `abora setup` launches the installed reconfiguration tool
-- `tinypm` and `grab` are available
+- `anix package install hello` installs `hello` without a rebuild
 - `abora gaming status` and `abora gaming doctor` run after install
 - when Labs was enabled, `abora labs status` works without downloading or executing experimental code automatically
 - on GNOME installs, Abora wallpapers appear in `Settings -> Appearance`

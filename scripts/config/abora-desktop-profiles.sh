@@ -72,6 +72,7 @@ icewm
 herbstluftwm
 cosmic
 mangowm
+lumina
 EOF
 }
 
@@ -79,8 +80,7 @@ EOF
 # (with the sole current exception of MangoWM's bundled config.conf) no
 # pre-made dotfiles, so they need either a hand-written config or an
 # imported one (see abora_dotfiles_import) to be usable day-to-day. This is
-# the exact desktop set the "Other Desktops" edition offers, and must stay
-# in sync with _TILING_WMS in abora-installer-gui.py.
+# the exact desktop set the "Other Desktops" edition offers.
 abora_tiling_wm_profiles() {
     cat <<'EOF'
 hyprland
@@ -217,6 +217,10 @@ abora_sync_desktop_label() {
             desktop_label="MangoWM"
             desktop_variant_id="mangowm"
             ;;
+        lumina)
+            desktop_label="Lumina"
+            desktop_variant_id="lumina"
+            ;;
         *)
             desktop_label="GNOME"
             desktop_variant_id="gnome"
@@ -277,6 +281,8 @@ abora_detect_desktop_profile() {
         printf 'fluxbox\n'
     elif grep -q 'windowManager\.icewm\.enable = true;' "$file"; then
         printf 'icewm\n'
+    elif grep -q 'pkgs\.lumina\.lumina' "$file"; then
+        printf 'lumina\n'
     elif grep -q 'windowManager\.herbstluftwm\.enable = true;' "$file"; then
         printf 'herbstluftwm\n'
     elif grep -q "defaultSession = \"mango\";" "$file"; then
@@ -357,10 +363,10 @@ EOF
 
     [org.gnome.shell]
     enabled-extensions=['dash-to-dock@micxgx.gmail.com', 'blur-my-shell@aunetx', 'appindicatorsupport@rgcjonas.gmail.com', 'caffeine@patapon.info']
-    favorite-apps=['org.gnome.Nautilus.desktop', 'org.kde.konsole.desktop', 'org.mozilla.firefox.desktop', 'org.gnome.Settings.desktop']
+    favorite-apps=['org.gnome.Nautilus.desktop', 'org.gnome.Console.desktop', 'app.zen_browser.zen.desktop', 'org.gnome.Settings.desktop']
 
     [org.gnome.desktop.default-applications.terminal]
-    exec='konsole'
+    exec='kgx'
     exec-arg='-e'
 
     [org.gnome.shell.extensions.dash-to-dock]
@@ -730,6 +736,23 @@ EOF
   services.xserver.displayManager.lightdm.enable = true;
 EOF
             ;;
+        lumina)
+            cat <<EOF
+  # Not desktopManager.lumina: that nixpkgs module needs libsForQt5.kwindowsystem, which is gone.
+  services.xserver = {
+    enable = true;
+    xkb.layout = "${xkb_layout_value}";
+  };
+  environment.pathsToLink = [ "/share/lumina" ];
+  services.displayManager = {
+    sessionPackages = [ pkgs.lumina.lumina ];
+    defaultSession = "Lumina-DE";
+    autoLogin.enable = true;
+    autoLogin.user = "${username_value}";
+  };
+  services.xserver.displayManager.lightdm.enable = true;
+EOF
+            ;;
         herbstluftwm)
             cat <<EOF
   services.xserver = {
@@ -842,6 +865,17 @@ EOF
     foot
     waybar
     wofi
+EOF
+            ;;
+        lumina)
+            cat <<'EOF'
+    lumina.lumina
+    lumina.lumina-calculator
+    lumina.lumina-pdf
+    fluxbox
+    numlockx
+    qt5.qtsvg
+    xscreensaver
 EOF
             ;;
     esac

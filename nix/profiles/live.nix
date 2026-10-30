@@ -73,6 +73,9 @@ let
   aboraDoctor = pkgs.writeShellScriptBin "abora-doctor" ''
     exec ${pkgs.python3}/bin/python3 /etc/abora/doctor.sh "$@"
   '';
+  aboraAbt = pkgs.writeShellScriptBin "abora-abt" ''
+    exec ${pkgs.python3}/bin/python3 /etc/abora/abt.py "$@"
+  '';
   aboraCheckFull = pkgs.writeShellScriptBin "abora-check-full" ''
     exec ${pkgs.python3}/bin/python3 /etc/abora/check-full.sh "$@"
   '';
@@ -164,56 +167,18 @@ let
     mkdir -p "$out/share/plymouth/themes/abora"
     cp ${../../assets/plymouth/abora.plymouth} "$out/share/plymouth/themes/abora/abora.plymouth"
     cp ${../../assets/plymouth/abora.script} "$out/share/plymouth/themes/abora/abora.script"
+    cp ${../../assets/plymouth/abora-logo.png} "$out/share/plymouth/themes/abora/abora-logo.png"
+    cp ${../../assets/plymouth/bar-fill.png} "$out/share/plymouth/themes/abora/bar-fill.png"
+    cp ${../../assets/plymouth/bar-track.png} "$out/share/plymouth/themes/abora/bar-track.png"
+    theme=$out/share/plymouth/themes/abora
+    chmod u+w "$theme/abora.plymouth"
+    # Plymouth resolves ScriptFile/ImageDir against its working directory, not the
+    # theme folder, so relative paths load nothing (a black splash). NixOS rewrites
+    # these store paths when it copies the theme into the initrd.
+    sed -i -e "s|^ImageDir=.*|ImageDir=$theme|" -e "s|^ScriptFile=.*|ScriptFile=$theme/abora.script|" "$theme/abora.plymouth"
   '';
   wallpaperDir = ../../assets/wallpapers/collection;
   wallpaperThemeDir = ../../assets/wallpaper-themes;
-  tinypmDir = ../../vendor/tinypm;
-  # TinyPM was rewritten from a bash multicall tree to a real Rust crate
-  # (see TinyPM's own AGENTS.md: "the old Bash runtime was removed").
-  # Two real binaries now exist -- tinypm (inspection/diagnostics) and
-  # grab (install-first) -- replacing the old mkGrabCmd multicall
-  # wrapper's much longer alias list (tiny/Parcel/search/term/start/
-  # supdate/grab-add-repo/grab-de/syspm), none of which have a Rust
-  # equivalent; TinyPM's own CLI --help is the source of truth for what
-  # commands actually exist now.
-  tinypmPackage = pkgs.rustPlatform.buildRustPackage {
-    pname = "tinypm";
-    version = "0.8.1-alpha";
-    src = tinypmDir;
-    cargoLock.lockFile = tinypmDir + "/Cargo.lock";
-    doCheck = false;
-  };
-  mintPackage = pkgs.buildGoModule {
-    pname = "mint";
-    version = version;
-    src = ../../vendor/mint;
-    vendorHash = null;
-    postInstall = ''
-      mv "$out/bin/MINT" "$out/bin/mint"
-    '';
-  };
-  aboraInstallerGui =
-    let
-      python = pkgs.python3.withPackages (ps: with ps; [ pygobject3 ]);
-      giPath = lib.makeSearchPath "lib/girepository-1.0" (with pkgs; [
-        gtk4 libadwaita glib gdk-pixbuf (lib.getLib pango) harfbuzz graphene cairo gobject-introspection
-      ]);
-      libPath = lib.makeLibraryPath (with pkgs; [
-        gtk4 libadwaita glib gdk-pixbuf cairo
-      ]);
-    in
-    pkgs.writeShellScriptBin "abora-installer-gui" ''
-      export GI_TYPELIB_PATH="${giPath}''${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
-      export LD_LIBRARY_PATH="${libPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-      export ABORA_INSTALLER="''${ABORA_INSTALLER:-/etc/abora/installer.sh}"
-      export ABORA_DEFAULT_DESKTOP="''${ABORA_DEFAULT_DESKTOP:-${selectedEdition.desktop}}"
-      export ABORA_EDITION="''${ABORA_EDITION:-${selectedEdition.id}}"
-      # Force software renderer so the installer works in QEMU and on
-      # hardware without accelerated GL (black window otherwise).
-      export GSK_RENDERER="''${GSK_RENDERER:-cairo}"
-      export GDK_BACKEND="''${GDK_BACKEND:-wayland,x11}"
-      exec ${python}/bin/python3 /etc/abora/installer-gui.py "$@"
-    '';
   aboraWelcomeGui =
     let
       python = pkgs.python3.withPackages (ps: with ps; [ pygobject3 ]);
@@ -386,18 +351,25 @@ in
     distroName = "Abora OS";
     vendorId = "abora";
     vendorName = "Abora OS";
+    # nixpkgs puts its own codename into /etc/lsb-release unless told otherwise.
+    extraLSBReleaseArgs = {
+      DISTRIB_RELEASE = "4.2";
+      LSB_VERSION = "4.2 (Solstice)";
+      DISTRIB_CODENAME = "solstice";
+      DISTRIB_DESCRIPTION = "Abora OS v4.2 Solstice";
+    };
     variant_id = "live";
     variantName = "Abora OS ${selectedEdition.label} Live";
     label = version;
     extraOSReleaseArgs = {
       LOGO = "abora";
-      VERSION = "v4.1 Horizon";
-      VERSION_ID = "4.1";
-      VERSION_CODENAME = "horizon";
-      PRETTY_NAME = "Abora OS v4.1 Horizon";
+      VERSION = "v4.2 Solstice";
+      VERSION_ID = "4.2";
+      VERSION_CODENAME = "solstice";
+      PRETTY_NAME = "Abora OS v4.2 Solstice";
       HOME_URL = "https://www.aboraos.org/";
-      SUPPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
-      BUG_REPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
+      SUPPORT_URL = "https://github.com/Abora-OS/Abora-OS/issues";
+      BUG_REPORT_URL = "https://github.com/Abora-OS/Abora-OS/issues";
       ANSI_COLOR = "0;38;2;80;220;255";
     };
   };
@@ -476,10 +448,9 @@ in
 
   environment.systemPackages = (with pkgs; [
     # ── Abora installer toolchain ────────────────────────────────────────────
-    tinypmPackage
-    abora-update-resolver
     abora-update
     abora-plan-tool
+    abora-grab
     abora-installer
     aboraApps
     aboraCustomPackages
@@ -494,6 +465,7 @@ in
     aboraGaming
     aboraDotfilesImport
     aboraDoctor
+    aboraAbt
     aboraHardwareTest
     aboraRecovery
     aboraRepairFlakePurity
@@ -513,26 +485,22 @@ in
     # ── Shell / UI ───────────────────────────────────────────────────────────
     bashInteractive
     gum         # upstream Charm gum picker/input UI used by installer.sh
-    mintPackage # Abora helper commands; intentionally not linked as gum
     fastfetch   # shown in the live welcome banner
     feh         # X11 wallpaper fallback for lightweight live desktops
     chafa       # terminal logo rendering fallback
     fbv         # real framebuffer PNG splash before the TTY installer
     htop
     jq          # ANIX v2 plan validation/execution (anix run/validate-plan/apply-plan)
-    moducpp-anix # ANIX v2 ModuCPP frontend — standalone, no Modularity checkout needed; bundles its own C++ compiler
     newt        # provides nmtui for Wi-Fi setup
     libsForQt5.qt5ct
     qt6Packages.qt6ct
     swaybg      # wlroots wallpaper fallback for Hyprland/Sway/MangoWM live sessions
     xterm       # tiny fallback so the Start Abora launcher can always open
-    zenity      # graphical ANIX helper when launched from a desktop
 
     # ── Disk & filesystem ────────────────────────────────────────────────────
     dosfstools  # mkfs.vfat
     e2fsprogs   # mkfs.ext4
     parted
-    gparted     # graphical partition editor, opened from the installer's disk step
     util-linux  # wipefs, lsblk, mount …
 
     # ── Boot management ──────────────────────────────────────────────────────
@@ -651,6 +619,10 @@ in
         source = ../../scripts/support/abora-welcome.py;
         mode = "0755";
       };
+      # The support tools' shared core (UI, redaction); they import it from /etc/abora.
+      "abora/abora_core.py".source = ../../scripts/support/abora_core.py;
+      # ABT, ASA's transaction engine; anix and the updater run switches through it.
+      "abora/abt.py".source = ../../scripts/safety/abora-abt.py;
       "abora/repair-flake-purity.sh" = {
         source = ../../scripts/config/abora-repair-flake-purity.sh;
         mode = "0755";
@@ -674,10 +646,10 @@ in
       '';
       "abora/title.txt".source = ../../assets/abora-title.txt;
       "abora/VERSION".source = ../../VERSION;
+      "abora/nixos-stable".source = ../../NIXOS_STABLE;
       "abora/target-flake.lock".source = ../../flake.lock;
       "abora/fastfetch-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "abora/fastfetch-config.jsonc".source = ../../assets/fastfetch-config.jsonc;
-      "abora/effects/v3StartingAbora.mp3".source = ../../assets/Effects/v3StartingAbora.mp3;
       "abora/desktop-profiles.sh" = {
         source = ../../scripts/config/abora-desktop-profiles.sh;
         mode = "0755";
@@ -694,14 +666,17 @@ in
       };
       "abora/plymouth/abora.plymouth".source = ../../assets/plymouth/abora.plymouth;
       "abora/plymouth/abora.script".source = ../../assets/plymouth/abora.script;
+      "abora/plymouth/abora-logo.png".source = ../../assets/plymouth/abora-logo.png;
+      "abora/plymouth/bar-fill.png".source = ../../assets/plymouth/bar-fill.png;
+      "abora/plymouth/bar-track.png".source = ../../assets/plymouth/bar-track.png;
       "abora/nixpkgs".source = pkgs.path;
       "xdg/fastfetch/config.jsonc".source = ../../assets/fastfetch-config.jsonc;
       "xdg/fastfetch/abora-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "issue".text = ''
-        Abora OS v4.1 Horizon
+        Abora OS v4.2 Solstice
       '';
       "issue.net".text = ''
-        Abora OS v4.1 Horizon
+        Abora OS v4.2 Solstice
       '';
       "profile.d/abora-live.sh".text = ''
         # Only greet on real TTY sessions (not COSMIC/graphical login shells)
@@ -736,23 +711,13 @@ in
       "abora/installed-base.nix".source = ../modules/installed-base.nix;
       "abora/pkgs/mango.nix".source = ../pkgs/mango.nix;
       "abora/pkgs/scenefx-0_5.nix".source = ../pkgs/scenefx-0_5.nix;
-      "abora/pkgs/modularity.nix".source = ../pkgs/modularity.nix;
-      "abora/pkgs/moducpp-anix.nix".source = ../pkgs/moducpp-anix.nix;
-      "abora/pkgs/abora-update-resolver.nix".source = ../pkgs/abora-update-resolver.nix;
-      "abora/pkgs/abora-update-resolver-deps.json".source = ../pkgs/abora-update-resolver-deps.json;
       "abora/pkgs/vanta.nix".source = ../pkgs/vanta.nix;
       "abora/pkgs/abora-update.nix".source = ../pkgs/abora-update.nix;
       "abora/pkgs/abora-plan-tool.nix".source = ../pkgs/abora-plan-tool.nix;
-      "abora/pkgs/abora-plan-tool-deps.json".source = ../pkgs/abora-plan-tool-deps.json;
-      "abora/tools/moducpp-anix" = {
-        source = ../../tools/moducpp-anix;
-        mode = "0755";
-      };
-      "abora/tinypm".source = tinypmDir;
-      "abora/update-resolver".source = ../../tools/abora-update-resolver;
+      "abora/pkgs/abora-grab.nix".source = ../pkgs/abora-grab.nix;
       "abora/abora-update".source = ../../tools/abora-update;
       "abora/plan-tool".source = ../../tools/abora-plan-tool;
-      "abora/vendor/modularity".source = ../../vendor/modularity;
+      "abora/grab".source = ../../tools/abora-grab;
       "abora/docs".source = ../../docs;
       "abora/anix-languages".source = ../../assets/anix-languages;
       "anix/languages".source = ../../assets/anix-languages;

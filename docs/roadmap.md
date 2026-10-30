@@ -1,17 +1,61 @@
 # Abora OS Roadmap
 
-This roadmap tracks Abora OS v4.1 Horizon and its reliability, installer, and graphical-tools work.
+This roadmap tracks Abora OS v4.2 Solstice (a cleaner codebase and a more reliable system) and the direction of v5.0. The release gate
+and the state of each item are in [next-release-plan.md](next-release-plan.md).
+
+## Abora OS v4.2 Solstice (in progress)
+
+- `anix` is the one command; `abora` is its old name
+- TinyPM removed; `anix package` installs nixpkgs packages without a rebuild
+- `anix doctor` covers the whole system, explains problems and repairs them
+- ASA: system changes run as ABT transactions and roll back on failure
+- installer failures are diagnosable (hash mismatch kinds, failing paths and hashes, logs saved to USB)
+- release names derive from one source and are checked
+- one installer: the bash TUI with gum; MINT and the GTK installer are removed, and the live ISO is an installer only (no live desktop session)
+- next: one command list for `live.nix` and `installed-base.nix`; `abt begin`/`commit` for the commands that
+  edit and apply in one step; the two C# tools are already replaced by Rust ones; next is moving more installer steps into the Rust engine
+
+
+## Abora OS v5.0 (planned direction)
+
+v5.0 is a bigger v4.2: the same goals (a safer, simpler, more reliable Abora) carried further. Its main theme is
+**Shell as glue, not as the application**. This is a direction, not a committed feature list or date.
+
+Where Shell stands today (real files, symlinks not double-counted): 39 files, about 22,900 lines, of which about
+17,700 ship on the system and about 5,200 are tests. The biggest shipped scripts:
+
+| Script | Lines |
+| --- | --- |
+| `scripts/install/abora-installer.sh` | 4,896 |
+| `scripts/core/anix.sh` | 3,554 |
+| `scripts/support/abora-update.sh` | 2,112 |
+| `scripts/config/abora-desktop-profiles.sh` | 882 |
+| `scripts/config/abora-config.sh` | 824 |
+| `scripts/apps/abora-apps.sh` | 770 |
+| `scripts/apps/abora-gaming.sh` | 758 |
+
+How it gets there:
+
+- **Rust** takes what changes the system or runs as root; **Go** takes network, diagnostic, CLI and TUI tools;
+  **Nix** stays the system configuration; Shell is kept for launchers, systemd units and short wrappers.
+- One piece at a time. A piece moves only after the old and new code are run on the same inputs, including hostile
+  ones, and write the same files. (The installer's disk, flake and config steps were moved this way in 4.2.)
+- The `/etc/abora/*.sh` names that 4.0 and 4.1 updaters expect stay as thin wrappers.
+- Not all of Shell goes: NixOS itself and small glue will always have a few lines.
+
+Started in 4.2: the installer engine (`tools/abora-installer`: disk, flake, config). Next: the rest of the
+installer (build, `nixos-install`, boot checks, branding, the apps file, the flake lock), then the installer
+screens, `anix.sh` and the updater.
 
 ## Abora OS v4 Everest Delivered
 
 - five edition ISOs (Cosmic, Hyprland, GNOME, KDE, Other), each defaulting to a different desktop while still installing the full 23-profile matrix
 - first-class GPU driver selection (`abora.gpu`: nouveau, nvidia, nvidia-open, amdgpu, intel, none), detected via `lspci` at install time
-- ANIX v2: pluggable configuration languages (ANIX Native and ModuCPP) that resolve to one Plan JSON, applied as a single transaction with per-setting ADD/CHANGE/SAME diffing
+- ANIX v2: pluggable configuration languages (ANIX Native and, in 4.0 and 4.1, ModuCPP) that resolve to one Plan JSON, applied as a single transaction with per-setting ADD/CHANGE/SAME diffing
 - everything from DENALI 3.14 carried forward — Omarchy-inspired installer, 23 desktop profiles, TinyPM v0.8, branding and hardware coverage
 
 ## In Progress Toward the Next Release
 
-- **MINT** as the default guided installer front-end, handing the confirmed plan to the existing bash installer as its backend
 - `abora welcome-gui` and `abora config-gui` — the first GTK4/libadwaita graphical tools, thin front-ends over the existing CLI so nothing they do is GUI-exclusive
 
 ## Recently Delivered
@@ -23,9 +67,8 @@ This roadmap tracks Abora OS v4.1 Horizon and its reliability, installer, and gr
 
 ## Near-Term Direction
 
-- **importable Abora features for existing NixOS users** — `anix` and `branding` (fastfetch config/logo, title banner, logo image, default wallpaper) are standalone-importable `nixosModules`; `nix run github:AnimatedGTVR/Abora-OS#desktop-preview -- <profile>` prints Abora's exact desktop-profile config/package blocks to paste in by hand (shell-generated, can't be a declarative module); `nix run github:AnimatedGTVR/Abora-OS#hardware-test` runs Abora's hardware-readiness checks on any machine. None of this requires the installer or ISO (see `docs/wiki/ANIX-Standalone.md`). Most of the rest of the `abora` CLI (`abora-config`, `abora-desktop`, `abora-doctor`, etc.) is Abora-install-specific by nature — it reads/writes actual Abora system state — so it's not clear all of it *should* be extracted the same way; what's left here is auditing the remaining `installed-base` pieces case by case for which ones are genuinely portable, the way hardware-test and desktop-preview turned out to be
+- **importable Abora features for existing NixOS users** — `anix` and `branding` (fastfetch config/logo, title banner, logo image, default wallpaper) are standalone-importable `nixosModules`; `nix run github:Abora-OS/Abora-OS#desktop-preview -- <profile>` prints Abora's exact desktop-profile config/package blocks to paste in by hand (shell-generated, can't be a declarative module); `nix run github:Abora-OS/Abora-OS#hardware-test` runs Abora's hardware-readiness checks on any machine. None of this requires the installer or ISO (see `docs/wiki/ANIX-Standalone.md`). Most of the rest of the `abora` CLI (`abora-config`, `abora-desktop`, `abora-doctor`, etc.) is Abora-install-specific by nature — it reads/writes actual Abora system state — so it's not clear all of it *should* be extracted the same way; what's left here is auditing the remaining `installed-base` pieces case by case for which ones are genuinely portable, the way hardware-test and desktop-preview turned out to be
 - keep expanding graphical coverage where it clearly helps first-time and non-terminal users, without ever making the CLI a second-class citizen — every GUI action should have an equivalent command
-- extend MINT's guided flow to cover more of what the bash installer can already do, rather than duplicating logic between the two
 - keep the desktop matrix green across all 23 profiles via `make check-desktops` as new GTK/libadwaita dependencies are added
 - continue auditing scripts and the new Python/GTK tooling for the same class of bug found and fixed during this pass: environment variables silently dropped across privilege escalation (`pkexec`/`sudo`), which can cause a tool to act on the wrong config path instead of failing loudly
 - improve hardware test coverage for Wi-Fi laptops, NVIDIA systems, BIOS boot, and UEFI boot
@@ -34,6 +77,6 @@ This roadmap tracks Abora OS v4.1 Horizon and its reliability, installer, and gr
 ## Release Direction
 
 - keep GitHub releases as the primary public ISO distribution path
-- attach ISO, checksums, manifest, release notes, and TinyPM package to release bundles
+- attach ISO, checksums, manifest, release notes, and the ANIX package to release bundles
 - require `make check`, `make check-desktops`, one full VM install, and one installed-system boot before publishing
-- use `make iso` for fast ISO-only iteration, `make iso-all` before a release, `make release` only for full release bundles
+- use `make iso` for ISO-only iteration, `make release` only for full release bundles

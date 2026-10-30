@@ -1,5 +1,26 @@
 { lib, pkgs, config, ... }:
 let
+  desktop   = config.abora.desktop;
+  minimal   = config.abora.minimal;
+  graphical = desktop != "none";
+  # These desktops' NixOS modules already install a terminal (checked against
+  # nixpkgs); Konsole is only the fallback for the window managers.
+  nativeTerminals = {
+    gnome = "kgx"; cosmic = "cosmic-term"; plasma = "konsole"; xfce = "xfce4-terminal";
+    cinnamon = "gnome-terminal"; mate = "mate-terminal"; lxqt = "qterminal";
+    pantheon = "io.elementary.terminal";
+    # Their Abora desktop modules install these.
+    hyprland = "kitty"; sway = "foot"; niri = "foot"; river = "foot"; mangowm = "foot";
+  };
+  terminal     = nativeTerminals.${desktop} or fallbackTerminal;
+  needsFallbackTerminal = graphical && !(nativeTerminals ? ${desktop});
+  hasOwnBluetoothUi = builtins.elem desktop [ "gnome" "plasma" "cosmic" "pantheon" ];
+  zenFlatpak   = "app.zen_browser.zen";
+  # The one wallpaper a minimal install keeps.
+  minimalWallpaper = "titlis-alps.jpg";
+  # Minimal installs fall back to xterm on X11 rather than pulling in KDE for Konsole.
+  fallbackTerminal = if minimal then "xterm" else "konsole";
+
   # All paths below are relative to this file as it lives on the installed system
   # (beside installed-base.nix in /etc/nixos/abora/ or equivalent).  The
   # installer copies every required file via cp_required before the first
@@ -26,6 +47,13 @@ let
   checkFullScript      = ./check-full.sh;
   recoveryScript       = ./recovery.sh;
   welcomeScript        = ./welcome.sh;
+  # The support tools' shared core (UI, redaction), new in 4.2; they import it from /etc/abora.
+  aboraCoreModule =
+    if builtins.pathExists ./abora_core.py then ./abora_core.py else null;
+  # ABT, the transaction engine of ASA (scripts/safety/abora-abt.py), new in 4.2. Optional like the
+  # core above; while it's missing, rebuilds just run without a transaction.
+  abtScript =
+    if builtins.pathExists ./abt.py then ./abt.py else null;
   # New in this release; optional so systems mid-update (new installed-base.nix
   # synced before the new .py files finish copying) don't fail evaluation.
   welcomeGuiScript =
@@ -75,17 +103,13 @@ let
   desktopProfilesScript = ./desktop-profiles.sh;
   mangoConfigFile      = ./mango/config.conf;
   mangoConfigText      = builtins.readFile mangoConfigFile;
-  moducppAnixTool      = ./tools/moducpp-anix;
-  modularitySrc        = ./vendor/modularity;
   installerScript      = ./installer.sh;
   setupLauncherScript  = ./setup-launcher.sh;
   setupDesktopFile     = ./setup.desktop;
   plymouthDir          = ./plymouth;
+  # Optional: the splash falls back to a text title without them.
+  plymouthImages       = [ "abora-logo.png" "bar-fill.png" "bar-track.png" ];
   bootloaderDir        = ./bootloader;
-  effectsAudioFile =
-    if builtins.pathExists ./effects/v3StartingAbora.mp3 then ./effects/v3StartingAbora.mp3
-    else if builtins.pathExists ./effects/LaunchingAbora.mp3 then ./effects/LaunchingAbora.mp3
-    else null;
   limineWallpaperFile =
     if builtins.pathExists (bootloaderDir + "/limine-background.png") then
       bootloaderDir + "/limine-background.png"
@@ -95,10 +119,6 @@ let
   # update (new installed-base.nix synced before the corresponding new
   # directory finishes copying) must not fail evaluation just because one
   # of these hasn't landed yet.
-  tinypmDir =
-    if builtins.pathExists ./tinypm then ./tinypm else null;
-  updateResolverDir =
-    if builtins.pathExists ./update-resolver then ./update-resolver else null;
   # The Vanta core of `abora update` and the interpreter it runs on.
   aboraUpdateDir =
     if builtins.pathExists ./abora-update
@@ -107,26 +127,9 @@ let
     then ./abora-update else null;
   planToolDir =
     if builtins.pathExists ./plan-tool then ./plan-tool else null;
+  grabDir =
+    if builtins.pathExists ./grab && builtins.pathExists ./pkgs/abora-grab.nix then ./grab else null;
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
-  # TinyPM was rewritten from a bash multicall tree to a real Rust crate
-  # (see TinyPM's own AGENTS.md: "the old Bash runtime was removed"). The
-  # installer copies the vendored source to /etc/nixos/abora/tinypm
-  # (tinypmDir above), and this builds it the same way
-  # nix/profiles/live.nix's tinypmPackage does for the live ISO. Only two
-  # binaries exist now -- tinypm and grab -- replacing the old mkGrabCmd
-  # multicall wrapper's much longer alias list (tiny/Parcel/search/term/
-  # start/supdate/grab-add-repo/grab-de/syspm), none of which have a Rust
-  # equivalent.
-  tinypmPackage =
-    if tinypmDir != null then
-      pkgs.rustPlatform.buildRustPackage {
-        pname = "tinypm";
-        version = "0.8.1-alpha";
-        src = tinypmDir;
-        cargoLock.lockFile = tinypmDir + "/Cargo.lock";
-        doCheck = false;
-      }
-    else null;
   aboraApps = pkgs.writeShellScriptBin "abora-apps" ''
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/apps.sh "$@"
   '';
@@ -159,6 +162,9 @@ let
   '';
   aboraDoctor = pkgs.writeShellScriptBin "abora-doctor" ''
     exec ${pkgs.python3}/bin/python3 /etc/abora/doctor.sh "$@"
+  '';
+  aboraAbt = pkgs.writeShellScriptBin "abora-abt" ''
+    exec ${pkgs.python3}/bin/python3 /etc/abora/abt.py "$@"
   '';
   aboraCheckFull = pkgs.writeShellScriptBin "abora-check-full" ''
     exec ${pkgs.python3}/bin/python3 /etc/abora/check-full.sh "$@"
@@ -304,8 +310,15 @@ let
   '';
   aboraWallpapersPackage = pkgs.runCommandLocal "abora-wallpapers" { } ''
     mkdir -p "$out/share/backgrounds/abora" "$out/share/abora/themes" "$out/share/gnome-background-properties"
-    find ${wallpaperDir} -maxdepth 1 -type f -exec cp {} "$out/share/backgrounds/abora/" \;
-    find ${wallpaperThemeDir} -maxdepth 1 -type f -exec cp {} "$out/share/abora/themes/" \;
+    ${if minimal
+      then ''
+        cp ${wallpaperDir}/${minimalWallpaper} "$out/share/backgrounds/abora/"
+        cp ${wallpaperThemeDir}/${lib.removeSuffix ".jpg" minimalWallpaper}.conf "$out/share/abora/themes/"
+      ''
+      else ''
+        find ${wallpaperDir} -maxdepth 1 -type f -exec cp {} "$out/share/backgrounds/abora/" \;
+        find ${wallpaperThemeDir} -maxdepth 1 -type f -exec cp {} "$out/share/abora/themes/" \;
+      ''}
     cat >"$out/share/gnome-background-properties/abora.xml" <<'EOF'
     <?xml version="1.0"?>
     <!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd">
@@ -366,10 +379,20 @@ let
       </wallpaper>
     </wallpapers>
     EOF
+    ${lib.optionalString minimal ''rm -r "$out/share/gnome-background-properties"''}
   '';
   aboraPlymouthTheme = pkgs.runCommandLocal "abora-plymouth-theme" { } ''
+    theme=$out/share/plymouth/themes/abora
     install -Dm0644 ${plymouthDir + "/abora.plymouth"} $out/share/plymouth/themes/abora/abora.plymouth
     install -Dm0644 ${plymouthDir + "/abora.script"} $out/share/plymouth/themes/abora/abora.script
+    ${lib.concatMapStrings (image:
+      lib.optionalString (builtins.pathExists (plymouthDir + "/${image}")) ''
+        install -Dm0644 ${plymouthDir + "/${image}"} $out/share/plymouth/themes/abora/${image}
+      '') plymouthImages}
+    # Plymouth resolves ScriptFile/ImageDir against its working directory, not the
+    # theme folder, so relative paths load nothing (a black splash). NixOS rewrites
+    # these store paths when it copies the theme into the initrd.
+    sed -i -e "s|^ImageDir=.*|ImageDir=$theme|" -e "s|^ScriptFile=.*|ScriptFile=$theme/abora.script|" "$theme/abora.plymouth"
   '';
 in
 {
@@ -379,18 +402,25 @@ in
     distroName = "Abora OS";
     vendorId = "abora";
     vendorName = "Abora OS";
+    # nixpkgs puts its own codename into /etc/lsb-release unless told otherwise.
+    extraLSBReleaseArgs = {
+      DISTRIB_RELEASE = "4.2";
+      LSB_VERSION = "4.2 (Solstice)";
+      DISTRIB_CODENAME = "solstice";
+      DISTRIB_DESCRIPTION = "Abora OS v4.2 Solstice";
+    };
     label = version;
     variant_id = lib.mkDefault "system";
-    variantName = lib.mkDefault "Abora OS v4.1 Horizon";
+    variantName = lib.mkDefault "Abora OS v4.2 Solstice";
     extraOSReleaseArgs = lib.mapAttrs (_: lib.mkDefault) {
       LOGO = "abora";
-      VERSION = "v4.1 Horizon";
-      VERSION_ID = "4.1";
-      VERSION_CODENAME = "horizon";
-      PRETTY_NAME = "Abora OS v4.1 Horizon";
+      VERSION = "v4.2 Solstice";
+      VERSION_ID = "4.2";
+      VERSION_CODENAME = "solstice";
+      PRETTY_NAME = "Abora OS v4.2 Solstice";
       HOME_URL = "https://www.aboraos.org/";
-      SUPPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
-      BUG_REPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
+      SUPPORT_URL = "https://github.com/Abora-OS/Abora-OS/issues";
+      BUG_REPORT_URL = "https://github.com/Abora-OS/Abora-OS/issues";
       ANSI_COLOR = "0;38;2;80;220;255";
     };
   };
@@ -401,20 +431,16 @@ in
     (final: prev: {
       scenefx-0_5 = final.callPackage ./pkgs/scenefx-0_5.nix {};
       mango = final.callPackage ./pkgs/mango.nix {};
-      modularity = final.callPackage ./pkgs/modularity.nix { inherit modularitySrc; };
-      moducpp-anix = final.callPackage ./pkgs/moducpp-anix.nix {
-        moducppAnixSrc = moducppAnixTool;
-      };
-    }
-    // lib.optionalAttrs (updateResolverDir != null) {
-      abora-update-resolver = final.callPackage ./pkgs/abora-update-resolver.nix {
-        resolverSrc = updateResolverDir;
-      };
     }
     // lib.optionalAttrs (aboraUpdateDir != null) {
       vanta = final.callPackage ./pkgs/vanta.nix {};
       abora-update = final.callPackage ./pkgs/abora-update.nix {
         updateSrc = aboraUpdateDir;
+      };
+    }
+    // lib.optionalAttrs (grabDir != null) {
+      abora-grab = final.callPackage ./pkgs/abora-grab.nix {
+        toolSrc = grabDir;
       };
     }
     // lib.optionalAttrs (planToolDir != null) {
@@ -433,7 +459,9 @@ in
   boot.kernelPackages = lib.mkDefault pkgs.linuxPackages_latest;
   boot.initrd.systemd.enable = lib.mkDefault true;
   boot.initrd.verbose = lib.mkDefault false;
-  boot.kernelParams = lib.mkDefault [
+  # A plain list, not mkDefault: NixOS's own modules define kernelParams too,
+  # and any normal definition would drop a mkDefault list entirely.
+  boot.kernelParams = [
     "quiet"
     "splash"
     "udev.log_level=3"
@@ -496,7 +524,13 @@ in
   networking.modemmanager.enable = config.abora.extras.mobileBroadband;
   security.polkit.enable = lib.mkDefault true;
   services.udisks2.enable = lib.mkDefault true;
-  services.blueman.enable = lib.mkDefault true;
+  assertions = [{
+    assertion = !minimal || config.abora.wallpaper == minimalWallpaper;
+    message = "abora.minimal installs only the ${minimalWallpaper} wallpaper; set abora.wallpaper to it, or turn off abora.minimal.";
+  }];
+
+  # Only ever turns Blueman on: a desktop module (Cinnamon) may set its own mkDefault.
+  services.blueman.enable = lib.mkIf (graphical && !hasOwnBluetoothUi) (lib.mkDefault true);
   services.fwupd.enable = lib.mkDefault true;
   services.openssh.enable = lib.mkDefault false;
   security.rtkit.enable = lib.mkDefault true;
@@ -507,12 +541,12 @@ in
     pulse.enable = lib.mkDefault true;
   };
 
-  services.flatpak.enable = lib.mkDefault true;
+  services.flatpak.enable = lib.mkDefault (!minimal);
   xdg.portal.enable = lib.mkDefault true;
   xdg.portal.extraPortals = lib.mkDefault (with pkgs; [ xdg-desktop-portal-gtk ]);
 
   # Add Flathub automatically once the network is up.
-  systemd.services.abora-flatpak-setup = {
+  systemd.services.abora-flatpak-setup = lib.mkIf config.services.flatpak.enable {
     description     = "Add Flathub remote for Flatpak";
     after           = [ "network-online.target" "flatpak.service" ];
     wants           = [ "network-online.target" ];
@@ -534,6 +568,32 @@ in
     '';
   };
 
+  # Zen isn't in nixpkgs; from Flathub it also gets security updates without
+  # waiting for an Abora release. Installed once: removing it later sticks.
+  systemd.services.abora-browser-setup =
+    lib.mkIf (config.abora.browser == "zen" && config.services.flatpak.enable) {
+      description     = "Install the Zen browser from Flathub (once)";
+      after           = [ "abora-flatpak-setup.service" "network-online.target" ];
+      wants           = [ "abora-flatpak-setup.service" "network-online.target" ];
+      wantedBy        = [ "multi-user.target" ];
+      unitConfig.ConditionPathExists = "!/var/lib/abora/browser-installed";
+      unitConfig.StartLimitIntervalSec = 0;
+      serviceConfig = {
+        Type            = "oneshot";
+        TimeoutStartSec = "30min";
+        Restart         = "on-failure";
+        RestartSec      = "60s";
+      };
+      # Adds Flathub itself too: abora-flatpak-setup may still be retrying.
+      script = ''
+        ${pkgs.flatpak}/bin/flatpak remote-add --system --if-not-exists flathub \
+          https://dl.flathub.org/repo/flathub.flatpakrepo
+        ${pkgs.flatpak}/bin/flatpak install --system --noninteractive --or-update flathub ${zenFlatpak}
+        mkdir -p /var/lib/abora
+        touch /var/lib/abora/browser-installed
+      '';
+    };
+
   services.qemuGuest.enable = lib.mkDefault config.abora.extras.virtualizationGuests;
   services.spice-vdagentd.enable = lib.mkDefault config.abora.extras.virtualizationGuests;
   virtualisation.vmware.guest.enable =
@@ -546,8 +606,9 @@ in
   fonts.packages = with pkgs; [
     noto-fonts
     noto-fonts-color-emoji
-    inter
     jetbrains-mono
+  ] ++ lib.optionals (!minimal) [
+    inter
     nerd-fonts.jetbrains-mono
   ];
   fonts.fontconfig = {
@@ -560,11 +621,13 @@ in
     };
   };
 
-  environment.variables = {
+  environment.variables = lib.optionalAttrs graphical {
+    TERMINAL      = lib.mkDefault terminal;
+    TERM_PROGRAM  = lib.mkDefault terminal;
+  } // {
     XCURSOR_THEME = lib.mkDefault "Adwaita";
     XCURSOR_SIZE  = lib.mkDefault "24";
-    TERMINAL      = lib.mkDefault "konsole";
-    TERM_PROGRAM  = lib.mkDefault "konsole";
+
   };
 
   environment.systemPackages = with pkgs; [
@@ -586,9 +649,6 @@ in
     aboraSupportReport
     aboraUpdate
     aboraWelcome
-    aboraWelcomeDesktopPkg
-    aboraConfigDesktopPkg
-    aboraWallpapersPackage
     aboraInstaller
     aboraSetup
     aboraSetupDesktopPkg
@@ -596,41 +656,43 @@ in
     aboraThemeSync
     bashInteractive
     curl
-    feh
     fastfetch
-    firefox
     git
     iw
     jq
-    libnotify
-    moducpp-anix
-    kdePackages.konsole
     linux-firmware
     nixosCommand
     pciutils
-    mpg123
     updateCommand
     upgradeCommand
     rollbackCommand
     spaceship-prompt
-    starship
     unzip
     usbutils
     wget
-    papirus-icon-theme
+    zsh
+  ] ++ lib.optionals graphical [
+    aboraWallpapersPackage
+    feh
+    libnotify
+    swaybg
+    xdg-utils
+  ] ++ lib.optionals (graphical && desktop != "plasma") [
     libsForQt5.qt5ct
     qt6Packages.qt6ct
-    xdg-utils
-    xterm
-    zenity
-    swaybg
-    zsh
-  ] ++ lib.optional (tinypmPackage != null) tinypmPackage
-    ++ lib.optional (pkgs ? abora-update-resolver) pkgs.abora-update-resolver
+  ] ++ lib.optionals (graphical && !minimal) [
+    aboraWelcomeDesktopPkg
+    aboraConfigDesktopPkg
+    papirus-icon-theme
+  ] ++ lib.optional (needsFallbackTerminal && !minimal) kdePackages.konsole
+    ++ lib.optional (needsFallbackTerminal && minimal) xterm
+    ++ lib.optional (graphical && config.abora.browser == "firefox") firefox
+    ++ lib.optional (abtScript != null) aboraAbt
     ++ lib.optional (pkgs ? abora-update) pkgs.abora-update
     ++ lib.optional (pkgs ? abora-plan-tool) pkgs.abora-plan-tool
-    ++ lib.optional (welcomeGuiScript != null) aboraWelcomeGui
-    ++ lib.optional (configGuiScript != null) aboraConfigGui
+    ++ lib.optional (pkgs ? abora-grab) pkgs.abora-grab
+    ++ lib.optional (graphical && !minimal && welcomeGuiScript != null) aboraWelcomeGui
+    ++ lib.optional (graphical && !minimal && configGuiScript != null) aboraConfigGui
     ++ lib.optional (gamingWelcomeGuiScript != null) aboraGamingWelcomeGui
     ++ lib.optional config.abora.gaming.enable aboraGamingWelcomeDesktopPkg
     ++ lib.optional (config.abora.labs.enable && labsScript != null) aboraLabs
@@ -643,10 +705,6 @@ in
     modemmanager
   ]);
 
-  # Purely a desktop notification nudge (--notify --quiet); does not install
-  # anything itself. Silently no-ops via `command -v` if TinyPM was never
-  # installed for this user (anix tinypm install), so this timer is safe to
-  # ship unconditionally on every desktop profile.
   systemd.user.services.abora-session-setup = {
     description = "Apply Abora desktop session defaults";
     wantedBy = [ "graphical-session.target" ];
@@ -655,24 +713,6 @@ in
     serviceConfig = {
       Type = "oneshot";
       ExecStart = "${aboraSessionSetup}/bin/abora-session-setup";
-    };
-  };
-
-  systemd.user.services.tinypm-update-check = {
-    description = "Check for TinyPM updates";
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = "${pkgs.bashInteractive}/bin/bash -lc 'command -v tinypm >/dev/null 2>&1 && tinypm check-update --notify --quiet || true'";
-    };
-  };
-
-  systemd.user.timers.tinypm-update-check = {
-    description = "Notify when TinyPM updates are available";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnBootSec = "10min";
-      OnUnitActiveSec = "6h";
-      Persistent = true;
     };
   };
 
@@ -823,7 +863,6 @@ in
       };
       "abora/mango/config.conf".source = mangoConfigFile;
       "mango/config.conf".text = lib.mkDefault mangoConfigText;
-      "abora/vendor/modularity".source = modularitySrc;
       # Keep the build-time nixpkgs source available for recovery/debug tools.
       "abora/nixpkgs".source = pkgs.path;
       "abora/installer.sh" = {
@@ -848,21 +887,21 @@ in
         mode = "0755";
       };
       "motd".text = ''
-        Abora OS v4.1 Horizon
+        Abora OS v4.2 Solstice
 
-          grab <app>          install an app  (flatpak, nix, or snap)
-          search <app>        find apps across all sources
-          term <app>          remove an installed app
-          supdate             upgrade all installed apps
+          anix learn                   the short command cheat sheet
+          anix welcome                 first steps and quick actions
+          anix doctor                  check system health
+          anix package install <pkg>   install a Nix package now, no rebuild
+          anix package search <word>   find packages in nixpkgs
+          anix apps                    Flatpak apps from Flathub
+          anix gaming                  gaming layer status and Steam Big Picture helper
+          anix gaming doctor           Gaming config/GPU/Vulkan/disk checks
+          anix gaming repair-cache     fix local Nix fetch-cache errors
+          anix recovery                rollback and repair tools
+          sudo anix update             rebuild and switch the system
 
-          abora welcome       first steps and quick actions
-          abora gaming        gaming layer status and Steam Big Picture helper
-          abora gaming doctor Gaming config/GPU/Vulkan/disk checks
-          abora gaming repair-cache
-                              fix local Nix fetch-cache errors
-          abora doctor        check system health
-          abora recovery      rollback and repair tools
-          sudo abora update   rebuild and switch the system
+          'abora' is the old name for anix: abora update = anix update.
       '';
       "profile.d/abora-welcome.sh".text = ''
         abora_welcome_conf="''${XDG_CONFIG_HOME:-''${HOME}/.config}/abora/welcome.conf"
@@ -1000,10 +1039,10 @@ in
         Opacity=0.84
       '';
       "issue".text = ''
-        Abora OS v4.1 Horizon
+        Abora OS v4.2 Solstice
       '';
       "issue.net".text = ''
-        Abora OS v4.1 Horizon
+        Abora OS v4.2 Solstice
       '';
     }
     // builtins.listToAttrs (
@@ -1043,10 +1082,7 @@ in
     // lib.optionalAttrs (aboraLogoFile != null) {
       "abora/Abora-LOGO.png".source = aboraLogoFile;
     }
-    // lib.optionalAttrs (effectsAudioFile != null) {
-      "abora/effects/v3StartingAbora.mp3".source = effectsAudioFile;
-    }
-    // lib.optionalAttrs (welcomeGuiScript != null) {
+    // lib.optionalAttrs (graphical && !minimal && welcomeGuiScript != null) {
       "abora/welcome-gui.py".source = welcomeGuiScript;
       "xdg/autostart/abora-welcome-gui.desktop".text = ''
         [Desktop Entry]
@@ -1064,17 +1100,23 @@ in
     // lib.optionalAttrs (configGuiScript != null) {
       "abora/config-gui.py".source = configGuiScript;
     }
+    // lib.optionalAttrs (aboraCoreModule != null) {
+      "abora/abora_core.py".source = aboraCoreModule;
+    }
+    // lib.optionalAttrs (builtins.pathExists ./nixos-stable) {
+      "abora/nixos-stable".source = ./nixos-stable;
+    }
+    // lib.optionalAttrs (abtScript != null) {
+      "abora/abt.py".source = abtScript;
+    }
     // lib.optionalAttrs (gamingWelcomeGuiScript != null) {
       "abora/gaming-welcome-gui.py".source = gamingWelcomeGuiScript;
     }
-    // lib.optionalAttrs (tinypmDir != null) {
-      "abora/tinypm".source = tinypmDir;
-    }
-    // lib.optionalAttrs (updateResolverDir != null) {
-      "abora/update-resolver".source = updateResolverDir;
-    }
     // lib.optionalAttrs (aboraUpdateDir != null) {
       "abora/abora-update".source = aboraUpdateDir;
+    }
+    // lib.optionalAttrs (grabDir != null) {
+      "abora/grab".source = grabDir;
     }
     // lib.optionalAttrs (planToolDir != null) {
       "abora/plan-tool".source = planToolDir;

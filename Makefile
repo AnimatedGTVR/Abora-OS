@@ -1,21 +1,14 @@
-.PHONY: help iso iso-all iso-cosmic iso-hyprland iso-gnome iso-kde iso-other iso-local build-vm run qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc doctor desktop-preview check check-desktops check-all preflight metadata release tinypm-package anix-package tinypm-image test-installer test-installer-tty test-installer-kitty test-welcome test-config
+.PHONY: help iso iso-local build-vm run qemu qemu-disk qemu-fresh qemu-serial qemu-fresh-serial qemu-debug qemu-fresh-debug qmec qemc doctor desktop-preview check check-desktops check-all preflight metadata release anix-package test-welcome test-config
 
 help:
 	@echo "Usage: make <target>"
 	@echo "Targets:"
 	@echo "  doctor           - Check your dev machine is ready to build Abora (run this first)"
 	@echo "  desktop-preview  - Print Abora's NixOS config/packages for a desktop profile (PROFILE=gnome), no install needed"
-	@echo "  iso              - Build one ISO (defaults to Cosmic; override with ABORA_EDITION=gnome)"
-	@echo "  iso-all          - Build Cosmic, Hyprland, GNOME, KDE, and Other ISOs"
-	@echo "  iso-hyprland     - Build only the Hyprland ISO"
-	@echo "  iso-gnome        - Build only the GNOME ISO"
-	@echo "  iso-kde          - Build only the KDE Plasma ISO"
-	@echo "  iso-other        - Build only the Other Desktops ISO"
+	@echo "  iso              - Build the universal Abora installer ISO"
 	@echo "  metadata         - Generate release notes, manifest, and checksums"
-	@echo "  tinypm-package   - Build the TinyPM release tarball"
 	@echo "  anix-package     - Build the ANIX standalone tarball"
-	@echo "  tinypm-image     - Build the TinyPM GHCR container image locally"
-	@echo "  release          - Build the ISO, TinyPM package, ANIX package, and refresh the release bundle"
+	@echo "  release          - Build the ISO, ANIX package, and refresh the release bundle"
 	@echo "  build-vm         - Clean-checkout ISO build for a dedicated build VM (clones/pulls a fresh copy, ignores local changes)"
 	@echo "  qemu             - Boot the latest ISO in QEMU (graphical window)"
 	@echo "  run              - Alias for qemu"
@@ -26,9 +19,6 @@ help:
 	@echo "  qemu-debug       - Graphical QEMU plus live serial output in this terminal"
 	@echo "  qemu-fresh-debug - Fresh disk + graphical QEMU + terminal serial output"
 	@echo "  qmec / qemc      - Aliases for qemu"
-	@echo "  test-installer   - Run the MINT installer TUI from source, auto-detecting the terminal (no ISO build needed)"
-	@echo "  test-installer-tty   - Same, but forces TTY-safe block-art rendering"
-	@echo "  test-installer-kitty - Same, but forces real Kitty graphics-protocol rendering"
 	@echo "  test-welcome     - Run the Abora Welcome GUI from source (no ISO build needed)"
 	@echo "  test-config      - Run the Abora Config Editor GUI against a throwaway fixture config"
 	@echo "  check            - Run repository script checks"
@@ -37,39 +27,15 @@ help:
 	@echo "  preflight        - Run full release preflight checks"
 
 iso:
-	ABORA_EDITION=$${ABORA_EDITION:-cosmic} ./scripts/build-iso.py
-
-iso-all:
-	ABORA_EDITION=all ./scripts/build-iso.py
-
-iso-cosmic:
-	ABORA_EDITION=cosmic ./scripts/build-iso.py
-
-iso-hyprland:
-	ABORA_EDITION=hyprland ./scripts/build-iso.py
-
-iso-gnome:
-	ABORA_EDITION=gnome ./scripts/build-iso.py
-
-iso-kde:
-	ABORA_EDITION=kde ./scripts/build-iso.py
-
-iso-other:
-	ABORA_EDITION=other ./scripts/build-iso.py
+	./scripts/build-iso.py
 
 metadata:
 	./scripts/release-metadata.py
 
-tinypm-package:
-	./scripts/package-tinypm.py
-
 anix-package:
 	./scripts/package-anix.py
 
-tinypm-image:
-	./scripts/build-tinypm-image.py
-
-release: iso-all tinypm-package anix-package metadata
+release: iso anix-package metadata
 
 build-vm:
 	./scripts/rebuild-vm.py
@@ -101,15 +67,6 @@ qmec: qemu
 
 qemc: qemu
 
-test-installer:
-	cd vendor/mint && go run . abora install --pre-alpha
-
-test-installer-tty:
-	cd vendor/mint && go run . abora install --tty --pre-alpha
-
-test-installer-kitty:
-	cd vendor/mint && go run . abora install --kitty --pre-alpha
-
 test-welcome:
 	python3 scripts/abora-welcome-gui.py
 
@@ -139,30 +96,3 @@ check-all:
 preflight:
 	./scripts/preflight.py
 
-MODULARITY_VERSION ?= 7.0.0
-MODULARITY_ZIP_ROOT ?= Modularity-$(MODULARITY_VERSION)-Linux
-
-setup-modularity:
-	@[ -n "$(ZIP)" ] || { echo "Usage: make setup-modularity ZIP=/path/to/Modularity-$(MODULARITY_VERSION)-Linux.zip"; exit 1; }
-	@echo "Extracting Modularity V$(MODULARITY_VERSION) from $(ZIP)..."
-	@tmp="$$(mktemp -d)"; \
-	trap 'rm -rf "$$tmp"' EXIT; \
-	unzip -q "$(ZIP)" -d "$$tmp"; \
-	root="$$tmp/$(MODULARITY_ZIP_ROOT)"; \
-	if [ ! -d "$$root" ]; then \
-		root="$$(find "$$tmp" -mindepth 1 -maxdepth 1 -type d -iname 'Modularity*Linux*' | head -n 1)"; \
-	fi; \
-	[ -n "$$root" ] && [ -d "$$root" ] || { echo "Could not find Modularity Linux folder inside $(ZIP)"; exit 1; }; \
-	[ -x "$$root/bin/Modularity" ] || { echo "Missing executable: $$root/bin/Modularity"; exit 1; }; \
-	rm -rf vendor/modularity/bin vendor/modularity/lib; \
-	mkdir -p vendor/modularity/bin vendor/modularity/lib vendor/modularity/share/modularity; \
-	install -m 0755 "$$root/bin/Modularity" vendor/modularity/bin/Modularity; \
-	lib_dir="$$root/bin/linux.x86_64/release"; \
-	if [ -d "$$lib_dir" ]; then \
-		find "$$lib_dir" -maxdepth 1 -type f -name '*.so*' -exec cp {} vendor/modularity/lib/ \;; \
-	fi; \
-	if [ -d "$$root/share/modularity/Resources" ]; then \
-		rm -rf vendor/modularity/share/modularity/Resources; \
-		cp -R "$$root/share/modularity/Resources" vendor/modularity/share/modularity/Resources; \
-	fi
-	@echo "Modularity V$(MODULARITY_VERSION) ready at vendor/modularity/"

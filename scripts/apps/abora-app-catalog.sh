@@ -51,7 +51,6 @@ lazygit|Lazygit|lazygit|Developer|Terminal UI for git commands|no
 docker|Docker|docker|Developer|Container engine for building and running apps|no
 filezilla|FileZilla|filezilla|Developer|FTP and SFTP file transfer client|no
 remmina|Remmina|remmina|Developer|Remote desktop client for RDP, VNC, and SSH|no
-modularity|Modularity|modularity|Extras|Game engine editor; installs a setup helper until the vendor binary is added|no
 dmidecode|dmidecode|dmidecode|System|Low-level hardware and BIOS inventory tool|no
 ethtool|ethtool|ethtool|System|Inspect and tune Ethernet devices|no
 smartmontools|smartmontools|smartmontools|System|Drive SMART health checks and diagnostics|no

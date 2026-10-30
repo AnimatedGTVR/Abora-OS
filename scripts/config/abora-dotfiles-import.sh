@@ -142,7 +142,16 @@ copy_path() {
     rm -rf -- "$dst"
     cp -a -- "$src" "$dst"
   else
-    cp -an -- "$src" "$dst_parent/"
+    # coreutils 9.2+ makes `cp -n` exit 1 whenever it skips an existing
+    # file, which is the whole point of the default preserve mode, so the
+    # import died on the first dotfile the user already had. --update=none
+    # is the non-failing spelling (9.3+); older cp rejects it, and there -n
+    # still exits 0.
+    if cp --update=none --version >/dev/null 2>&1; then
+      cp -a --update=none -- "$src" "$dst_parent/"
+    else
+      cp -an -- "$src" "$dst_parent/"
+    fi
   fi
   printf 'copied %s\n' "$rel"
 }

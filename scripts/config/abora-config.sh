@@ -36,6 +36,14 @@ else
     abora_card_end()   { printf '  %b└────────%b\n' "$ABORA_BLUE" "$ABORA_NC"; }
 fi
 
+# From abora-ui.sh (ASA/ABT); without it, rebuilds run as before.
+if ! declare -F abora_abt_prefix >/dev/null; then
+    abora_abt_prefix() { ABORA_ABT_PREFIX=(); }
+fi
+if ! declare -F abora_abt_pending >/dev/null; then
+    abora_abt_pending() { :; }
+fi
+
 config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
 local_module="${config_dir}/abora-local.nix"
 wallpaper_dir="${ABORA_WALLPAPER_DIR:-/etc/abora/wallpapers}"
@@ -141,7 +149,7 @@ detect_legacy_gpu() {
 # several keyboards: the Japanese console map is "jp106" but the layout is
 # "jp"; UK is "uk" vs "gb"; Turkish "trq" vs "tr"; and so on. Passing the
 # console name through as the layout leaves the desktop with an invalid layout.
-# Keep this in sync with KEYBOARDS in abora-installer-gui.py and with the copy
+# Keep this in sync with the copy
 # in abora-config.sh (scripts/install/tests/keyboard-layout.test.sh checks both).
 console_keymap_to_xkb() {
     case "$1" in
@@ -303,6 +311,7 @@ normalize_bool() {
 write_string_option() {
     local key="$1" value="$2" escaped_key escaped_value tmp
     escaped_key="${key//./\\.}"
+    abora_abt_pending "abora config changes" "$config_dir" run_as_root
 
     if grep -Eq "^[[:space:]]*abora\\.${escaped_key}[[:space:]]*=" "$local_module"; then
         # Escape the sed replacement metacharacters so a value containing a
@@ -330,6 +339,7 @@ write_string_option() {
 write_bool_option() {
     local key="$1" value="$2" escaped_key tmp
     local escaped_key="${key//./\\.}"
+    abora_abt_pending "abora config changes" "$config_dir" run_as_root
     if grep -Eq "^[[:space:]]*abora\\.${escaped_key}[[:space:]]*=" "$local_module"; then
         run_as_root sed -i -E \
             "s|^[[:space:]]*abora\\.${escaped_key}[[:space:]]*=.*|  abora.${key} = ${value};|" \
@@ -429,7 +439,7 @@ show_config() {
 valid_desktops=(
     none gnome plasma hyprland sway xfce cinnamon mate budgie lxqt pantheon
     i3 awesome openbox niri river qtile bspwm fluxbox
-    icewm herbstluftwm cosmic mangowm
+    icewm herbstluftwm cosmic mangowm lumina
 )
 
 wallpaper_candidates() {
@@ -718,7 +728,8 @@ do_apply() {
     printf '\n'
 
     stage_config_for_flake
-    run_as_root nixos-rebuild switch --flake "${config_dir}#${flake_target}"
+    abora_abt_prefix "abora config apply" "$config_dir"
+    run_as_root "${ABORA_ABT_PREFIX[@]}" nixos-rebuild switch --flake "${config_dir}#${flake_target}"
 
     printf '\n'
     abora_success "Done. Your changes are now active."

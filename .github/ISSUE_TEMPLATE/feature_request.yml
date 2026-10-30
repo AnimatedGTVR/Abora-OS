@@ -30,7 +30,6 @@ body:
         - Apps and packages
         - Updates and rollback
         - ANIX config layer
-        - TinyPM
         - Documentation
         - Other / not sure
     validations:

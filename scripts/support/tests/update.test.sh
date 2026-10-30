@@ -68,7 +68,7 @@ fi
 # and copy the release-pinned target lock instead of regenerating it on the
 # half-installed target.
 if grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";' "$tmp_update_flake/flake.nix" \
-  && grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";' scripts/abora-installer.sh \
+  && grep -q 'flake_engine write-installed --branch "$branch"' scripts/abora-installer.sh \
   && grep -q '/etc/abora/target-flake.lock' scripts/abora-installer.sh \
   && grep -q 'cp /etc/abora/target-flake.lock "${cfgdir}/flake.lock"' scripts/abora-installer.sh \
   && grep -q 'write_installed_flake "$root"' scripts/abora-installer.sh \
@@ -90,6 +90,27 @@ if grep -q 'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";' "$tmp_u
   pass "runtime: installed flake uses a release-pinned pure nixos-unstable input"
 else
   fail "runtime: installed flake uses a release-pinned pure nixos-unstable input"
+fi
+
+# The release a user chose (installer, `anix nixos`) is saved beside the config
+# and the updater regenerates the same flake; anything unusable means unstable.
+tmp_nixos_rel="$(mktemp -d)"
+testlib_cleanup_paths+=("$tmp_nixos_rel")
+mkdir -p "$tmp_nixos_rel/abora"
+_nixos_rel_flake() {
+  rm -f "$tmp_nixos_rel/flake.nix"
+  ABORA_SYSTEM_CONFIG="$tmp_nixos_rel" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-write-flake >/dev/null 2>&1
+  sed -n 's|.*inputs.nixpkgs.url = "github:NixOS/nixpkgs/\([^"]*\)";.*|\1|p' "$tmp_nixos_rel/flake.nix"
+}
+_nixos_rel_none="$(_nixos_rel_flake)"
+printf 'nixos-26.05\n' > "$tmp_nixos_rel/abora/nixos-release"
+_nixos_rel_stable="$(_nixos_rel_flake)"
+printf 'nixos-26.05"; evil = true; #\n' > "$tmp_nixos_rel/abora/nixos-release"
+_nixos_rel_bad="$(_nixos_rel_flake)"
+if [[ "$_nixos_rel_none" == nixos-unstable && "$_nixos_rel_stable" == nixos-26.05 && "$_nixos_rel_bad" == nixos-unstable ]]; then
+  pass "runtime: updater keeps the chosen NixOS release when it regenerates flake.nix"
+else
+  fail "runtime: updater keeps the chosen NixOS release when it regenerates flake.nix (none=$_nixos_rel_none stable=$_nixos_rel_stable bad=$_nixos_rel_bad)"
 fi
 
 if [[ -n "$resolver_bin" ]]; then
@@ -158,7 +179,7 @@ if [[ -n "$resolver_bin" ]]; then
 
   unset ABORA_UPDATE_RESOLVER_BIN
 else
-  pass "runtime: abora-update-resolver tests skipped (dotnet unavailable)"
+  pass "runtime: update resolver tests skipped (Vanta unavailable)"
 fi
 
 if [[ -n "$resolver_bin" ]]; then
@@ -177,7 +198,7 @@ if [[ -n "$resolver_bin" ]]; then
     fail "runtime: pre-alpha dry-run previews selected ref"
   fi
 else
-  pass "runtime: pre-alpha dry-run test skipped (dotnet unavailable)"
+  pass "runtime: pre-alpha dry-run test skipped (Vanta unavailable)"
 fi
 
 if ABORA_PRE_ALPHA_ACCEPT="I ACCEPT THE RISK" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" bash scripts/abora-update.sh __test-pre-alpha-confirm >/dev/null; then
@@ -536,9 +557,9 @@ channel_help_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-u
 
 channel_bad_out="$(ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-update.sh channel nope 2>&1 || true)"
 
-if printf '%s' "$update_help_out" | grep -q 'abora channel set <stable|demo|unstable>' \
+if printf '%s' "$update_help_out" | grep -q 'abora channel set <stable|edge>' \
   && printf '%s' "$update_help_out" | grep -q 'abora update --check' \
-  && printf '%s' "$channel_help_out" | grep -q 'sudo abora channel set <stable|demo|unstable>' \
+  && printf '%s' "$channel_help_out" | grep -q 'sudo abora channel set <stable|edge>' \
   && ! printf '%s' "$channel_help_out" | grep -q 'Unknown channel subcommand' \
   && printf '%s' "$channel_bad_out" | grep -q 'Unknown channel subcommand: nope' \
   && ! printf '%s' "$channel_bad_out" | grep -q 'Update failed before completion' \
@@ -548,6 +569,31 @@ if printf '%s' "$update_help_out" | grep -q 'abora channel set <stable|demo|unst
 else
   fail "runtime: updater help is clean and Abora-first"
 fi
+
+# The demo and dev channels were removed in 4.2. A system whose saved channel is one of them migrates to Edge
+# (and says so), `channel set` refuses them, and the list shows only Stable and Edge.
+tmp_chan="$(mktemp -d)"
+mkdir -p "$tmp_chan/abora"
+for old in demo dev; do
+  printf '%s\n' "$old" > "$tmp_chan/abora/channel"
+  _chan_show="$(ABORA_SYSTEM_CONFIG="$tmp_chan" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-update.sh channel 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
+  if grep -q 'Channel    edge' <<<"$_chan_show" && grep -q "the '$old' update channel is now 'edge'" <<<"$_chan_show"; then
+    pass "runtime: a system saved on the '$old' channel migrates to Edge and is told so"
+  else
+    fail "runtime: a system saved on the '$old' channel migrates to Edge and is told so"
+    printf '%s\n' "$_chan_show" | sed 's/^/              /'
+  fi
+done
+_chan_list="$(ABORA_SYSTEM_CONFIG="$tmp_chan" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-update.sh channel list 2>&1)"
+_chan_set_rc=0
+_chan_set="$(ABORA_SYSTEM_CONFIG="$tmp_chan" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-update.sh channel set demo 2>&1)" || _chan_set_rc=$?
+if grep -q 'stable' <<<"$_chan_list" && grep -q 'edge' <<<"$_chan_list" && ! grep -q 'demo' <<<"$_chan_list" \
+  && [[ "$_chan_set_rc" -ne 0 ]] && grep -q "channel was removed in Abora OS 4.2" <<<"$_chan_set"; then
+  pass "runtime: the channel list has only Stable and Edge, and 'channel set demo' explains it's gone"
+else
+  fail "runtime: the channel list has only Stable and Edge, and 'channel set demo' explains it's gone"
+fi
+rm -rf "$tmp_chan"
 
 # Regression test: a bare `abora update` (no extra arguments) -- the
 # primary, documented way to run an update ("Sync the latest Abora files
