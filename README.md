@@ -2,41 +2,53 @@
   <img src="assets/Abora-Text.png" alt="Abora OS" width="650">
 </p>
 
-<p align="center"><strong>A NixOS-based Linux distribution built to be easier to install, use, and understand.</strong></p>
+<h3 align="center">Linux you can understand. A system you can rebuild.</h3>
 
 <p align="center">
-  <a href="https://aboraos.org"><img src="https://img.shields.io/badge/Website-aboraos.org-1677ff?style=for-the-badge" alt="Website"></a>
-  <a href="https://github.com/Abora-OS/Abora-OS/releases"><img src="https://img.shields.io/github/v/release/Abora-OS/Abora-OS?style=for-the-badge&label=Download" alt="Latest release"></a>
+  A NixOS-based Linux distribution focused on simplicity, flexibility, and recovery.
+</p>
+
+<p align="center">
+  <a href="https://aboraos.org"><img src="https://img.shields.io/badge/Website-Visit-1677ff?style=for-the-badge" alt="Website"></a>
+  <a href="https://github.com/AnimatedGTVR/Abora-OS/releases"><img src="https://img.shields.io/badge/Download-Releases-238636?style=for-the-badge" alt="Download"></a>
   <a href="docs/README.md"><img src="https://img.shields.io/badge/Documentation-Read-30363d?style=for-the-badge" alt="Documentation"></a>
+  <a href="https://aboraos.org/security"><img src="https://img.shields.io/badge/Security-Center-d97706?style=for-the-badge" alt="Security"></a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/stars/Abora-OS/Abora-OS?style=flat-square&color=1677ff" alt="GitHub stars">
-  <img src="https://img.shields.io/github/issues/Abora-OS/Abora-OS?style=flat-square&color=1677ff" alt="Open issues">
-  <img src="https://img.shields.io/github/license/Abora-OS/Abora-OS?style=flat-square&color=1677ff" alt="License">
-  <img src="https://img.shields.io/badge/Base-NixOS-5277C3?style=flat-square&logo=nixos&logoColor=white" alt="Based on NixOS">
+  <a href="https://github.com/AnimatedGTVR/Abora-OS/stargazers">⭐ Star on GitHub</a> ·
+  <a href="https://github.com/AnimatedGTVR/Abora-OS/issues">Report a Bug</a> ·
+  <a href="https://github.com/AnimatedGTVR/Abora-OS/pulls">Contribute</a> ·
+  <a href="docs/roadmap.md">Roadmap</a>
 </p>
 
-Abora OS was created by **AnimatedGTVR** and is developed with help from community contributors.
+<p align="center">
+  <img src="https://img.shields.io/badge/Base-NixOS-5277C3?style=flat-square" alt="NixOS">
+  <img src="https://img.shields.io/badge/Channels-Stable%20%7C%20Edge-30363d?style=flat-square" alt="Channels">
+  <img src="https://img.shields.io/badge/v4.2-In%20Development-d97706?style=flat-square" alt="v4.2 in development">
+</p>
 
-## About Abora
+---
 
-Abora keeps NixOS's declarative configuration, reproducible builds, atomic upgrades, and rollbacks while providing a guided installer, practical defaults, a choice of desktops, and simpler management tools.
+## Welcome to Abora
 
-**v4.2 Solstice** is a safer, simpler Abora: one ISO and one installer where you pick the desktop, one command (`anix`) for everything, and system changes that roll back when they fail. Abora is still a young project: test important releases before installing them on your main machine.
+**Abora OS** is an independent, open-source Linux distribution created by **AnimatedGTVR** and developed with help from community contributors.
 
-<table>
-  <tr>
-    <td align="center"><strong>Approachable</strong><br>Guided installation and useful defaults.</td>
-    <td align="center"><strong>Recoverable</strong><br>Failed changes roll back; <code>anix doctor</code> explains and repairs.</td>
-    <td align="center"><strong>Flexible</strong><br>One ISO, your choice of desktop.</td>
-  </tr>
-  <tr>
-    <td align="center"><strong>Declarative</strong><br>Reproducible system configuration.</td>
-    <td align="center"><strong>Gaming Ready</strong><br>Optional Steam and Gamescope tools.</td>
-    <td align="center"><strong>Open Source</strong><br>Built in public with community testing.</td>
-  </tr>
-</table>
+Built on NixOS, Abora combines declarative configuration, reproducible builds, and rollback capabilities with guided installation, desktop flexibility, and approachable system management.
+
+**Our goal is to make Linux easier to install, understand, customize, and recover — without sacrificing control.**
+
+## What Abora offers
+
+| Feature | Description |
+| --- | --- |
+| **Desktop Freedom** | COSMIC, GNOME, KDE Plasma, Hyprland, XFCE, and more |
+| **NixOS Foundation** | Declarative configuration and reproducible builds |
+| **ANIX** | Tools for system management, updates, and recovery |
+| **Rollback** | Restore previous system generations |
+| **Package Management** | Nix and optional application sources |
+| **Gaming** | Optional Steam and gaming utilities |
+| **Release Channels** | Stable for releases, Edge for development |
 
 ## Screenshots
 
@@ -46,86 +58,89 @@ Abora keeps NixOS's declarative configuration, reproducible builds, atomic upgra
     <td><img src="assets/Images/v4/screenshot-2026-07-27_03-56-03.png" alt="Abora Settings" width="440"></td>
   </tr>
   <tr>
-    <td><img src="assets/Images/v4/screenshot-2026-07-27_03-58-15.png" alt="Abora GNOME desktop" width="440"></td>
-    <td><img src="assets/Images/v4/screenshot-2026-07-27_05-32-15.png" alt="Abora COSMIC desktop" width="440"></td>
+    <td><img src="assets/Images/v4/screenshot-2026-07-27_03-58-15.png" alt="Abora GNOME" width="440"></td>
+    <td><img src="assets/Images/v4/screenshot-2026-07-27_05-32-15.png" alt="Abora COSMIC" width="440"></td>
   </tr>
 </table>
 
-## Main features
+## Meet ANIX
 
-- One ISO and a guided installer: pick your desktop, a Minimal install, or bring your own NixOS flake
-- Choose your NixOS release: stable or unstable, at install time or later with `anix nixos`
-- Stable and Edge release channels
-- `anix` for updates, recovery, gaming, diagnostics, setup, profiles, generations, snapshots, and rollback (`abora` still works as an alias)
-- ASA and ABT: system changes run as transactions and roll back when they fail
-- `grab` and `anix package` to install apps from Nix, Flatpak, or Snap without editing your config
-- Zen as the default browser, and optional Abora Labs experiments
-- Many desktop environments from one shared base
+ANIX is Abora's system management tooling, designed to simplify common administration tasks.
 
-## Pick your desktop
-
-The installer asks which desktop to install. There is no live desktop session; the ISO is an installer only.
-
-| Desktop | Best for |
-| --- | --- |
-| **COSMIC** | A modern desktop and the main Abora experience |
-| **GNOME** | A focused and polished workflow |
-| **KDE Plasma** | Deep customization and a familiar desktop |
-| **XFCE** and **Cinnamon** | Traditional, lightweight desktops |
-| **Hyprland** | Keyboard-driven tiling and custom setups |
-| **None** | A command-line system you build up yourself |
-
-Choosing **Minimal** also offers IceWM, LXQt, Lumina, Niri, Sway, Fluxbox, Openbox, or your own custom setup.
-
-## Download and install
-
-Download an ISO from [aboraos.org](https://aboraos.org) or [GitHub Releases](https://github.com/Abora-OS/Abora-OS/releases). Read the [installation guide](docs/wiki/Installation.md) before writing it to a USB drive.
-
-Stable is intended for normal use. Edge receives unfinished changes first and may break:
-
-| Channel | Purpose |
-| --- | --- |
-| **Stable** | Tested releases for normal use |
-| **Edge** | New features and fixes for testers and contributors |
-
-```sh
-sudo anix channel set stable
-sudo anix channel set edge
-```
-
-## Common commands
-
-```sh
+```bash
 sudo anix update
 anix doctor
 anix recovery
-anix setup
 anix status
-grab zen-browser
 ```
 
-See [Abora Tools](docs/wiki/Abora-Tools.md), [Updating](docs/wiki/Updating-Abora.md), and [Recovery](docs/wiki/Recovery.md) for more.
+The existing `abora` command remains supported.
+
+Learn more in [Abora Tools](docs/wiki/Abora-Tools.md).
+
+## What's next? v4.2 Solstice
+
+**Currently in development — not yet released.**
+
+Solstice focuses on improving Abora's foundations:
+
+- **Unified ISO** — One installer with desktop selection.
+- **Installer overhaul** — Better partitioning, reliability, and configuration.
+- **ASA + ABT** — Safer system changes and transaction-based recovery.
+- **ANIX improvements** — More consistent system management.
+- **Rust and Go tooling** — Gradually replacing complex Shell implementations.
+- **Better diagnostics** — Clearer errors, recovery, and troubleshooting.
+
+Follow development through the [roadmap](docs/roadmap.md) and [pull requests](https://github.com/AnimatedGTVR/Abora-OS/pulls).
+
+## Download Abora
+
+Get the latest released version from the [official website](https://aboraos.org) or [GitHub Releases](https://github.com/AnimatedGTVR/Abora-OS/releases).
+
+| Channel | Purpose |
+| --- | --- |
+| **Stable** | Tested releases intended for normal use |
+| **Edge** | Experimental changes and development testing |
+
+Read the [installation guide](docs/wiki/Installation.md) before installing.
 
 ## Build from source
 
-```sh
-git clone https://github.com/Abora-OS/Abora-OS.git
+```bash
+git clone https://github.com/AnimatedGTVR/Abora-OS.git
 cd Abora-OS
+
 make doctor
 make check
 make iso
 ```
 
-Use `make qemu-fresh` for a clean VM install test and `make release` only when preparing the complete release bundle.
+Use `make qemu-fresh` to test an installation in a virtual machine.
 
 ## Contributing
 
-Bug reports, hardware tests, documentation fixes, artwork, and focused code changes are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md), and report security problems through [SECURITY.md](SECURITY.md).
+Abora is developed in the open. Code contributions, testing, documentation, design, and bug reports are welcome.
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+
+For security reports, see [SECURITY.md](SECURITY.md).
 
 ## Project links
 
+- [Website](https://aboraos.org)
 - [Documentation](docs/README.md)
-- [Release notes](RELEASE_NOTES.md)
+- [Security Center](https://aboraos.org/security)
+- [Release Notes](RELEASE_NOTES.md)
 - [Roadmap](docs/roadmap.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [License](LICENSE)
+
+---
+
+<p align="center">
+  <strong>Built for people who want to understand their system — not fight it.</strong>
+</p>
+
+<p align="center">
+  Made with care by the Abora OS community.
+</p>
