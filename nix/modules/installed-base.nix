@@ -457,8 +457,8 @@ in
   ];
 
   boot.kernelPackages = lib.mkDefault pkgs.linuxPackages_latest;
-  boot.initrd.systemd.enable = lib.mkDefault true;
-  boot.initrd.verbose = lib.mkDefault false;
+  # The systemd initrd is the only initrd now: nixpkgs removed boot.initrd.systemd.enable and
+  # boot.initrd.verbose, and fails evaluation if they are still set.
   # A plain list, not mkDefault: NixOS's own modules define kernelParams too,
   # and any normal definition would drop a mkDefault list entirely.
   boot.kernelParams = [
