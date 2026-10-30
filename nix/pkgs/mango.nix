@@ -36,7 +36,8 @@ stdenv.mkDerivation {
   src = fetchFromGitHub {
     owner = "mangowm";
     repo  = "mango";
-    rev   = "0.16.2";
+    # A commit, not the tag: upstream can move a tag, and the download would then no longer match `hash`.
+    rev   = "641c36fcbbe508c46f27b435d5a68d4e9b32f59f"; # tag 0.16.2
     hash  = "sha256-od6lK1KOquakP/GD17fGEm1ck5EMZa/s+jhmvGrRFzk=";
   };
 

@@ -76,7 +76,7 @@ The update helper:
 ## Channels
 
 Abora OS v4.2 Solstice is currently an alpha release line, so new installs
-default to `unstable`, which tracks the `edge` branch. `stable` remains
+default to `edge`, the development branch. `stable` remains
 available for final tagged releases and older installed systems.
 
 The Abora channel controls Abora project files. Which NixOS packages you get is a separate choice, the
@@ -104,8 +104,8 @@ sudo abora channel set edge
 ```
 
 - `stable` tracks the latest tagged Abora release
-- there used to be `demo` and `dev` channels; they were removed in 4.2, and a system still saved on one follows `unstable`
-- `unstable` tracks the `edge` branch and is the v4.2 Solstice alpha default
+- there used to be `demo` and `dev` channels; they were removed in 4.2, and a system still saved on one (or on the old name `unstable`) follows `edge`
+- `edge` tracks the development branch and is the v4.2 Solstice alpha default
 
 Abora's development branch is `edge`. If an older config or test command asks
 for `main`, use `edge` instead:
