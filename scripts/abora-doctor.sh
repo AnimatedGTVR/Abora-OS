@@ -1,1 +1,1 @@
-support/abora-doctor.sh
+support/abora-doctor.py

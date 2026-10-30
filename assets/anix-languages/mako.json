@@ -1,7 +1,0 @@
-{
-  "id": "mako",
-  "name": "MAKO",
-  "extensions": [".mko"],
-  "command": ["mko", "run"],
-  "planVersion": 1
-}

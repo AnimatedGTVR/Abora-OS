@@ -47,7 +47,7 @@ def release_files(ctx: Context) -> None:
             "docs/wiki/ANIX-V2-Languages.md", "docs/wiki/Updating-Abora.md", "vendor/modularity",
         )),
         *(test("-f", path) for path in (
-            "assets/anix-languages/mako.json", "assets/anix-languages/moducpp.json", "nix/pkgs/moducpp-anix.nix",
+            "assets/anix-languages/moducpp.json", "nix/pkgs/moducpp-anix.nix",
             "tools/moducpp-anix", "vendor/modularity/README.md", "assets/Abora-LOGO.png", "assets/Abora-Text.png",
             "scripts/abora-gaming.sh", "docs/wiki/Abora-Gaming.md",
         )),
@@ -67,8 +67,7 @@ def packages_and_metadata(ctx: Context, tag: str) -> None:
         if packages:
             with tarfile.open(packages[0]) as archive:
                 listing.write_text("".join(f"{member.name}{'/' if member.isdir() else ''}\n" for member in archive.getmembers()))
-        ctx.result(bool(packages) and all(ctx.grep("-q", entry, str(listing)) for entry in (
-            "anix/share/anix/languages/mako.json",
+        ctx.result(bool(packages) and not ctx.grep("-q", "anix/share/anix/languages/mako.json", str(listing)) and all(ctx.grep("-q", entry, str(listing)) for entry in (
             "anix/share/anix/languages/moducpp.json",
             "anix/share/anix/tools/moducpp-anix",
             "anix/share/anix/docs/wiki/ANIX-V2-Languages.md",
@@ -133,7 +132,7 @@ def workflows(ctx: Context) -> None:
         grep("-q", "out/packages/tinypm", ".github/workflows/release-iso.yml"),
         grep("-q", "out/packages/anix", ".github/workflows/release-iso.yml"),
         grep("-q", "out/release/RELEASE_NOTES", ".github/workflows/release-iso.yml"),
-        grep("-q", "Abora OS v4 Everest (${tag})", ".github/workflows/release-iso.yml"),
+        grep("-q", "Abora OS v4.1 Horizon (${tag})", ".github/workflows/release-iso.yml"),
     ).run(ctx)
     Check(
         "runtime: TinyPM container builds the real Rust binaries",
@@ -194,9 +193,17 @@ def rebuild_vm_branch(ctx: Context) -> None:
         git("symbolic-ref", "HEAD", "refs/heads/stable")
         git("checkout", "-q", "stable")
 
+        # rebuild-vm refuses to start without nix and CI has none, so a failing stub gets past that guard and makes the
+        # eventual build step fail harmlessly (only the clone is being tested).
+        fake_nix = Path(tmp) / "fake-nix-bin"
+        fake_nix.mkdir()
+        (fake_nix / "nix").write_text("#!/usr/bin/env bash\nexit 1\n")
+        (fake_nix / "nix").chmod(0o755)
+
         subprocess.run(
             [str(ctx.path("scripts/rebuild-vm.py"))], cwd="/tmp",
-            env=_env(ABORA_VM_WORKSPACE=str(workspace), ABORA_REPO_URL=str(source), ABORA_REPO_BRANCH="edge"),
+            env=_env(ABORA_VM_WORKSPACE=str(workspace), ABORA_REPO_URL=str(source), ABORA_REPO_BRANCH="edge",
+                     PATH=f"{fake_nix}{os.pathsep}{os.environ.get('PATH', '')}"),
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         checkout = workspace / "abora-os"

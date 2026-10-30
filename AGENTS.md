@@ -1,10 +1,10 @@
-# CLAUDE.md
+# AGENTS.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What This Is
 
-Abora OS is a NixOS-based Linux distribution that wraps NixOS in a friendlier live image, installer TUI, and OS management CLI layer. The repo builds to a bootable ISO via Nix flakes. Current release: **EVEREST 4.0**.
+Abora OS is a NixOS-based Linux distribution that wraps NixOS in a friendlier live image, installer TUI, and OS management CLI layer. The repo builds to a bootable ISO via Nix flakes. Current development release: **HORIZON 4.1**.
 
 ## Branch Policy
 
@@ -59,14 +59,14 @@ Generated output goes in `out/` (never treat as source — it's gitignored).
 
 ### Scripts Layer
 
-All user-facing tools are shell scripts in `scripts/`. They are installed verbatim into the system — there is no compilation step. The live image's Nix derivations exec them via `bash /etc/abora/<script>.sh`.
+User-facing tools are shell or Python scripts in `scripts/`. They are installed verbatim into the system — there is no compilation step. The live image's Nix derivations exec them via `bash /etc/abora/<script>.sh`, or `python3` for the Python ones. The support tools in `scripts/support/` (doctor, recovery, welcome, support-report, check-full, hardware-test) are Python but are installed under their old `/etc/abora/*.sh` names, so 4.0 systems can still `abora update` (see `scripts/README.md`); their tests are `scripts/support/tests/support.test.py`.
 
 Key scripts:
 
 | Script | Purpose |
 |---|---|
 | `abora.sh` | Top-level dispatcher for all `abora <subcommand>` calls |
-| `abora-installer.sh` | Omarchy-inspired Denali installer TUI (runs as root on the live image) |
+| `abora-installer.sh` | Omarchy-inspired installer TUI (runs as root on the live image) |
 | `abora-boot.sh` | Stage-one live boot handoff |
 | `abora-desktop-profiles.sh` | Sourced library; `abora_desktop_config_block` / `abora_desktop_package_block` functions used by installer and check-desktops |
 | `abora-session-setup.sh` | First-session desktop defaults |
@@ -78,7 +78,7 @@ Key scripts:
 
 ### UI Library Convention
 
-All scripts source `abora-ui.sh` (or `/etc/abora/ui.sh` on-system) for shared primitives. The env var `ABORA_UI_LIB` overrides the path — the test suites run scripts in isolation by passing a non-existent path and verifying the fallback inline UI activates correctly.
+All shell scripts source `abora-ui.sh` (or `/etc/abora/ui.sh` on-system) for shared primitives; the Python support tools each carry an identical inline port of the ones they use. The env var `ABORA_UI_LIB` overrides the path — the test suites run scripts in isolation by passing a non-existent path and verifying the fallback inline UI activates correctly.
 
 ### ANIX
 

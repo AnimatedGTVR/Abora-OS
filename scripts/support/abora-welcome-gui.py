@@ -73,7 +73,7 @@ def sudo_prefix() -> list[str]:
 
 
 def read_local_setting(key: str) -> str:
-    """Mirrors abora-welcome.sh/abora-config.sh's own sed-based reader so
+    """Mirrors abora-welcome.py/abora-config.sh's own readers so
     the GUI shows the exact same values the CLI tools do, without needing
     to shell out just to read a value."""
     if not CONFIG_PATH.exists():

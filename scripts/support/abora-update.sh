@@ -359,7 +359,7 @@ latest_tag_from_list() {
 
 # Resolves a channel name + the currently installed version into a single
 # concrete git ref to update to (a tag or "edge" -- the repo's nightly
-# branch; see CLAUDE.md's Branch Policy, there is no "main"), setting
+# branch; see AGENTS.md's Branch Policy, there is no "main"), setting
 # effective_ref and a human-readable effective_ref_reason for later
 # display. All I/O (git ls-remote for tags/branch existence) happens here
 # in bash; the actual channel/tag decision -- "stable" is the most involved,
@@ -884,6 +884,29 @@ explain_step_failure() {
     explain_update_failure "$log_file"
 }
 
+# Every path (relative to $config_dir/abora) this run installed from the release. Written to
+# installed_manifest_name at the end of install_abora_files, so the next update can remove what a release
+# stopped shipping. Only paths the updater itself wrote are ever listed: user files such as apps.nix and
+# apps.list are created here once but deliberately never recorded, so they are never removed.
+installed_paths=()
+installed_manifest_name=".abora-installed-files"
+
+# Records one installed path. A directory is recorded as the files inside it, so a later update only
+# ever removes single files the updater put there, never a folder with something else in it.
+record_installed() {
+    local path="$1"
+    local abora_dir="$config_dir/abora"
+    local file
+    [[ "$path" == "$abora_dir/"* ]] || return 0
+    if [[ -d "$path" && ! -L "$path" ]]; then
+        while IFS= read -r file; do
+            installed_paths+=("${file#"$abora_dir/"}")
+        done < <(find "$path" \( -type f -o -type l \) -print)
+    else
+        installed_paths+=("${path#"$abora_dir/"}")
+    fi
+}
+
 copy_upstream_file() {
     local source="$1"
     local destination="$2"
@@ -899,6 +922,7 @@ copy_upstream_file() {
 
     mkdir -p "$(dirname "$destination")"
     cp "$source" "$destination"
+    record_installed "$destination"
 }
 
 copy_first_existing_upstream_file() {
@@ -910,6 +934,7 @@ copy_first_existing_upstream_file() {
         if [[ -f "$source" ]]; then
             mkdir -p "$(dirname "$destination")"
             cp "$source" "$destination"
+            record_installed "$destination"
             return 0
         fi
     done
@@ -951,6 +976,63 @@ maybe_reexec_synced_updater() {
         ABORA_FLAKE_CONFIG_NAME="$flake_config_name" \
         ABORA_UI_LIB="${synced_ui}" \
         bash "$synced_script"
+}
+
+# Replaces an installed directory with the release's copy of it.
+copy_upstream_dir() {
+    local source="$1"
+    local destination="$2"
+    rm -rf "$destination"
+    mkdir -p "$(dirname "$destination")"
+    cp -R "$source" "$destination"
+    record_installed "$destination"
+}
+
+# Removes the files the previous update installed and this one did not (files the new release dropped or
+# renamed), then records this run's list for the next update. Without a previous list (the first update
+# by this updater) nothing is removed. Only single files are removed, and only when they really sit inside
+# $config_dir/abora (no "..", absolute paths or symlinked folders); a folder is removed only once it is
+# empty, so anything else kept in it stays.
+apply_installed_manifest() {
+    local abora_dir="$config_dir/abora"
+    local manifest="$abora_dir/$installed_manifest_name"
+    local new_list new_path old_path target parent abora_real dir
+    local removed=0
+
+    new_list="$(printf '%s\n' "${installed_paths[@]}" | sed '/^$/d' | LC_ALL=C sort -u)"
+    if [[ -f "$manifest" ]]; then
+        abora_real="$(realpath -e -- "$abora_dir")" || return 1
+        while IFS= read -r old_path; do
+            case "$old_path" in
+                ""|/*|..|../*|*/..|*/../*|.|./*|*/.|*/./*|apps.nix|apps.list|"$installed_manifest_name") continue ;;
+            esac
+            # Ownership of a directory also covers its descendants. Preserve
+            # old ancestors of newly installed paths as well.
+            while IFS= read -r new_path; do
+                [[ -n "$new_path" ]] || continue
+                if [[ "$old_path" == "$new_path/"* || "$new_path" == "$old_path/"* ]]; then
+                    continue 2
+                fi
+            done <<< "$new_list"
+            target="$abora_dir/$old_path"
+            # A path that is now a folder belongs to this release (or to the user), not to the old one.
+            [[ -d "$target" ]] && continue
+            [[ -f "$target" || -L "$target" ]] || continue
+            parent="$(realpath -e -- "$(dirname -- "$target")" 2>/dev/null)" || continue
+            [[ "$parent" == "$abora_real" || "$parent" == "$abora_real/"* ]] || continue
+            rm -f -- "$target"
+            removed=$((removed + 1))
+            dir="$(dirname -- "$target")"
+            while [[ "$dir" == "$abora_dir/"* ]] && rmdir -- "$dir" 2>/dev/null; do
+                dir="$(dirname -- "$dir")"
+            done
+        done < <(LC_ALL=C comm -23 <(sed '/^$/d' "$manifest" | LC_ALL=C sort -u) <(printf '%s\n' "$new_list"))
+        if (( removed > 0 )); then
+            abora_info "Removed ${removed} old Abora file(s) this release no longer ships."
+        fi
+    fi
+    printf '%s\n' "$new_list" > "$manifest.tmp"
+    mv "$manifest.tmp" "$manifest"
 }
 
 # ── Upstream checkout validation ──────────────────────────────────────────────
@@ -1051,6 +1133,13 @@ release_has_gaming_welcome_gui() {
     ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
 }
 
+release_has_labs() {
+    local selected_ref="$1"
+    [[ "$selected_ref" == "edge" ]] && return 0
+    is_final_release_tag "$selected_ref" || return 1
+    ! version_lt "$(tag_base_version "$selected_ref")" "4.1"
+}
+
 required_upstream_paths() {
     local selected_ref="${1:-edge}"
     cat <<'EOF'
@@ -1125,6 +1214,12 @@ EOF
     if release_has_gaming_welcome_gui "$selected_ref"; then
         cat <<'EOF'
 scripts/abora-gaming-welcome-gui.py
+EOF
+    fi
+
+    if release_has_labs "$selected_ref"; then
+        cat <<'EOF'
+scripts/apps/abora-labs.sh
 EOF
     fi
 
@@ -1320,8 +1415,8 @@ rewrite_installed_mango_config_paths() {
         sed -i \
             -e "s|\"${bad_store}\"|./mango/config.conf|g" \
             -e "s|${bad_store}|./mango/config.conf|g" \
-            -e 's|../../assets/mango/config\.conf|./mango/config.conf|g' \
-            -e 's|../../../assets/mango/config\.conf|./mango/config.conf|g' \
+            -e 's|\.\./\.\./\.\./assets/mango/config\.conf|./mango/config.conf|g' \
+            -e 's|\.\./\.\./assets/mango/config\.conf|./mango/config.conf|g' \
             "$file"
     done
 
@@ -1330,8 +1425,8 @@ rewrite_installed_mango_config_paths() {
             sed -i \
                 -e "s|\"${bad_store}\"|../mango/config.conf|g" \
                 -e "s|${bad_store}|../mango/config.conf|g" \
-                -e 's|../../assets/mango/config\.conf|../mango/config.conf|g' \
-                -e 's|../../../assets/mango/config\.conf|../mango/config.conf|g' \
+                -e 's|\.\./\.\./\.\./assets/mango/config\.conf|../mango/config.conf|g' \
+                -e 's|\.\./\.\./assets/mango/config\.conf|../mango/config.conf|g' \
                 "$file"
         done < <(
             grep -RIlZ \
@@ -1343,13 +1438,12 @@ rewrite_installed_mango_config_paths() {
     fi
 }
 
+# Fetches and validates the selected release, then installs its files. The two halves are separate so
+# the updater can install again after it restarts into the newly synced (newer) updater: an older updater
+# only copies the files it knows about, and the restarted one copies everything the new release needs
+# (see the ABORA_UPDATE_REEXECED branch at the bottom of this file).
 sync_abora_files() {
     local effective_ref="$1"
-    local abora_dir="$config_dir/abora"
-    local upstream_background="$upstream_dir/assets/bootloader/background.png"
-    local upstream_limine_background="$upstream_dir/assets/bootloader/limine-background.png"
-    local upstream_theme="$upstream_dir/assets/bootloader/theme.txt"
-    local limine_source=""
 
     if ! command -v git >/dev/null 2>&1; then
         abora_error "The git command is required to fetch the latest Abora files."
@@ -1357,13 +1451,24 @@ sync_abora_files() {
     fi
 
     prepare_verified_upstream "$effective_ref" || return 1
+    install_abora_files "$effective_ref"
+}
 
+# Installs the files of the release already fetched into $upstream_dir.
+install_abora_files() {
+    local effective_ref="$1"
+    local abora_dir="$config_dir/abora"
+    local upstream_background="$upstream_dir/assets/bootloader/background.png"
+    local upstream_limine_background="$upstream_dir/assets/bootloader/limine-background.png"
+    local upstream_theme="$upstream_dir/assets/bootloader/theme.txt"
+    local limine_source=""
+
+    installed_paths=()
     mkdir -p "$abora_dir/plymouth" "$abora_dir/bootloader" "$abora_dir/effects" "$abora_dir/mango" "$abora_dir/vendor"
     copy_upstream_file "$upstream_dir/VERSION" "$abora_dir/VERSION"
     copy_upstream_file "$upstream_dir/nix/modules/abora-options.nix" "$abora_dir/abora-options.nix"
     if [[ -d "$upstream_dir/nix/modules/desktops" ]]; then
-        rm -rf "$abora_dir/desktops"
-        cp -R "$upstream_dir/nix/modules/desktops" "$abora_dir/desktops"
+        copy_upstream_dir "$upstream_dir/nix/modules/desktops" "$abora_dir/desktops"
     fi
     copy_upstream_file "$upstream_dir/nix/modules/anix.nix" "$abora_dir/anix-module.nix"
     copy_upstream_file "$upstream_dir/scripts/abora-ui.sh" "$abora_dir/ui.sh"
@@ -1375,17 +1480,22 @@ sync_abora_files() {
     if [[ -f "$upstream_dir/scripts/abora-gaming.sh" ]]; then
         copy_upstream_file "$upstream_dir/scripts/abora-gaming.sh" "$abora_dir/gaming.sh"
     fi
+    if [[ -f "$upstream_dir/scripts/apps/abora-labs.sh" ]]; then
+        copy_upstream_file "$upstream_dir/scripts/apps/abora-labs.sh" "$abora_dir/labs.sh"
+    fi
     if [[ -d "$upstream_dir/docs" ]]; then
-        rm -rf "$abora_dir/docs"
-        cp -R "$upstream_dir/docs" "$abora_dir/docs"
+        copy_upstream_dir "$upstream_dir/docs" "$abora_dir/docs"
     fi
     if [[ -d "$upstream_dir/vendor/modularity" ]]; then
-        rm -rf "$abora_dir/vendor/modularity"
-        cp -R "$upstream_dir/vendor/modularity" "$abora_dir/vendor/modularity"
+        copy_upstream_dir "$upstream_dir/vendor/modularity" "$abora_dir/vendor/modularity"
     fi
     copy_upstream_file "$upstream_dir/scripts/abora-doctor.sh" "$abora_dir/doctor.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-recovery.sh" "$abora_dir/recovery.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-welcome.sh" "$abora_dir/welcome.sh"
+    if [[ -f "$upstream_dir/scripts/support/abora-community.py" && -f "$upstream_dir/nix/modules/community.nix" ]]; then
+        copy_upstream_file "$upstream_dir/scripts/support/abora-community.py" "$abora_dir/community.py"
+        copy_upstream_file "$upstream_dir/nix/modules/community.nix" "$abora_dir/community.nix"
+    fi
     if [[ -f "$upstream_dir/scripts/abora-welcome-gui.py" ]]; then
         copy_upstream_file "$upstream_dir/scripts/abora-welcome-gui.py" "$abora_dir/welcome-gui.py"
     fi
@@ -1416,8 +1526,7 @@ sync_abora_files() {
     copy_upstream_file "$upstream_dir/scripts/abora-setup.desktop" "$abora_dir/setup.desktop"
     copy_upstream_file "$upstream_dir/nix/modules/installed-base.nix" "$abora_dir/installed-base.nix"
     if [[ -d "$upstream_dir/assets/anix-languages" ]]; then
-        rm -rf "$abora_dir/anix-languages"
-        cp -R "$upstream_dir/assets/anix-languages" "$abora_dir/anix-languages"
+        copy_upstream_dir "$upstream_dir/assets/anix-languages" "$abora_dir/anix-languages"
     fi
     copy_upstream_file "$upstream_dir/scripts/abora-session-setup.sh" "$abora_dir/session-setup.sh"
     copy_upstream_file "$upstream_dir/scripts/abora-dotfiles-import.sh" "$abora_dir/dotfiles-import.sh"
@@ -1439,6 +1548,7 @@ sync_abora_files() {
     copy_upstream_file "$upstream_dir/assets/plymouth/abora.plymouth" "$abora_dir/plymouth/abora.plymouth"
     copy_upstream_file "$upstream_dir/assets/plymouth/abora.script" "$abora_dir/plymouth/abora.script"
     install_mango_config_asset
+    record_installed "$abora_dir/mango/config.conf"
     if [[ -f "$abora_dir/mango/config.conf" ]]; then
         rewrite_installed_mango_config_paths
     fi
@@ -1456,10 +1566,15 @@ sync_abora_files() {
     install -Dm0644 "$upstream_background" "$abora_dir/bootloader/background.png"
     install -Dm0644 "$limine_source" "$abora_dir/bootloader/limine-background.png"
     install -Dm0644 "$upstream_theme" "$abora_dir/bootloader/theme.txt"
+    record_installed "$abora_dir/bootloader/background.png"
+    record_installed "$abora_dir/bootloader/limine-background.png"
+    record_installed "$abora_dir/bootloader/theme.txt"
     rm -rf "$abora_dir/wallpapers" "$abora_dir/themes"
     mkdir -p "$abora_dir/wallpapers" "$abora_dir/themes" "$abora_dir/pkgs" "$abora_dir/tools"
     cp "$upstream_dir/assets/wallpapers/collection/"* "$abora_dir/wallpapers/"
     cp "$upstream_dir/assets/wallpaper-themes/"* "$abora_dir/themes/"
+    record_installed "$abora_dir/wallpapers"
+    record_installed "$abora_dir/themes"
     if [[ -f "$upstream_dir/nix/pkgs/mango.nix" ]]; then
         copy_upstream_file "$upstream_dir/nix/pkgs/mango.nix" "$abora_dir/pkgs/mango.nix"
     fi
@@ -1480,8 +1595,7 @@ sync_abora_files() {
         copy_upstream_file "$upstream_dir/nix/pkgs/abora-update-resolver-deps.json" "$abora_dir/pkgs/abora-update-resolver-deps.json"
     fi
     if [[ -d "$upstream_dir/tools/abora-update-resolver" ]]; then
-        rm -rf "$abora_dir/update-resolver"
-        cp -R "$upstream_dir/tools/abora-update-resolver" "$abora_dir/update-resolver"
+        copy_upstream_dir "$upstream_dir/tools/abora-update-resolver" "$abora_dir/update-resolver"
     fi
     # The Vanta updater core. installed-base.nix only builds it once all three
     # of these exist, so a partially synced tree never breaks evaluation.
@@ -1492,8 +1606,7 @@ sync_abora_files() {
         copy_upstream_file "$upstream_dir/nix/pkgs/abora-update.nix" "$abora_dir/pkgs/abora-update.nix"
     fi
     if [[ -d "$upstream_dir/tools/abora-update" ]]; then
-        rm -rf "$abora_dir/abora-update"
-        cp -R "$upstream_dir/tools/abora-update" "$abora_dir/abora-update"
+        copy_upstream_dir "$upstream_dir/tools/abora-update" "$abora_dir/abora-update"
     fi
     if [[ -f "$upstream_dir/nix/pkgs/abora-plan-tool.nix" ]]; then
         copy_upstream_file "$upstream_dir/nix/pkgs/abora-plan-tool.nix" "$abora_dir/pkgs/abora-plan-tool.nix"
@@ -1502,8 +1615,7 @@ sync_abora_files() {
         copy_upstream_file "$upstream_dir/nix/pkgs/abora-plan-tool-deps.json" "$abora_dir/pkgs/abora-plan-tool-deps.json"
     fi
     if [[ -d "$upstream_dir/tools/abora-plan-tool" ]]; then
-        rm -rf "$abora_dir/plan-tool"
-        cp -R "$upstream_dir/tools/abora-plan-tool" "$abora_dir/plan-tool"
+        copy_upstream_dir "$upstream_dir/tools/abora-plan-tool" "$abora_dir/plan-tool"
     fi
 
     if [[ ! -f "$abora_dir/apps.list" ]]; then
@@ -1520,6 +1632,7 @@ sync_abora_files() {
 EOF
     fi
 
+    apply_installed_manifest
     drop_upstream_git_metadata
 }
 
@@ -1692,7 +1805,7 @@ if [[ "${1:-}" == "__test-validate-upstream" ]]; then
 fi
 
 if [[ "${1:-}" == "__test-resolve-ref" ]]; then
-    current_version="${2:-4.0}"
+    current_version="${2:-4.1}"
     channel="${3:-stable}"
     resolve_update_ref "$channel" "$current_version"
     guard_against_accidental_downgrade "$current_version" "$effective_ref"
@@ -1701,7 +1814,7 @@ if [[ "${1:-}" == "__test-resolve-ref" ]]; then
 fi
 
 if [[ "${1:-}" == "__test-resolve-fallback" ]]; then
-    current_version="${2:-4.0}"
+    current_version="${2:-4.1}"
     fallback_ref="${3:-v2.5.0}"
     fallback_mode=1
     allow_downgrade=1
@@ -1893,6 +2006,19 @@ abora_wu_banner "Working on updates" "Don't turn off your computer"
 
 if [[ "${ABORA_UPDATE_REEXECED:-0}" == 1 ]]; then
     abora_info "Continuing with the synced updater."
+    # The updater that fetched this release is older and only copied the files it knew about. Install
+    # again with this (newer) updater's list from the checkout it already fetched, so files this release
+    # added, renamed or dropped are handled before the rebuild.
+    if [[ -f "$upstream_dir/VERSION" ]]; then
+        abora_wu_run "Finishing file updates" "/tmp/abora-update-install.log" -- \
+            install_abora_files "$effective_ref" || {
+            explain_update_failure "/tmp/abora-update-install.log"
+            abora_error "Abora could not finish installing the new project files."
+            exit 1
+        }
+    else
+        abora_warn "The fetched Abora files are missing; continuing with the files already installed."
+    fi
 else
     abora_wu_run "Getting things ready" "/tmp/abora-update-sync.log" -- \
         sync_abora_files "$effective_ref" || {

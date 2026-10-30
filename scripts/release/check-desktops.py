@@ -31,7 +31,7 @@ from pathlib import Path
 
 from abora_release import repo_root
 
-RELEASE_SHORT = "v4 Everest"
+RELEASE_SHORT = "v4.1 Horizon"
 
 # Every profile must be representable by the CLI and the Nix option types.
 PROFILE_LISTS = ("scripts/anix.sh", "scripts/abora-config.sh", "nix/modules/abora-options.nix", "nix/modules/anix.nix")
@@ -225,8 +225,10 @@ class DesktopCheck:
                     ],
                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=timeout,
                 )
-                if evaluated.returncode == 0 and evaluated.stdout:
-                    return evaluated.stdout
+                # Only a path that really exists counts (the shell version used to print and then fall through).
+                resolved = evaluated.stdout.strip()
+                if evaluated.returncode == 0 and resolved and Path(resolved).is_dir():
+                    return resolved
             except subprocess.TimeoutExpired:
                 pass
 

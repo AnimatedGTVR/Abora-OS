@@ -1,1 +1,1 @@
-support/abora-check-full.sh
+support/abora-check-full.py

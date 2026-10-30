@@ -71,28 +71,28 @@ let
     exec ${pkgs.bashInteractive}/bin/bash /etc/abora/dotfiles-import.sh "$@"
   '';
   aboraDoctor = pkgs.writeShellScriptBin "abora-doctor" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/doctor.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/doctor.sh "$@"
   '';
   aboraCheckFull = pkgs.writeShellScriptBin "abora-check-full" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/check-full.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/check-full.sh "$@"
   '';
   aboraRecovery = pkgs.writeShellScriptBin "abora-recovery" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/recovery.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/recovery.sh "$@"
   '';
   aboraRepairFlakePurity = pkgs.writeShellScriptBin "abora-repair-flake-purity" ''
     exec env ABORA_SYSTEM_CONFIG=/etc/nixos ${pkgs.bashInteractive}/bin/bash /etc/abora/repair-flake-purity.sh "$@"
   '';
   aboraWelcome = pkgs.writeShellScriptBin "abora-welcome" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/welcome.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/welcome.sh "$@"
   '';
   anixCommand = pkgs.writeShellScriptBin "anix" ''
     exec env ANIX_SYSTEM_CONFIG=/etc/nixos ANIX_FLAKE_CONFIG_NAME=abora ${pkgs.bashInteractive}/bin/bash /etc/abora/anix.sh "$@"
   '';
   aboraSupportReport = pkgs.writeShellScriptBin "abora-support-report" ''
-    exec ${pkgs.bashInteractive}/bin/bash /etc/abora/support-report.sh "$@"
+    exec ${pkgs.python3}/bin/python3 /etc/abora/support-report.sh "$@"
   '';
   aboraHardwareTest = pkgs.writeShellScriptBin "abora-hardware-test" ''
-    exec env ABORA_SUPPORT_REPORT_SCRIPT=/etc/abora/support-report.sh ${pkgs.bashInteractive}/bin/bash /etc/abora/hardware-test.sh "$@"
+    exec env ABORA_SUPPORT_REPORT_SCRIPT=/etc/abora/support-report.sh ${pkgs.python3}/bin/python3 /etc/abora/hardware-test.sh "$@"
   '';
   # The Rust front controller is the public installer binary; it delegates to
   # the legacy Bash backend while the installer is migrated module by module.
@@ -169,7 +169,7 @@ let
   wallpaperThemeDir = ../../assets/wallpaper-themes;
   tinypmDir = ../../vendor/tinypm;
   # TinyPM was rewritten from a bash multicall tree to a real Rust crate
-  # (see TinyPM's own CLAUDE.md: "the old Bash runtime was removed").
+  # (see TinyPM's own AGENTS.md: "the old Bash runtime was removed").
   # Two real binaries now exist -- tinypm (inspection/diagnostics) and
   # grab (install-first) -- replacing the old mkGrabCmd multicall
   # wrapper's much longer alias list (tiny/Parcel/search/term/start/
@@ -336,6 +336,8 @@ let
   '';
 in
 {
+  imports = [ ../modules/community.nix ];
+  abora.community.reminders = false;
   system.stateVersion = "26.05";
   nixpkgs.config.allowUnfree = true;
   networking.hostName = "abora";
@@ -389,10 +391,10 @@ in
     label = version;
     extraOSReleaseArgs = {
       LOGO = "abora";
-      VERSION = "v4 Everest";
-      VERSION_ID = "4";
-      VERSION_CODENAME = "everest";
-      PRETTY_NAME = "Abora OS v4 Everest";
+      VERSION = "v4.1 Horizon";
+      VERSION_ID = "4.1";
+      VERSION_CODENAME = "horizon";
+      PRETTY_NAME = "Abora OS v4.1 Horizon";
       HOME_URL = "https://www.aboraos.org/";
       SUPPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
       BUG_REPORT_URL = "https://github.com/AnimatedGTVR/Abora-OS/issues";
@@ -530,6 +532,7 @@ in
     dosfstools  # mkfs.vfat
     e2fsprogs   # mkfs.ext4
     parted
+    gparted     # graphical partition editor, opened from the installer's disk step
     util-linux  # wipefs, lsblk, mount …
 
     # ── Boot management ──────────────────────────────────────────────────────
@@ -624,24 +627,28 @@ in
         source = ../../scripts/apps/abora-gaming.sh;
         mode = "0755";
       };
+      "abora/labs.sh" = {
+        source = ../../scripts/apps/abora-labs.sh;
+        mode = "0755";
+      };
       "abora/dotfiles-import.sh" = {
         source = ../../scripts/config/abora-dotfiles-import.sh;
         mode = "0755";
       };
       "abora/doctor.sh" = {
-        source = ../../scripts/support/abora-doctor.sh;
+        source = ../../scripts/support/abora-doctor.py;
         mode = "0755";
       };
       "abora/check-full.sh" = {
-        source = ../../scripts/support/abora-check-full.sh;
+        source = ../../scripts/support/abora-check-full.py;
         mode = "0755";
       };
       "abora/recovery.sh" = {
-        source = ../../scripts/support/abora-recovery.sh;
+        source = ../../scripts/support/abora-recovery.py;
         mode = "0755";
       };
       "abora/welcome.sh" = {
-        source = ../../scripts/support/abora-welcome.sh;
+        source = ../../scripts/support/abora-welcome.py;
         mode = "0755";
       };
       "abora/repair-flake-purity.sh" = {
@@ -678,11 +685,11 @@ in
       "abora/mango/config.conf".source = ../../assets/mango/config.conf;
       "assets/mango/config.conf".source = ../../assets/mango/config.conf;
       "abora/support-report.sh" = {
-        source = ../../scripts/support/abora-support-report.sh;
+        source = ../../scripts/support/abora-support-report.py;
         mode = "0755";
       };
       "abora/hardware-test.sh" = {
-        source = ../../scripts/support/abora-hardware-test.sh;
+        source = ../../scripts/support/abora-hardware-test.py;
         mode = "0755";
       };
       "abora/plymouth/abora.plymouth".source = ../../assets/plymouth/abora.plymouth;
@@ -691,10 +698,10 @@ in
       "xdg/fastfetch/config.jsonc".source = ../../assets/fastfetch-config.jsonc;
       "xdg/fastfetch/abora-logo.txt".source = ../../assets/fastfetch-logo.txt;
       "issue".text = ''
-        Abora OS v4 Everest
+        Abora OS v4.1 Horizon
       '';
       "issue.net".text = ''
-        Abora OS v4 Everest
+        Abora OS v4.1 Horizon
       '';
       "profile.d/abora-live.sh".text = ''
         # Only greet on real TTY sessions (not COSMIC/graphical login shells)

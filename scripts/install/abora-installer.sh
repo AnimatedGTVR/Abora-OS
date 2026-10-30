@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Abora OS Installer - Abora OS v4 Everest
+# Abora OS Installer - Abora OS v4.1 Horizon
 # Compact Omarchy-inspired TUI: large wordmark, boxed choices, simple prompts.
 
 set -uo pipefail
@@ -45,16 +45,18 @@ gaming_mangohud="${ABORA_GAMING_MANGOHUD:-yes}"
 gaming_gamemode="${ABORA_GAMING_GAMEMODE:-yes}"
 gaming_launchers="${ABORA_GAMING_LAUNCHERS:-yes}"
 anix_enabled="yes"
+labs_enabled="${ABORA_LABS_ENABLED:-no}"
 github_identity="Skipped"
 user_password_hash=""
 root_password_hash=""
 root_password_mode="same"
 version="${ABORA_VERSION:-}"
-release_name="${ABORA_RELEASE_NAME:-Abora OS v4 Everest}"
-release_short="${ABORA_RELEASE_SHORT:-v4 Everest}"
+release_name="${ABORA_RELEASE_NAME:-Abora OS v4.1 Horizon}"
+release_short="${ABORA_RELEASE_SHORT:-v4.1 Horizon}"
 reconfig_mode="${ABORA_RECONFIG:-0}"
 batch_mode=0
 batch_params_file=""
+target_lock_source_verified=0
 abora_edition="${ABORA_EDITION:-cosmic}"
 abora_default_desktop="${ABORA_DEFAULT_DESKTOP:-cosmic}"
 abora_release_stage="${ABORA_RELEASE_STAGE:-alpha}"
@@ -373,15 +375,70 @@ pause() {
     printf '\n'
 }
 
+# Reads the end of an install log and prints one plain-language guess at why the install failed, or nothing
+# if no known pattern matches. Most install failures end in a wall of Nix output; this turns the common ones
+# (full disk, out of memory, wrong clock, a rejected signature, no network) into something a person can act on.
+# Used by die() below, and tested by scripts/install/tests/failure-hints.test.sh.
+install_failure_hint() {
+    local log="${1:-}" tail_text
+    [[ -r "$log" ]] || return 1
+    tail_text="$(tail -n 300 "$log" 2>/dev/null)" || return 1
+
+    if grep -qaiE 'no space left on device|disk quota exceeded' <<<"$tail_text"; then
+        echo "The disk ran out of space. Use a larger target disk or partition, or free memory if the live system's RAM-backed /tmp filled up."
+    elif grep -qaiE 'out of memory|oom-kill|cannot allocate memory|std::bad_alloc|killed process' <<<"$tail_text"; then
+        echo "The machine ran out of memory while building. Give it more RAM (a virtual machine usually needs at least 4 GB) and try again."
+    elif grep -qaiE 'certificate (is )?(not yet valid|has expired)|certificate verify failed|ssl certificate problem|peer certificate cannot be authenticated' <<<"$tail_text"; then
+        echo "A secure connection was refused, which usually means the computer's clock is wrong. Check it with 'date', fix it with 'timedatectl set-ntp true' (or set it in the BIOS), then try again."
+    elif grep -qaiE 'untrusted public key|lacks a valid signature|lacks a signature|not signed by any of the keys|cannot verify signature|signature .*(invalid|not trusted)' <<<"$tail_text"; then
+        echo "Nix refused a package because its signature was not trusted. Check the clock first ('date'; a wrong date is the most common cause), then try again. If it keeps happening, share the install log."
+    elif grep -qaiE 'could not resolve host|temporary failure in name resolution|network is unreachable|unable to download|couldn.?t connect|connection (timed out|refused|reset)|curl: \((6|7|28|35|56)\)' <<<"$tail_text"; then
+        echo "The network failed while downloading packages. Check the connection (run 'nmtui' to reconnect) and try again."
+    elif grep -qaiE 'hash mismatch|got:.*sha256|specified:.*sha256' <<<"$tail_text"; then
+        echo "A download did not match its expected hash. The file may have changed upstream or the download was cut off. Try again in a while, and report it if it repeats."
+    elif grep -qaiE 'input/output error|read-only file system|i/o error|ata[0-9]+.*error|medium error' <<<"$tail_text"; then
+        echo "The disk reported errors while writing. Check the disk and cables, or try another disk."
+    elif grep -qaiE 'max-silent-time|build timed out|timed out after' <<<"$tail_text"; then
+        echo "A build produced no output for a very long time and was stopped. This usually means a slow network or too little memory. Try again."
+    else
+        return 1
+    fi
+}
+
+# On a machine whose clock is far off (a flat CMOS battery is common on older hardware), connections to the
+# package cache fail with confusing certificate and key errors. Warn early, and try the harmless fix first.
+ensure_sane_clock() {
+    local now min=1735689600   # 2025-01-01: any date before this is certainly wrong
+    now="$(date +%s 2>/dev/null || echo 0)"
+    (( now >= min )) && return 0
+    warn "The system clock looks wrong ($(date 2>/dev/null)). Package downloads can fail with certificate errors when it is."
+    if command -v timedatectl >/dev/null 2>&1; then
+        timedatectl set-ntp true >/dev/null 2>&1 || true
+        local i
+        for i in 1 2 3 4 5 6 7 8; do
+            sleep 2
+            now="$(date +%s 2>/dev/null || echo 0)"
+            if (( now >= min )); then ok "Clock corrected over the network"; return 0; fi
+        done
+    fi
+    warn "Could not fix the clock automatically. If the install fails, set the date in the BIOS or run 'timedatectl set-time'."
+    return 0
+}
+
 die() {
     err "$*"
     printf 'INSTALL ERROR: %s\n' "$*" >>"$install_log" 2>/dev/null || true
+    local hint
+    hint="$(install_failure_hint "$install_log" 2>/dev/null || true)"
+    [[ -n "$hint" ]] && printf 'LIKELY CAUSE: %s\n' "$hint" >>"$install_log" 2>/dev/null
     # In batch mode, exit so automation can read the error from stdout/logs.
     if [[ "${batch_mode:-0}" -eq 1 ]]; then
         printf 'FATAL: %s\n' "$*" >&2
+        [[ -n "$hint" ]] && printf 'LIKELY CAUSE: %s\n' "$hint" >&2
         cleanup_target 2>/dev/null || true
         exit 1
     fi
+    [[ -n "$hint" ]] && printf '\n  %bLikely cause:%b %s\n' "${D}${CG}" "$R" "$hint"
     printf '\n  %bLog: %s%b\n\n' "${D}${CG}" "$install_log" "$R"
     # Unmount before handing off to a shell so nothing is left mounted.
     cleanup_target 2>/dev/null || true
@@ -497,6 +554,9 @@ require_root() {
 }
 
 safe_identifier() { [[ "$1" =~ ^[a-z_][a-z0-9_-]*$ ]]; }
+safe_install_username() {
+    safe_identifier "$1" && [[ "$1" != "liveuser" && "$1" != "aboraos" ]]
+}
 safe_hostname()   { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,62}$ ]]; }
 safe_keymap()     { [[ "$1" =~ ^[A-Za-z0-9_+.-]+$ ]]; }
 safe_locale()     { [[ "$1" =~ ^[A-Za-z][A-Za-z0-9_.@-]*$ && "$1" == *.* ]]; }
@@ -555,9 +615,22 @@ timezone_exists() {
 # users.users.<name>.hashedPassword expects, so the plaintext password
 # never gets written into the generated config.
 hash_password() {
-    local password="$1"
-    command -v openssl >/dev/null 2>&1 || return 1
-    openssl passwd -6 -stdin <<<"$password"
+    local password="$1" out=""
+    [[ -n "$password" ]] || return 1   # an empty password must never become a (valid-looking) hash
+    # The password goes in on stdin, never on the command line (where any user could see it in `ps`).
+    # openssl is the usual tool; mkpasswd (whois) and Python's crypt are fallbacks, so a missing or
+    # odd openssl on the live image doesn't stop the install at "could not hash password".
+    if command -v openssl >/dev/null 2>&1; then
+        out="$(openssl passwd -6 -stdin <<<"$password" 2>/dev/null)" || out=""
+    fi
+    if [[ "$out" != '$6$'* ]] && command -v mkpasswd >/dev/null 2>&1; then
+        out="$(mkpasswd -m sha-512 -s <<<"$password" 2>/dev/null)" || out=""
+    fi
+    if [[ "$out" != '$6$'* ]] && command -v python3 >/dev/null 2>&1; then
+        out="$(python3 -c 'import crypt,sys; print(crypt.crypt(sys.stdin.readline().rstrip("\n"), crypt.mksalt(crypt.METHOD_SHA512)))' <<<"$password" 2>/dev/null)" || out=""
+    fi
+    [[ "$out" == '$6$'* ]] || return 1
+    printf '%s\n' "$out"
 }
 
 # Escapes a value for safe interpolation into a Nix double-quoted string
@@ -622,18 +695,28 @@ set_nix_string_assignment() {
     rm -f "$tmp"
 }
 
-sync_xkb_layout() {
-    case "$keyboard_value" in
-        us) xkb_layout_value="us" ;;
-        uk) xkb_layout_value="gb" ;;
-        de) xkb_layout_value="de" ;;
-        fr) xkb_layout_value="fr" ;;
-        es) xkb_layout_value="es" ;;
-        it) xkb_layout_value="it" ;;
-        pt) xkb_layout_value="pt" ;;
-        ru) xkb_layout_value="ru" ;;
-        *)  xkb_layout_value="$keyboard_value" ;;
+# The console keymap and the graphical (XKB) layout have different names for
+# several keyboards: the Japanese console map is "jp106" but the layout is
+# "jp"; UK is "uk" vs "gb"; Turkish "trq" vs "tr"; and so on. Passing the
+# console name through as the layout leaves the desktop with an invalid layout.
+# Keep this in sync with KEYBOARDS in abora-installer-gui.py and with the copy
+# in abora-config.sh (scripts/install/tests/keyboard-layout.test.sh checks both).
+console_keymap_to_xkb() {
+    case "$1" in
+        uk)        echo gb ;;
+        jp106)     echo jp ;;
+        br-abnt2)  echo br ;;
+        sv-latin1) echo se ;;
+        trq)       echo tr ;;
+        # de-latin1, fr-latin1, pt-latin1, cz-lat2, ...: the suffix names an
+        # encoding of the console map and is not part of the layout name.
+        *-latin1|*-latin9|*-lat2) echo "${1%-*}" ;;
+        *)         echo "$1" ;;
     esac
+}
+
+sync_xkb_layout() {
+    xkb_layout_value="$(console_keymap_to_xkb "$keyboard_value")"
 }
 
 apply_language_defaults() {
@@ -1114,7 +1197,7 @@ check_install_environment() {
     local -a commands=(
         timeout
         wipefs parted partprobe udevadm mkfs.vfat mkfs.ext4 mount blkid
-        nix nixos-generate-config nixos-install openssl curl
+        nix nixos-generate-config nixos-install openssl curl jq
     )
     local -a required_paths=(
         /etc/abora/VERSION
@@ -1126,6 +1209,7 @@ check_install_environment() {
         /etc/abora/adopt-nixos.sh
         /etc/abora/desktop.sh
         /etc/abora/gaming.sh
+        /etc/abora/labs.sh
         /etc/abora/check-full.sh
         /etc/abora/doctor.sh
         /etc/abora/dotfiles-import.sh
@@ -1244,6 +1328,47 @@ check_install_environment() {
         fi
     done
 
+    if [[ -f /etc/abora/target-flake.lock ]] && command -v jq >/dev/null 2>&1; then
+        if ! jq -e '
+            (.nodes[.root].inputs.nixpkgs) as $input |
+            .version >= 7 and
+            (.root | type == "string") and
+            ($input | type == "string") and
+            (.nodes[$input].locked.type == "github") and
+            (.nodes[$input].locked.owner == "NixOS") and
+            (.nodes[$input].locked.repo == "nixpkgs") and
+            (.nodes[$input].locked.rev | type == "string" and length >= 7) and
+            (.nodes[$input].locked.narHash | type == "string" and startswith("sha256-")) and
+            (.nodes[$input].original.ref == "nixos-unstable")
+        ' /etc/abora/target-flake.lock >/dev/null 2>&1; then
+            err "Release target-flake.lock is invalid or does not pin nixos-unstable from NixOS/nixpkgs."
+            failed=1
+        elif [[ "$mode" == "detail" ]]; then
+            ok "Release target flake lock is structurally valid"
+        fi
+
+        if (( failed == 0 && target_lock_source_verified == 0 )) && [[ -n "$nixpkgs" ]]; then
+            local expected_nar actual_nar
+            expected_nar="$(jq -r '.nodes[.nodes[.root].inputs.nixpkgs].locked.narHash // empty' /etc/abora/target-flake.lock)"
+            # On the live image $nixpkgs is /etc/abora/nixpkgs, a symlink into the Nix store. `nix hash path`
+            # hashes a symlink as a symlink (not the tree it points to), which never equals the lock's narHash,
+            # so resolve it to the real store path first.
+            local nixpkgs_real
+            nixpkgs_real="$(readlink -f "$nixpkgs" 2>/dev/null || printf '%s' "$nixpkgs")"
+            actual_nar="$(timeout 120 nix --extra-experimental-features 'nix-command flakes' hash path --sri "$nixpkgs_real" 2>/dev/null || true)"
+            if [[ -z "$actual_nar" ]]; then
+                err "Could not hash the bundled nixpkgs source to verify target-flake.lock."
+                failed=1
+            elif [[ "$actual_nar" != "$expected_nar" ]]; then
+                err "Bundled nixpkgs does not match target-flake.lock (NAR hash mismatch)."
+                failed=1
+            else
+                target_lock_source_verified=1
+                [[ "$mode" == "detail" ]] && ok "Bundled nixpkgs matches the target lock"
+            fi
+        fi
+    fi
+
     for path in "${optional_paths[@]}"; do
         if [[ -e "$path" ]]; then
             [[ "$mode" == "detail" ]] && ok "Optional asset present: ${path}"
@@ -1266,7 +1391,7 @@ check_install_environment() {
         # else on the batch path re-checks them before they're baked into
         # generated Nix config or handed to wipefs/parted.
         safe_hostname "$hostname_value" || { err "Invalid hostname: ${hostname_value}"; failed=1; }
-        safe_identifier "$username_value" || { err "Invalid username: ${username_value}"; failed=1; }
+        safe_install_username "$username_value" || { err "Invalid or reserved username: ${username_value}"; failed=1; }
         [[ -n "$disk" && -b "$disk" ]] || { err "Invalid or missing installation disk: '${disk}'"; failed=1; }
     elif [[ "$mode" != "detail" ]]; then
         ok "Selected install values will be checked after disk and user setup"
@@ -1480,8 +1605,8 @@ step_identity() {
     while true; do
         local v; v="$(prompt_field "Username" "$username_value")"
         [[ -n "$v" ]] && username_value="$v"
-        if safe_identifier "$username_value"; then break; fi
-        warn "Lowercase letters, numbers, hyphens. Must start with a letter."
+        if safe_install_username "$username_value"; then break; fi
+        warn "Use lowercase letters, numbers, underscores, or hyphens. liveuser and aboraos are reserved for live media."
     done
 
     local v
@@ -1628,6 +1753,12 @@ step_options() {
         "Enable ANIX|Friendly NixOS commands — recommended" \
         "Disable ANIX|Bare Abora/NixOS — for plain nix users"
     if [[ "$MENU_RESULT" -eq 0 ]]; then anix_enabled="yes"; else anix_enabled="no"; fi
+
+    printf '\n'
+    menu "Abora Labs" \
+        "Skip Abora Labs|Recommended for normal systems" \
+        "Enable Abora Labs|Install an experimental workspace manager"
+    [[ "$MENU_RESULT" -eq 1 ]] && labs_enabled="yes" || labs_enabled="no"
 
     printf '\n'
     menu "GitHub CLI" \
@@ -1871,12 +2002,38 @@ step_disk() {
     menu "How should Abora use ${disk}?" \
         "Erase entire disk|Wipe everything and use the whole disk" \
         "Use an existing partition|Format only one partition; keep everything else (dual-boot)" \
+        "Edit partitions first|Open a partition editor (create, resize or delete), then choose a partition" \
         "Choose a different disk|Go back"
     case "$MENU_RESULT" in
         0) step_disk_confirm_erase ;;
         1) step_disk_existing_partition ;;
+        2) step_disk_edit_partitions ;;
         *) step_disk; return ;;
     esac
+}
+
+# Opens a partition editor on the chosen disk, then continues into the
+# "use an existing partition" picker so the new partitions can be used right away.
+# cfdisk ships with util-linux, so this works on every edition's live image.
+step_disk_edit_partitions() {
+    printf '\n'
+    if ! command -v cfdisk >/dev/null 2>&1; then
+        warn "No partition editor (cfdisk) is available on this live image."
+        printf '\n'
+        menu "OK" "Back|Choose a different disk or mode"
+        step_disk
+        return
+    fi
+    warn "The partition editor changes ${disk} as soon as you choose Write. Nothing is changed until then."
+    msg "Make an EFI System Partition (512 MB or more, type EFI System) if the disk has none, plus a partition for Abora. Quit when done."
+    printf '\n'
+    cfdisk "$disk" || true
+    # Let the kernel and udev notice the new partition table before listing it.
+    partprobe "$disk" 2>/dev/null || true
+    udevadm settle 2>/dev/null || true
+    sleep 1
+    install_disk_mode="existing"
+    step_disk_existing_partition
 }
 
 step_disk_confirm_erase() {
@@ -1987,6 +2144,7 @@ _print_summary() {
         printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Gaming:" "$R" "off"
     fi
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "ANIX:"     "$R" "$anix_enabled"
+    printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Abora Labs:" "$R" "$labs_enabled"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "Root:"     "$R" "$root_password_mode"
     printf '  %b  %-16s%b  %s\n' "${D}${CI}" "GitHub:"   "$R" "$github_identity"
     printf '\n'
@@ -2317,8 +2475,8 @@ rewrite_installed_mango_config_paths() {
         sed -i \
             -e "s|\"${bad_store}\"|./mango/config.conf|g" \
             -e "s|${bad_store}|./mango/config.conf|g" \
-            -e 's|../../assets/mango/config\.conf|./mango/config.conf|g' \
-            -e 's|../../../assets/mango/config\.conf|./mango/config.conf|g' \
+            -e 's|\.\./\.\./\.\./assets/mango/config\.conf|./mango/config.conf|g' \
+            -e 's|\.\./\.\./assets/mango/config\.conf|./mango/config.conf|g' \
             "$file"
     done
 
@@ -2327,8 +2485,8 @@ rewrite_installed_mango_config_paths() {
             sed -i \
                 -e "s|\"${bad_store}\"|../mango/config.conf|g" \
                 -e "s|${bad_store}|../mango/config.conf|g" \
-                -e 's|../../assets/mango/config\.conf|../mango/config.conf|g' \
-                -e 's|../../../assets/mango/config\.conf|../mango/config.conf|g' \
+                -e 's|\.\./\.\./\.\./assets/mango/config\.conf|../mango/config.conf|g' \
+                -e 's|\.\./\.\./assets/mango/config\.conf|../mango/config.conf|g' \
                 "$file"
         done < <(
             grep -RIlZ \
@@ -2361,11 +2519,15 @@ write_branding_assets() {
               fastfetch-config.jsonc desktop-profiles.sh installed-base.nix \
               installer.sh setup-launcher.sh setup.desktop repair-flake-purity.sh \
               session-setup.sh dotfiles-import.sh theme-sync.sh update.sh welcome-gui.py config-gui.py \
-              gaming-welcome-gui.py; do
+              gaming-welcome-gui.py labs.sh; do
         cp_required "/etc/abora/${f}" "${root}/etc/nixos/abora/${f}"
     done
     [[ -f /etc/abora/Abora-LOGO.png ]] && \
         cp /etc/abora/Abora-LOGO.png "${root}/etc/nixos/abora/Abora-LOGO.png"
+    if [[ -f /etc/abora/community.nix && -f /etc/abora/community.py ]]; then
+        cp_required /etc/abora/community.py "${root}/etc/nixos/abora/community.py"
+        cp_required /etc/abora/community.nix "${root}/etc/nixos/abora/community.nix"
+    fi
     [[ -f /etc/abora/Abora-Text.png ]] && \
         cp /etc/abora/Abora-Text.png "${root}/etc/nixos/abora/Abora-Text.png"
     cp_required /etc/abora/plymouth/abora.plymouth "${root}/etc/nixos/abora/plymouth/abora.plymouth"
@@ -2661,6 +2823,7 @@ EOF
   abora.gaming.gamemode = ${gaming_gamemode_nix};
   abora.gaming.vulkanTools = ${gaming_vulkan_nix};
   abora.gaming.launchers = ${gaming_launchers_nix};
+  abora.labs.enable = $(nix_bool "$labs_enabled");
   abora.extras.diagnostics = false;
   abora.extras.virtualizationGuests = false;
   abora.extras.mobileBroadband = false;
@@ -2903,6 +3066,7 @@ validate_installed_system() {
             printf 'desktop=%s\n' "$desktop_profile"
             printf 'tinypm=present\n'
             printf 'anix=%s\n' "$anix_enabled"
+            printf 'labs=%s\n' "$labs_enabled"
         } > "${root}/etc/abora/INSTALLED"
         return 0
     fi
@@ -3452,6 +3616,8 @@ run_install() {
         "max-substitution-jobs = 32" \
         "http-connections = 32")"
 
+    ensure_sane_clock
+
     msg "Locking target flake…"
     log_network_snapshot
     if ! lock_target_flake "/mnt"; then
@@ -3641,6 +3807,9 @@ read_current_config() {
     v="$(sed -nE 's/^[[:space:]]*abora\.gaming\.launchers *= *(true|false).*/\1/p' "$f" | head -1)"
     [[ "$v" == "true" ]] && gaming_launchers="yes"
     [[ "$v" == "false" ]] && gaming_launchers="no"
+    v="$(sed -nE 's/^[[:space:]]*abora\.labs\.enable *= *(true|false).*/\1/p' "$f" | head -1)"
+    [[ "$v" == "true" ]] && labs_enabled="yes"
+    [[ "$v" == "false" ]] && labs_enabled="no"
 }
 
 read_anix_config() {
@@ -3705,6 +3874,7 @@ run_reconfig() {
         set_nix_bool_assignment "$abora_local" "abora.gaming.gamemode" "$gaming_gamemode"
         set_nix_bool_assignment "$abora_local" "abora.gaming.vulkanTools" "$gaming_vulkan"
         set_nix_bool_assignment "$abora_local" "abora.gaming.launchers" "$gaming_launchers"
+        set_nix_bool_assignment "$abora_local" "abora.labs.enable" "$labs_enabled"
         ok "abora-local.nix updated"
     fi
 
@@ -3943,8 +4113,8 @@ release_identity() {
         local v
         v="$(prompt_field "Username" "$username_value")"
         [[ -n "$v" ]] && username_value="$v"
-        safe_identifier "$username_value" && break
-        warn "Username must start with a lowercase letter and use lowercase letters, numbers, '_' or '-'."
+        safe_install_username "$username_value" && break
+        warn "Use lowercase letters, numbers, underscores, or hyphens. liveuser and aboraos are reserved for live media."
     done
 
     while true; do
@@ -4124,6 +4294,17 @@ release_gaming() {
     esac
 }
 
+release_labs() {
+    release_header "Abora Labs"
+    msg "Labs is an experimental workspace for prototypes and risky changes."
+    msg "It stays separate from normal Abora updates and downloads nothing during installation."
+    printf '\n'
+    menu "Install Abora Labs tools?" \
+        "Skip Abora Labs|Recommended for normal systems" \
+        "Enable Abora Labs|Adds the opt-in 'abora labs' workspace manager"
+    [[ "$MENU_RESULT" -eq 1 ]] && labs_enabled="yes" || labs_enabled="no"
+}
+
 release_preflight() {
     release_header "Preflight"
     msg "Checking disk, password, timezone, assets, tools, and Nix cache."
@@ -4178,6 +4359,7 @@ release_install_flow() {
     release_desktop
     step_gpu
     release_gaming
+    release_labs
     release_apps
     release_preflight
     release_review

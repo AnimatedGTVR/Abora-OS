@@ -1,17 +1,62 @@
-# Abora OS v4 Everest
+# Abora OS v4.1.1
 
-Abora OS v4 Everest is the multi-edition release: five ready-made ISOs, ANIX v2 with pluggable configuration languages, real GPU driver selection, an optional Abora Gaming layer, and a major audit-driven stability pass.
+A small update to Horizon that fixes how `abora update` handles files.
 
-Everest builds on the DENALI 3.14 foundation while expanding how Abora can be installed, configured, updated, and used.
+Released: **<RELEASE DATE>** · Tag: `v4.1.1` · Channel: `stable`
 
-Since the last tagged Everest alpha, another **83 commits** have landed across new features, hardware support, installer work, tooling, and bug fixes.
+## Why this update
+
+Until now, `abora update` copied a fixed list of files, and that list came from the version you already had
+installed. If a new release added a file, it never reached your system. If a release removed or renamed a
+file, the old copy stayed behind. That blocks the cleanup planned for v4.2, which adds, moves and removes
+files. 4.1.1 fixes the updater first so v4.2 can arrive safely.
+
+## What changed
+
+- **New files arrive.** After `abora update` downloads a release, it switches to that release's updater, which
+  now installs everything the release needs, including files your old updater didn't know about. Nothing is
+  downloaded twice.
+- **Old files are cleaned up.** Each update keeps a list of the files it installed in
+  `/etc/nixos/abora/.abora-installed-files`. The next update removes anything on that list that the new release
+  no longer ships.
+- **Your files are safe.** Only files on that list are ever removed. Files you created, `apps.nix`, `apps.list`
+  and anything outside `/etc/nixos/abora` are never touched. Your first update after 4.1.1 only writes the list
+  and removes nothing.
+
+## Updating
+
+```
+sudo abora update
+```
+
+- **On 4.1:** one update is enough.
+- **On 4.0:** run `sudo abora update` twice. The 4.0 updater can't switch to the newer updater mid-update, so
+  the first run installs 4.1.1's updater and the second run uses it.
+
+No reinstall is needed, and the ISOs are only refreshed with the new version number.
+
+---
+
+# Abora OS v4.1 Horizon
+
+![Abora OS v4.1 Horizon](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/Images/v4.1-horizon-banner.png)
+
+
+Abora OS v4.1 Horizon is the reliability-focused follow-up to Everest: a safer installer, corrected update and configuration paths, improved diagnostics, built-in community and learning tools, and a smaller ANIX language surface.
+
+Horizon builds on Everest 4.0 and the DENALI 3.14 foundation while expanding how Abora can be installed, configured, updated, and used.
+
+Released: **<RELEASE DATE>** · Tag: `v4.1` · Channel: `stable`
 
 ---
 # Highlights
 
 ![Highlights](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/highlights_converted.gif)
 
-Everest also introduces:
+Horizon includes the Everest feature set and adds:
+
+- An opt-in Abora Labs installer choice that adds a guarded workspace manager
+  without fetching or executing experimental code during system installation.
 
 - Non-destructive installation onto an existing partition
 - Abora adoption for existing NixOS systems
@@ -23,6 +68,11 @@ Everest also introduces:
 - Linux kernel 7.2
 - MediaTek MT7902 Wi-Fi 6E and Bluetooth support
 - C# implementations of ANIX and the updater version/channel resolver
+- A partition editor (GParted) right inside the installer
+- Plain-language explanations when an install fails
+- Abora Community: an optional survey, Learn Nix, and reminders
+- GTK feedback and bug-report apps
+- The installed login screen shows your own name
 - Expanded MINT installer support
 - A large audit across scripts, Nix modules, installer flows, and release tooling
 
@@ -48,6 +98,26 @@ Every bundle is optional.
 
 ![What's New](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/whatsnew_converted.gif)
 
+## Abora Labs
+
+Labs is an explicit opt-in in the installer. It adds a guarded workspace manager for trying experimental Abora work. Nothing experimental is downloaded, run, or used for normal system updates during installation, and the updater only touches Labs on releases that ship it.
+
+## Abora Community
+
+A new community module brings together an optional survey, a Learn Nix guide, and optional reminders. The survey has its own small GTK app, and everything in it is opt-in.
+
+## Feedback and Bug Reports
+
+A new GTK4 app collects feedback and bug reports. Bug reports carry the same redacted diagnostics as `abora support-report`, so you no longer need the terminal to file a useful report.
+
+## Installer: Partition Editor
+
+The TUI installer has an **Edit partitions** step that opens `cfdisk`, and the GUI installer has an **Open partition editor (GParted)** button. GParted ships on every live ISO. Make room for Abora, or set up dual boot, without leaving the installer.
+
+## Installer: Clearer Failures
+
+When an install fails, the installer now reads the end of its own log and explains the likely cause in plain language: a signature or key problem, a package that failed to build, a network drop, or a disk that ran out of space. It also checks the system clock before starting, because a wrong clock is a common hidden cause of download and signature failures.
+
 ## Non-Destructive Installation
 
 The installer now offers **Use an existing partition**, installing Abora onto a partition you choose without wiping the entire disk. Fixes two failure modes found in testing: the EFI System Partition could be offered as the root target, and existing-partition installs could produce an unbootable system on Legacy BIOS.
@@ -58,7 +128,7 @@ Existing NixOS users can now adopt Abora without reinstalling, via a new interac
 
 ## GPU Driver Support
 
-Everest adds the `abora.gpu` option with support for:
+The Everest foundation added the `abora.gpu` option with support for:
 
 ```text
 nouveau
@@ -85,18 +155,20 @@ abora config apply
 ANIX v2 introduces pluggable configuration languages. Supported adapters:
 
 - ANIX Native (`.anix`)
-- MKO (`.mko`)
 - ModuCPP (`.moducpp`)
+
+The previously bundled MAKO adapter has been removed. Existing third-party
+adapter discovery remains available through ANIX language manifests.
 
 Example:
 
 ```sh
 anix language list
 anix language use anix
-anix run workstation.mko
+anix run workstation.moducpp
 anix validate-plan plan.json
 anix apply-plan plan.json
-anix diff-plan workstation.mko
+anix diff-plan workstation.moducpp
 ```
 
 Each adapter resolves into the same underlying Plan JSON format. `anix diff-plan` labels settings as `ADD`, `CHANGE`, or `SAME`.
@@ -174,7 +246,7 @@ tinypm doctor
 
 ## MediaTek MT7902 Support
 
-Everest moves to Linux kernel 7.2, bringing upstream support for the MediaTek MT7902 Wi-Fi 6E and Bluetooth chipset via the in-tree `mt7921e` driver.
+The Everest foundation moved to Linux kernel 7.2, bringing upstream support for the MediaTek MT7902 Wi-Fi 6E and Bluetooth chipset via the in-tree `mt7921e` driver.
 
 ## Installer Improvements
 
@@ -186,7 +258,7 @@ The GTK installer now includes:
 - Consistent desktop ordering between the GUI and TUI
 - GPU selection alongside identity, desktop, and disk configuration
 
-Everest also continues to include Limine, Plymouth, Abora wallpapers, dark-first defaults, Papirus Dark, Fastfetch on first shell launch, zsh with Spaceship prompt, and Flathub setup after first boot.
+Horizon continues to include Limine, Plymouth, Abora wallpapers, light desktop defaults, Papirus, Fastfetch on first shell launch, zsh with Spaceship prompt, and Flathub setup after first boot.
 
 ---
 
@@ -228,6 +300,21 @@ Fixed:
 - Different desktop ordering between GUI and TUI
 - Hardware-readiness checks counting zram as real storage
 
+## Installer Reliability (issues #32 and #33)
+
+Fixed:
+
+- Japanese and other non-US keyboards: the console keymap (for example `jp106`) was passed straight to the graphical session, which needs `jp`. Console names are now mapped to the right desktop layout.
+- User passwords: password hashing could fail silently on some live environments. It now uses a hardened `openssl` path with fallbacks, and refuses an empty password instead of hashing it.
+- `target-flake.lock` failing with a nixpkgs mismatch: the bundled nixpkgs symlink is now resolved before it is checked against the lock.
+- Installs stalling for a long time at the .NET build step: the Native AOT tools now have a fixed source name, so the install reuses the already-built tools instead of rebuilding them.
+- Flathub setup now keeps retrying after first boot instead of giving up silently when the network is not ready yet.
+- The login screen showed every account as "Abora User", which looked like a leftover live account. The display name now defaults to your username and can be changed with `abora.user.fullName`.
+
+## Abora Welcome on KDE Plasma
+
+Fix the Abora Welcome app not opening on first login under KDE Plasma (it worked when launched by hand). It now starts once the Plasma panel is ready.
+
 ## Start Abora
 
 Fix the `.desktop` launcher showing **Install Abora OS** on systems that were already installed — the launcher itself already detected live vs. installed correctly, only the static label was wrong. Relabeled to **Start Abora**.
@@ -256,6 +343,19 @@ Fixed:
 - `abora-custom-packages` leaking temporary files and directories
 - `abora bug-report --github` crashing before `gh` ran
 
+## Security
+
+Fixed:
+
+- Support reports and full checks redact Wi-Fi PSKs written as multi-line Nix strings, plus `Authorization` headers of every kind (Bearer, Basic, Token, Digest).
+- The Abora adoption downloader refuses a hard reset over untracked or modified local work unless you explicitly force it.
+- `abora build` fails closed when it cannot verify the checkout ref.
+- CI no longer keeps its GitHub token in the checkout.
+
+## Less Shell in the Core
+
+The support and release tooling has moved from Bash to Python, continuing the work to remove shell scripts from Abora's core. Commands and output stay the same.
+
 ## Audit Pass
 
 A dedicated audit across Abora uncovered:
@@ -275,7 +375,7 @@ Additional fixes included:
 - `abora build --from-source --ref` ignoring the requested ref on existing checkouts
 - A `flake.nix` issue breaking flake evaluation
 
-Validation for Everest includes:
+Validation for Horizon includes:
 
 ```sh
 make check
@@ -317,9 +417,17 @@ line when reporting it.
 
 VirtualBox Guest Additions are now opt-in rather than default-on for the live ISO. If your live-ISO testing workflow relies on Guest Additions, enable them manually.
 
+## VirtualBox Installs
+
+Installing inside VirtualBox (issue #33) has not been fully validated yet. If an install fails there, try disabling 3D acceleration and attach `/tmp/abora-install.log` to your report.
+
+## Limine Message on UEFI
+
+On UEFI installs Limine may print `device_cache_block(): set_pos(): Invalid argument` while installing its BIOS stages. It is harmless: the install completes and the system boots. On a shared EFI partition, Limine also installs to the fallback path `\EFI\BOOT\BOOTX64.EFI`; other operating systems keep their own boot entries.
+
 ## Current Limits
 
-- Everest ISOs are larger than older releases because of broader firmware and hardware support.
+- Horizon ISOs are larger than older releases because of broader firmware and hardware support.
 - Flatpak and app bundle installation requires network access after first boot.
 - Steam and gaming launchers require network access.
 - Some gaming packages may require unfree package permission through normal NixOS/nixpkgs configuration.
@@ -366,24 +474,24 @@ before powering off.
 
 ![Download](https://raw.githubusercontent.com/AnimatedGTVR/Abora-OS/edge/assets/download_converted.gif)
 
-Everest is available in five editions:
+Horizon ships in five editions:
 
 | Release Asset | Edition |
 |---|---|
-| `abora-cosmic-<date>-x86_64-v4.0.iso` | COSMIC |
-| `abora-hyprland-<date>-x86_64-v4.0.iso` | Hyprland |
-| `abora-gnome-<date>-x86_64-v4.0.iso` | GNOME |
-| `abora-kde-<date>-x86_64-v4.0.iso` | KDE Plasma |
-| `abora-other-<date>-x86_64-v4.0.iso` | Other |
+| `abora-cosmic-<date>-x86_64-v4.1.iso` | COSMIC |
+| `abora-hyprland-<date>-x86_64-v4.1.iso` | Hyprland |
+| `abora-gnome-<date>-x86_64-v4.1.iso` | GNOME |
+| `abora-kde-<date>-x86_64-v4.1.iso` | KDE Plasma |
+| `abora-other-<date>-x86_64-v4.1.iso` | Other |
 
 Additional release assets:
 
 | File | Description |
 |---|---|
-| `tinypm-v0.8-abora-v4.0.tar.gz` | TinyPM v0.8 |
-| `anix-*-abora-v4.0.tar.gz` | ANIX standalone package |
-| `SHA256SUMS-v4.0.txt` | Checksums |
-| `RELEASE_MANIFEST-v4.0.txt` | Release manifest |
+| `tinypm-v0.8-abora-v4.1.tar.gz` | TinyPM v0.8 |
+| `anix-*-abora-v4.1.tar.gz` | ANIX standalone package |
+| `SHA256SUMS-v4.1.txt` | Checksums |
+| `RELEASE_MANIFEST-v4.1.txt` | Release manifest |
 
 Existing Abora installations can update with:
 
@@ -391,8 +499,8 @@ Existing Abora installations can update with:
 sudo abora update
 ```
 
-For the cleanest Everest experience, especially when upgrading from DENALI or older pre-release builds, a fresh installation is recommended.
+Everest 4.0 systems can update in place with the command above. As with any major update, keep a backup, and remember `abora rollback` returns you to the previous generation if something goes wrong.
 
-**Five editions. 23 desktop profiles. ANIX v2. Abora Gaming. New hardware support. A safer installer. A repaired update path. 83 commits since the last Everest Alpha.**
+**Five editions. 23 desktop profiles. ANIX v2. Abora Gaming. Community tools. A safer installer and update path.**
 
-# Welcome to Everest.
+# Welcome to Horizon.

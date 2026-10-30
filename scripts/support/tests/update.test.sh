@@ -192,6 +192,44 @@ else
   pass "runtime: pre-alpha warning rejects non-exact phrase"
 fi
 
+# Exercise manifest ownership directly, including directory entries from older
+# manifests. Shared text prefixes must not count as shared path components.
+tmp_manifest_overlap="$(mktemp -d)"
+testlib_cleanup_paths+=("$tmp_manifest_overlap")
+sed -n '/^apply_installed_manifest() {/,/^}$/p' scripts/support/abora-update.sh > "$tmp_manifest_overlap/functions.sh"
+check_manifest_overlap() {
+  local old_path="$1" new_path="$2" expected="$3"
+  local config_dir="$tmp_manifest_overlap/config"
+  rm -rf "$config_dir"
+  mkdir -p "$config_dir/abora/$(dirname -- "$old_path")"
+  printf 'installed\n' > "$config_dir/abora/$old_path"
+  printf '%s\n' "$old_path" > "$config_dir/abora/.abora-installed-files"
+  if ! (
+    source "$tmp_manifest_overlap/functions.sh"
+    installed_manifest_name=".abora-installed-files"
+    installed_paths=("$new_path")
+    abora_info() { :; }
+    apply_installed_manifest
+  ); then
+    fail "runtime: manifest cleanup failed for $old_path -> $new_path"
+  elif [[ "$expected" == retained && -f "$config_dir/abora/$old_path" ]] \
+    || [[ "$expected" == removed && ! -e "$config_dir/abora/$old_path" ]]; then
+    pass "runtime: manifest $old_path -> $new_path is $expected"
+  else
+    fail "runtime: manifest $old_path -> $new_path should be $expected"
+  fi
+  if [[ "$(cat "$config_dir/abora/.abora-installed-files")" != "$new_path" ]]; then
+    fail "runtime: manifest cleanup did not record the new ownership list"
+  fi
+}
+check_manifest_overlap exact exact retained
+check_manifest_overlap bundle/old.txt bundle retained
+check_manifest_overlap old-parent old-parent/new.txt retained
+check_manifest_overlap 'space [*]/old.txt' 'space [*]' retained
+check_manifest_overlap bundle-old/old.txt bundle removed
+check_manifest_overlap bundle bundle-new/new.txt removed
+check_manifest_overlap obsolete.txt '' removed
+
 # Regression test: abora-update.sh's sync_abora_files() used to never copy
 # check-full.sh, installer.sh, setup-launcher.sh, or setup.desktop into
 # $abora_dir, even though it also copies installed-base.nix, which
@@ -211,7 +249,12 @@ fi
 # demands.
 if command -v python3 >/dev/null 2>&1; then
   tmp_update_funcs="$(mktemp)"
+  testlib_cleanup_paths+=("$tmp_update_funcs")
   {
+    grep -E '^(installed_paths|installed_manifest_name)=' scripts/abora-update.sh
+    sed -n '/^record_installed() {/,/^}$/p' scripts/abora-update.sh
+    sed -n '/^copy_upstream_dir() {/,/^}$/p' scripts/abora-update.sh
+    sed -n '/^apply_installed_manifest() {/,/^}$/p' scripts/abora-update.sh
     sed -n '/^copy_upstream_file() {/,/^}$/p' scripts/abora-update.sh
     sed -n '/^copy_first_existing_upstream_file() {/,/^}$/p' scripts/abora-update.sh
     sed -n '/^install_mango_config_asset() {/,/^}$/p' scripts/abora-update.sh
@@ -241,13 +284,136 @@ if command -v python3 >/dev/null 2>&1; then
     update_copy_ok=0
     printf '              copy logic itself failed to run\n'
   fi
-  rm -f "$tmp_update_funcs"
   rm -rf "$tmp_update_target"
 
   if [[ "$update_copy_ok" -eq 1 ]]; then
     pass "runtime: abora-update.sh copies every file installed-base.nix requires"
   else
     fail "runtime: abora-update.sh copies every file installed-base.nix requires"
+  fi
+
+  # Runs install_abora_files from the same extracted functions against
+  # $1 (the config dir), using this repo checkout as the fetched release.
+  # Fetching is stubbed to fail, so a pass also proves installing never
+  # downloads anything.
+  run_update_install() {
+    ( \
+      prepare_verified_upstream() { return 1; }; \
+      drop_upstream_git_metadata() { :; }; \
+      abora_info() { printf '%s\n' "$1"; }; \
+      config_dir="$1"; \
+      upstream_dir="$repo_dir"; \
+      mkdir -p "$config_dir/abora"; \
+      source "$tmp_update_funcs"; \
+      install_abora_files "edge" \
+    )
+  }
+
+  # Bridge (4.1.1): an older updater copies only the files on its own list,
+  # then restarts into the synced one. The restarted updater installs again
+  # from the checkout already fetched, so files the old list missed (here:
+  # removed after the first copy) are in place before the rebuild.
+  tmp_topup_target="$(mktemp -d)"
+  testlib_cleanup_paths+=("$tmp_topup_target")
+  topup_ok=0
+  if run_update_install "$tmp_topup_target" >/dev/null 2>&1; then
+    first_required="$(head -n1 <<<"$_required_dests")"
+    rm -rf "$tmp_topup_target/abora/$first_required" "$tmp_topup_target/abora/.abora-installed-files"
+    if run_update_install "$tmp_topup_target" >/dev/null 2>&1 \
+      && [[ -e "$tmp_topup_target/abora/$first_required" ]]; then
+      topup_ok=1
+    fi
+  fi
+  if [[ "$topup_ok" -eq 1 ]]; then
+    pass "runtime: restarted updater installs files the old updater missed, without fetching again"
+  else
+    fail "runtime: restarted updater installs files the old updater missed, without fetching again"
+  fi
+
+  if grep -A8 'if \[\[ "${ABORA_UPDATE_REEXECED:-0}" == 1 \]\]; then' scripts/abora-update.sh \
+    | grep -q 'install_abora_files "\$effective_ref"'; then
+    pass "static: restarted updater installs the fetched release's files before rebuilding"
+  else
+    fail "static: restarted updater installs the fetched release's files before rebuilding"
+  fi
+
+  # Removals: the first install only writes the list. A later install
+  # removes what the previous one installed that this release no longer
+  # has (a dropped or renamed file, a dropped folder), and nothing else:
+  # not user files, not apps.nix/apps.list, not paths outside abora/.
+  tmp_manifest_target="$(mktemp -d)"
+  testlib_cleanup_paths+=("$tmp_manifest_target")
+  manifest_dir="$tmp_manifest_target/abora"
+  mkdir -p "$manifest_dir"
+  printf 'my notes\n' > "$manifest_dir/my-notes.txt"
+  printf 'user apps\n' > "$manifest_dir/apps.list"
+  printf '{ ... }: { }\n' > "$manifest_dir/apps.nix"
+  printf 'outside\n' > "$tmp_manifest_target/outside.txt"
+  manifest_ok=1
+  if ! run_update_install "$tmp_manifest_target" >/dev/null 2>&1; then
+    manifest_ok=0
+    printf '              first install failed\n'
+  elif [[ ! -s "$manifest_dir/.abora-installed-files" ]]; then
+    manifest_ok=0
+    printf '              first install wrote no installed-files list\n'
+  elif grep -qxE 'apps\.(nix|list)' "$manifest_dir/.abora-installed-files"; then
+    manifest_ok=0
+    printf '              user-owned apps.nix/apps.list were recorded as installed\n'
+  fi
+  # Pretend the previous release also shipped these (since renamed or
+  # removed). old-folder also holds a file the updater never installed;
+  # linked/ is a symlink to a folder outside abora/; docs (now a folder)
+  # was once recorded as a single file.
+  mkdir -p "$manifest_dir/tools/old-folder" "$manifest_dir/tools/gone-folder/deeper" "$tmp_manifest_target/outside-dir"
+  printf 'old\n' > "$manifest_dir/tools/old-name.sh"
+  printf 'old\n' > "$manifest_dir/tools/old-folder/inside.sh"
+  printf 'mine\n' > "$manifest_dir/tools/old-folder/mine.txt"
+  printf 'old\n' > "$manifest_dir/tools/gone-folder/deeper/a.sh"
+  printf 'victim\n' > "$tmp_manifest_target/outside-dir/victim.txt"
+  ln -s "$tmp_manifest_target/outside-dir" "$manifest_dir/linked"
+  printf '%s\n' tools/old-name.sh tools/old-folder/inside.sh tools/gone-folder/deeper/a.sh linked/victim.txt \
+    docs apps.nix apps.list ../outside.txt /etc/passwd \
+    >> "$manifest_dir/.abora-installed-files"
+  if [[ "$manifest_ok" -eq 1 ]] && run_update_install "$tmp_manifest_target" >/dev/null 2>&1; then
+    for gone in tools/old-name.sh tools/old-folder/inside.sh tools/gone-folder; do
+      if [[ -e "$manifest_dir/$gone" ]]; then
+        manifest_ok=0
+        printf '              not removed: abora/%s\n' "$gone"
+      fi
+    done
+    [[ "$(cat "$manifest_dir/tools/old-folder/mine.txt" 2>/dev/null)" == "mine" ]] \
+      || { manifest_ok=0; printf '              unlisted file inside a dropped folder was removed\n'; }
+    [[ -f "$tmp_manifest_target/outside-dir/victim.txt" ]] \
+      || { manifest_ok=0; printf '              removal followed a symlinked folder out of abora/\n'; }
+    [[ -n "$(ls -A "$manifest_dir/docs" 2>/dev/null)" ]] \
+      || { manifest_ok=0; printf '              docs folder was emptied\n'; }
+    [[ "$(cat "$manifest_dir/my-notes.txt" 2>/dev/null)" == "my notes" ]] \
+      || { manifest_ok=0; printf '              user file my-notes.txt was touched\n'; }
+    [[ "$(cat "$manifest_dir/apps.list" 2>/dev/null)" == "user apps" ]] \
+      || { manifest_ok=0; printf '              apps.list was touched\n'; }
+    [[ "$(cat "$manifest_dir/apps.nix" 2>/dev/null)" == "{ ... }: { }" ]] \
+      || { manifest_ok=0; printf '              apps.nix was touched\n'; }
+    [[ -f "$tmp_manifest_target/outside.txt" ]] \
+      || { manifest_ok=0; printf '              a path outside abora/ was removed\n'; }
+    if grep -qxE 'tools/old-name\.sh|tools/old-folder/inside\.sh|docs' "$manifest_dir/.abora-installed-files"; then
+      manifest_ok=0
+      printf '              removed paths are still in the installed-files list\n'
+    fi
+    while IFS= read -r required_path; do
+      [[ -n "$required_path" ]] || continue
+      if [[ ! -e "$manifest_dir/$required_path" ]]; then
+        manifest_ok=0
+        printf '              required file removed: abora/%s\n' "$required_path"
+      fi
+    done <<<"$_required_dests"
+  else
+    manifest_ok=0
+    printf '              second install failed\n'
+  fi
+  if [[ "$manifest_ok" -eq 1 ]]; then
+    pass "runtime: updater removes only files a previous update installed that the release dropped"
+  else
+    fail "runtime: updater removes only files a previous update installed that the release dropped"
   fi
 fi
 

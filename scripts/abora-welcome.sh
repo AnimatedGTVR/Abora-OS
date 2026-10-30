@@ -1,1 +1,1 @@
-support/abora-welcome.sh
+support/abora-welcome.py

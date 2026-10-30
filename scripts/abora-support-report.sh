@@ -1,1 +1,1 @@
-support/abora-support-report.sh
+support/abora-support-report.py

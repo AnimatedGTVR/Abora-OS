@@ -1,1 +1,1 @@
-support/abora-recovery.sh
+support/abora-recovery.py
