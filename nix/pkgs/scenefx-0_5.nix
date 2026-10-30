@@ -32,7 +32,8 @@ stdenv.mkDerivation (finalAttrs: {
   src = fetchFromGitHub {
     owner = "wlrfx";
     repo  = "scenefx";
-    tag   = finalAttrs.version;
+    # A commit, not the tag: upstream can move a tag, and the download would then no longer match `hash`.
+    rev   = "37ccd723bef49e6891156ffafce8f549f01446cc"; # tag 0.5
     hash  = "sha256-vUjLG6eubEhJJVa9LPygIcVmNoHwYbSUTJcWEcbxnU4=";
   };
 

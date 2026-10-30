@@ -64,7 +64,8 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', '--', '--option max-silent-time "${ABORA_INSTALL_NIX_MAX_SILENT_TIME:-900}"', 'scripts/abora-installer.sh'),
         grep('-q', 'ABORA_INSTALL_IDLE_TIMEOUT=900', 'scripts/abora-installer.sh'),
         grep('-q', '#nixosConfigurations.abora.config.system.build.toplevel', 'scripts/abora-installer.sh'),
-        grep('-q', 'nixos-install --root /mnt --no-channel-copy --no-root-passwd --system "$system_path"', 'scripts/abora-installer.sh'),
+        grep('-q', 'nixos-install --root /mnt --no-channel-copy --no-root-passwd --system "$system"', 'scripts/abora-installer.sh'),
+        grep('-q', 'nixos_install_with_healing "$system_path"', 'scripts/abora-installer.sh'),
         not_(grep('-q', 'nixos-install --root /mnt --no-root-passwd .*--flake "/mnt/etc/nixos#abora"', 'scripts/abora-installer.sh')),
         not_(grep('-q', 'NIX_PATH=nixpkgs=\\${nixpkgs}:nixos-config=/mnt/etc/nixos/configuration.nix', 'scripts/abora-installer.sh')),
     ),
@@ -221,6 +222,17 @@ CHECKS: tuple[Check, ...] = (
             for f in (ctx.repo / "nix").rglob("*.nix")
         ),
         fail_name='runtime: NixOS modules must use pkgs.makeDesktopItem, not xdg.desktopEntries',
+    ),
+    Check(
+        # A tag can be moved upstream, which changes the download while the pinned hash stays: the "source download
+        # didn't match the hash Abora pins" install failure. A commit cannot move.
+        'runtime: every git download (fetchFromGitHub/GitLab, fetchgit) in nix/ is pinned to a commit, not a tag or branch',
+        lambda ctx: all(
+            re.search(r'rev\s*=\s*"[0-9a-f]{40}"', block) and not re.search(r'\b(tag|ref|branch)\s*=', block)
+            for f in (ctx.repo / "nix").rglob("*.nix")
+            for block in re.findall(r'fetch(?:FromGitHub|FromGitLab|git)\s*\{(.*?)\n\s*\};', f.read_text(errors="replace"), re.S)
+        ),
+        fail_name='runtime: a download in nix/ is pinned to a tag or branch; pin it to a 40-character commit',
     ),
     Check(
         'runtime: MAKO and ModuCPP are gone (removed in 4.2): no manifests, examples, or tool wiring',

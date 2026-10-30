@@ -95,8 +95,8 @@ def read_local_bool(key: str, default: bool = False) -> bool:
 
 def read_channel() -> str:
     if CHANNEL_FILE.exists():
-        return CHANNEL_FILE.read_text().strip() or os.environ.get('ABORA_DEFAULT_CHANNEL', 'unstable')
-    return os.environ.get('ABORA_DEFAULT_CHANNEL', 'unstable')
+        return CHANNEL_FILE.read_text().strip() or os.environ.get('ABORA_DEFAULT_CHANNEL', 'edge')
+    return os.environ.get('ABORA_DEFAULT_CHANNEL', 'edge')
 
 
 def flathub_configured() -> bool:
