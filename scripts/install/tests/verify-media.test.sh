@@ -33,6 +33,7 @@ case "$1" in
   -qR) cat "$state/closure" ;;
   --verify-path)
       shift; rc=0
+      if [[ -e "$state/verify-breaks" ]]; then echo "error: path '$1' is not valid" >&2; exit 1; fi
       for p in "$@"; do
           if grep -qxF "$p" "$state/bad" 2>/dev/null; then
               echo "path '$p' was modified! expected hash 'sha256:aaaa', got 'sha256:bbbb'" >&2; rc=1
@@ -91,7 +92,22 @@ ABORA_INSTALL_SKIP_VERIFY=1 verify_install_media /nix/store/sys; rc=$?
 [[ $rc -eq 0 ]] && pass "ABORA_INSTALL_SKIP_VERIFY=1 skips the check" || fail "skip: rc=$rc"
 fresh; : >"$work/closure"
 verify_install_media /nix/store/sys; rc=$?
-[[ $rc -eq 0 ]] && grep -q "Could not list" "$work/ui" && pass "an unreadable closure warns and continues" || fail "no closure: rc=$rc"
+[[ $rc -eq 0 ]] && grep -q "Could not check" "$work/ui" && pass "an unreadable closure warns and continues" || fail "no closure: rc=$rc"
+
+# 6. A check that itself fails (path not valid, I/O error...) is "could not check", never "corrupt".
+fresh; : >"$work/verify-breaks"
+bad="$(damaged_store_paths /nix/store/sys)"; rc=$?
+[[ $rc -eq 2 && -z "$bad" ]] && pass "a failing check with no modified path is 'could not check', not 'damaged'" || fail "verify-breaks: rc=$rc out=$bad"
+verify_install_media /nix/store/sys; rc=$?
+if [[ $rc -eq 0 ]] && grep -q "Could not check" "$work/ui" && ! grep -q "do not match" "$work/ui" && ! grep -q "DIE" "$work/ui"; then
+    pass "an unreadable check warns and the install goes on (no false 'bad USB stick')"
+else fail "verify-breaks flow: rc=$rc ui=$(cat "$work/ui")"; fi
+rm -f "$work/verify-breaks"
+
+# 7. The count of damaged packages is the real count.
+fresh /nix/store/aaa-glibc /nix/store/bbb-bash /nix/store/ccc-abora
+verify_install_media /nix/store/sys >/dev/null 2>&1
+grep -q "3 package(s)" "$work/ui" && pass "the damaged-package count is exact" || fail "count: $(cat "$work/ui")"
 
 # --- nixos_install_with_healing -------------------------------------------------------------------------------
 nix_config=""
@@ -131,6 +147,13 @@ try_install 5 "error: builder for '/nix/store/x.drv' failed with exit code 1"; r
 
 try_install 5 "error: hash mismatch in fixed-output derivation '/nix/store/y.drv': specified: sha256-aa got: sha256-bb"; rc=$?
 [[ $rc -ne 0 && $(wc -l <"$calls") -eq 1 ]] && pass "a source-hash mismatch is not retried (a retry cannot fix it)" || fail "fixed-output retried: calls=$(wc -l <"$calls")"
+
+# 8. Old corruption text already in the log must not trigger a retry for an unrelated failure.
+{ echo "error: hash mismatch importing path '/nix/store/bbb-bash'"; echo "[damaged] /nix/store/bbb-bash"; } >"$install_log"
+: >"$work/install-calls"; echo 5 >"$work/fail-times"; echo "error: No space left on device" >"$work/fail-text"
+rm -f "$work/bad"; : >"$work/bad"
+nixos_install_with_healing /nix/store/sys; rc=$?
+[[ $rc -ne 0 && $(wc -l <"$calls") -eq 1 ]] && pass "stale corruption lines in the log do not cause a retry" || fail "stale log retried: rc=$rc calls=$(wc -l <"$calls")"
 
 echo
 if (( failures )); then echo "$failures check(s) failed."; exit 1; fi

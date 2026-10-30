@@ -226,7 +226,7 @@ CHECKS: tuple[Check, ...] = (
     Check(
         # A tag can be moved upstream, which changes the download while the pinned hash stays: the "source download
         # didn't match the hash Abora pins" install failure. A commit cannot move.
-        'runtime: every download in nix/ is pinned to a commit, not a tag or branch',
+        'runtime: every git download (fetchFromGitHub/GitLab, fetchgit) in nix/ is pinned to a commit, not a tag or branch',
         lambda ctx: all(
             re.search(r'rev\s*=\s*"[0-9a-f]{40}"', block) and not re.search(r'\b(tag|ref|branch)\s*=', block)
             for f in (ctx.repo / "nix").rglob("*.nix")

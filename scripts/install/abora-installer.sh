@@ -463,11 +463,19 @@ damaged_store_paths() {
     local system="$1" paths out rc=0
     paths="$(nix-store -qR "$system" 2>/dev/null)" || return 2
     [[ -n "$paths" ]] || return 2
-    # Batched: a closure is thousands of paths, and one process per path is minutes of overhead.
-    out="$(printf '%s\n' "$paths" | xargs -d '\n' -n 200 nix-store --verify-path 2>&1)" || rc=$?
-    grep -aoE "path '[^']+' was modified" <<<"$out" | sed -E "s/^path '([^']+)' was modified/\1/" | awk '!seen[$0]++'
+    # Batched: a closure is thousands of paths, and one process per path is minutes of overhead. Parallel,
+    # because this reads and hashes the whole closure, which is the slow part of the check.
+    local jobs; jobs="$(nproc 2>/dev/null || echo 2)"; (( jobs > 4 )) && jobs=4
+    out="$(printf '%s\n' "$paths" | xargs -d '\n' -n 200 -P "$jobs" nix-store --verify-path 2>&1)" || rc=$?
+    local modified
+    modified="$(grep -aoE "path '[^']+' was modified" <<<"$out" | sed -E "s/^path '([^']+)' was modified/\1/" | awk '!seen[$0]++')"
+    [[ -n "$modified" ]] && printf '%s\n' "$modified"
     (( rc == 0 )) && return 0
-    return 1
+    # Failed, but not because a package was modified (a path missing from the database, an I/O error, ...):
+    # that is "could not check", never "this package is corrupt".
+    [[ -n "$modified" ]] && return 1
+    printf '%s\n' "$out" | tail -n 5 >>"$install_log"
+    return 2
 }
 
 # Re-fetches the given store paths from the binary cache, replacing damaged copies. Needs a network.
@@ -486,17 +494,19 @@ repair_store_paths() {
 verify_install_media() {
     local system="$1" bad
     [[ "${ABORA_INSTALL_SKIP_VERIFY:-0}" == 1 ]] && return 0
-    msg "Checking the install media…"
+    msg "Checking the install media (every package is read once; this can take a few minutes)…"
     bad="$(damaged_store_paths "$system")"; local rc=$?
     (( rc == 0 )) && { ok "Install media is intact"; return 0; }
     if (( rc == 2 )); then
-        warn "Could not list the system's packages to check them; continuing."
+        warn "Could not check the packages (details in ${install_log}); continuing."
         return 0
     fi
-    warn "$(wc -l <<<"$bad") package(s) do not match their checksum. Trying to fetch clean copies…"
+    warn "$(grep -c . <<<"$bad") package(s) do not match their checksum. Trying to fetch clean copies…"
     printf '%s\n' "$bad" | sed 's/^/[damaged] /' >>"$install_log"
     printf '%s\n' "$bad" | repair_store_paths || true
-    bad="$(damaged_store_paths "$system")" && { ok "Damaged packages were replaced"; return 0; }
+    bad="$(damaged_store_paths "$system")"; rc=$?
+    (( rc == 0 )) && { ok "Damaged packages were replaced"; return 0; }
+    (( rc == 2 )) && { warn "Could not re-check the packages (details in ${install_log}); continuing."; return 0; }
     printf '%s\n' "$bad" | sed 's/^/[still damaged] /' >>"$install_log"
     die "Some packages on the install media are damaged and could not be replaced: $(head -n 3 <<<"$bad" | xargs -n1 basename | paste -sd, -). That points at the USB stick, a failing disk, or the computer's memory (try memtest86+), not at Abora. Check the ISO against SHA256SUMS, write it to the USB stick again, and try again. The list is in ${install_log}."
 }
@@ -504,17 +514,21 @@ verify_install_media() {
 # nixos-install, tried a second time after clean copies replace anything damaged: a corrupt copy is the
 # one failure where a retry can succeed, so one retry is made, and only for that.
 nixos_install_with_healing() {
-    local system="$1" tries=0 bad
+    local system="$1" tries=0 start fresh
     while :; do
+        # Where the log ends before this attempt: only what this attempt writes decides about a retry, so an
+        # old, already-repaired mismatch can't trigger a second full install for an unrelated failure.
+        start="$(stat -c %s "$install_log" 2>/dev/null || echo 0)"
         if run_with_log_panel 82 "Installing bootloader" \
             env "NIX_CONFIG=${nix_config}" \
             nixos-install --root /mnt --no-channel-copy --no-root-passwd --system "$system"; then
             return 0
         fi
         (( tries++ >= 1 )) && return 1
-        grep -qaiE "hash mismatch importing path|is corrupt|bad archive|truncated (gzip|xz|zstd)|NAR hash mismatch in input [^ ]*path:/nix/store" <(tail -n 2000 "$install_log" 2>/dev/null) || return 1
+        fresh="$(tail -c +$((start + 1)) "$install_log" 2>/dev/null | tail -n 2000)"
+        grep -qaiE "hash mismatch importing path|is corrupt|bad archive|truncated (gzip|xz|zstd)|NAR hash mismatch in input [^ ]*path:/nix/store" <<<"$fresh" || return 1
         warn "A package was damaged while it was copied. Checking and trying once more…"
-        { printf '%s\n' "$(grep -aoE "hash mismatch importing path '[^']+'" "$install_log" | sed -E "s/.*'([^']+)'/\1/")"
+        { printf '%s\n' "$(grep -aoE "hash mismatch importing path '[^']+'" <<<"$fresh" | sed -E "s/.*'([^']+)'/\1/")"
           damaged_store_paths "$system" || true; } | awk 'NF && !seen[$0]++' | repair_store_paths || true
     done
 }
