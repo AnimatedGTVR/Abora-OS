@@ -97,6 +97,8 @@ class Repair:
     description: str
     command: list[str]
     root: bool = False
+    # Run in order once `command` succeeds, with the same privileges.
+    after: tuple[list[str], ...] = ()
 
 
 @dataclass
@@ -413,7 +415,10 @@ def check_network() -> None:
         report("network-dns", "network", "fail", f"DNS can't resolve {DNS_PROBE_HOST}",
                "The network is up but names don't resolve, so Nix can't reach its binary cache. Restarting "
                "NetworkManager re-reads DNS from the network; `anix network` shows more.",
-               Repair("restart-networkmanager", "Restart NetworkManager", ["systemctl", "restart", "NetworkManager.service"], root=True))
+               Repair("restart-networkmanager", "Restart NetworkManager", ["systemctl", "restart", "NetworkManager.service"], root=True,
+                      # A restart alone leaves a stale or hand-edited resolv.conf in place: NetworkManager's DNS
+                      # data hasn't changed, so openresolv never rewrites the file.
+                      after=(["resolvconf", "-u"],) if shutil.which("resolvconf") else ()))
         return
     finally:
         socket.setdefaulttimeout(previous)
@@ -649,7 +654,8 @@ def do_repair(ids: list[str], assume_yes: bool) -> int:
             return 0
         for repair in available.values():
             print(f"  {repair.id:<26} {repair.description}")
-            dim_line(f"  {'':<26} runs: {' '.join(as_root(repair.command) if repair.root else repair.command)}")
+            for step in (repair.command, *repair.after):
+                dim_line(f"  {'':<26} runs: {' '.join(as_root(step) if repair.root else step)}")
         print()
         dim_line("Run one: anix doctor repair <id>   (or several at once)")
         print()
@@ -662,8 +668,10 @@ def do_repair(ids: list[str], assume_yes: bool) -> int:
     status = 0
     for repair_id in ids:
         repair = available[repair_id]
-        command = as_root(repair.command) if repair.root else repair.command
-        print(f"\n  {repair.description}\n  runs: {' '.join(command)}")
+        steps = [as_root(step) if repair.root else step for step in (repair.command, *repair.after)]
+        print(f"\n  {repair.description}")
+        for step in steps:
+            print(f"  runs: {' '.join(step)}")
         if not assume_yes:
             if not sys.stdin.isatty():
                 error("Not running without confirmation; add --yes.")
@@ -671,12 +679,14 @@ def do_repair(ids: list[str], assume_yes: bool) -> int:
             if input("  Run it? [y/N] ").strip().lower() not in ("y", "yes"):
                 warning("Skipped.")
                 continue
-        result = subprocess.run(command)
-        if result.returncode == 0:
-            success(f"{repair_id}: done")
+        for step in steps:
+            result = subprocess.run(step)
+            if result.returncode != 0:
+                error(f"{repair_id}: `{' '.join(step)}` failed (exit {result.returncode})")
+                status = 1
+                break
         else:
-            error(f"{repair_id}: the command failed (exit {result.returncode})")
-            status = 1
+            success(f"{repair_id}: done")
     print()
     return status
 

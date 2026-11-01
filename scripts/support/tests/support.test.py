@@ -303,6 +303,33 @@ def _():
     assert layer == "layer=1\n", layer
 
 
+@check("runtime: the DNS repair also rewrites resolv.conf, and repair steps stop at the first failure")
+def _():
+    # Found on a 4.2 VM: a hand-edited resolv.conf survives a NetworkManager restart because openresolv only
+    # rewrites it when NetworkManager's DNS data changes. `resolvconf -u` must follow the restart.
+    doctor = load("abora-doctor")
+    with mock.patch.object(doctor, "has_default_route", return_value=True), \
+            mock.patch.object(doctor.socket, "getaddrinfo", side_effect=OSError("no dns")), \
+            mock.patch.object(doctor.shutil, "which", side_effect=lambda name: f"/bin/{name}"), silenced():
+        doctor.findings.clear()
+        doctor.check_network()
+    repair = doctor.findings[0].repair
+    assert repair and repair.command[:2] == ["systemctl", "restart"] and repair.after == (["resolvconf", "-u"],), repair
+    ran = []
+    def fake_run(step):
+        ran.append(step)
+        return mock.Mock(returncode=1 if step[-1] == "restart-fails" else 0)
+    chain = doctor.Repair("chain", "two steps", ["true", "first"], after=(["true", "second"],))
+    broken = doctor.Repair("broken", "fails first", ["false", "restart-fails"], after=(["true", "never"],))
+    with mock.patch.object(doctor, "repairs", return_value=[chain, broken]), \
+            mock.patch.object(doctor.subprocess, "run", side_effect=fake_run), \
+            mock.patch.object(doctor, "error"), silenced():
+        ok = doctor.do_repair(["chain"], assume_yes=True)
+        failed = doctor.do_repair(["broken"], assume_yes=True)
+    assert ok == 0 and failed == 1, (ok, failed)
+    assert [step[-1] for step in ran] == ["first", "second", "restart-fails"], ran
+
+
 @check("runtime: doctor --json is machine-readable and repair runs only listed fixes")
 def _():
     if not POSIX:
