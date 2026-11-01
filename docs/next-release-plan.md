@@ -95,7 +95,7 @@ Everything below is open. Boxes are ticked when done.
   Fixed: the tag release workflow writes `RELEASE_STAGE` = `stable`, `live.nix` bakes it into the installer, and a
   release ISO always installs onto `stable`; nightly and local ISOs install onto `edge`. Checked by evaluation
   both ways. Still to see: the tagged v4.2 ISO's install saves `stable` (`/etc/nixos/abora/channel`).
-- [ ] Rebuild the ISO with the theme/wallpaper copy fix and re-run row 2 once
+- [x] Rebuild the ISO with the theme/wallpaper copy fix and re-run row 2 once (KDE Plasma, BIOS)
 
 **Release housekeeping**
 - [x] The v4.1 entry's `<RELEASE DATE>` is filled (2026-10-03)
@@ -161,6 +161,8 @@ failure class, not the undocumented root cause of the original 4.0 incident.
 | Row 7 — a failing change rolls back | GNOME/BIOS install (`d3ca7a9e6f11…`) | Pass | A module adding a unit that exits 1 made the switch fail (exit 4); ABT rolled back to generation 6, `anix history` shows `rolled-back`, the unit is not left failed. Same ABT path as the updater's final switch; a real `anix update` against a failing edge commit is not run. |
 | Row 13 — no network | same | Pass after fix | Cable unplugged through QEMU: `anix doctor` says "No network connection (no default route)" and points at `anix network`. `anix network` printed raw nmcli/ping/curl output with no conclusion and a guaranteed `resolvectl` failure; it now ends with "No network cable is plugged in, so this computer is offline. Plug in a cable." (re-verified on the VM). |
 | Row 17 — Zen and `grab` | same | Pass after fix | First boot installed Zen system-wide (`app.zen_browser.zen`), once. `grab zen-browser` failed ("No remote refs found for 'flathub'": no Flathub in the user installation) and didn't see the installed Zen; both fixed in `grab`, the remote fix verified on the VM. The splash logo passed in row 2. |
+| Row 2 — KDE Plasma, legacy BIOS, whole-disk install | `abora-2026.11.01-x86_64-v4.2.iso` / `docs/v4.2-unfinished` at the theme fix | Pass | Unattended install in 17 min; booted to the Plasma desktop with the Abora wallpaper and Welcome app after about 3 minutes (a long black screen first). The theme/wallpaper fix holds: no symlinks in `/etc/nixos/abora`, theme files readable. Channel saved: `edge` (a nightly ISO, as intended). |
+| Row 12 — `anix desktop set` and back | GNOME/BIOS install | Pass after fix | `anix desktop set plasma` + `anix config apply` said "Done" and stayed on GNOME: anix.nix's `anix.desktop` overrides `abora.desktop`. Fixed; with the fix the VM rebooted into SDDM and Plasma, then `anix desktop set gnome` brought GDM and GNOME Shell back. The GDM greeter now shows the Abora logo (was the NixOS snowflake). |
 | Repository script checks | dirty tree at `50fe092f243f` | Pass | `make check` completed with all script checks passing after the target-store integrity fix, read-only `anix status` Git probe fix, and updater command-collision regression test. Vanta-dependent tests were skipped by the host-side script runner because Vanta is unavailable there; the actual Nix-packaged Vanta updater built and passed its install check separately. |
 
 ## Carried over from 4.1 Horizon
