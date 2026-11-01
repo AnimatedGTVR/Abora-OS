@@ -422,6 +422,20 @@ git_available_for_config() {
     command -v git >/dev/null 2>&1 && [[ -d "$config_dir" ]]
 }
 
+# NixOS builds a system with any time.timeZone string, so a typo only shows up as the wrong clock.
+# Checks the name against the zoneinfo database when one is available, else just its shape.
+valid_timezone() {
+    local zone="$1" dir
+    [[ "$zone" == UTC ]] && return 0
+    [[ "$zone" =~ ^[A-Za-z_]+(/[A-Za-z0-9_+-]+)+$ ]] || return 1
+    for dir in "${TZDIR:-}" /etc/zoneinfo /usr/share/zoneinfo; do
+        [[ -n "$dir" && -d "$dir" ]] || continue
+        [[ -f "$dir/$zone" ]]
+        return
+    done
+    return 0
+}
+
 config_is_git_repo() {
     # This is a read-only status probe. Do not call run_as_root here: on a
     # machine without sudo that helper intentionally exits, which made
@@ -964,7 +978,12 @@ do_set() {
                 exit 1
             fi
             ;;
-        timezone) ;;
+        timezone)
+            if ! valid_timezone "$value"; then
+                abora_error "Unknown timezone '${value}'. Use UTC or Region/City, for example Europe/Paris."
+                exit 1
+            fi
+            ;;
         keyboard|keyboard.console)
             key="keyboard.console"
             ;;

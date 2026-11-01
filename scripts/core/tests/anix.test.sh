@@ -83,6 +83,21 @@ else
   fail "runtime: anix docs"
 fi
 
+# Found on a 4.2 VM: `anix set timezone Mars/Olympus_Mons` built and switched. Names are checked against
+# zoneinfo now (TZDIR points at a fake one here).
+mkdir -p "$tmp_ok/zoneinfo/Europe" && : >"$tmp_ok/zoneinfo/Europe/Paris"
+anix_set_tz() {
+  TZDIR="$tmp_ok/zoneinfo" ANIX_NO_SUDO=1 ANIX_ASSUME_YES=1 ANIX_SYSTEM_CONFIG="$tmp_anix_quickstart_dir" \
+    ABORA_UI_LIB="$tmp_empty/missing-ui.sh" ABORA_NO_ABT=1 scripts/anix.sh set timezone "$1" >/dev/null 2>&1
+}
+if anix_set_tz Europe/Paris && grep -q 'anix.timezone = "Europe/Paris";' "$tmp_anix_quickstart_dir/anix.nix" \
+  && ! anix_set_tz Mars/Olympus_Mons && ! anix_set_tz 'not a zone' && anix_set_tz UTC \
+  && grep -q 'anix.timezone = "UTC";' "$tmp_anix_quickstart_dir/anix.nix"; then
+  pass "runtime: anix set timezone rejects names that aren't in zoneinfo"
+else
+  fail "runtime: anix set timezone rejects names that aren't in zoneinfo"
+fi
+
 tmp_anix_save_dir="$tmp_ok/anix-save"
 
 mkdir -p "$tmp_anix_save_dir"
