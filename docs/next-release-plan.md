@@ -102,20 +102,11 @@ Everything below is open. Boxes are ticked when done.
   must go through `SECURITY.md` instead
 
 **Known limits to keep documented**
-- [ ] A checksum-verified v4.1 ISO still installs and boots, but its saved `unstable` update channel cannot be
-  resolved by the v4.1 updater after the repository renamed that branch to `edge`; it fails before changing
-  `flake.nix`. Restoring a remote `unstable` compatibility ref or publishing a documented v4.1 hotfix path is
-  required before the removed-initrd-options update/reboot test can start. The initrd-only fix is in
-  `hotfix/v4.1-nixpkgs`, but that branch alone does not repair the old updater's channel resolution. An
-  `ABORA_RELEASE_CHANNEL=edge` override still failed resolution, and `abora install pre-alpha --ref edge`
-  reached its confirmation but then failed in the old resolver with `This command does not take extra
-  arguments yet`; neither route changed the installed flake. Explicitly selecting the C# resolver with
-  `ABORA_UPDATE_RESOLVER_BIN=abora-update-resolver` clears that collision and reaches checkout validation.
-  A direct jump to current `edge` is still rejected because it no longer carries legacy files required by the
-  old updater. Publish the compatibility hotfix first, then use the explicit resolver to install that ref.
-- [ ] The v4.1 hotfix worktree (`hotfix/v4.1-nixpkgs`) has uncommitted work that calls itself **v4.1.1** and sets
-  `VERSION` to `4.1.1` (the `v4.1` tag shipped with `VERSION=4.0`). The v4.2 notes say v4.1.1 was never released.
-  Pick one name for the hotfix (v4.1.1 or v4.1.2) and make both release notes agree before tagging it.
+- [ ] **v4.1 → 4.2 upgrade, fixed in 4.2 (no hotfix).** The v4.1 updater rejected 4.2 because the C# plan
+  tool's paths were gone; they are back as placeholders and now listed in `legacy-required-paths.txt` (with
+  the Vanta paths v4.1 also requires). The v4.1 resolver clash is local to installed 4.1 systems, so their
+  first update is `sudo env ABORA_UPDATE_RESOLVER_BIN=abora-update-resolver abora update` (in the release
+  notes). Still to do: run that on an installed v4.1 VM (row 6).
 - [ ] The boot-menu description line still names the NixOS release (for example "Zokor"): nixpkgs builds it from
   a read-only option
 - [x] A published v4.0.1 ISO install was attempted; it reproduced the removed-initrd-options failure, not the
@@ -129,7 +120,8 @@ failure class, not the undocumented root cause of the original 4.0 incident.
 **Cleanup**
 - [ ] Delete old local branches: `edge-notes`, `fix/keyboard-layout-mapping`, `fix/ssh-hash-and-partitioning`,
   `fix/update-manifest`, `fix/welcome-autostart`, `port-support-python`, `pr52`, `security/kernel-7.3`, `v4.2-work`.
-  Checked 2026-11-01: every commit on them is already in `edge`. Keep `hotfix/v4.1-nixpkgs` until the v4.1 fix ships.
+  Checked 2026-11-01: every commit on them is already in `edge`. `hotfix/v4.1-nixpkgs` and its worktree are
+  dropped too: v4.1 upgrades are handled in 4.2.
 - [ ] Website: Atlas removal (on hold until you say so)
 
 ## Not in Solstice
@@ -151,7 +143,7 @@ failure class, not the undocumented root cause of the original 4.0 incident.
 | Row 2 — COSMIC, legacy BIOS, whole-disk install | `abora-2026.10.31-x86_64-v4.2.iso` (`43ced53b8102…ff26b`) / dirty tree at `50fe092f243f` | Pass | QEMU/KVM with SeaBIOS, VirtIO GPU, and a fresh 32 GiB disk: the corrected target-store media scan completed without a warning, the install completed through Limine's BIOS stages, and the disk booted by itself to the COSMIC greeter. |
 | Historical v4.0 hash-mismatch reproduction attempt | `abora-2026.08.29-x86_64-v4.0.iso` (`f486e0e93707…72da3`), published tag `v4.0.1` | Different failure reproduced | QEMU/KVM with SeaBIOS and a fresh 32 GiB disk: preflight passed, then target evaluation failed because current nixpkgs removed scripted initrd support and rejected `boot.initrd.systemd.enable = false` plus `boot.initrd.verbose`. No hash mismatch appeared. |
 | Published v4.1 install and updater compatibility | `abora-cosmic-2026.10.03-x86_64-v4.1.iso` (`3efc22189325…0352c7`), published tag `v4.1` | Install/boot pass; two-step hotfix required | Official checksum passed. QEMU/KVM with SeaBIOS and a fresh 32 GiB disk completed the COSMIC install, installed Limine's BIOS stages, booted from disk, and accepted a tty login. The normal updater selected its public wrapper as the resolver and failed safely. `ABORA_UPDATE_RESOLVER_BIN=abora-update-resolver` cleared that collision and resolved `edge`, but checkout validation correctly rejected current edge because legacy `abora-plan-tool` sources required by the old updater are gone. All attempts left `flake.nix` untouched. |
-| v4.1 compatibility-hotfix backport | local `hotfix/v4.1-nixpkgs` worktree at `cb572df` plus dirty changes | Package and targeted tests pass; publication/VM update pending | Backported the distinct `abora-update-core` resolver name and regression test on top of the removed-initrd-options fix. The updater suite and Nix package build pass. Full `make check` reaches an unrelated pre-existing hardware-test failure in this container. The hotfix ref must be published before the installed v4.1 VM can test the two-stage handoff. |
+| v4.1 compatibility-hotfix backport | local `hotfix/v4.1-nixpkgs` worktree at `cb572df` plus dirty changes | Superseded | Dropped on 2026-11-01: v4.1 upgrades are fixed in 4.2 instead (plan-tool placeholders). Backported the distinct `abora-update-core` resolver name and regression test on top of the removed-initrd-options fix. The updater suite and Nix package build pass. Full `make check` reaches an unrelated pre-existing hardware-test failure in this container. The hotfix ref must be published before the installed v4.1 VM can test the two-stage handoff. |
 | Updater resolver packaging fix | `abora-2026.10.31-x86_64-v4.2.iso` (`d3ca7a9e6f11…5b186a`) / dirty tree at `50fe092f243f` | Build and checks pass; installed update pending | The public `abora-update` wrapper and internal Vanta resolver no longer share an executable name; the resolver is `abora-update-core`. Its Nix package built, resolved `edge`, and contains no colliding `abora-update` binary. The ISO was rebuilt with the fix; a full installed-system update remains required. |
 | Latest rebuilt ISO BIOS smoke test | `abora-2026.10.31-x86_64-v4.2.iso` (`d3ca7a9e6f11…5b186a`) / dirty tree at `50fe092f243f` | Pass | QEMU/KVM with SeaBIOS loaded the Linux 7.3 kernel and initrd from the rebuilt ISO and reached the v4.2 Solstice installer Welcome screen. |
 | Repository script checks | dirty tree at `50fe092f243f` | Pass | `make check` completed with all script checks passing after the target-store integrity fix, read-only `anix status` Git probe fix, and updater command-collision regression test. Vanta-dependent tests were skipped by the host-side script runner because Vanta is unavailable there; the actual Nix-packaged Vanta updater built and passed its install check separately. |

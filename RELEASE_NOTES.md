@@ -74,9 +74,15 @@ direct, constructive criticism.
 sudo anix update
 ```
 
-- **On 4.1:** the published updater currently cannot start the handoff: its internal resolver collides with
-  the public `abora-update` command and the old `unstable` channel no longer resolves to `edge`. Do not claim
-  a one-command upgrade until a tested compatibility hotfix or remote shim has shipped.
+- **On 4.1:** run this once instead:
+
+  ```
+  sudo env ABORA_UPDATE_RESOLVER_BIN=abora-update-resolver abora update
+  ```
+
+  The 4.1 updater picks the wrong internal helper (its own `abora-update` command) and stops before
+  changing anything. The variable points it at the helper 4.1 already ships. After that it hands over to
+  4.2's updater, and later updates are plain `sudo anix update`.
 - **On 4.0:** run `sudo abora update` twice. The 4.0 updater can't hand over mid-update, so the first run
   installs the newer updater and the second uses it.
 
@@ -85,10 +91,8 @@ Release files, once published: the universal `abora-<stamp>-x86_64-v4.2.iso`, wi
 
 ## Known limitations
 
-- Published v4.1 systems install and boot, but cannot yet enter the v4.2 update path. Failed attempts leave
-  the installed `flake.nix` untouched. They must first install a compatibility hotfix using the legacy C#
-  resolver, then update to v4.2; publish and test that hotfix before release.
-
+- 4.1 systems need the one-time command above for their first update to 4.2; a plain `abora update` stops safely
+  before changing anything.
 - The install matrix (every edition, UEFI and BIOS, GPU choices) has not been run on 4.2 yet.
 - ABT can't protect a first install: there's no earlier generation to go back to.
 - The description line under a boot-menu entry (and `bootctl`) still names the NixOS release you follow, for example

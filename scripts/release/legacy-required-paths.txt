@@ -28,11 +28,15 @@ nix/modules/abora-options.nix
 nix/modules/anix.nix
 nix/modules/desktops
 nix/modules/installed-base.nix
+nix/pkgs/abora-plan-tool-deps.json
+nix/pkgs/abora-plan-tool.nix
 nix/pkgs/abora-update-resolver-deps.json
 nix/pkgs/abora-update-resolver.nix
+nix/pkgs/abora-update.nix
 nix/pkgs/mango.nix
 nix/pkgs/moducpp-anix.nix
 nix/pkgs/modularity.nix
+nix/pkgs/vanta.nix
 scripts/abora-adopt-nixos.sh
 scripts/abora-app-catalog.sh
 scripts/abora-apps.sh
@@ -63,7 +67,10 @@ scripts/abora-welcome.sh
 scripts/abora.sh
 scripts/anix.sh
 scripts/apps/abora-labs.sh
+tools/abora-plan-tool/AboraPlanTool.csproj
+tools/abora-plan-tool/Program.cs
 tools/abora-update-resolver/AboraUpdateResolver.csproj
 tools/abora-update-resolver/Program.cs
+tools/abora-update/main.vanta
 tools/moducpp-anix
 vendor/modularity

@@ -340,14 +340,16 @@ CHECKS: tuple[Check, ...] = (
     ),
     # 4.0/4.1 updaters refuse a release without the old resolver's files, and a
     # rolled-back older installed-base.nix may still call its .nix: the
-    # placeholder forwards to abora-update (same CLI) instead of failing.
+    # placeholder forwards to abora-update-core (same CLI) instead of failing.
+    # The plan tool's C# paths stay as placeholders for the same reason: without
+    # them the 4.1 updater rejects the checkout and 4.1 systems can't upgrade.
     Check(
         'runtime: the removed C# tools leave only legacy placeholders behind',
-        grep('-Fq', 'exec abora-update "$@"', 'nix/pkgs/abora-update-resolver.nix'),
+        grep('-Fq', 'exec abora-update-core "$@"', 'nix/pkgs/abora-update-resolver.nix'),
         not_(grep('-q', 'buildDotnetModule', 'nix/pkgs/abora-update-resolver.nix', 'nix/pkgs/abora-plan-tool.nix')),
         not_(grep('-q', 'abora-update-resolver', 'flake.nix', 'nix/profiles/live.nix', 'nix/modules/installed-base.nix')),
-        not_(test('-e', 'tools/abora-plan-tool/AboraPlanTool.csproj')),
-        not_(test('-e', 'nix/pkgs/abora-plan-tool-deps.json')),
+        grep('-q', 'Placeholder', 'tools/abora-plan-tool/AboraPlanTool.csproj', 'tools/abora-plan-tool/Program.cs'),
+        grep('-Fqx', '[]', 'nix/pkgs/abora-plan-tool-deps.json'),
     ),
     Check(
         'runtime: the startup sound is gone (removed in 4.2): no ringtone command, no login sound, no sound files',
