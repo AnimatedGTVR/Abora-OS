@@ -666,6 +666,8 @@ in
     aboraThemeSync
     bashInteractive
     curl
+    # Inspecting and fixing UEFI boot entries (shared-ESP and dual-boot problems); tiny.
+    efibootmgr
     fastfetch
     git
     iw

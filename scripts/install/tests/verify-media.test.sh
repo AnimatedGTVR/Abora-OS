@@ -15,7 +15,7 @@ failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 pass() { printf 'ok:   %s\n' "$*"; }
 
-for name in damaged_store_paths repair_store_paths verify_install_media nixos_install_with_healing; do
+for name in damaged_store_paths repair_store_paths verify_install_media nixos_install_with_healing note_recovered_media_damage; do
     fn="$(sed -n "/^${name}() {/,/^}/p" "$script")"
     [[ -n "$fn" ]] || { fail "$name not found in abora-installer.sh"; exit 1; }
     eval "$fn"
@@ -168,5 +168,15 @@ nixos_install_with_healing /nix/store/sys; rc=$?
 [[ $rc -ne 0 && $(wc -l <"$calls") -eq 1 ]] && pass "stale corruption lines in the log do not cause a retry" || fail "stale log retried: rc=$rc calls=$(wc -l <"$calls")"
 
 echo
+# A build that recovered from a damaged media copy by itself says so in plain words; a clean log says nothing.
+: >"$work/ui"
+printf "error: hash mismatch importing path '/nix/store/abc-tzdata'\n" >"$install_log"
+note_recovered_media_damage
+grep -q "install media were damaged" "$work/ui" && pass "a build that recovered from damaged media explains it" \
+    || fail "no explanation after a recovered hash mismatch: $(cat "$work/ui")"
+: >"$work/ui"; : >"$install_log"
+note_recovered_media_damage
+[[ ! -s "$work/ui" ]] && pass "a clean build log adds no media warning" || fail "warned on a clean log"
+
 if (( failures )); then echo "$failures check(s) failed."; exit 1; fi
 echo "All media verification checks passed."

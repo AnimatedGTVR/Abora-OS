@@ -486,6 +486,19 @@ damaged_store_paths() {
     return 2
 }
 
+# A build that succeeded can still have hit a damaged copy on the install media: Nix then downloads a clean copy
+# by itself, and the only trace was a raw "error: hash mismatch importing path" line on screen (seen when testing
+# a deliberately damaged ISO). Say what happened in plain words.
+note_recovered_media_damage() {
+    local paths
+    paths="$(grep -aoE "hash mismatch importing path '[^']+'" "$install_log" 2>/dev/null \
+        | sed -E "s/.*'([^']+)'/\1/" | awk '!seen[$0]++' | head -n 3)"
+    [[ -n "$paths" ]] || return 0
+    warn "Some packages on the install media were damaged; clean copies were downloaded and the install goes on."
+    printf '%s\n' "$paths" | sed 's|^|      |'
+    msg "If this happens again, check the ISO against SHA256SUMS, rewrite the USB stick, or test the RAM."
+}
+
 # Re-fetches the given store paths from the binary cache, replacing damaged copies. Needs a network.
 repair_store_paths() {
     local store_root="${1:-}" path rc=0
@@ -3805,6 +3818,7 @@ run_install() {
     fi
     system_path="$(cat "$system_path_file" 2>/dev/null || true)"
     [[ "$system_path" == /nix/store/* ]] || die "Target system build did not produce a system path. See ${install_log}."
+    note_recovered_media_damage
 
     msg "Running nixos-install…"
     log_network_snapshot
@@ -4909,6 +4923,7 @@ install_from_flake() {
     fi
     system_path="$(cat "$system_path_file" 2>/dev/null || true)"
     [[ "$system_path" == /nix/store/* ]] || die "The build did not produce a system path. See ${install_log}."
+    note_recovered_media_damage
 
     msg "Running nixos-install…"
     verify_install_media "$system_path" /mnt
