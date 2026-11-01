@@ -22,9 +22,13 @@ jobs:
       fail-fast: false
       matrix:
         tool: [abora-installer, abora-plan-tool, abora-trailer, abora-grab]
+        include:
+          # Test harness only, never shipped (see testing/abora-break/src/main.rs).
+          - tool: abora-break
+            dir: testing/abora-break
     defaults:
       run:
-        working-directory: tools/${{ matrix.tool }}
+        working-directory: ${{ matrix.dir || format('tools/{0}', matrix.tool) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6

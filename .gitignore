@@ -5,6 +5,8 @@
 *.lock
 !/tools/*/Cargo.lock
 /tools/*/target/
+!/testing/*/Cargo.lock
+/testing/*/target/
 .codex
 
 

@@ -351,6 +351,15 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'Placeholder', 'tools/abora-plan-tool/AboraPlanTool.csproj', 'tools/abora-plan-tool/Program.cs'),
         grep('-Fqx', '[]', 'nix/pkgs/abora-plan-tool-deps.json'),
     ),
+    # testing/abora-break deliberately breaks systems. It is a test-harness tool that runs from the
+    # developer's machine, so nothing that builds the ISO, the installer or an installed system may
+    # mention it.
+    Check(
+        'static: the system-breaking test tool never ships',
+        not_(grep('-rqE', '--exclude-dir=check_scripts', '--exclude-dir=target', 'abora-break|testing/abora',
+                  'flake.nix', 'nix', 'scripts', 'tools', 'vendor', 'assets')),
+        grep('-q', 'systemd-detect-virt --vm', 'testing/abora-break/src/main.rs'),
+    ),
     Check(
         'runtime: the startup sound is gone (removed in 4.2): no ringtone command, no login sound, no sound files',
         not_(grep('-rqiE', 'ringtone|launch_sound|ANIX_SOUND_FILE|v3StartingAbora', 'scripts/core', 'scripts/config', 'nix', 'scripts/install', 'scripts/support/abora-update.sh')),

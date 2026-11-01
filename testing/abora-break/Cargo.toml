@@ -1,0 +1,13 @@
+[package]
+name = "abora-break"
+version = "0.1.0"
+edition = "2021"
+description = "Test harness only: break an Abora test VM on purpose so anix doctor and its repairs can be tested"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "abora-break"
+path = "src/main.rs"
+
+[dependencies]

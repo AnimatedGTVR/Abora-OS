@@ -86,10 +86,10 @@ Everything below is open. Boxes are ticked when done.
   still needs the deliberately damaged-path test.
 
 **Testing tool**
-- [ ] A way to deliberately **break an installed system**, only to test `anix doctor` and the repairs (full ESP,
-  stopped DNS, failed unit, wrong `abora.gpu`, missing `/etc/abora` file, read-only root). It must run from the
-  test harness against the installed disk from outside, and must never be in the ISO, the installer, the Nix
-  modules or anything that is copied to a user's machine. Add a check that fails the build if it is.
+- [x] `testing/abora-break` deliberately breaks a test VM over SSH (full ESP, stopped DNS, failed unit, wrong
+  `abora.gpu`, missing `/etc/abora` file, read-only root), each with `restore`. It refuses to run outside a VM, and
+  `make check` fails if the ISO, installer, Nix modules or tools mention it. See
+  [abora-break](testing/abora-break.md). Unit-tested only; its first real use is gate row 9.
 
 **Release housekeeping**
 - [x] The v4.1 entry's `<RELEASE DATE>` is filled (2026-10-03)
