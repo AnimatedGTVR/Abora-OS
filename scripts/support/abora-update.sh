@@ -229,7 +229,14 @@ read_channel() {
     fi
     cf="$(channel_file)"
     if [[ -f "$cf" ]]; then
-        normalize_channel "$(tr -d '[:space:]' < "$cf")"
+        local saved
+        saved="$(tr -d '[:space:]' < "$cf")"
+        # Save the new name once (the updater runs as root), so the migration notice isn't repeated on every
+        # update. Seen after a v4.1 -> 4.2 upgrade, which kept "unstable" in the file.
+        case "$saved" in
+            demo|dev|unstable) [[ -w "$cf" ]] && printf 'edge\n' > "$cf" 2>/dev/null ;;
+        esac
+        normalize_channel "$saved"
     else
         printf 'stable'
     fi

@@ -586,10 +586,12 @@ fi
 # (and says so), `channel set` refuses them, and the list shows only Stable and Edge.
 tmp_chan="$(mktemp -d)"
 mkdir -p "$tmp_chan/abora"
-for old in demo dev; do
+for old in demo dev unstable; do
   printf '%s\n' "$old" > "$tmp_chan/abora/channel"
   _chan_show="$(ABORA_SYSTEM_CONFIG="$tmp_chan" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-update.sh channel 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
-  if grep -q 'Channel    edge' <<<"$_chan_show" && grep -q "the '$old' update channel is now 'edge'" <<<"$_chan_show"; then
+  # ...and the new name is saved, so the notice isn't repeated every update.
+  if grep -q 'Channel    edge' <<<"$_chan_show" && grep -q "the '$old' update channel is now 'edge'" <<<"$_chan_show" \
+    && [[ "$(cat "$tmp_chan/abora/channel")" == edge ]]; then
     pass "runtime: a system saved on the '$old' channel migrates to Edge and is told so"
   else
     fail "runtime: a system saved on the '$old' channel migrates to Edge and is told so"
