@@ -70,7 +70,7 @@ tagged. Record the ISO name, the commit, and the result in [Validation results](
 | Desktop editions boot to a TUI installer | Documented in [Installation](wiki/Installation.md). **Decided:** no live desktop session; live sessions don't fit Abora. The live image should drop desktop components the installer doesn't use (needs a Nix build to verify the ISO still installs every edition). |
 | Timezone entry | Implemented. |
 
-## Unfinished (as of 2026-10-30)
+## Unfinished (as of 2026-11-01)
 
 Everything below is open. Boxes are ticked when done.
 
@@ -92,6 +92,7 @@ Everything below is open. Boxes are ticked when done.
   modules or anything that is copied to a user's machine. Add a check that fails the build if it is.
 
 **Release housekeeping**
+- [x] The v4.1 entry's `<RELEASE DATE>` is filled (2026-10-03)
 - [ ] Fill the v4.2 `<RELEASE DATE>` in `RELEASE_NOTES.md` and remove the **Draft** banner when the gate passes
 - [x] v4.1.1 never shipped; its release-notes section now says the work is included in 4.2 and claims no tag
 - [ ] Tag `v4.2` and watch the release workflow build the ISO, checksums and manifest
@@ -112,6 +113,9 @@ Everything below is open. Boxes are ticked when done.
   `ABORA_UPDATE_RESOLVER_BIN=abora-update-resolver` clears that collision and reaches checkout validation.
   A direct jump to current `edge` is still rejected because it no longer carries legacy files required by the
   old updater. Publish the compatibility hotfix first, then use the explicit resolver to install that ref.
+- [ ] The v4.1 hotfix worktree (`hotfix/v4.1-nixpkgs`) has uncommitted work that calls itself **v4.1.1** and sets
+  `VERSION` to `4.1.1` (the `v4.1` tag shipped with `VERSION=4.0`). The v4.2 notes say v4.1.1 was never released.
+  Pick one name for the hotfix (v4.1.1 or v4.1.2) and make both release notes agree before tagging it.
 - [ ] The boot-menu description line still names the NixOS release (for example "Zokor"): nixpkgs builds it from
   a read-only option
 - [x] A published v4.0.1 ISO install was attempted; it reproduced the removed-initrd-options failure, not the
@@ -123,8 +127,9 @@ The repeatable update, boot and hash-mismatch procedures are in
 failure class, not the undocumented root cause of the original 4.0 incident.
 
 **Cleanup**
-- [ ] Old local branches (`edge-notes`, `fix/keyboard-layout-mapping`, `fix/ssh-hash-and-partitioning`,
-  `fix/welcome-autostart`, `port-support-python`, `pr52`, `v4.2-work`) and `hotfix/v4.1-nixpkgs`
+- [ ] Delete old local branches: `edge-notes`, `fix/keyboard-layout-mapping`, `fix/ssh-hash-and-partitioning`,
+  `fix/update-manifest`, `fix/welcome-autostart`, `port-support-python`, `pr52`, `security/kernel-7.3`, `v4.2-work`.
+  Checked 2026-11-01: every commit on them is already in `edge`. Keep `hotfix/v4.1-nixpkgs` until the v4.1 fix ships.
 - [ ] Website: Atlas removal (on hold until you say so)
 
 ## Not in Solstice
