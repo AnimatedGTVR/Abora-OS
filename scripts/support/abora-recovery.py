@@ -19,7 +19,7 @@ SYSTEM_PATH = "/run/wrappers/bin:/run/current-system/sw/bin:/nix/var/nix/profile
 # Abora's shared core (abora_core.py): beside this tool in a checkout, on the live ISO and in the
 # hardware-test package; in /etc/abora on an installed system, where each tool is its own Nix store file.
 sys.path[:0] = [str(Path(__file__).resolve().parent), "/etc/abora"]
-from abora_core import CYAN, DIM, NC, banner, dim_line, error, step, ui_setup, warning
+from abora_core import CYAN, DIM, NC, banner, dim_line, error, step, success, ui_setup, warning
 
 
 def run(argv: list[str]) -> int:
@@ -37,11 +37,50 @@ def run_cmd(*argv: str) -> int:
 
 
 def run_diag(*argv: str) -> int:
-    """Like run_cmd, but a failure is reported and diagnostics carry on."""
+    """Like run_cmd, but a failure is reported and diagnostics carry on. Returns the command's status."""
     status = run_cmd(*argv)
     if status != 0:
         warning(f"Command exited with status {status}; continuing diagnostics.")
-    return 0
+    return status
+
+
+def capture(*argv: str) -> str:
+    """The command's output, or "" when it can't run. For conclusions, never shown raw."""
+    try:
+        return subprocess.run(list(argv), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=15).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+
+
+# Abora's DNS goes through NetworkManager and openresolv; systemd-resolved is only there on some setups.
+RESOLVED_SOCKET = Path("/run/systemd/resolve/io.systemd.Resolve")
+RESOLV_CONF = Path("/etc/resolv.conf")
+
+
+def network_conclusion(devices: str, connectivity: str, ping_ok: bool | None, cache_ok: bool | None) -> tuple[str, str]:
+    """Turn what the checks saw into ("ok" | "warn", plain-language explanation)."""
+    links = [line.split(":", 1) for line in devices.splitlines() if ":" in line]
+    links = [(kind, state) for kind, state in links if kind in ("ethernet", "wifi")]
+    connected = any(state.startswith("connected") for _, state in links)
+    if links and not connected:
+        wired = [state for kind, state in links if kind == "ethernet"]
+        wifi = [kind for kind, _ in links if kind == "wifi"]
+        detail = "No network cable is plugged in" if wired and all(s == "unavailable" for s in wired) else "Nothing is connected"
+        how = "Plug in a cable"
+        if wifi:
+            how += ", or connect to Wi-Fi: nmcli device wifi connect <network> --ask"
+        return "warn", f"{detail}, so this computer is offline. {how}."
+    if connectivity.strip() == "portal":
+        return "warn", "This network wants you to sign in first (a hotel or guest network). Open a browser to log in."
+    if ping_ok is False:
+        return "warn", ("Connected to the local network, but not to the internet. Check the router, or try another "
+                        "network.")
+    if ping_ok and cache_ok is False:
+        return "warn", ("The internet works, but Abora's package cache (cache.nixos.org) can't be reached: usually DNS. "
+                        "Try: anix doctor repair restart-networkmanager")
+    if cache_ok:
+        return "ok", "The network works, and Abora can reach its package cache."
+    return "warn", "Some checks couldn't run here; the output above has the details."
 
 
 def menu() -> None:
@@ -107,26 +146,40 @@ def network_diagnostics() -> int:
     else:
         warning("systemctl is not available.")
 
+    devices = connectivity = ""
     if shutil.which("nmcli"):
         run_diag("nmcli", "networking", "connectivity", "check")
         run_diag("nmcli", "device", "status")
         run_diag("nmcli", "radio")
         run_diag("nmcli", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list")
+        devices = capture("nmcli", "-t", "-f", "TYPE,STATE", "device")
+        connectivity = capture("nmcli", "networking", "connectivity", "check")
     else:
         warning("nmcli is not available.")
 
-    if shutil.which("resolvectl"):
+    if shutil.which("resolvectl") and RESOLVED_SOCKET.exists():
         run_diag("resolvectl", "status")
     else:
-        warning("resolvectl is not available.")
+        print()
+        step(f"DNS servers ({RESOLV_CONF})")
+        try:
+            print(RESOLV_CONF.read_text(encoding="utf-8", errors="replace").rstrip())
+        except OSError as exc:
+            warning(f"can't read {RESOLV_CONF}: {exc}")
 
+    ping_ok = cache_ok = None
     if shutil.which("ping"):
-        run_diag("ping", "-c", "2", "-W", "3", "1.1.1.1")
+        ping_ok = run_diag("ping", "-c", "2", "-W", "3", "1.1.1.1") == 0
 
     if shutil.which("curl"):
-        run_diag("curl", "-fsI", "--connect-timeout", "5", "--max-time", "8", "https://cache.nixos.org")
+        cache_ok = run_diag("curl", "-fsI", "--connect-timeout", "5", "--max-time", "8", "https://cache.nixos.org") == 0
     else:
         warning("curl is not available.")
+
+    status, explanation = network_conclusion(devices, connectivity, ping_ok, cache_ok)
+    print()
+    step("What this means")
+    (success if status == "ok" else warning)(explanation)
     return 0
 
 

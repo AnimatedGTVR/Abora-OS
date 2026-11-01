@@ -132,6 +132,8 @@ def _():
     calls = []
     output = io.StringIO()
     with mock.patch.object(recovery, "run", lambda argv: calls.append(argv) or 1), \
+            mock.patch.object(recovery, "capture", lambda *argv: ""), \
+            mock.patch.object(recovery, "RESOLVED_SOCKET", Path("/")), \
             mock.patch.object(recovery.shutil, "which", lambda name: f"/fake/{name}"), contextlib.redirect_stdout(output):
         status = recovery.main(["network"])
     assert status == 0, f"network diagnostics returned {status}"
@@ -139,12 +141,29 @@ def _():
         ["systemctl", "--no-pager", "--full", "status", "NetworkManager"],
         ["nmcli", "networking", "connectivity", "check"],
         ["nmcli", "radio"],
-        ["resolvectl", "status"],
         ["ping", "-c", "2", "-W", "3", "1.1.1.1"],
         ["curl", "-fsI", "--connect-timeout", "5", "--max-time", "8", "https://cache.nixos.org"],
     ):
         assert argv in calls, f"did not run {argv}"
-    expect(output.getvalue(), "Command exited with status 1; continuing diagnostics.")
+    expect(output.getvalue(), "Command exited with status 1; continuing diagnostics.", "What this means")
+
+
+@check("runtime: anix network explains what its checks found in plain words")
+def _():
+    # Found on a 4.2 VM with the cable pulled: the diagnostics printed raw nmcli/ping output and no conclusion.
+    recovery = load("abora-recovery")
+    conclude = recovery.network_conclusion
+    unplugged = conclude("ethernet:unavailable\nloopback:connected (externally)\n", "none\n", False, False)
+    assert unplugged[0] == "warn" and "No network cable is plugged in" in unplugged[1], unplugged
+    wifi_off = conclude("ethernet:unavailable\nwifi:disconnected\n", "none\n", False, False)
+    assert "nmcli device wifi connect" in wifi_off[1], wifi_off
+    portal = conclude("wifi:connected\n", "portal\n", True, False)
+    assert "sign in" in portal[1], portal
+    no_internet = conclude("ethernet:connected\n", "limited\n", False, False)
+    assert "not to the internet" in no_internet[1], no_internet
+    dns = conclude("ethernet:connected\n", "full\n", True, False)
+    assert "restart-networkmanager" in dns[1], dns
+    assert conclude("ethernet:connected\n", "full\n", True, True)[0] == "ok"
 
 
 @check("runtime: recovery menu survives a failing action and returns to the menu")
