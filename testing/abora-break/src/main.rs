@@ -94,9 +94,24 @@ fi"#,
     Fault {
         name: "read-only-root",
         doctor: "disk-readonly (fail)",
-        note: "remounts / read-only until restore or reboot",
-        breaks: "sync; mount -o remount,ro /",
-        restores: "mount -o remount,rw /",
+        note: "emergency read-only remount (SysRq u), as the kernel does after disk errors; restore reboots",
+        // `mount -o remount,ro /` fails on a running system ("mount point is busy"): the journal and other
+        // services hold files open for writing. SysRq u forces it, like a real filesystem error does.
+        breaks: r#"sync
+cat /proc/sys/kernel/sysrq > "$state/sysrq"
+echo 1 > /proc/sys/kernel/sysrq
+echo u > /proc/sysrq-trigger
+sleep 2
+cat "$state/sysrq" > /proc/sys/kernel/sysrq"#,
+        // ext4 usually refuses to go back to read-write ("unprocessed orphan inode list"), just as after a
+        // real error, so a reboot is the restore. The filesystem is already read-only, so nothing is lost.
+        restores: r#"if mount -o remount,rw / 2>/dev/null; then
+  rm -f "$state/sysrq"
+else
+  echo 'abora-break: / cannot go back to read-write while running; rebooting the VM'
+  echo 1 > /proc/sys/kernel/sysrq
+  echo b > /proc/sysrq-trigger
+fi"#,
     },
 ];
 
@@ -278,7 +293,7 @@ mod tests {
             ],
             false,
         );
-        assert!(body.find("mkdir -p \"$state\"").unwrap() < body.find("remount,ro").unwrap());
+        assert!(body.find("mkdir -p \"$state\"").unwrap() < body.find("sysrq-trigger").unwrap());
     }
 
     #[test]
