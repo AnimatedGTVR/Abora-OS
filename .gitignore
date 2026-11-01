@@ -1,4 +1,6 @@
 /work
+# Written only by the tag release build (release-iso.yml); never committed.
+/RELEASE_STAGE
 /out
 /result
 *.iso

@@ -351,6 +351,17 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'Placeholder', 'tools/abora-plan-tool/AboraPlanTool.csproj', 'tools/abora-plan-tool/Program.cs'),
         grep('-Fqx', '[]', 'nix/pkgs/abora-plan-tool-deps.json'),
     ),
+    # Release ISOs must install onto the stable channel and nightly ones onto edge. Only the tag release
+    # build writes RELEASE_STAGE; it must never be committed, or every ISO from that branch becomes "stable".
+    Check(
+        'static: release ISOs install onto stable, every other ISO onto edge',
+        grep('-Fq', 'echo stable > RELEASE_STAGE', '.github/workflows/release-iso.yml'),
+        not_(grep('-q', 'RELEASE_STAGE', '.github/workflows/build-iso.yml')),
+        grep('-Fq', 'ABORA_RELEASE_STAGE          = releaseStage;', 'nix/profiles/live.nix'),
+        grep('-Fq', 'ABORA_RELEASE_STAGE=${releaseStage}', 'nix/profiles/live.nix'),
+        grep('-Fq', 'stable|final|release) abora_release_channel=stable ;;', 'scripts/install/abora-installer.sh'),
+        grep('-qx', '/RELEASE_STAGE', '.gitignore'),
+    ),
     # The live system's /etc/abora themes and wallpapers are symlinks into /etc/static; copied as symlinks,
     # the installed flake turns them into store-path loops (found on a 4.2 test install).
     Check(

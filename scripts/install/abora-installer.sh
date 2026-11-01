@@ -82,6 +82,10 @@ case "${ABORA_REPO_REF:-} ${ABORA_PRE_ALPHA_REF:-} ${version:-}" in
         abora_release_channel="${ABORA_RELEASE_CHANNEL:-edge}"
         ;;
 esac
+# A release ISO (stage `stable`, set only by the tag release build) always installs onto the stable channel.
+case "$abora_release_stage" in
+    stable|final|release) abora_release_channel=stable ;;
+esac
 
 # Parse args: support both --reconfig and --batch <params-file>
 _args=("$@")

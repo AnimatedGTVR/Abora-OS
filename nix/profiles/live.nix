@@ -32,6 +32,13 @@ let
       session = "mango";
     };
   };
+  # RELEASE_STAGE exists only in tag builds: .github/workflows/release-iso.yml writes `stable` into it. Release
+  # ISOs install onto the stable update channel; every other build (nightly, local `make iso`) onto edge. The
+  # installer can't override it.
+  releaseStage =
+    if builtins.pathExists ../../RELEASE_STAGE
+    then lib.removeSuffix "\n" (builtins.readFile ../../RELEASE_STAGE)
+    else "edge";
   selectedEdition =
     if builtins.hasAttr liveEdition liveEditions
     then builtins.getAttr liveEdition liveEditions
@@ -118,6 +125,7 @@ let
         ABORA_APP_CATALOG_LIB=/etc/abora/app-catalog.sh \
         ABORA_EDITION="''${ABORA_EDITION:-${selectedEdition.id}}" \
         ABORA_DEFAULT_DESKTOP="''${ABORA_DEFAULT_DESKTOP:-${selectedEdition.desktop}}" \
+        ABORA_RELEASE_STAGE=${releaseStage} \
         ${installerRunner} "$@"
     fi
     exec env \
@@ -126,6 +134,7 @@ let
       ABORA_APP_CATALOG_LIB=/etc/abora/app-catalog.sh \
       ABORA_EDITION="''${ABORA_EDITION:-${selectedEdition.id}}" \
       ABORA_DEFAULT_DESKTOP="''${ABORA_DEFAULT_DESKTOP:-${selectedEdition.desktop}}" \
+      ABORA_RELEASE_STAGE=${releaseStage} \
       ${installerRunner} "$@"
   '';
   aboraSetup = pkgs.writeShellScriptBin "abora-setup" ''
@@ -941,6 +950,7 @@ in
       ABORA_APP_CATALOG_LIB        = "/etc/abora/app-catalog.sh";
       ABORA_EDITION                = selectedEdition.id;
       ABORA_DEFAULT_DESKTOP        = selectedEdition.desktop;
+      ABORA_RELEASE_STAGE          = releaseStage;
     };
     serviceConfig = {
       Type   = "simple";

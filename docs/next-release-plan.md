@@ -91,9 +91,10 @@ Everything below is open. Boxes are ticked when done.
   `make check` fails if the ISO, installer, Nix modules or tools mention it. See
   [abora-break](testing/abora-break.md). Unit-tested only; its first real use is gate row 9.
 
-- [ ] **Release ISOs install onto the `edge` channel.** Nothing sets `ABORA_RELEASE_STAGE`, so the installer
-  always takes its `alpha` default and saves `edge` (the GNOME/BIOS test install reported `Update channel: edge`;
-  v4.1 installs saved `unstable`). The tagged v4.2 ISO must install onto `stable`.
+- [x] **Release ISOs installed onto the `edge` channel** (nothing set `ABORA_RELEASE_STAGE`; v4.1 did it too).
+  Fixed: the tag release workflow writes `RELEASE_STAGE` = `stable`, `live.nix` bakes it into the installer, and a
+  release ISO always installs onto `stable`; nightly and local ISOs install onto `edge`. Checked by evaluation
+  both ways. Still to see: the tagged v4.2 ISO's install saves `stable` (`/etc/nixos/abora/channel`).
 - [ ] Rebuild the ISO with the theme/wallpaper copy fix and re-run row 2 once
 
 **Release housekeeping**

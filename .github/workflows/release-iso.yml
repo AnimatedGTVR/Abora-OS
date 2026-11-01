@@ -44,6 +44,14 @@ jobs:
           echo "$HOME/.nix-profile/bin" >> "$GITHUB_PATH"
           "$HOME/.nix-profile/bin/nix" --version
 
+      - name: Mark the ISO as a stable release
+        # Release ISOs install onto the stable update channel (nix/profiles/live.nix reads RELEASE_STAGE).
+        # Staged, because a flake build only sees files Git knows about; it's gitignored, so no branch carries it.
+        run: |
+          set -euo pipefail
+          echo stable > RELEASE_STAGE
+          git add -f RELEASE_STAGE
+
       - name: Build Release Bundle
         id: build_iso
         continue-on-error: true
