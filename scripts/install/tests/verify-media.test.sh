@@ -29,6 +29,10 @@ mkdir -p "$work/bin"
 cat >"$work/bin/nix-store" <<'FAKE'
 #!/usr/bin/env bash
 state="${FAKE_NIX_DIR:?}"
+if [[ "${1:-}" == "--store" ]]; then
+  printf '%s %s\n' "$2" "${3:-}" >>"$state/store-calls"
+  shift 2
+fi
 case "$1" in
   -qR) cat "$state/closure" ;;
   --verify-path)
@@ -53,7 +57,7 @@ msg() { :; }; ok() { printf '  ok: %s\n' "$1" >>"$work/ui"; }; warn() { printf '
 die() { printf 'DIE: %s\n' "$1" >>"$work/ui"; return 99; }
 
 fresh() { # fresh [damaged paths...]
-    : >"$work/ui"; : >"$install_log"; rm -f "$work/can-repair" "$work/repairs"
+    : >"$work/ui"; : >"$install_log"; : >"$work/store-calls"; rm -f "$work/can-repair" "$work/repairs"
     printf '/nix/store/aaa-glibc\n/nix/store/bbb-bash\n/nix/store/ccc-abora\n' >"$work/closure"
     : >"$work/bad"; for p in "$@"; do printf '%s\n' "$p" >>"$work/bad"; done
 }
@@ -64,6 +68,14 @@ bad="$(damaged_store_paths /nix/store/sys)"; rc=$?
 [[ $rc -eq 0 && -z "$bad" ]] && pass "an intact closure reports nothing" || fail "intact closure: rc=$rc out=$bad"
 verify_install_media /nix/store/sys; rc=$?
 [[ $rc -eq 0 ]] && grep -q "intact" "$work/ui" && pass "verify_install_media passes an intact system" || fail "verify intact: rc=$rc"
+
+# The installer builds into the target disk's store, not the live ISO's store. Every query and verification
+# must use that same store or Nix reports the freshly built system path as invalid.
+fresh
+verify_install_media /nix/store/sys /mnt; rc=$?
+if [[ $rc -eq 0 ]] && grep -q '^/mnt -qR$' "$work/store-calls" && grep -q '^/mnt --verify-path$' "$work/store-calls"; then
+    pass "verify_install_media checks the target disk's Nix store"
+else fail "target store routing: rc=$rc calls=$(cat "$work/store-calls")"; fi
 
 # 2. Damaged paths are named.
 fresh /nix/store/bbb-bash /nix/store/ccc-abora

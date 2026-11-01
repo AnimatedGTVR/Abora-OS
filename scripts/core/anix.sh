@@ -423,10 +423,13 @@ git_available_for_config() {
 }
 
 config_is_git_repo() {
-    git_available_for_config && {
-        git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
-            || run_as_root git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1
-    }
+    # This is a read-only status probe. Do not call run_as_root here: on a
+    # machine without sudo that helper intentionally exits, which made
+    # `anix status` disappear whenever the config directory existed but was
+    # not a Git repository. A protected repository is simply not observable
+    # to this unprivileged status check.
+    git_available_for_config \
+        && git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1
 }
 
 config_is_dirty() {

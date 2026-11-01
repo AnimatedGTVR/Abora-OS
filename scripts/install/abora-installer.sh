@@ -460,13 +460,16 @@ install_failure_facts() {
 # a "hash mismatch" halfway through the install (DistroWatch's 4.0 review hit one of these on every attempt).
 # Prints one path per line; the exit status is 0 only when every path is intact.
 damaged_store_paths() {
-    local system="$1" paths out rc=0
-    paths="$(nix-store -qR "$system" 2>/dev/null)" || return 2
+    local system="$1" store_root="${2:-}" paths out rc=0
+    local -a store_args=() verify_cmd=()
+    [[ -n "$store_root" ]] && store_args=(--store "$store_root")
+    paths="$(nix-store "${store_args[@]}" -qR "$system" 2>/dev/null)" || return 2
     [[ -n "$paths" ]] || return 2
     # Batched: a closure is thousands of paths, and one process per path is minutes of overhead. Parallel,
     # because this reads and hashes the whole closure, which is the slow part of the check.
     local jobs; jobs="$(nproc 2>/dev/null || echo 2)"; (( jobs > 4 )) && jobs=4
-    out="$(printf '%s\n' "$paths" | xargs -d '\n' -n 200 -P "$jobs" nix-store --verify-path 2>&1)" || rc=$?
+    verify_cmd=(nix-store "${store_args[@]}" --verify-path)
+    out="$(printf '%s\n' "$paths" | xargs -d '\n' -n 200 -P "$jobs" "${verify_cmd[@]}" 2>&1)" || rc=$?
     local modified
     modified="$(grep -aoE "path '[^']+' was modified" <<<"$out" | sed -E "s/^path '([^']+)' was modified/\1/" | awk '!seen[$0]++')"
     [[ -n "$modified" ]] && printf '%s\n' "$modified"
@@ -480,11 +483,13 @@ damaged_store_paths() {
 
 # Re-fetches the given store paths from the binary cache, replacing damaged copies. Needs a network.
 repair_store_paths() {
-    local path rc=0
+    local store_root="${1:-}" path rc=0
+    local -a store_args=()
+    [[ -n "$store_root" ]] && store_args=(--store "$store_root")
     while IFS= read -r path; do
         [[ "$path" == /nix/store/* ]] || continue
         printf '[repair] %s\n' "$path" >>"$install_log"
-        nix-store --repair-path "$path" >>"$install_log" 2>&1 || rc=1
+        nix-store "${store_args[@]}" --repair-path "$path" >>"$install_log" 2>&1 || rc=1
     done
     return "$rc"
 }
@@ -492,10 +497,10 @@ repair_store_paths() {
 # Checks the finished system before it is copied to the disk. Damaged paths are re-fetched once; whatever
 # cannot be repaired stops the install with advice that fits the cause.
 verify_install_media() {
-    local system="$1" bad
+    local system="$1" store_root="${2:-}" bad
     [[ "${ABORA_INSTALL_SKIP_VERIFY:-0}" == 1 ]] && return 0
     msg "Checking the install media (every package is read once; this can take a few minutes)…"
-    bad="$(damaged_store_paths "$system")"; local rc=$?
+    bad="$(damaged_store_paths "$system" "$store_root")"; local rc=$?
     (( rc == 0 )) && { ok "Install media is intact"; return 0; }
     if (( rc == 2 )); then
         warn "Could not check the packages (details in ${install_log}); continuing."
@@ -503,8 +508,8 @@ verify_install_media() {
     fi
     warn "$(grep -c . <<<"$bad") package(s) do not match their checksum. Trying to fetch clean copies…"
     printf '%s\n' "$bad" | sed 's/^/[damaged] /' >>"$install_log"
-    printf '%s\n' "$bad" | repair_store_paths || true
-    bad="$(damaged_store_paths "$system")"; rc=$?
+    printf '%s\n' "$bad" | repair_store_paths "$store_root" || true
+    bad="$(damaged_store_paths "$system" "$store_root")"; rc=$?
     (( rc == 0 )) && { ok "Damaged packages were replaced"; return 0; }
     (( rc == 2 )) && { warn "Could not re-check the packages (details in ${install_log}); continuing."; return 0; }
     printf '%s\n' "$bad" | sed 's/^/[still damaged] /' >>"$install_log"
@@ -529,7 +534,7 @@ nixos_install_with_healing() {
         grep -qaiE "hash mismatch importing path|is corrupt|bad archive|truncated (gzip|xz|zstd)|NAR hash mismatch in input [^ ]*path:/nix/store" <<<"$fresh" || return 1
         warn "A package was damaged while it was copied. Checking and trying once more…"
         { printf '%s\n' "$(grep -aoE "hash mismatch importing path '[^']+'" <<<"$fresh" | sed -E "s/.*'([^']+)'/\1/")"
-          damaged_store_paths "$system" || true; } | awk 'NF && !seen[$0]++' | repair_store_paths || true
+          damaged_store_paths "$system" /mnt || true; } | awk 'NF && !seen[$0]++' | repair_store_paths /mnt || true
     done
 }
 
@@ -3761,7 +3766,7 @@ run_install() {
 
     msg "Running nixos-install…"
     log_network_snapshot
-    verify_install_media "$system_path"
+    verify_install_media "$system_path" /mnt
     if ! nixos_install_with_healing "$system_path"; then
         die "nixos-install failed. See ${install_log}."
     fi
@@ -4864,7 +4869,7 @@ install_from_flake() {
     [[ "$system_path" == /nix/store/* ]] || die "The build did not produce a system path. See ${install_log}."
 
     msg "Running nixos-install…"
-    verify_install_media "$system_path"
+    verify_install_media "$system_path" /mnt
     if ! nixos_install_with_healing "$system_path"; then
         die "nixos-install failed. See ${install_log}."
     fi

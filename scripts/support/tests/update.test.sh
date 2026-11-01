@@ -9,6 +9,18 @@ set -euo pipefail
 # shellcheck source=../../release/bash-testlib.sh
 source "$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../release" && pwd)/bash-testlib.sh"
 
+# The public updater command is a shell wrapper. Its internal Vanta resolver
+# must have a different executable name or resolve_resolver_bin() discovers
+# the wrapper itself and recursively invokes it with `resolve-ref` arguments.
+if grep -q 'writeShellScriptBin "abora-update"' nix/modules/installed-base.nix \
+  && grep -q 'makeBinaryWrapper .*"$out/bin/abora-update-core"' nix/pkgs/abora-update.nix \
+  && grep -q 'command -v abora-update-core' scripts/support/abora-update.sh \
+  && ! grep -q 'command -v abora-update 2>/dev/null' scripts/support/abora-update.sh; then
+  pass "runtime: public updater and internal resolver have distinct command names"
+else
+  fail "runtime: updater command-name collision would recurse into the shell wrapper"
+fi
+
 # The flake writer test below creates this and later updater tests reuse it.
 tmp_update_flake="$(mktemp -d)"
 testlib_cleanup_paths+=("$tmp_update_flake")

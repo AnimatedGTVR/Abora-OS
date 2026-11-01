@@ -131,7 +131,7 @@ git_fetch_timeout="${ABORA_GIT_FETCH_TIMEOUT:-300}"
 build_timeout="${ABORA_BUILD_TIMEOUT:-3600}"
 switch_timeout="${ABORA_SWITCH_TIMEOUT:-1800}"
 # The channel/version decision logic in resolve_update_ref/
-# guard_against_accidental_downgrade below is delegated to abora-update, the
+# guard_against_accidental_downgrade below is delegated to abora-update-core, the
 # Vanta core of the updater (tools/abora-update), which more of this script
 # moves into over time. It only decides: this script still owns every bit of
 # I/O (git ls-remote, reading VERSION, printing colored UI text). The C#
@@ -145,7 +145,7 @@ resolve_resolver_bin() {
         return 0
     fi
 
-    if candidate="$(command -v abora-update 2>/dev/null)"; then
+    if candidate="$(command -v abora-update-core 2>/dev/null)"; then
         printf '%s\n' "$candidate"
         return 0
     fi
@@ -155,7 +155,7 @@ resolve_resolver_bin() {
         return 0
     fi
 
-    printf '%s\n' abora-update
+    printf '%s\n' abora-update-core
 }
 
 resolver_bin="$(resolve_resolver_bin)"
