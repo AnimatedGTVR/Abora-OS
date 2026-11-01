@@ -2848,7 +2848,8 @@ do_gc() {
             if ! confirm "Delete old Nix generations and garbage collect?" "no"; then
                 abora_warn "Garbage collection cancelled."
                 printf '\n'
-                return 0
+                # Non-zero, so a caller (anix doctor repair) doesn't report a cancelled run as done.
+                return 1
             fi
             run_as_root nix-collect-garbage -d
             ;;

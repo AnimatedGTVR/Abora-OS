@@ -679,8 +679,11 @@ def do_repair(ids: list[str], assume_yes: bool) -> int:
             if input("  Run it? [y/N] ").strip().lower() not in ("y", "yes"):
                 warning("Skipped.")
                 continue
+        # The person already said yes (or passed --yes); the command must not ask again. Without this,
+        # `anix gc old` cancelled its own prompt when stdin wasn't a terminal and the repair said "done".
+        env = {**os.environ, "ANIX_ASSUME_YES": "1"}
         for step in steps:
-            result = subprocess.run(step)
+            result = subprocess.run(step, env=env)
             if result.returncode != 0:
                 error(f"{repair_id}: `{' '.join(step)}` failed (exit {result.returncode})")
                 status = 1

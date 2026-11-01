@@ -335,7 +335,7 @@ def _():
     repair = doctor.findings[0].repair
     assert repair and repair.command[:2] == ["systemctl", "restart"] and repair.after == (["resolvconf", "-u"],), repair
     ran = []
-    def fake_run(step):
+    def fake_run(step, **_kwargs):
         ran.append(step)
         return mock.Mock(returncode=1 if step[-1] == "restart-fails" else 0)
     chain = doctor.Repair("chain", "two steps", ["true", "first"], after=(["true", "second"],))
@@ -347,6 +347,13 @@ def _():
         failed = doctor.do_repair(["broken"], assume_yes=True)
     assert ok == 0 and failed == 1, (ok, failed)
     assert [step[-1] for step in ran] == ["first", "second", "restart-fails"], ran
+    # A confirmed repair must not prompt again: `anix gc old` cancelled itself and the repair said "done".
+    envs = []
+    with mock.patch.object(doctor, "repairs", return_value=[chain]), \
+            mock.patch.object(doctor.subprocess, "run", side_effect=lambda step, **kw: envs.append(kw.get("env") or {}) or mock.Mock(returncode=0)), \
+            silenced():
+        doctor.do_repair(["chain"], assume_yes=True)
+    assert envs and all(env.get("ANIX_ASSUME_YES") == "1" for env in envs), envs
 
 
 @check("runtime: doctor --json is machine-readable and repair runs only listed fixes")
