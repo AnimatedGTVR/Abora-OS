@@ -300,6 +300,10 @@ fi
 printf 'xfconf %s\\n' "\$*" >> "$tmp_desktop_log"
 EOF
 
+# One output named like QEMU's; current xfdesktop keys the backdrop by it, not by monitor0.
+printf '#!/usr/bin/env bash\nprintf "Monitors: 1\\n 0: +Virtual-1 1280/325x800/203+0+0  Virtual-1\\n"\n' \
+  > "$tmp_desktop_bin/xrandr"
+
 chmod +x "$tmp_desktop_bin"/*
 
 run_desktop_wallpaper_seed() {
@@ -371,6 +375,7 @@ done
 
 if grep -q "plasma ${tmp_desktop_wallpaper}" "$tmp_desktop_log" \
 	  && grep -q "xfconf .*${tmp_desktop_wallpaper}" "$tmp_desktop_log" \
+	  && grep -q "xfconf .*monitorVirtual-1/workspace0/last-image.*${tmp_desktop_wallpaper}" "$tmp_desktop_log" \
 	  && grep -q "pcmanfm-qt --set-wallpaper=${tmp_desktop_wallpaper}" "$tmp_desktop_log" \
 	  && grep -q "swaybg -i ${tmp_desktop_wallpaper} -m fill" "$tmp_desktop_log" \
 	  && grep -q "feh --no-fehbg --bg-fill ${tmp_desktop_wallpaper}" "$tmp_desktop_log" \

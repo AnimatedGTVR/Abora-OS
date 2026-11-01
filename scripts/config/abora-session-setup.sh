@@ -465,9 +465,33 @@ seed_xfce() {
         found=1
     done < <(xfconf-query -c xfce4-desktop -l 2>/dev/null | grep '/last-image$' || true)
 
+    # Current xfdesktop keys the backdrop by output name (monitorVirtual-1, monitoreDP-1, ...) and ignores the
+    # old monitor0 key, which was all this set on a fresh install (seen on 4.2: XFCE kept its own wallpaper).
+    local output ws
+    while IFS= read -r output; do
+        [[ -n "$output" ]] || continue
+        for ws in 0 1 2 3; do
+            xfconf-query -c xfce4-desktop -p "/backdrop/screen0/monitor${output}/workspace${ws}/last-image" \
+                -n -t string -s "$default_wallpaper" >/dev/null 2>&1 && found=1
+        done
+    done < <(xfce_output_names)
+
     if [[ "$found" -eq 0 ]]; then
         xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -n -t string -s "$default_wallpaper" >/dev/null 2>&1 || return 1
     fi
+}
+
+# Connected output names as X calls them: xrandr when it's there, else the kernel's DRM connectors.
+xfce_output_names() {
+    if command_exists xrandr && [[ -n "${DISPLAY:-}" ]]; then
+        xrandr --listactivemonitors 2>/dev/null | awk 'NR > 1 { print $NF }'
+        return
+    fi
+    local connector
+    for connector in /sys/class/drm/card*-*; do
+        [[ "$(cat "$connector/status" 2>/dev/null)" == connected ]] || continue
+        basename "$connector" | sed 's/^card[0-9]*-//'
+    done
 }
 
 seed_plasma() {
