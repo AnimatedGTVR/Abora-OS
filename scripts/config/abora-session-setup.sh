@@ -48,6 +48,12 @@ EOF
 }
 
 desktop_signature() {
+    # Some sessions (IceWM on NixOS, for one) export neither variable to the systemd user service that runs
+    # this; ABORA_DESKTOP, set by the service from abora.desktop, names the desktop then.
+    if [[ -z "${XDG_CURRENT_DESKTOP:-}${DESKTOP_SESSION:-}" && -n "${ABORA_DESKTOP:-}" ]]; then
+        printf '%s:%s\n' "$ABORA_DESKTOP" "$ABORA_DESKTOP"
+        return
+    fi
     printf '%s:%s\n' "${XDG_CURRENT_DESKTOP:-}" "${DESKTOP_SESSION:-}"
 }
 
@@ -480,6 +486,29 @@ seed_feh() {
     feh --no-fehbg --bg-fill "$default_wallpaper" >/dev/null 2>&1
 }
 
+# IceWM paints its own background (icewmbg) over the root window, so feh's image never shows. Its own
+# setting is persistent; an existing DesktopBackgroundImage (the user's choice) is left alone.
+seed_icewm() {
+    local prefs="${HOME}/.icewm/prefoverride"
+    if ! grep -qs '^[[:space:]]*DesktopBackgroundImage' "$prefs"; then
+        mkdir -p "$(dirname "$prefs")"
+        printf 'DesktopBackgroundImage="%s"\nDesktopBackgroundScaled=1\n' "$default_wallpaper" >> "$prefs"
+    fi
+    if command_exists icewmbg && [[ -n "${DISPLAY:-}" ]]; then
+        icewmbg -r >/dev/null 2>&1 || true
+    fi
+}
+
+# A background feh paints on the root window lasts only for this X session, so it is applied at every
+# login: the user's own (feh writes ~/.fehbg unless told not to), else Abora's.
+apply_feh_background() {
+    if [[ -x "${HOME}/.fehbg" ]]; then
+        "${HOME}/.fehbg" >/dev/null 2>&1
+    else
+        seed_feh
+    fi
+}
+
 seed_swaybg() {
     command_exists swaybg || return 1
     [[ -n "${WAYLAND_DISPLAY:-}" ]] || return 1
@@ -606,17 +635,19 @@ main() {
                 seed_swaybg && mark_seeded
             fi
             ;;
+        *icewm*:* | *:icewm*)
+            if ! already_seeded; then
+                seed_icewm && mark_seeded || true
+            fi
+            ;;
         *i3*:* | *:i3* | \
         *awesome*:* | *:awesome* | \
         *Openbox*:* | *openbox*:* | *:openbox* | *:Openbox* | \
         *bspwm*:* | *:bspwm* | \
         *qtile*:* | *:qtile* | \
         *fluxbox*:* | *:fluxbox* | \
-        *icewm*:* | *:icewm* | \
         *herbstluftwm*:* | *:herbstluftwm*)
-            if ! already_seeded; then
-                seed_feh && mark_seeded || true
-            fi
+            apply_feh_background || true
             ;;
         *Hyprland*:* | *hyprland*:* | *:hyprland* | *:Hyprland* | \
         *sway*:* | *:sway* | *:sway-uwsm* | \

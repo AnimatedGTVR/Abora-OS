@@ -635,6 +635,11 @@ in
 
   };
 
+  # Every desktop reads the Abora wallpaper from /run/current-system/sw/share/backgrounds/abora, but NixOS only
+  # links selected share/ directories into the system path, and only some desktop modules (COSMIC, for one)
+  # add share/backgrounds. A minimal IceWM install had no wallpaper at all.
+  environment.pathsToLink = lib.mkIf graphical [ "/share/backgrounds" "/share/abora" ];
+
   environment.systemPackages = with pkgs; [
     aboraApps
     aboraCustomPackages
@@ -715,6 +720,8 @@ in
     wantedBy = [ "graphical-session.target" ];
     partOf = [ "graphical-session.target" ];
     environment.ABORA_SESSION_SETUP_WAIT = "10";
+    # The session's own XDG_CURRENT_DESKTOP/DESKTOP_SESSION don't always reach user services.
+    environment.ABORA_DESKTOP = desktop;
     serviceConfig = {
       Type = "oneshot";
       ExecStart = "${aboraSessionSetup}/bin/abora-session-setup";

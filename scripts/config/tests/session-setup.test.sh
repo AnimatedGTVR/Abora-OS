@@ -329,6 +329,27 @@ run_desktop_wallpaper_seed "sway" "sway"
 
 run_desktop_wallpaper_seed "i3" "i3"
 
+# feh's background lasts one X session, so i3 and friends get it at every login, and a user's own ~/.fehbg wins.
+# IceWM paints over feh with icewmbg; it gets its own persistent setting. (Found on a 4.2 minimal IceWM VM.)
+run_desktop_wallpaper_seed "i3" "i3"
+feh_runs="$(grep -c "feh --no-fehbg" "$tmp_desktop_log" || true)"
+printf '#!/bin/sh\nprintf "user-fehbg\\n" >> "%s"\n' "$tmp_desktop_log" > "$tmp_desktop_home/.fehbg"
+chmod +x "$tmp_desktop_home/.fehbg"
+run_desktop_wallpaper_seed "i3" "i3"
+rm -f "$tmp_desktop_home/.fehbg"
+# The real IceWM session exports neither XDG_CURRENT_DESKTOP nor DESKTOP_SESSION to the user service.
+HOME="$tmp_desktop_home" XDG_STATE_HOME="$tmp_desktop_state/icewm-unset" XDG_RUNTIME_DIR="$tmp_desktop_wallpaper_test/runtime-icewm" \
+  XDG_CURRENT_DESKTOP= DESKTOP_SESSION= ABORA_DESKTOP=icewm DISPLAY=":99" PATH="$tmp_desktop_bin:/usr/bin:/bin" \
+  ABORA_DEFAULT_WALLPAPER="$tmp_desktop_wallpaper" ABORA_DEFAULT_DARK_WALLPAPER="$tmp_desktop_wallpaper" \
+  ABORA_THEME_SYNC_SCRIPT="/no/theme-sync" bash scripts/abora-session-setup.sh >/dev/null 2>&1 || true
+if [[ "$feh_runs" -ge 2 ]] && grep -q "user-fehbg" "$tmp_desktop_log" \
+  && grep -q "DesktopBackgroundImage=\"${tmp_desktop_wallpaper}\"" "$tmp_desktop_home/.icewm/prefoverride" \
+  && grep -q "DesktopBackgroundScaled=1" "$tmp_desktop_home/.icewm/prefoverride"; then
+  pass "runtime: X window managers get the wallpaper every login; IceWM gets its own setting"
+else
+  fail "runtime: X window managers get the wallpaper every login; IceWM gets its own setting"
+fi
+
 # swaybg and feh are started in the background, so their fake log lines can land after the seeders return
 # (seen under load during an ISO build). Wait for them briefly instead of racing.
 for _ in $(seq 50); do
@@ -342,7 +363,7 @@ if grep -q "plasma ${tmp_desktop_wallpaper}" "$tmp_desktop_log" \
 	  && grep -q "swaybg -i ${tmp_desktop_wallpaper} -m fill" "$tmp_desktop_log" \
 	  && grep -q "feh --no-fehbg --bg-fill ${tmp_desktop_wallpaper}" "$tmp_desktop_log" \
 	  && [[ -f "$tmp_desktop_state/sway-sway/abora/wallpaper-seed" ]] \
-	  && [[ -f "$tmp_desktop_state/i3-i3/abora/wallpaper-seed" ]]; then
+	  && [[ ! -f "$tmp_desktop_state/i3-i3/abora/wallpaper-seed" ]]; then
 	  pass "runtime: non-GNOME desktop wallpaper seeders call the right tools"
 	else
 	  fail "runtime: non-GNOME desktop wallpaper seeders call the right tools"
