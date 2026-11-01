@@ -329,6 +329,13 @@ run_desktop_wallpaper_seed "sway" "sway"
 
 run_desktop_wallpaper_seed "i3" "i3"
 
+# swaybg and feh are started in the background, so their fake log lines can land after the seeders return
+# (seen under load during an ISO build). Wait for them briefly instead of racing.
+for _ in $(seq 50); do
+  grep -q "swaybg -i" "$tmp_desktop_log" && grep -q "feh --no-fehbg" "$tmp_desktop_log" && break
+  sleep 0.1
+done
+
 if grep -q "plasma ${tmp_desktop_wallpaper}" "$tmp_desktop_log" \
 	  && grep -q "xfconf .*${tmp_desktop_wallpaper}" "$tmp_desktop_log" \
 	  && grep -q "pcmanfm-qt --set-wallpaper=${tmp_desktop_wallpaper}" "$tmp_desktop_log" \
