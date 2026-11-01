@@ -453,7 +453,8 @@ install_failure_facts() {
     {
         grep -aoE "builder for '[^']+\.drv' failed[^.]*" <<<"$text" | tail -n 3 | sed 's/^/Failed build: /'
         grep -aoE "Cannot build '[^']+\.drv'" <<<"$text" | tail -n 2 | sed 's/^/Failed build: /'
-        grep -aoE "hash mismatch [^:]*'[^']+'" <<<"$text" | tail -n 3 | sed 's/^/Hash mismatch: /'
+        # "importing path" mismatches are reported once, as "Corrupt path" below.
+        grep -aoE "hash mismatch [^:]*'[^']+'" <<<"$text" | grep -av "importing path" | tail -n 3 | sed 's/^/Hash mismatch: /'
         grep -aoE "hash mismatch importing path '[^']+'" <<<"$text" | tail -n 3 | sed 's/^/Corrupt path: /'
         grep -aE '^[[:space:]]*(specified|got):[[:space:]]+(sha256|sha512)' <<<"$text" | tail -n 4 | sed -E 's/^[[:space:]]+//; s/^/  /'
     } | awk '!seen[$0]++'
@@ -610,16 +611,31 @@ log_target_partitions() {
     while IFS= read -r name; do
         [[ -n "$name" ]] && busy["$name"]=1
     done < <(boot_media_disks)
-    lsblk -rpno NAME,TYPE,FSTYPE,RM,TRAN,SIZE,LABEL,PKNAME 2>/dev/null \
-        | while read -r dev type fstype rm tran size label parent; do
-            [[ "$type" == "part" ]] || continue
+    # -P (KEY="value" pairs), not -r: -r prints empty fields as nothing, and a partition's TRAN is always
+    # empty, so `read` shifted every later column. The parent came out empty ("bad array subscript", and the
+    # boot stick was no longer excluded) and the label showed the wrong field (seen on a 4.2 test VM).
+    local line dev type fstype rm size label parent tran
+    lsblk -Ppno NAME,TYPE,FSTYPE,RM,SIZE,LABEL,PKNAME 2>/dev/null \
+        | while IFS= read -r line; do
+            dev="$(lsblk_field NAME "$line")"; type="$(lsblk_field TYPE "$line")"
+            fstype="$(lsblk_field FSTYPE "$line")"; rm="$(lsblk_field RM "$line")"
+            size="$(lsblk_field SIZE "$line")"; label="$(lsblk_field LABEL "$line")"
+            parent="$(lsblk_field PKNAME "$line")"
+            [[ "$type" == "part" && -n "$parent" ]] || continue
+            tran="$(lsblk -dno TRAN "$parent" 2>/dev/null | tr -d '[:space:]')"
             [[ "$rm" == "1" || "$tran" == "usb" ]] || continue
             case "$fstype" in vfat|exfat|ntfs|ext4|ext3|ext2|btrfs) ;; *) continue ;; esac
             [[ -n "${busy[${parent##*/}]:-}" ]] && continue
-            # lsblk -r escapes spaces in labels as \x20.
-            label="${label//\\x20/ }"
             printf '%s|%s %s (%s)\n' "$dev" "$size" "${label:-no label}" "$fstype"
         done
+}
+
+# One value from an `lsblk -P` line, with lsblk's \xNN escapes decoded (labels can hold spaces and quotes).
+lsblk_field() {
+    local key="$1" line="$2" value
+    [[ "$line" =~ (^|[[:space:]])${key}=\"([^\"]*)\" ]] || return 0
+    value="${BASH_REMATCH[2]}"
+    printf '%b' "$value"
 }
 
 # Copies the install and config logs, plus a redacted support report, onto a
@@ -678,6 +694,16 @@ failed_install_menu() {
             printf '  %bInstall Failed%b\n\n' "${B}${CE}" "$R"
         fi
         err "$reason"
+        # die() prints these too, but this screen clears it first; without them here the user never saw
+        # them (found on a 4.2 test VM).
+        local hint facts
+        hint="$(install_failure_hint "$install_log" 2>/dev/null || true)"
+        facts="$(install_failure_facts "$install_log" 2>/dev/null || true)"
+        [[ -n "$hint" ]] && printf '  %bLikely cause:%b %s\n' "${D}${CG}" "$R" "$hint"
+        if [[ -n "$facts" ]]; then
+            printf '\n  %bWhat failed%b\n' "${B}${CY}" "$R"
+            printf '%s\n' "$facts" | sed 's/^/    /'
+        fi
         printf '  %bLog: %s%b\n\n' "${D}${CG}" "$install_log" "$R"
         draw_failure_log_summary "$install_log"
         if declare -F draw_log_tail >/dev/null 2>&1 && [[ -f "$install_log" ]]; then
@@ -3692,9 +3718,18 @@ run_install() {
 
     progress_line 5 "Starting"
     msg "Running final safety checks…"
-    if ! check_install_environment final >>"$install_log" 2>&1; then
-        die "Preflight failed before partitioning. See ${install_log}."
+    local preflight_out preflight_failed
+    preflight_out="$(mktemp)"
+    if ! check_install_environment final >"$preflight_out" 2>&1; then
+        cat "$preflight_out" >>"$install_log"
+        # Name the failed checks: on a VM with the network pulled the only message was "See the log", with the
+        # reason (the stable release needs internet) buried in it.
+        preflight_failed="$(sed 's/\x1b\[[0-9;]*m//g' "$preflight_out" | sed -n 's/^[[:space:]]*✗[[:space:]]*//p' | paste -sd ' ' -)"
+        rm -f "$preflight_out"
+        die "Nothing was changed on the disk. ${preflight_failed:-A safety check failed before partitioning.} (details in ${install_log})"
     fi
+    cat "$preflight_out" >>"$install_log"
+    rm -f "$preflight_out"
 
     msg "Preparing target disk…"
     if [[ "$install_disk_mode" == "existing" ]]; then
