@@ -91,13 +91,18 @@ Everything below is open. Boxes are ticked when done.
   `make check` fails if the ISO, installer, Nix modules or tools mention it. See
   [abora-break](testing/abora-break.md). Unit-tested only; its first real use is gate row 9.
 
+- [ ] **Release ISOs install onto the `edge` channel.** Nothing sets `ABORA_RELEASE_STAGE`, so the installer
+  always takes its `alpha` default and saves `edge` (the GNOME/BIOS test install reported `Update channel: edge`;
+  v4.1 installs saved `unstable`). The tagged v4.2 ISO must install onto `stable`.
+- [ ] Rebuild the ISO with the theme/wallpaper copy fix and re-run row 2 once
+
 **Release housekeeping**
 - [x] The v4.1 entry's `<RELEASE DATE>` is filled (2026-10-03)
 - [ ] Fill the v4.2 `<RELEASE DATE>` in `RELEASE_NOTES.md` and remove the **Draft** banner when the gate passes
 - [x] v4.1.1 never shipped; its release-notes section now says the work is included in 4.2 and claims no tag
 - [ ] Tag `v4.2` and watch the release workflow build the ISO, checksums and manifest
 - [ ] Website and GitHub releases agree on the release (row 1); the website's `/security` page matches the
-  security notice
+  security notice (Checked 2026-11-01: `Abora-OS-website` has no `/security` page yet; add one or drop this.)
 - [x] `docs/development/edge-branch.md` tells testers to open a public issue for any regression; security bugs
   must go through `SECURITY.md` instead
 
@@ -147,6 +152,11 @@ failure class, not the undocumented root cause of the original 4.0 incident.
 | Updater resolver packaging fix | `abora-2026.10.31-x86_64-v4.2.iso` (`d3ca7a9e6f11…5b186a`) / dirty tree at `50fe092f243f` | Build and checks pass; installed update pending | The public `abora-update` wrapper and internal Vanta resolver no longer share an executable name; the resolver is `abora-update-core`. Its Nix package built, resolved `edge`, and contains no colliding `abora-update` binary. The ISO was rebuilt with the fix; a full installed-system update remains required. |
 | Latest rebuilt ISO BIOS smoke test | `abora-2026.10.31-x86_64-v4.2.iso` (`d3ca7a9e6f11…5b186a`) / dirty tree at `50fe092f243f` | Pass | QEMU/KVM with SeaBIOS loaded the Linux 7.3 kernel and initrd from the rebuilt ISO and reached the v4.2 Solstice installer Welcome screen. |
 | v4.1 updater checkout validation against 4.2 | `v4.1` tag's `validate_upstream_checkout`, run on `origin/edge` and on `docs/v4.2-unfinished` | Pass after fix | Before: rejected for refs `edge` and `v4.2`, missing the plan tool's `AboraPlanTool.csproj`, `Program.cs` and `abora-plan-tool-deps.json` (the failure the v4.1 VM hit). After the placeholders: accepted for both refs. The build, switch and reboot on an installed v4.1 system are still row 6. |
+| Row 2 — GNOME, legacy BIOS, whole-disk install | `abora-2026.10.31-x86_64-v4.2.iso` (`d3ca7a9e6f11…5b186a`) / dirty tree at `50fe092f243f` | Pass | Unattended `abora-install --batch` in QEMU/KVM with SeaBIOS, fresh 32 GiB disk: installed in 11 min, booted from disk through the Abora boot splash (row 17's splash part) to the GDM greeter. GDM shows the NixOS snowflake logo, not Abora's. |
+| Row 9 — `anix doctor` with `abora-break` | same GNOME/BIOS install | Pass after fixes | Detected: `network-dns`, `services`, `abora-file-theme-sync.sh`, `disk-readonly`. Repairs `reset-failed` and `rebuild` fixed theirs; `restart-networkmanager` did **not** fix DNS (stale resolv.conf survives the restart), fixed by running `resolvconf -u` after it and re-verified. `full-esp` needs UEFI and `wrong-gpu` a GPU the doctor can see: still to run. |
+| Row 10 — `anix package` | same | Pass | `install hello` ran without a rebuild, `uninstall` removed it, `keep` + `anix apply` committed generation 2 → 3 with hello in the system. |
+| Row 8 — `anix undo` and `--keep-edits` | same | Pass after fix | First `anix undo` ended `rollback-failed`: the installer had copied themes and wallpapers as symlinks into /etc/static, the build turned them into store-path loops (unreadable from generation 1 on), and ABT's restore hit ELOOP. Fixed in the installer and in ABT; with the fixed ABT, undo restored the config and generation. A bad `anix set keyboard` failed the switch, ABT rolled back to the previous generation, and `anix undo --keep-edits` brought the edit back. A fresh install from a rebuilt ISO must confirm the theme fix. |
+| Row 14 — invalid `anix.nix` | same | Pass | A syntax error stopped `anix apply` before switching; the system stayed on its generation. Also found: `anix set timezone Mars/Olympus_Mons` was accepted and built; now checked against zoneinfo. |
 | Repository script checks | dirty tree at `50fe092f243f` | Pass | `make check` completed with all script checks passing after the target-store integrity fix, read-only `anix status` Git probe fix, and updater command-collision regression test. Vanta-dependent tests were skipped by the host-side script runner because Vanta is unavailable there; the actual Nix-packaged Vanta updater built and passed its install check separately. |
 
 ## Carried over from 4.1 Horizon

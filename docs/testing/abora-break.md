@@ -25,11 +25,11 @@ abora-break --print stopped-dns                           # show the script, run
 | Fault | What it does | `anix doctor` should report |
 | --- | --- | --- |
 | `full-esp` | fills `/boot` until 32 MB is free (UEFI only) | `boot-space` warn, repair `gc-generations` |
-| `stopped-dns` | points `/etc/resolv.conf` at `192.0.2.1`; the route stays up | `network-dns` fail, repair `restart-networkmanager` |
+| `stopped-dns` | points `/etc/resolv.conf` at `192.0.2.1`; the route stays up | `network-dns` fail, repair `restart-networkmanager` (restarts NetworkManager, then `resolvconf -u`) |
 | `failed-unit` | starts `abora-break-test`, a unit that exits 1 | `services` fail, repair `reset-failed` |
 | `wrong-gpu` | sets `abora.gpu` to a driver the VM doesn't load | `gpu-driver` fail (QEMU's virtio GPU isn't detected, so this needs a passed-through GPU) |
 | `missing-abora-file` | removes `/etc/abora/theme-sync.sh` | `abora-file-theme-sync.sh` fail, repair `rebuild` |
-| `read-only-root` | remounts `/` read-only | `disk-readonly` fail |
+| `read-only-root` | emergency read-only remount (SysRq u); `restore` reboots the VM, since ext4 won't go back to read-write | `disk-readonly` fail |
 
 For each fault: break it, run `anix doctor`, check the finding, run `anix doctor repair` where one is
 offered, run `anix doctor` again, then `restore` whatever the repair didn't undo. Backups are kept in
