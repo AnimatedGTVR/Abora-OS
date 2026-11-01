@@ -500,6 +500,11 @@ in
     theme = "abora";
     themePackages = [ aboraPlymouthTheme ];
   };
+  # GDM's built-in greeter defaults show the NixOS snowflake. dconf reads the profile's databases in order,
+  # so one placed first wins.
+  programs.dconf.profiles.gdm.databases = lib.mkIf config.services.displayManager.gdm.enable (lib.mkBefore [
+    { settings."org/gnome/login-screen".logo = "${aboraPlymouthTheme}/share/plymouth/themes/abora/abora-logo.png"; }
+  ]);
 
   hardware.enableAllFirmware = lib.mkDefault true;
   hardware.enableRedistributableFirmware = lib.mkDefault true;
