@@ -98,6 +98,25 @@ else
   fail "runtime: anix set timezone rejects names that aren't in zoneinfo"
 fi
 
+# Abora's own files under abora/ are not the user's secrets. Found on a v4.1 -> 4.2 upgrade test: installer.sh's
+# `local password="$1"` made the pre-update snapshot warn and, with nobody to answer, cancel.
+tmp_anix_secret_dir="$tmp_ok/anix-secret"
+mkdir -p "$tmp_anix_secret_dir/abora"
+printf '%s\n' '{ ... }: { networking.hostName = "box"; }' > "$tmp_anix_secret_dir/configuration.nix"
+printf '%s\n' 'hash_password() { local password="$1"; }' > "$tmp_anix_secret_dir/abora/installer.sh"
+anix_secret_save() {
+  ANIX_NO_SUDO=1 ANIX_ASSUME_YES=1 ANIX_SYSTEM_CONFIG="$tmp_anix_secret_dir" ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+    scripts/anix.sh save "test" 2>&1
+}
+abora_only_out="$(anix_secret_save)"
+printf '%s\n' 'services.foo.password = "hunter2";' >> "$tmp_anix_secret_dir/configuration.nix"
+user_secret_out="$(anix_secret_save)"
+if ! grep -q "Possible secret" <<<"$abora_only_out" && grep -q "Possible secret" <<<"$user_secret_out"; then
+  pass "runtime: anix's secret scan skips Abora's own files and still catches the user's"
+else
+  fail "runtime: anix's secret scan skips Abora's own files and still catches the user's"
+fi
+
 tmp_anix_save_dir="$tmp_ok/anix-save"
 
 mkdir -p "$tmp_anix_save_dir"

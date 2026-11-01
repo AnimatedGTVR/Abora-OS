@@ -2065,6 +2065,13 @@ ensure_flake_layout || {
     exit 1
 }
 
+# In a Git repo Nix only sees tracked files, and the steps above may have just written flake.nix. Found on a
+# v4.1 VM upgrading to 4.2: v4.1's pre-update snapshot runs `git init` and can then cancel (its secret scan
+# flags installer.sh), leaving an empty repo, and `nix flake update` failed with "flake.nix ... is not tracked".
+if git -C "$config_dir" rev-parse --git-dir >/dev/null 2>&1; then
+    git -C "$config_dir" add -A 2>/dev/null || true
+fi
+
 abora_wu_run "Updating flake inputs" "/tmp/abora-update-flake.log" -- \
     nix --extra-experimental-features "nix-command flakes" flake update --flake "$config_dir" || {
     explain_update_failure "/tmp/abora-update-flake.log"

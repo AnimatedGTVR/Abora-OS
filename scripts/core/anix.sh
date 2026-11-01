@@ -472,9 +472,12 @@ warn_possible_secrets() {
 
     local matches=""
     matches="$(
+        # abora/ is Abora's own files, rewritten by every update: its scripts hold lines like
+        # `local password="$1"`, which cancelled the pre-update snapshot on a v4.1 -> 4.2 upgrade test.
         grep -RInE \
             --exclude-dir=.git \
             --exclude-dir=.anix \
+            --exclude-dir=abora \
             --exclude='*.lock' \
             '(api[_-]?key|token|secret|password|passwd)[[:space:]]*[:=]' \
             "$config_dir" 2>/dev/null | head -n 8 || true
