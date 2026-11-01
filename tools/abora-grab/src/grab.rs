@@ -38,6 +38,14 @@ fn exact(query: &str, c: &Candidate) -> bool {
         .any(|s| normalize(s) == q)
 }
 
+/// The source and id Abora's catalog pins `query` to, if any.
+pub fn catalog(query: &str) -> Option<(Kind, &'static str)> {
+    CATALOG
+        .iter()
+        .find(|(name, ..)| normalize(name) == normalize(query))
+        .map(|&(_, kind, id)| (kind, id))
+}
+
 pub fn available(runner: &dyn Runner) -> Vec<Kind> {
     Kind::ALL
         .into_iter()
@@ -59,10 +67,7 @@ pub fn resolve(
     }
 
     if only.is_none() {
-        if let Some(&(_, kind, id)) = CATALOG
-            .iter()
-            .find(|(name, ..)| normalize(name) == normalize(query))
-        {
+        if let Some((kind, id)) = catalog(query) {
             if have.contains(&kind) {
                 return Ok(Resolution::Found {
                     kind,

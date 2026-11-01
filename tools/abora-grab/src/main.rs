@@ -112,12 +112,22 @@ fn sudo_hint(kind: Kind, settings: &Settings) -> Option<&'static str> {
         .then_some("  this source needs root; try again with sudo")
 }
 
+/// The installed id for `name` from this source, also under the id Abora's catalog pins it to
+/// ("zen-browser" is installed as app.zen_browser.zen, whose display name is just "Zen").
+fn installed(kind: Kind, name: &str, runner: &mut dyn Runner) -> Option<String> {
+    providers::installed(kind, name, runner).or_else(|| {
+        grab::catalog(name)
+            .filter(|(pinned, _)| *pinned == kind)
+            .and_then(|(_, id)| providers::installed(kind, id, runner))
+    })
+}
+
 fn install(name: &str, a: &Args, runner: &mut dyn Runner) -> bool {
     for kind in grab::available(runner) {
         if a.only.is_some_and(|o| o != kind) {
             continue;
         }
-        if let Some(id) = providers::installed(kind, name, runner) {
+        if let Some(id) = installed(kind, name, runner) {
             println!(
                 "grab: {name} is already installed ({}: {id})",
                 label(kind, runner)
@@ -130,7 +140,10 @@ fn install(name: &str, a: &Args, runner: &mut dyn Runner) -> bool {
             let source = label(kind, runner);
             println!("grab: {name} -> {source} {id} ({why})");
             let cmd = providers::install_command(kind, &id, runner, &a.settings);
-            match execute(&cmd, a.dry_run, runner) {
+            let prepared = providers::prepare_commands(kind, &a.settings)
+                .iter()
+                .try_for_each(|prep| execute(prep, a.dry_run, runner));
+            match prepared.and_then(|()| execute(&cmd, a.dry_run, runner)) {
                 Ok(()) if a.dry_run => true,
                 Ok(()) => {
                     println!("grab: installed {name} from {source}");
@@ -176,7 +189,7 @@ fn remove(name: &str, a: &Args, runner: &mut dyn Runner) -> bool {
         if a.only.is_some_and(|o| o != kind) {
             continue;
         }
-        if let Some(id) = providers::installed(kind, name, runner) {
+        if let Some(id) = installed(kind, name, runner) {
             let source = label(kind, runner);
             let cmd = providers::remove_command(kind, &id, &a.settings);
             return match execute(&cmd, a.dry_run, runner) {
@@ -360,8 +373,19 @@ mod tests {
         assert!(install("zen-browser", &args(&["zen-browser"]), &mut f));
         assert_eq!(
             f.ran,
-            ["flatpak install --noninteractive --user flathub app.zen_browser.zen"]
+            [
+                "flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo",
+                "flatpak install --noninteractive --user flathub app.zen_browser.zen"
+            ]
         );
+    }
+
+    #[test]
+    fn a_zen_installed_by_abora_counts_as_installed() {
+        // Abora's first boot installs Zen system-wide; flatpak lists it by id and its name, "Zen".
+        let mut f = runner(&[("flatpak list", Ok("app.zen_browser.zen\tZen\n"))]);
+        assert!(install("zen-browser", &args(&["zen-browser"]), &mut f));
+        assert!(f.ran.is_empty());
     }
 
     #[test]

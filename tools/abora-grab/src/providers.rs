@@ -126,6 +126,27 @@ pub fn install_command(
     cmd
 }
 
+/// Commands that must succeed before `install_command`. A per-user Flatpak install needs Flathub in the
+/// user's own installation: Abora only sets it up system-wide, so without this the install fails with
+/// "No remote refs found for 'flathub'".
+pub fn prepare_commands(kind: Kind, settings: &Settings) -> Vec<Vec<String>> {
+    match kind {
+        Kind::Flatpak => vec![[
+            "flatpak",
+            "remote-add",
+            scope_flag(settings),
+            "--if-not-exists",
+            "flathub",
+            FLATHUB_REPO,
+        ]
+        .map(String::from)
+        .to_vec()],
+        Kind::Nix | Kind::Snap => Vec::new(),
+    }
+}
+
+const FLATHUB_REPO: &str = "https://dl.flathub.org/repo/flathub.flatpakrepo";
+
 pub fn remove_command(kind: Kind, id: &str, settings: &Settings) -> Vec<String> {
     match kind {
         Kind::Nix => {
