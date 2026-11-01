@@ -49,7 +49,11 @@ show_current_desktop() {
     local config_dir local_module current
     config_dir="${ABORA_SYSTEM_CONFIG:-/etc/nixos}"
     local_module="${config_dir}/abora-local.nix"
-    if [[ -f "$local_module" ]]; then
+    # anix.desktop, when anix.nix sets it, is the one that takes effect (it forces abora.desktop).
+    if [[ -f "${config_dir}/anix.nix" ]]; then
+        current="$(sed -nE 's|^[[:space:]]*anix\.desktop[[:space:]]*=[[:space:]]*"([^"]+)".*|\1|p' "${config_dir}/anix.nix" | head -n1)"
+    fi
+    if [[ -z "${current:-}" && -f "$local_module" ]]; then
         current="$(sed -nE 's|^[[:space:]]*abora\.desktop[[:space:]]*=[[:space:]]*"([^"]+)".*|\1|p' "$local_module" | head -n1)"
     fi
     if [[ -z "${current:-}" ]]; then

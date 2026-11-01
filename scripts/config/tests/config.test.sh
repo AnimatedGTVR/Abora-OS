@@ -69,6 +69,22 @@ else
   fail "runtime: abora config show reads abora-local.nix"
 fi
 
+# anix.nix forces abora.desktop when it sets anix.desktop (the installer writes one), so a desktop change
+# must update it too. Found on a 4.2 VM: `anix desktop set plasma` left anix.desktop = "gnome" and the
+# rebuild silently stayed on GNOME.
+printf '{ ... }:\n{\n  anix.desktop = "gnome";\n  anix.timezone = "UTC";\n}\n' > "$tmp_config/anix.nix"
+if ABORA_NO_SUDO=1 ABORA_NO_ABT=1 \
+  ABORA_SYSTEM_CONFIG="$tmp_config" \
+  scripts/abora-config.sh set desktop plasma >/dev/null 2>&1 \
+  && grep -q 'abora.desktop = "plasma";' "$tmp_config_module" \
+  && grep -q 'anix.desktop = "plasma";' "$tmp_config/anix.nix" \
+  && grep -q 'anix.timezone = "UTC";' "$tmp_config/anix.nix"; then
+  pass "runtime: abora config set desktop also updates anix.desktop, which overrides it"
+else
+  fail "runtime: abora config set desktop also updates anix.desktop, which overrides it"
+fi
+rm -f "$tmp_config/anix.nix"
+
 if ABORA_NO_SUDO=1 \
   ABORA_SYSTEM_CONFIG="$tmp_config" \
   scripts/abora-config.sh set hostname new-hostname >/dev/null 2>&1 \
