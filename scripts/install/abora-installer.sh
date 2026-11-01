@@ -4149,7 +4149,7 @@ release_welcome() {
     while true; do
         release_header "Welcome"
         msg "Fast release installer. Pick the basics; Abora handles the rest."
-        msg "This installer erases one selected disk and installs the ${desktop_label} edition."
+        msg "You pick the disk and the desktop; nothing changes until you confirm."
         printf '\n'
         menu "Start" \
             "Install Abora OS|Guided install to a disk" \

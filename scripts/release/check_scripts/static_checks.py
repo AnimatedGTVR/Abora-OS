@@ -362,6 +362,12 @@ CHECKS: tuple[Check, ...] = (
         grep('-Fq', 'stable|final|release) abora_release_channel=stable ;;', 'scripts/install/abora-installer.sh'),
         grep('-qx', '/RELEASE_STAGE', '.gitignore'),
     ),
+    # 4.2 ships one ISO and the installer asks for the desktop; its welcome screen still said "installs the
+    # COSMIC edition" (seen on the 2026-11-01 ISO).
+    Check(
+        'static: the installer welcome screen does not describe an edition',
+        not_(grep('-q', 'installs the ${desktop_label} edition', 'scripts/install/abora-installer.sh')),
+    ),
     # The live system's /etc/abora themes and wallpapers are symlinks into /etc/static; copied as symlinks,
     # the installed flake turns them into store-path loops (found on a 4.2 test install).
     Check(
