@@ -11,6 +11,11 @@ Edge is Abora OS's development channel. Changes here can be incomplete, experime
 
 ## Reporting issues
 
-Open an issue with reproduction steps, expected behavior, actual behavior, and the affected desktop or hardware. Avoid posting passwords, tokens, or other sensitive logs.
+For ordinary regressions, open an issue with reproduction steps, expected behavior, actual behavior, and the
+affected desktop or hardware. Avoid posting passwords, tokens, or other sensitive logs.
+
+Do **not** open a public issue for a suspected security vulnerability. Follow
+[SECURITY.md](../../SECURITY.md) and use GitHub Private Vulnerability Reporting, when available, so users are
+not exposed before a fix is ready.
 
 Stable releases are intended for regular use; Edge is for testing changes before they are considered for Stable.

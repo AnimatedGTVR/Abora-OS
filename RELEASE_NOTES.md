@@ -74,15 +74,20 @@ direct, constructive criticism.
 sudo anix update
 ```
 
-- **On 4.1 or 4.1.1:** one update is enough. The updater hands over to 4.2's own updater, which installs the
-  new files (ABT, the shared core) along with everything else.
+- **On 4.1:** the published updater currently cannot start the handoff: its internal resolver collides with
+  the public `abora-update` command and the old `unstable` channel no longer resolves to `edge`. Do not claim
+  a one-command upgrade until a tested compatibility hotfix or remote shim has shipped.
 - **On 4.0:** run `sudo abora update` twice. The 4.0 updater can't hand over mid-update, so the first run
   installs the newer updater and the second uses it.
 
-Release files, once published: `abora-<edition>-<stamp>-x86_64-v4.2.iso` for each edition, with
+Release files, once published: the universal `abora-<stamp>-x86_64-v4.2.iso`, with
 `SHA256SUMS-v4.2.txt`. Check the ISO against it before writing the USB stick.
 
 ## Known limitations
+
+- Published v4.1 systems install and boot, but cannot yet enter the v4.2 update path. Failed attempts leave
+  the installed `flake.nix` untouched. They must first install a compatibility hotfix using the legacy C#
+  resolver, then update to v4.2; publish and test that hotfix before release.
 
 - The install matrix (every edition, UEFI and BIOS, GPU choices) has not been run on 4.2 yet.
 - ABT can't protect a first install: there's no earlier generation to go back to.
@@ -92,13 +97,12 @@ Release files, once published: `abora-<edition>-<stamp>-x86_64-v4.2.iso` for eac
 
 ---
 
-# Abora OS v4.1.1
+# Unreleased v4.1.1 work (included in v4.2)
 
-A small update to Horizon that fixes how `abora update` handles files.
+This update was planned but never tagged or published. Its updater work is included in v4.2 instead; there is
+no v4.1.1 release to install.
 
-Released: **<RELEASE DATE>** · Tag: `v4.1.1` · Channel: `stable`
-
-## Why this update
+## Why the work was needed
 
 Until now, `abora update` copied a fixed list of files, and that list came from the version you already had
 installed. If a new release added a file, it never reached your system. If a release removed or renamed a
@@ -111,23 +115,11 @@ files. 4.1.1 fixes the updater first so v4.2 can arrive safely.
   now installs everything the release needs, including files your old updater didn't know about. Nothing is
   downloaded twice.
 - **Old files are cleaned up.** Each update keeps a list of the files it installed in
-  `/etc/nixos/abora/.abora-installed-files`. The next update removes anything on that list that the new release
+  `/etc/nixos/abora/.abora-installed-files`. A later update removes anything on that list that the new release
   no longer ships.
 - **Your files are safe.** Only files on that list are ever removed. Files you created, `apps.nix`, `apps.list`
-  and anything outside `/etc/nixos/abora` are never touched. Your first update after 4.1.1 only writes the list
-  and removes nothing.
-
-## Updating
-
-```
-sudo abora update
-```
-
-- **On 4.1:** one update is enough.
-- **On 4.0:** run `sudo abora update` twice. The 4.0 updater can't switch to the newer updater mid-update, so
-  the first run installs 4.1.1's updater and the second run uses it.
-
-No reinstall is needed, and the ISOs are only refreshed with the new version number.
+  and anything outside `/etc/nixos/abora` are never touched. The first update using this code only writes the
+  list and removes nothing.
 
 ---
 

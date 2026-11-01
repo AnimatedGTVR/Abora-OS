@@ -64,7 +64,7 @@ tagged. Record the ISO name, the commit, and the result in [Validation results](
 
 | Report | State |
 | --- | --- |
-| Install failed with hash mismatches, repeatedly | **Not reproduced.** Needs a 4.0 ISO install attempt to capture the exact message. The 4.2 installer now says which of the three kinds it is and keeps the failing path and hashes. Do not blame the ISO checksum without that message. |
+| Install failed with hash mismatches, repeatedly | **Exact mismatch not reproduced.** A fresh install from the published v4.0.1 ISO was attempted on 2026-10-31. It failed during evaluation for a different, now-understood reason: current nixpkgs rejects the removed `boot.initrd.systemd.enable = false` and `boot.initrd.verbose` options. The 4.2 installer now says which of the three hash-failure kinds it sees and keeps the failing path and hashes. Do not blame the ISO checksum without that message. |
 | Release and version information disagreed | Implemented (above). The website and GitHub releases also need checking at release time (row 1). |
 | Manual partitioning | Fixed in 4.1.1; regression rows 2 and 4. |
 | Desktop editions boot to a TUI installer | Documented in [Installation](wiki/Installation.md). **Decided:** no live desktop session; live sessions don't fit Abora. The live image should drop desktop components the installer doesn't use (needs a Nix build to verify the ISO still installs every edition). |
@@ -74,12 +74,16 @@ tagged. Record the ISO name, the commit, and the result in [Validation results](
 
 Everything below is open. Boxes are ticked when done.
 
-**Verification: nothing here has run on a real install since the installer and config changes**
+**Verification is in progress; use the recorded results below rather than assuming evaluation equals a boot test.**
 - [ ] Release gate rows 1 to 19 above (none recorded in [Validation results](#validation-results) yet)
 - [ ] A real `edge` update on an installed system with the current nixos-unstable, then reboot into the new kernel
 - [ ] Boot test of the removed initrd options: they are checked by evaluation only (nixos-26.05 defaults the
   systemd initrd on, so nothing should change)
 - [ ] Decide whether the corruption check stays on by default (row 19)
+- [x] Fix the release-candidate warning `Could not check the packages`: the target system was built in
+  `/mnt`'s Nix store but the checker queried the live store. Queries, verification and repairs now use the
+  target store, with a regression test. A rebuilt ISO completed the full clean-media scan and install; row 18
+  still needs the deliberately damaged-path test.
 
 **Testing tool**
 - [ ] A way to deliberately **break an installed system**, only to test `anix doctor` and the repairs (full ESP,
@@ -88,20 +92,35 @@ Everything below is open. Boxes are ticked when done.
   modules or anything that is copied to a user's machine. Add a check that fails the build if it is.
 
 **Release housekeeping**
-- [ ] `<RELEASE DATE>` in `RELEASE_NOTES.md` (the v4.2 entry and the v4.1.1 entry), and remove the **Draft** banner
-- [ ] v4.1.1 never shipped; its changes are in 4.2. Fix or drop its `Tag: v4.1.1` entry in the release notes
+- [ ] Fill the v4.2 `<RELEASE DATE>` in `RELEASE_NOTES.md` and remove the **Draft** banner when the gate passes
+- [x] v4.1.1 never shipped; its release-notes section now says the work is included in 4.2 and claims no tag
 - [ ] Tag `v4.2` and watch the release workflow build the ISO, checksums and manifest
 - [ ] Website and GitHub releases agree on the release (row 1); the website's `/security` page matches the
   security notice
-- [ ] `docs/development/edge-branch.md` tells testers to open a public issue for any regression; security bugs
+- [x] `docs/development/edge-branch.md` tells testers to open a public issue for any regression; security bugs
   must go through `SECURITY.md` instead
 
 **Known limits to keep documented**
-- [ ] v4.1 and older cannot `abora update` until 4.2 (new nixpkgs rejects two options they set). They fail before
-  anything changes. Decide whether to publish a `v4.1.2` hotfix tag (the fix is ready in `hotfix/v4.1-nixpkgs`)
+- [ ] A checksum-verified v4.1 ISO still installs and boots, but its saved `unstable` update channel cannot be
+  resolved by the v4.1 updater after the repository renamed that branch to `edge`; it fails before changing
+  `flake.nix`. Restoring a remote `unstable` compatibility ref or publishing a documented v4.1 hotfix path is
+  required before the removed-initrd-options update/reboot test can start. The initrd-only fix is in
+  `hotfix/v4.1-nixpkgs`, but that branch alone does not repair the old updater's channel resolution. An
+  `ABORA_RELEASE_CHANNEL=edge` override still failed resolution, and `abora install pre-alpha --ref edge`
+  reached its confirmation but then failed in the old resolver with `This command does not take extra
+  arguments yet`; neither route changed the installed flake. Explicitly selecting the C# resolver with
+  `ABORA_UPDATE_RESOLVER_BIN=abora-update-resolver` clears that collision and reaches checkout validation.
+  A direct jump to current `edge` is still rejected because it no longer carries legacy files required by the
+  old updater. Publish the compatibility hotfix first, then use the explicit resolver to install that ref.
 - [ ] The boot-menu description line still names the NixOS release (for example "Zokor"): nixpkgs builds it from
   a read-only option
-- [ ] The 4.0 hash-mismatch install failure was never reproduced; the 4.2 installer checks and repairs instead
+- [x] A published v4.0.1 ISO install was attempted; it reproduced the removed-initrd-options failure, not the
+  reported hash mismatch. The historical mismatch remains unproven; the 4.2 installer checks and repairs the
+  damaged-store-path class instead.
+
+The repeatable update, boot and hash-mismatch procedures are in
+[v4.2 known-limits validation](testing/v4.2-known-limits.md). The injected hash mismatch reproduces the reported
+failure class, not the undocumented root cause of the original 4.0 incident.
 
 **Cleanup**
 - [ ] Old local branches (`edge-notes`, `fix/keyboard-layout-mapping`, `fix/ssh-hash-and-partitioning`,
@@ -120,7 +139,17 @@ Everything below is open. Boxes are ticked when done.
 
 | Test | ISO / commit | Result | Notes |
 | --- | --- | --- | --- |
-| | | | |
+| BIOS live-ISO boot smoke test (not release-gate row 2) | `abora-2026.10.31-x86_64-v4.2.iso` / `50fe092f243f` | Pass | QEMU/KVM with SeaBIOS reached the v4.2 installer Welcome screen on a fresh 32 GiB disk. No installation was attempted. |
+| UEFI live-ISO boot smoke test (not release-gate row 2) | `abora-2026.10.31-x86_64-v4.2.iso` / `50fe092f243f` | Pass | QEMU/KVM with OVMF 202608 selected the UEFI DVD entry and reached the v4.2 installer Welcome screen. No installation was attempted. |
+| Row 2 — COSMIC, UEFI, whole-disk install | `abora-2026.10.31-x86_64-v4.2.iso` / `50fe092f243f` | Pass with follow-up | QEMU/KVM, OVMF 202608, VirtIO GPU, fresh 32 GiB disk: install completed, `Boot0007 Abora OS` booted from disk, tty login and COSMIC greeter appeared. The pre-install package check warned because it queried the live store instead of the target store; fixed and verified with the rebuilt ISO in the next row. |
+| Clean-media integrity scan after target-store fix | `abora-2026.10.31-x86_64-v4.2.iso` (`09780534a60d…60df3`) / dirty tree at `50fe092f243f` | Pass | Fresh UEFI COSMIC install on a separate 32 GiB QCOW2: the scan read the target closure for several minutes, emitted no indeterminate-check warning, and the install completed through Limine and EFI registration. Deliberate corruption was not injected. |
+| Row 2 — COSMIC, legacy BIOS, whole-disk install | `abora-2026.10.31-x86_64-v4.2.iso` (`43ced53b8102…ff26b`) / dirty tree at `50fe092f243f` | Pass | QEMU/KVM with SeaBIOS, VirtIO GPU, and a fresh 32 GiB disk: the corrected target-store media scan completed without a warning, the install completed through Limine's BIOS stages, and the disk booted by itself to the COSMIC greeter. |
+| Historical v4.0 hash-mismatch reproduction attempt | `abora-2026.08.29-x86_64-v4.0.iso` (`f486e0e93707…72da3`), published tag `v4.0.1` | Different failure reproduced | QEMU/KVM with SeaBIOS and a fresh 32 GiB disk: preflight passed, then target evaluation failed because current nixpkgs removed scripted initrd support and rejected `boot.initrd.systemd.enable = false` plus `boot.initrd.verbose`. No hash mismatch appeared. |
+| Published v4.1 install and updater compatibility | `abora-cosmic-2026.10.03-x86_64-v4.1.iso` (`3efc22189325…0352c7`), published tag `v4.1` | Install/boot pass; two-step hotfix required | Official checksum passed. QEMU/KVM with SeaBIOS and a fresh 32 GiB disk completed the COSMIC install, installed Limine's BIOS stages, booted from disk, and accepted a tty login. The normal updater selected its public wrapper as the resolver and failed safely. `ABORA_UPDATE_RESOLVER_BIN=abora-update-resolver` cleared that collision and resolved `edge`, but checkout validation correctly rejected current edge because legacy `abora-plan-tool` sources required by the old updater are gone. All attempts left `flake.nix` untouched. |
+| v4.1 compatibility-hotfix backport | local `hotfix/v4.1-nixpkgs` worktree at `cb572df` plus dirty changes | Package and targeted tests pass; publication/VM update pending | Backported the distinct `abora-update-core` resolver name and regression test on top of the removed-initrd-options fix. The updater suite and Nix package build pass. Full `make check` reaches an unrelated pre-existing hardware-test failure in this container. The hotfix ref must be published before the installed v4.1 VM can test the two-stage handoff. |
+| Updater resolver packaging fix | `abora-2026.10.31-x86_64-v4.2.iso` (`d3ca7a9e6f11…5b186a`) / dirty tree at `50fe092f243f` | Build and checks pass; installed update pending | The public `abora-update` wrapper and internal Vanta resolver no longer share an executable name; the resolver is `abora-update-core`. Its Nix package built, resolved `edge`, and contains no colliding `abora-update` binary. The ISO was rebuilt with the fix; a full installed-system update remains required. |
+| Latest rebuilt ISO BIOS smoke test | `abora-2026.10.31-x86_64-v4.2.iso` (`d3ca7a9e6f11…5b186a`) / dirty tree at `50fe092f243f` | Pass | QEMU/KVM with SeaBIOS loaded the Linux 7.3 kernel and initrd from the rebuilt ISO and reached the v4.2 Solstice installer Welcome screen. |
+| Repository script checks | dirty tree at `50fe092f243f` | Pass | `make check` completed with all script checks passing after the target-store integrity fix, read-only `anix status` Git probe fix, and updater command-collision regression test. Vanta-dependent tests were skipped by the host-side script runner because Vanta is unavailable there; the actual Nix-packaged Vanta updater built and passed its install check separately. |
 
 ## Carried over from 4.1 Horizon
 
