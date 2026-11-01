@@ -2758,8 +2758,11 @@ write_branding_assets() {
     [[ -f /etc/abora/anix.sh           ]] && cp /etc/abora/anix.sh            "${root}/etc/nixos/abora/anix.sh"
 
     cp -a /etc/abora/desktops/. "${root}/etc/nixos/abora/desktops/"
-    cp -a /etc/abora/wallpapers/. "${root}/etc/nixos/abora/wallpapers/"
-    cp -a /etc/abora/themes/. "${root}/etc/nixos/abora/themes/"
+    # -L: on the live system each of these files is a symlink into /etc/static. Copied as symlinks, the
+    # installed flake turns them into store paths that point back at /etc/static, a loop that leaves every
+    # theme and wallpaper unreadable (and broke `anix undo`).
+    cp -RL /etc/abora/wallpapers/. "${root}/etc/nixos/abora/wallpapers/"
+    cp -RL /etc/abora/themes/. "${root}/etc/nixos/abora/themes/"
     if [[ -d /etc/abora/anix-languages ]]; then
         cp -a /etc/abora/anix-languages/. "${root}/etc/nixos/abora/anix-languages/"
     fi

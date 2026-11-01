@@ -203,6 +203,13 @@ def restore(config: Path, source: Path) -> None:
                     path.rmdir()
             else:
                 path.unlink()
+        # Extraction replaces each path, so drop the symlinks it would replace first: tar's safety filter
+        # resolves existing paths, and one symlink loop in the config (seen on a 4.2 test install) made the
+        # whole restore fail with ELOOP.
+        for member in members:
+            target = config / member.name
+            if target.is_symlink():
+                target.unlink()
         try:
             archive.extractall(config, members=members, filter="tar")
         except TypeError:  # Python before 3.12 (and the 3.8-3.11 backports) has no filter

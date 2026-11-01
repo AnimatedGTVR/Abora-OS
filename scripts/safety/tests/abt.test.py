@@ -199,6 +199,23 @@ def _():
         assert (system.config / "flake.nix").read_text() == "{ original = true; }\n"
 
 
+@check("runtime: abt undo restores a config that contains a symlink loop")
+def _():
+    # A 4.2 test install left /etc/nixos/abora/themes/*.conf pointing at /etc/static paths that point back,
+    # and `anix undo` then failed with ELOOP while restoring the config.
+    tmp, system = fake_system()
+    with tmp:
+        loop_a, loop_b = system.config / "loop-a.conf", system.root / "loop-b.conf"
+        loop_a.symlink_to(loop_b)
+        loop_b.symlink_to(loop_a)
+        system.abt("run", "--name", "upgrade", "--config", str(system.config),
+                   "--", *system.switch_command(2, f'echo "{{ new = true; }}" > "{system.config}/flake.nix"'))
+        undone = system.abt("undo", system.transactions()[0]["id"])
+        assert undone.returncode == 0 and system.transactions()[0]["state"] == "undone", undone.stdout
+        assert (system.config / "flake.nix").read_text() == "{ original = true; }\n"
+        assert os.readlink(loop_a) == str(loop_b)
+
+
 @check("runtime: abt refuses path-like transaction ids")
 def _():
     tmp, system = fake_system()

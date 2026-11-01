@@ -351,6 +351,14 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', 'Placeholder', 'tools/abora-plan-tool/AboraPlanTool.csproj', 'tools/abora-plan-tool/Program.cs'),
         grep('-Fqx', '[]', 'nix/pkgs/abora-plan-tool-deps.json'),
     ),
+    # The live system's /etc/abora themes and wallpapers are symlinks into /etc/static; copied as symlinks,
+    # the installed flake turns them into store-path loops (found on a 4.2 test install).
+    Check(
+        'static: the installer copies themes and wallpapers as real files',
+        grep('-Fq', 'cp -RL /etc/abora/themes/.', 'scripts/install/abora-installer.sh'),
+        grep('-Fq', 'cp -RL /etc/abora/wallpapers/.', 'scripts/install/abora-installer.sh'),
+        not_(grep('-Eq', 'cp -a /etc/abora/(themes|wallpapers)', 'scripts/install/abora-installer.sh')),
+    ),
     # testing/abora-break deliberately breaks systems. It is a test-harness tool that runs from the
     # developer's machine, so nothing that builds the ISO, the installer or an installed system may
     # mention it.
@@ -384,8 +392,8 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', '/etc/abora/desktops', 'scripts/abora-installer.sh'),
         grep('-q', '/etc/abora/wallpapers', 'scripts/abora-installer.sh'),
         grep('-q', '/etc/abora/themes', 'scripts/abora-installer.sh'),
-        grep('-q', 'cp -a /etc/abora/wallpapers/.', 'scripts/abora-installer.sh'),
-        grep('-q', 'cp -a /etc/abora/themes/.', 'scripts/abora-installer.sh'),
+        grep('-Fq', 'cp -RL /etc/abora/wallpapers/.', 'scripts/abora-installer.sh'),
+        grep('-Fq', 'cp -RL /etc/abora/themes/.', 'scripts/abora-installer.sh'),
         grep('-q', '../../assets/wallpapers/collection', 'nix/modules/abora-options.nix'),
         grep('-q', '../../assets/wallpapers/collection', 'nix/modules/installed-base.nix'),
         grep('-q', '../../assets/wallpaper-themes', 'nix/modules/installed-base.nix'),
