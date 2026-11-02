@@ -99,7 +99,7 @@ Everything below is open. Boxes are ticked when done.
 
 **Release housekeeping**
 - [x] The v4.1 entry's `<RELEASE DATE>` is filled (2026-10-03)
-- [ ] Fill the v4.2 `<RELEASE DATE>` in `RELEASE_NOTES.md` and remove the **Draft** banner when the gate passes
+- [x] Fill the v4.2 `<RELEASE DATE>` in `RELEASE_NOTES.md` and remove the **Draft** banner when the gate passes
 - [x] v4.1.1 never shipped; its release-notes section now says the work is included in 4.2 and claims no tag
 - [ ] Tag `v4.2` and watch the release workflow build the ISO, checksums and manifest
 - [ ] Website and GitHub releases agree on the release (row 1); the website's `/security` page matches the

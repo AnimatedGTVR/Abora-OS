@@ -1,12 +1,9 @@
 # Abora OS v4.2 Solstice
 
-**Draft.** Solstice is not released yet: the install, update and rollback matrix in
-[docs/next-release-plan.md](docs/next-release-plan.md) has to pass first.
-
 A safer, simpler Abora: one command instead of two, system changes that undo themselves when they fail, a
 doctor that explains and repairs, and an installer that says exactly what went wrong.
 
-Released: **<RELEASE DATE>** · Tag: `v4.2` · Channel: `stable`
+Released: **2026-11-01** · Tag: `v4.2` · Channel: `stable`
 
 ## Highlights
 
