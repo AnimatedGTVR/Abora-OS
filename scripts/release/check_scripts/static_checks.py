@@ -356,6 +356,7 @@ CHECKS: tuple[Check, ...] = (
     Check(
         'static: release ISOs install onto stable, every other ISO onto edge',
         grep('-Fq', 'echo stable > RELEASE_STAGE', '.github/workflows/release-iso.yml'),
+        grep('-Fq', 'iso=(out/iso/abora-*-x86_64-"$tag".iso)', '.github/workflows/release-iso.yml'),
         not_(grep('-q', 'RELEASE_STAGE', '.github/workflows/build-iso.yml')),
         grep('-Fq', 'ABORA_RELEASE_STAGE          = releaseStage;', 'nix/profiles/live.nix'),
         grep('-Fq', 'ABORA_RELEASE_STAGE=${releaseStage}', 'nix/profiles/live.nix'),
