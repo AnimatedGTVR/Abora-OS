@@ -277,6 +277,32 @@ def _():
     assert nouveau.status == "warn" and "nvidia-open" in nouveau.explanation, nouveau
 
 
+@check("runtime: doctor flags abora.gpu set for a different vendor (row 9 wrong-gpu, no GPU needed)")
+def _():
+    # The VM's virtio GPU isn't a vendor the doctor knows, so `abora-break wrong-gpu` can't be seen there.
+    # An Intel machine set to amdgpu must fail; set to intel with i915 loaded it is fine.
+    doctor = load("abora-doctor")
+    with tempfile.TemporaryDirectory() as tmp:
+        sysfs = Path(tmp, "sys")
+        device = sysfs / "bus/pci/devices/0000:00:02.0"
+        device.mkdir(parents=True)
+        (device / "class").write_text("0x030000\n")
+        (device / "vendor").write_text("0x8086\n")
+        (sysfs / "module/i915").mkdir(parents=True)
+        config = Path(tmp, "abora-local.nix")
+        with mock.patch.object(doctor, "sysfs", sysfs), mock.patch.object(doctor, "local_config", config):
+            config.write_text('{\n  abora.gpu = "amdgpu";\n}\n')
+            doctor.findings.clear()
+            doctor.check_gpu()
+            wrong = doctor.findings[-1]
+            config.write_text('{\n  abora.gpu = "intel";\n}\n')
+            doctor.findings.clear()
+            doctor.check_gpu()
+            right = doctor.findings[-1]
+    assert (wrong.id, wrong.status) == ("gpu-driver", "fail") and "amdgpu" in wrong.summary, wrong
+    assert right.status == "ok", right
+
+
 @check("runtime: doctor catches a read-only root, an unmounted ESP, and no network")
 def _():
     doctor = load("abora-doctor")
