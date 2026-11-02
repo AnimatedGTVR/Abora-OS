@@ -82,6 +82,10 @@ case "${ABORA_REPO_REF:-} ${ABORA_PRE_ALPHA_REF:-} ${version:-}" in
         abora_release_channel="${ABORA_RELEASE_CHANNEL:-edge}"
         ;;
 esac
+# A release ISO (stage `stable`, set only by the tag release build) always installs onto the stable channel.
+case "$abora_release_stage" in
+    stable|final|release) abora_release_channel=stable ;;
+esac
 
 # Parse args: support both --reconfig and --batch <params-file>
 _args=("$@")
@@ -449,7 +453,8 @@ install_failure_facts() {
     {
         grep -aoE "builder for '[^']+\.drv' failed[^.]*" <<<"$text" | tail -n 3 | sed 's/^/Failed build: /'
         grep -aoE "Cannot build '[^']+\.drv'" <<<"$text" | tail -n 2 | sed 's/^/Failed build: /'
-        grep -aoE "hash mismatch [^:]*'[^']+'" <<<"$text" | tail -n 3 | sed 's/^/Hash mismatch: /'
+        # "importing path" mismatches are reported once, as "Corrupt path" below.
+        grep -aoE "hash mismatch [^:]*'[^']+'" <<<"$text" | grep -av "importing path" | tail -n 3 | sed 's/^/Hash mismatch: /'
         grep -aoE "hash mismatch importing path '[^']+'" <<<"$text" | tail -n 3 | sed 's/^/Corrupt path: /'
         grep -aE '^[[:space:]]*(specified|got):[[:space:]]+(sha256|sha512)' <<<"$text" | tail -n 4 | sed -E 's/^[[:space:]]+//; s/^/  /'
     } | awk '!seen[$0]++'
@@ -460,13 +465,16 @@ install_failure_facts() {
 # a "hash mismatch" halfway through the install (DistroWatch's 4.0 review hit one of these on every attempt).
 # Prints one path per line; the exit status is 0 only when every path is intact.
 damaged_store_paths() {
-    local system="$1" paths out rc=0
-    paths="$(nix-store -qR "$system" 2>/dev/null)" || return 2
+    local system="$1" store_root="${2:-}" paths out rc=0
+    local -a store_args=() verify_cmd=()
+    [[ -n "$store_root" ]] && store_args=(--store "$store_root")
+    paths="$(nix-store "${store_args[@]}" -qR "$system" 2>/dev/null)" || return 2
     [[ -n "$paths" ]] || return 2
     # Batched: a closure is thousands of paths, and one process per path is minutes of overhead. Parallel,
     # because this reads and hashes the whole closure, which is the slow part of the check.
     local jobs; jobs="$(nproc 2>/dev/null || echo 2)"; (( jobs > 4 )) && jobs=4
-    out="$(printf '%s\n' "$paths" | xargs -d '\n' -n 200 -P "$jobs" nix-store --verify-path 2>&1)" || rc=$?
+    verify_cmd=(nix-store "${store_args[@]}" --verify-path)
+    out="$(printf '%s\n' "$paths" | xargs -d '\n' -n 200 -P "$jobs" "${verify_cmd[@]}" 2>&1)" || rc=$?
     local modified
     modified="$(grep -aoE "path '[^']+' was modified" <<<"$out" | sed -E "s/^path '([^']+)' was modified/\1/" | awk '!seen[$0]++')"
     [[ -n "$modified" ]] && printf '%s\n' "$modified"
@@ -478,13 +486,28 @@ damaged_store_paths() {
     return 2
 }
 
+# A build that succeeded can still have hit a damaged copy on the install media: Nix then downloads a clean copy
+# by itself, and the only trace was a raw "error: hash mismatch importing path" line on screen (seen when testing
+# a deliberately damaged ISO). Say what happened in plain words.
+note_recovered_media_damage() {
+    local paths
+    paths="$(grep -aoE "hash mismatch importing path '[^']+'" "$install_log" 2>/dev/null \
+        | sed -E "s/.*'([^']+)'/\1/" | awk '!seen[$0]++' | head -n 3)"
+    [[ -n "$paths" ]] || return 0
+    warn "Some packages on the install media were damaged; clean copies were downloaded and the install goes on."
+    printf '%s\n' "$paths" | sed 's|^|      |'
+    msg "If this happens again, check the ISO against SHA256SUMS, rewrite the USB stick, or test the RAM."
+}
+
 # Re-fetches the given store paths from the binary cache, replacing damaged copies. Needs a network.
 repair_store_paths() {
-    local path rc=0
+    local store_root="${1:-}" path rc=0
+    local -a store_args=()
+    [[ -n "$store_root" ]] && store_args=(--store "$store_root")
     while IFS= read -r path; do
         [[ "$path" == /nix/store/* ]] || continue
         printf '[repair] %s\n' "$path" >>"$install_log"
-        nix-store --repair-path "$path" >>"$install_log" 2>&1 || rc=1
+        nix-store "${store_args[@]}" --repair-path "$path" >>"$install_log" 2>&1 || rc=1
     done
     return "$rc"
 }
@@ -492,10 +515,10 @@ repair_store_paths() {
 # Checks the finished system before it is copied to the disk. Damaged paths are re-fetched once; whatever
 # cannot be repaired stops the install with advice that fits the cause.
 verify_install_media() {
-    local system="$1" bad
+    local system="$1" store_root="${2:-}" bad
     [[ "${ABORA_INSTALL_SKIP_VERIFY:-0}" == 1 ]] && return 0
     msg "Checking the install media (every package is read once; this can take a few minutes)…"
-    bad="$(damaged_store_paths "$system")"; local rc=$?
+    bad="$(damaged_store_paths "$system" "$store_root")"; local rc=$?
     (( rc == 0 )) && { ok "Install media is intact"; return 0; }
     if (( rc == 2 )); then
         warn "Could not check the packages (details in ${install_log}); continuing."
@@ -503,8 +526,8 @@ verify_install_media() {
     fi
     warn "$(grep -c . <<<"$bad") package(s) do not match their checksum. Trying to fetch clean copies…"
     printf '%s\n' "$bad" | sed 's/^/[damaged] /' >>"$install_log"
-    printf '%s\n' "$bad" | repair_store_paths || true
-    bad="$(damaged_store_paths "$system")"; rc=$?
+    printf '%s\n' "$bad" | repair_store_paths "$store_root" || true
+    bad="$(damaged_store_paths "$system" "$store_root")"; rc=$?
     (( rc == 0 )) && { ok "Damaged packages were replaced"; return 0; }
     (( rc == 2 )) && { warn "Could not re-check the packages (details in ${install_log}); continuing."; return 0; }
     printf '%s\n' "$bad" | sed 's/^/[still damaged] /' >>"$install_log"
@@ -529,7 +552,7 @@ nixos_install_with_healing() {
         grep -qaiE "hash mismatch importing path|is corrupt|bad archive|truncated (gzip|xz|zstd)|NAR hash mismatch in input [^ ]*path:/nix/store" <<<"$fresh" || return 1
         warn "A package was damaged while it was copied. Checking and trying once more…"
         { printf '%s\n' "$(grep -aoE "hash mismatch importing path '[^']+'" <<<"$fresh" | sed -E "s/.*'([^']+)'/\1/")"
-          damaged_store_paths "$system" || true; } | awk 'NF && !seen[$0]++' | repair_store_paths || true
+          damaged_store_paths "$system" /mnt || true; } | awk 'NF && !seen[$0]++' | repair_store_paths /mnt || true
     done
 }
 
@@ -601,16 +624,31 @@ log_target_partitions() {
     while IFS= read -r name; do
         [[ -n "$name" ]] && busy["$name"]=1
     done < <(boot_media_disks)
-    lsblk -rpno NAME,TYPE,FSTYPE,RM,TRAN,SIZE,LABEL,PKNAME 2>/dev/null \
-        | while read -r dev type fstype rm tran size label parent; do
-            [[ "$type" == "part" ]] || continue
+    # -P (KEY="value" pairs), not -r: -r prints empty fields as nothing, and a partition's TRAN is always
+    # empty, so `read` shifted every later column. The parent came out empty ("bad array subscript", and the
+    # boot stick was no longer excluded) and the label showed the wrong field (seen on a 4.2 test VM).
+    local line dev type fstype rm size label parent tran
+    lsblk -Ppno NAME,TYPE,FSTYPE,RM,SIZE,LABEL,PKNAME 2>/dev/null \
+        | while IFS= read -r line; do
+            dev="$(lsblk_field NAME "$line")"; type="$(lsblk_field TYPE "$line")"
+            fstype="$(lsblk_field FSTYPE "$line")"; rm="$(lsblk_field RM "$line")"
+            size="$(lsblk_field SIZE "$line")"; label="$(lsblk_field LABEL "$line")"
+            parent="$(lsblk_field PKNAME "$line")"
+            [[ "$type" == "part" && -n "$parent" ]] || continue
+            tran="$(lsblk -dno TRAN "$parent" 2>/dev/null | tr -d '[:space:]')"
             [[ "$rm" == "1" || "$tran" == "usb" ]] || continue
             case "$fstype" in vfat|exfat|ntfs|ext4|ext3|ext2|btrfs) ;; *) continue ;; esac
             [[ -n "${busy[${parent##*/}]:-}" ]] && continue
-            # lsblk -r escapes spaces in labels as \x20.
-            label="${label//\\x20/ }"
             printf '%s|%s %s (%s)\n' "$dev" "$size" "${label:-no label}" "$fstype"
         done
+}
+
+# One value from an `lsblk -P` line, with lsblk's \xNN escapes decoded (labels can hold spaces and quotes).
+lsblk_field() {
+    local key="$1" line="$2" value
+    [[ "$line" =~ (^|[[:space:]])${key}=\"([^\"]*)\" ]] || return 0
+    value="${BASH_REMATCH[2]}"
+    printf '%b' "$value"
 }
 
 # Copies the install and config logs, plus a redacted support report, onto a
@@ -669,6 +707,16 @@ failed_install_menu() {
             printf '  %bInstall Failed%b\n\n' "${B}${CE}" "$R"
         fi
         err "$reason"
+        # die() prints these too, but this screen clears it first; without them here the user never saw
+        # them (found on a 4.2 test VM).
+        local hint facts
+        hint="$(install_failure_hint "$install_log" 2>/dev/null || true)"
+        facts="$(install_failure_facts "$install_log" 2>/dev/null || true)"
+        [[ -n "$hint" ]] && printf '  %bLikely cause:%b %s\n' "${D}${CG}" "$R" "$hint"
+        if [[ -n "$facts" ]]; then
+            printf '\n  %bWhat failed%b\n' "${B}${CY}" "$R"
+            printf '%s\n' "$facts" | sed 's/^/    /'
+        fi
         printf '  %bLog: %s%b\n\n' "${D}${CG}" "$install_log" "$R"
         draw_failure_log_summary "$install_log"
         if declare -F draw_log_tail >/dev/null 2>&1 && [[ -f "$install_log" ]]; then
@@ -2753,8 +2801,11 @@ write_branding_assets() {
     [[ -f /etc/abora/anix.sh           ]] && cp /etc/abora/anix.sh            "${root}/etc/nixos/abora/anix.sh"
 
     cp -a /etc/abora/desktops/. "${root}/etc/nixos/abora/desktops/"
-    cp -a /etc/abora/wallpapers/. "${root}/etc/nixos/abora/wallpapers/"
-    cp -a /etc/abora/themes/. "${root}/etc/nixos/abora/themes/"
+    # -L: on the live system each of these files is a symlink into /etc/static. Copied as symlinks, the
+    # installed flake turns them into store paths that point back at /etc/static, a loop that leaves every
+    # theme and wallpaper unreadable (and broke `anix undo`).
+    cp -RL /etc/abora/wallpapers/. "${root}/etc/nixos/abora/wallpapers/"
+    cp -RL /etc/abora/themes/. "${root}/etc/nixos/abora/themes/"
     if [[ -d /etc/abora/anix-languages ]]; then
         cp -a /etc/abora/anix-languages/. "${root}/etc/nixos/abora/anix-languages/"
     fi
@@ -3680,9 +3731,18 @@ run_install() {
 
     progress_line 5 "Starting"
     msg "Running final safety checks…"
-    if ! check_install_environment final >>"$install_log" 2>&1; then
-        die "Preflight failed before partitioning. See ${install_log}."
+    local preflight_out preflight_failed
+    preflight_out="$(mktemp)"
+    if ! check_install_environment final >"$preflight_out" 2>&1; then
+        cat "$preflight_out" >>"$install_log"
+        # Name the failed checks: on a VM with the network pulled the only message was "See the log", with the
+        # reason (the stable release needs internet) buried in it.
+        preflight_failed="$(sed 's/\x1b\[[0-9;]*m//g' "$preflight_out" | sed -n 's/^[[:space:]]*✗[[:space:]]*//p' | paste -sd ' ' -)"
+        rm -f "$preflight_out"
+        die "Nothing was changed on the disk. ${preflight_failed:-A safety check failed before partitioning.} (details in ${install_log})"
     fi
+    cat "$preflight_out" >>"$install_log"
+    rm -f "$preflight_out"
 
     msg "Preparing target disk…"
     if [[ "$install_disk_mode" == "existing" ]]; then
@@ -3758,10 +3818,11 @@ run_install() {
     fi
     system_path="$(cat "$system_path_file" 2>/dev/null || true)"
     [[ "$system_path" == /nix/store/* ]] || die "Target system build did not produce a system path. See ${install_log}."
+    note_recovered_media_damage
 
     msg "Running nixos-install…"
     log_network_snapshot
-    verify_install_media "$system_path"
+    verify_install_media "$system_path" /mnt
     if ! nixos_install_with_healing "$system_path"; then
         die "nixos-install failed. See ${install_log}."
     fi
@@ -4137,7 +4198,7 @@ release_welcome() {
     while true; do
         release_header "Welcome"
         msg "Fast release installer. Pick the basics; Abora handles the rest."
-        msg "This installer erases one selected disk and installs the ${desktop_label} edition."
+        msg "You pick the disk and the desktop; nothing changes until you confirm."
         printf '\n'
         menu "Start" \
             "Install Abora OS|Guided install to a disk" \
@@ -4862,9 +4923,10 @@ install_from_flake() {
     fi
     system_path="$(cat "$system_path_file" 2>/dev/null || true)"
     [[ "$system_path" == /nix/store/* ]] || die "The build did not produce a system path. See ${install_log}."
+    note_recovered_media_damage
 
     msg "Running nixos-install…"
-    verify_install_media "$system_path"
+    verify_install_media "$system_path" /mnt
     if ! nixos_install_with_healing "$system_path"; then
         die "nixos-install failed. See ${install_log}."
     fi

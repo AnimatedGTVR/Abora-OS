@@ -346,6 +346,11 @@ in
         services.xserver.videoDrivers = lib.mkDefault [ "nouveau" ];
       })
       (lib.mkIf (cfg.gpu == "nvidia" || cfg.gpu == "nvidia-open") {
+        # NVIDIA's driver lags new kernels: 595.71.05 doesn't build against Linux 7.3 (`strncpy` is gone), so
+        # an NVIDIA system couldn't install or rebuild (found testing gate row 5). NVIDIA machines follow the
+        # long-term kernel instead of linuxPackages_latest. Above installed-base's mkDefault, below anything
+        # the user sets.
+        boot.kernelPackages = lib.mkOverride 900 pkgs.linuxPackages;
         services.xserver.videoDrivers = lib.mkDefault [ "nvidia" ];
         hardware.nvidia = {
           modesetting.enable = true;

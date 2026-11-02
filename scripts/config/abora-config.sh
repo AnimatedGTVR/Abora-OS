@@ -709,10 +709,28 @@ do_set() {
     esac
 
     write_string_option "$key" "$value"
+    sync_anix_override "$key" "$value"
 
     abora_success "'abora.${key}' set to '${value}'"
     abora_dim_line "Run 'abora config apply' to rebuild the system."
     printf '\n'
+}
+
+# anix.nix forces abora.desktop and abora.wallpaper (lib.mkForce) whenever it sets anix.desktop or
+# anix.wallpaper, and the installer writes anix.desktop. Found on a 4.2 VM: `anix desktop set plasma`
+# changed abora-local.nix only, so the rebuild silently stayed on GNOME. Keep the ANIX value in step.
+sync_anix_override() {
+    local key="$1" value="$2" anix_module="${config_dir}/anix.nix"
+    case "$key" in desktop|wallpaper) ;; *) return 0 ;; esac
+    [[ -f "$anix_module" ]] || return 0
+    grep -Eq "^[[:space:]]*anix\.${key}[[:space:]]*=[[:space:]]*\"" "$anix_module" || return 0
+    # Wallpaper file names may contain sed replacement characters (& or |); escape them like
+    # write_string_option does, or sed would mangle the value or fail after abora-local.nix changed.
+    local escaped="${value//\\/\\\\}"
+    escaped="${escaped//&/\\&}"
+    escaped="${escaped//|/\\|}"
+    run_as_root sed -i -E \
+        "s|^([[:space:]]*anix\.${key}[[:space:]]*=[[:space:]]*)\"[^\"]*\";|\1\"${escaped}\";|" "$anix_module"
 }
 
 # ── Apply ─────────────────────────────────────────────────────────────────────

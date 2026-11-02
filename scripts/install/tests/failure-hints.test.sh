@@ -84,25 +84,7 @@ fi
 printf 'everything fine\n' >"$dir/log"
 [[ -z "$(install_failure_facts "$dir/log")" ]] && pass "no facts for a log without a specific failure" || fail "facts for a log without a failure"
 
-# log_target_partitions: removable, readable-elsewhere filesystems, never the boot stick.
-targets_fn="$(sed -n '/^log_target_partitions() {/,/^}/p' "$installer")"
-eval "$targets_fn"
-boot_media_disks() { printf 'sdb\n'; }
-lsblk() {
-    printf '%s\n' \
-        '/dev/sda1 part ext4 0 sata 500G root sda' \
-        '/dev/sdb1 part iso9660 1 usb 4G ABORA_LIVE sdb' \
-        '/dev/sdb2 part vfat 1 usb 4M EFIBOOT sdb' \
-        '/dev/sdc1 part vfat 1 usb 15G MY\x20STICK sdc' \
-        '/dev/sdd1 part swap 1 usb 2G  sdd'
-}
-targets="$(log_target_partitions)"
-unset -f lsblk boot_media_disks
-if [[ "$targets" == "/dev/sdc1|15G MY STICK (vfat)" ]]; then
-    pass "log USB choices skip internal disks, the boot stick, and unusable filesystems"
-else
-    fail "log USB choices: got '${targets}'"
-fi
+# log_target_partitions is tested in log-usb.test.sh, against realistic `lsblk -P` output.
 
 # Missing log file: no hint, no crash.
 if install_failure_hint "$dir/does-not-exist" >/dev/null 2>&1; then fail "missing log should give no hint"; else pass "missing log gives no hint"; fi

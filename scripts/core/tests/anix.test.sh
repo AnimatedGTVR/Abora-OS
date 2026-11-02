@@ -83,6 +83,62 @@ else
   fail "runtime: anix docs"
 fi
 
+# Found on a 4.2 VM: `anix set timezone Mars/Olympus_Mons` built and switched. Names are checked against
+# zoneinfo now (TZDIR points at a fake one here).
+mkdir -p "$tmp_ok/zoneinfo/Europe" && : >"$tmp_ok/zoneinfo/Europe/Paris"
+anix_set_tz() {
+  TZDIR="$tmp_ok/zoneinfo" ANIX_NO_SUDO=1 ANIX_ASSUME_YES=1 ANIX_SYSTEM_CONFIG="$tmp_anix_quickstart_dir" \
+    ABORA_UI_LIB="$tmp_empty/missing-ui.sh" ABORA_NO_ABT=1 scripts/anix.sh set timezone "$1" >/dev/null 2>&1
+}
+if anix_set_tz Europe/Paris && grep -q 'anix.timezone = "Europe/Paris";' "$tmp_anix_quickstart_dir/anix.nix" \
+  && ! anix_set_tz Mars/Olympus_Mons && ! anix_set_tz 'not a zone' && anix_set_tz UTC \
+  && grep -q 'anix.timezone = "UTC";' "$tmp_anix_quickstart_dir/anix.nix"; then
+  pass "runtime: anix set timezone rejects names that aren't in zoneinfo"
+else
+  fail "runtime: anix set timezone rejects names that aren't in zoneinfo"
+fi
+
+# Abora's own files under abora/ are not the user's secrets. Found on a v4.1 -> 4.2 upgrade test: installer.sh's
+# `local password="$1"` made the pre-update snapshot warn and, with nobody to answer, cancel.
+tmp_anix_secret_dir="$tmp_ok/anix-secret"
+mkdir -p "$tmp_anix_secret_dir/abora"
+printf '%s\n' '{ ... }: { networking.hostName = "box"; }' > "$tmp_anix_secret_dir/configuration.nix"
+printf '%s\n' 'hash_password() { local password="$1"; }' > "$tmp_anix_secret_dir/abora/installer.sh"
+anix_secret_save() {
+  ANIX_NO_SUDO=1 ANIX_ASSUME_YES=1 ANIX_SYSTEM_CONFIG="$tmp_anix_secret_dir" ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+    scripts/anix.sh save "test" 2>&1
+}
+abora_only_out="$(anix_secret_save)"
+printf '%s\n' 'services.foo.password = "hunter2";' >> "$tmp_anix_secret_dir/configuration.nix"
+user_secret_out="$(anix_secret_save)"
+# A user's own directory that happens to be called abora is still scanned.
+sed -i '/hunter2/d' "$tmp_anix_secret_dir/configuration.nix"
+mkdir -p "$tmp_anix_secret_dir/hosts/laptop/abora"
+printf '%s\n' 'services.foo.password = "hunter3";' > "$tmp_anix_secret_dir/hosts/laptop/abora/secret.nix"
+nested_secret_out="$(anix_secret_save)"
+if ! grep -q "Possible secret" <<<"$abora_only_out" && grep -q "Possible secret" <<<"$user_secret_out" \
+  && grep -q "hunter3" <<<"$nested_secret_out"; then
+  pass "runtime: anix's secret scan skips Abora's own files and still catches the user's"
+else
+  fail "runtime: anix's secret scan skips Abora's own files and still catches the user's"
+fi
+
+# A root-owned /etc/nixos repo is invisible to an ordinary user's git ("dubious ownership"); status must still
+# see it by asking as root without a prompt (sudo -n), and must not exit on a machine without sudo.
+tmp_rootrepo_bin="$tmp_ok/rootrepo-bin"; tmp_rootrepo_cfg="$tmp_ok/rootrepo-cfg"
+mkdir -p "$tmp_rootrepo_bin" "$tmp_rootrepo_cfg"
+printf '#!/usr/bin/env bash\n[[ -n "${FAKE_AS_ROOT:-}" ]] && [[ " $* " == *" rev-parse "* ]] && { echo true; exit 0; }\nexit 128\n' > "$tmp_rootrepo_bin/git"
+# anix puts system directories first in PATH, so the fake sudo runs the fake git by its full path.
+printf '#!/usr/bin/env bash\necho "sudo $*" >> "%s/sudo.log"\n[[ "$1" == -n ]] && shift\n[[ "$1" == git ]] && { shift; FAKE_AS_ROOT=1 exec "%s/git" "$@"; }\nexec "$@"\n' "$tmp_ok" "$tmp_rootrepo_bin" > "$tmp_rootrepo_bin/sudo"
+chmod +x "$tmp_rootrepo_bin/git" "$tmp_rootrepo_bin/sudo"
+rootrepo_status="$(ANIX_SUDO_BIN="$tmp_rootrepo_bin/sudo" ANIX_SYSTEM_CONFIG="$tmp_rootrepo_cfg" ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+  scripts/anix.sh status 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
+if grep -qE 'git_repo[[:space:]]+yes' <<<"$rootrepo_status" && grep -q '^sudo -n git' "$tmp_ok/sudo.log"; then
+  pass "runtime: anix status sees a root-owned config repo via sudo -n"
+else
+  fail "runtime: anix status sees a root-owned config repo via sudo -n"
+fi
+
 tmp_anix_save_dir="$tmp_ok/anix-save"
 
 mkdir -p "$tmp_anix_save_dir"

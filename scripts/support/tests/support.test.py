@@ -132,6 +132,8 @@ def _():
     calls = []
     output = io.StringIO()
     with mock.patch.object(recovery, "run", lambda argv: calls.append(argv) or 1), \
+            mock.patch.object(recovery, "capture", lambda *argv: ""), \
+            mock.patch.object(recovery, "RESOLVED_SOCKET", Path("/")), \
             mock.patch.object(recovery.shutil, "which", lambda name: f"/fake/{name}"), contextlib.redirect_stdout(output):
         status = recovery.main(["network"])
     assert status == 0, f"network diagnostics returned {status}"
@@ -139,12 +141,29 @@ def _():
         ["systemctl", "--no-pager", "--full", "status", "NetworkManager"],
         ["nmcli", "networking", "connectivity", "check"],
         ["nmcli", "radio"],
-        ["resolvectl", "status"],
         ["ping", "-c", "2", "-W", "3", "1.1.1.1"],
         ["curl", "-fsI", "--connect-timeout", "5", "--max-time", "8", "https://cache.nixos.org"],
     ):
         assert argv in calls, f"did not run {argv}"
-    expect(output.getvalue(), "Command exited with status 1; continuing diagnostics.")
+    expect(output.getvalue(), "Command exited with status 1; continuing diagnostics.", "What this means")
+
+
+@check("runtime: anix network explains what its checks found in plain words")
+def _():
+    # Found on a 4.2 VM with the cable pulled: the diagnostics printed raw nmcli/ping output and no conclusion.
+    recovery = load("abora-recovery")
+    conclude = recovery.network_conclusion
+    unplugged = conclude("ethernet:unavailable\nloopback:connected (externally)\n", "none\n", False, False)
+    assert unplugged[0] == "warn" and "No network cable is plugged in" in unplugged[1], unplugged
+    wifi_off = conclude("ethernet:unavailable\nwifi:disconnected\n", "none\n", False, False)
+    assert "nmcli device wifi connect" in wifi_off[1], wifi_off
+    portal = conclude("wifi:connected\n", "portal\n", True, False)
+    assert "sign in" in portal[1], portal
+    no_internet = conclude("ethernet:connected\n", "limited\n", False, False)
+    assert "not to the internet" in no_internet[1], no_internet
+    dns = conclude("ethernet:connected\n", "full\n", True, False)
+    assert "restart-networkmanager" in dns[1], dns
+    assert conclude("ethernet:connected\n", "full\n", True, True)[0] == "ok"
 
 
 @check("runtime: recovery menu survives a failing action and returns to the menu")
@@ -258,6 +277,32 @@ def _():
     assert nouveau.status == "warn" and "nvidia-open" in nouveau.explanation, nouveau
 
 
+@check("runtime: doctor flags abora.gpu set for a different vendor (row 9 wrong-gpu, no GPU needed)")
+def _():
+    # The VM's virtio GPU isn't a vendor the doctor knows, so the wrong-gpu fault can't be seen there.
+    # An Intel machine set to amdgpu must fail; set to intel with i915 loaded it is fine.
+    doctor = load("abora-doctor")
+    with tempfile.TemporaryDirectory() as tmp:
+        sysfs = Path(tmp, "sys")
+        device = sysfs / "bus/pci/devices/0000:00:02.0"
+        device.mkdir(parents=True)
+        (device / "class").write_text("0x030000\n")
+        (device / "vendor").write_text("0x8086\n")
+        (sysfs / "module/i915").mkdir(parents=True)
+        config = Path(tmp, "abora-local.nix")
+        with mock.patch.object(doctor, "sysfs", sysfs), mock.patch.object(doctor, "local_config", config):
+            config.write_text('{\n  abora.gpu = "amdgpu";\n}\n')
+            doctor.findings.clear()
+            doctor.check_gpu()
+            wrong = doctor.findings[-1]
+            config.write_text('{\n  abora.gpu = "intel";\n}\n')
+            doctor.findings.clear()
+            doctor.check_gpu()
+            right = doctor.findings[-1]
+    assert (wrong.id, wrong.status) == ("gpu-driver", "fail") and "amdgpu" in wrong.summary, wrong
+    assert right.status == "ok", right
+
+
 @check("runtime: doctor catches a read-only root, an unmounted ESP, and no network")
 def _():
     doctor = load("abora-doctor")
@@ -301,6 +346,40 @@ def _():
     assert statuses == [("ok", "flake outputs evaluate"), ("fail", "ANIX config preflight failed")], statuses
     assert doctor.findings[1].repair and doctor.findings[1].repair.command == ["anix", "doctor", "--fix"]
     assert layer == "layer=1\n", layer
+
+
+@check("runtime: the DNS repair also rewrites resolv.conf, and repair steps stop at the first failure")
+def _():
+    # Found on a 4.2 VM: a hand-edited resolv.conf survives a NetworkManager restart because openresolv only
+    # rewrites it when NetworkManager's DNS data changes. `resolvconf -u` must follow the restart.
+    doctor = load("abora-doctor")
+    with mock.patch.object(doctor, "has_default_route", return_value=True), \
+            mock.patch.object(doctor.socket, "getaddrinfo", side_effect=OSError("no dns")), \
+            mock.patch.object(doctor.shutil, "which", side_effect=lambda name: f"/bin/{name}"), silenced():
+        doctor.findings.clear()
+        doctor.check_network()
+    repair = doctor.findings[0].repair
+    assert repair and repair.command[:2] == ["systemctl", "restart"] and repair.after == (["resolvconf", "-u"],), repair
+    ran = []
+    def fake_run(step, **_kwargs):
+        ran.append(step)
+        return mock.Mock(returncode=1 if step[-1] == "restart-fails" else 0)
+    chain = doctor.Repair("chain", "two steps", ["true", "first"], after=(["true", "second"],))
+    broken = doctor.Repair("broken", "fails first", ["false", "restart-fails"], after=(["true", "never"],))
+    with mock.patch.object(doctor, "repairs", return_value=[chain, broken]), \
+            mock.patch.object(doctor.subprocess, "run", side_effect=fake_run), \
+            mock.patch.object(doctor, "error"), silenced():
+        ok = doctor.do_repair(["chain"], assume_yes=True)
+        failed = doctor.do_repair(["broken"], assume_yes=True)
+    assert ok == 0 and failed == 1, (ok, failed)
+    assert [step[-1] for step in ran] == ["first", "second", "restart-fails"], ran
+    # A confirmed repair must not prompt again: `anix gc old` cancelled itself and the repair said "done".
+    envs = []
+    with mock.patch.object(doctor, "repairs", return_value=[chain]), \
+            mock.patch.object(doctor.subprocess, "run", side_effect=lambda step, **kw: envs.append(kw.get("env") or {}) or mock.Mock(returncode=0)), \
+            silenced():
+        doctor.do_repair(["chain"], assume_yes=True)
+    assert envs and all(env.get("ANIX_ASSUME_YES") == "1" for env in envs), envs
 
 
 @check("runtime: doctor --json is machine-readable and repair runs only listed fixes")

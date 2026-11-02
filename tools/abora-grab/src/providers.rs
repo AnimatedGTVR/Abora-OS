@@ -126,6 +126,41 @@ pub fn install_command(
     cmd
 }
 
+/// Commands that must succeed before `install_command`. A per-user Flatpak install needs Flathub in the
+/// user's own installation: Abora only sets it up system-wide, so without this the install fails with
+/// "No remote refs found for 'flathub'".
+pub fn prepare_commands(
+    kind: Kind,
+    settings: &Settings,
+    runner: &mut dyn Runner,
+) -> Vec<Vec<String>> {
+    match kind {
+        // Only when this scope has no Flathub yet: `remote-add --if-not-exists` still fetches the
+        // .flatpakrepo URL first (failing offline even with a working mirror) and can reset an existing
+        // remote's filter.
+        Kind::Flatpak if has_flathub(settings, runner) => Vec::new(),
+        Kind::Flatpak => vec![[
+            "flatpak",
+            "remote-add",
+            scope_flag(settings),
+            "--if-not-exists",
+            "flathub",
+            FLATHUB_REPO,
+        ]
+        .map(String::from)
+        .to_vec()],
+        Kind::Nix | Kind::Snap => Vec::new(),
+    }
+}
+
+const FLATHUB_REPO: &str = "https://dl.flathub.org/repo/flathub.flatpakrepo";
+
+fn has_flathub(settings: &Settings, runner: &mut dyn Runner) -> bool {
+    runner
+        .capture(&["flatpak", "remotes", scope_flag(settings), "--columns=name"])
+        .is_ok_and(|out| out.lines().any(|name| name.trim() == "flathub"))
+}
+
 pub fn remove_command(kind: Kind, id: &str, settings: &Settings) -> Vec<String> {
     match kind {
         Kind::Nix => {
@@ -191,8 +226,14 @@ pub fn search(
     }
 }
 
-/// The installed id matching `query`, if this provider has it.
-pub fn installed(kind: Kind, query: &str, runner: &mut dyn Runner) -> Option<String> {
+/// The installed id matching `query`, if this provider has it. Flatpak looks only in the chosen scope
+/// (user or system): a user-only app isn't installed for `--system`, and removing must target its scope.
+pub fn installed(
+    kind: Kind,
+    query: &str,
+    settings: &Settings,
+    runner: &mut dyn Runner,
+) -> Option<String> {
     let q = normalize(query);
     match kind {
         Kind::Nix => {
@@ -209,7 +250,13 @@ pub fn installed(kind: Kind, query: &str, runner: &mut dyn Runner) -> Option<Str
         }
         Kind::Flatpak => {
             let out = runner
-                .capture(&["flatpak", "list", "--app", "--columns=application,name"])
+                .capture(&[
+                    "flatpak",
+                    "list",
+                    "--app",
+                    scope_flag(settings),
+                    "--columns=application,name",
+                ])
                 .ok()?;
             out.lines().find_map(|line| {
                 let mut cols = line.split('\t');

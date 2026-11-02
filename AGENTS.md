@@ -110,6 +110,10 @@ An installed system follows `nixos-unstable` (default) or the stable branch name
 
 `anix doctor` on Abora is `scripts/support/abora-doctor.py`: a list of checks producing findings (id, area, status, explanation, optional repair), `--json`, `repair [<id>]`. It runs anix.sh's own config checks with `ANIX_DOCTOR_LAYER_ONLY=1`; on plain NixOS those are the whole doctor.
 
+### Test harness
+
+`testing/abora-break/` (Rust) breaks a test VM on purpose, over SSH, for `anix doctor` tests (release-gate row 9). It must never ship: nothing in `flake.nix`, `nix/`, `scripts/`, `tools/`, `vendor/` or `assets/` may mention it, and a `make check` rule enforces that. Docs: `docs/testing/abora-break.md`.
+
 ### Desktop Profiles
 
 `scripts/abora-desktop-profiles.sh` is a sourced library (not a standalone script). It defines two functions per desktop: `abora_desktop_config_block` (NixOS service/session config) and `abora_desktop_package_block` (packages). The split is important — `scripts/config/tests/desktop.test.sh` explicitly tests that config blocks do not contain `environment.systemPackages`.

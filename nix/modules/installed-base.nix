@@ -500,6 +500,11 @@ in
     theme = "abora";
     themePackages = [ aboraPlymouthTheme ];
   };
+  # GDM's built-in greeter defaults show the NixOS snowflake. dconf reads the profile's databases in order,
+  # so one placed first wins.
+  programs.dconf.profiles.gdm.databases = lib.mkIf config.services.displayManager.gdm.enable (lib.mkBefore [
+    { settings."org/gnome/login-screen".logo = "${aboraPlymouthTheme}/share/plymouth/themes/abora/abora-logo.png"; }
+  ]);
 
   hardware.enableAllFirmware = lib.mkDefault true;
   hardware.enableRedistributableFirmware = lib.mkDefault true;
@@ -630,6 +635,11 @@ in
 
   };
 
+  # Every desktop reads the Abora wallpaper from /run/current-system/sw/share/backgrounds/abora, but NixOS only
+  # links selected share/ directories into the system path, and only some desktop modules (COSMIC, for one)
+  # add share/backgrounds. A minimal IceWM install had no wallpaper at all.
+  environment.pathsToLink = lib.mkIf graphical [ "/share/backgrounds" "/share/abora" ];
+
   environment.systemPackages = with pkgs; [
     aboraApps
     aboraCustomPackages
@@ -656,6 +666,8 @@ in
     aboraThemeSync
     bashInteractive
     curl
+    # Inspecting and fixing UEFI boot entries (shared-ESP and dual-boot problems); tiny.
+    efibootmgr
     fastfetch
     git
     iw
@@ -710,6 +722,8 @@ in
     wantedBy = [ "graphical-session.target" ];
     partOf = [ "graphical-session.target" ];
     environment.ABORA_SESSION_SETUP_WAIT = "10";
+    # The session's own XDG_CURRENT_DESKTOP/DESKTOP_SESSION don't always reach user services.
+    environment.ABORA_DESKTOP = desktop;
     serviceConfig = {
       Type = "oneshot";
       ExecStart = "${aboraSessionSetup}/bin/abora-session-setup";

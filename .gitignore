@@ -1,10 +1,14 @@
 /work
+# Written only by the tag release build (release-iso.yml); never committed.
+/RELEASE_STAGE
 /out
 /result
 *.iso
 *.lock
 !/tools/*/Cargo.lock
 /tools/*/target/
+!/testing/*/Cargo.lock
+/testing/*/target/
 .codex
 
 

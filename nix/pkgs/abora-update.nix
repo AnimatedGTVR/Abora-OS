@@ -30,9 +30,13 @@ stdenvNoCC.mkDerivation {
     mkdir -p "$out/share/abora-update"
     cp -R . "$out/share/abora-update/"
     rm -f "$out/share/abora-update/tests.vanta"
-    # A compiled launcher (no shell script): `abora-update <args>` runs
+    # Keep the internal resolver name distinct from the user-facing
+    # `abora-update` shell wrapper. Both packages are in systemPackages, and
+    # giving them the same executable name made the wrapper call itself with
+    # resolver arguments on installed systems.
+    # A compiled launcher (no shell script): `abora-update-core <args>` runs
     # `vanta run <share>/main.vanta <args>`.
-    makeBinaryWrapper ${vanta}/bin/vanta "$out/bin/abora-update" \
+    makeBinaryWrapper ${vanta}/bin/vanta "$out/bin/abora-update-core" \
       --add-flags "run $out/share/abora-update/main.vanta"
     runHook postInstall
   '';
@@ -41,7 +45,7 @@ stdenvNoCC.mkDerivation {
   installCheckPhase = ''
     runHook preInstallCheck
     ${vanta}/bin/vanta run ${updateSrc}/tests.vanta
-    test "$("$out/bin/abora-update" resolve-ref --channel edge --current-version 4.0)" = "$(printf 'edge\tedge channel tracks nightly builds')"
+    test "$("$out/bin/abora-update-core" resolve-ref --channel edge --current-version 4.0)" = "$(printf 'edge\tedge channel tracks nightly builds')"
     runHook postInstallCheck
   '';
 
@@ -50,6 +54,6 @@ stdenvNoCC.mkDerivation {
     homepage = "https://github.com/Abora-OS/Abora-OS";
     license = licenses.gpl3Plus;
     platforms = platforms.linux;
-    mainProgram = "abora-update";
+    mainProgram = "abora-update-core";
   };
 }

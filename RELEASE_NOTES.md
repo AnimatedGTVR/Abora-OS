@@ -1,12 +1,9 @@
 # Abora OS v4.2 Solstice
 
-**Draft.** Solstice is not released yet: the install, update and rollback matrix in
-[docs/next-release-plan.md](docs/next-release-plan.md) has to pass first.
-
 A safer, simpler Abora: one command instead of two, system changes that undo themselves when they fail, a
 doctor that explains and repairs, and an installer that says exactly what went wrong.
 
-Released: **<RELEASE DATE>** · Tag: `v4.2` · Channel: `stable`
+Released: **2026-11-01** · Tag: `v4.2` · Channel: `stable`
 
 ## Highlights
 
@@ -74,17 +71,34 @@ direct, constructive criticism.
 sudo anix update
 ```
 
-- **On 4.1 or 4.1.1:** one update is enough. The updater hands over to 4.2's own updater, which installs the
-  new files (ABT, the shared core) along with everything else.
+- **On 4.1:** run this once instead:
+
+  ```
+  sudo env ABORA_UPDATE_RESOLVER_BIN=abora-update-resolver abora update
+  ```
+
+  The 4.1 updater picks the wrong internal helper (its own `abora-update` command) and stops before
+  changing anything. The variable points it at the helper 4.1 already ships. After that it hands over to
+  4.2's updater, and later updates are plain `sudo anix update`.
 - **On 4.0:** run `sudo abora update` twice. The 4.0 updater can't hand over mid-update, so the first run
   installs the newer updater and the second uses it.
 
-Release files, once published: `abora-<edition>-<stamp>-x86_64-v4.2.iso` for each edition, with
+Release files, once published: the universal `abora-<stamp>-x86_64-v4.2.iso`, with
 `SHA256SUMS-v4.2.txt`. Check the ISO against it before writing the USB stick.
 
 ## Known limitations
 
-- The install matrix (every edition, UEFI and BIOS, GPU choices) has not been run on 4.2 yet.
+- 4.1 systems need the one-time command above for their first update to 4.2; a plain `abora update` stops safely
+  before changing anything.
+- Tested in virtual machines only. Every desktop was installed and booted (BIOS; COSMIC and GNOME on UEFI too),
+  and the update from 4.1, rollbacks, `anix doctor` repairs and failed-install handling were run. Not tested on
+  real hardware: the NVIDIA, AMD and Intel driver choices (each builds and switches, but no real card was used)
+  and VirtualBox. Reports from real machines are welcome.
+- NVIDIA systems (`nvidia` or `nvidia-open`) run the long-term Linux 6.18 kernel; every other system runs the newest
+  kernel (7.3). NVIDIA's current driver does not build against Linux 7.3 yet.
+- Installing Abora twice on one computer, sharing its EFI partition, breaks the first install's boot entry: both
+  use the same bootloader folder. Dual-booting with another operating system was not tested.
+- Updating straight from 4.0 was not tested (a fresh 4.0 install no longer builds with current nixpkgs).
 - ABT can't protect a first install: there's no earlier generation to go back to.
 - The description line under a boot-menu entry (and `bootctl`) still names the NixOS release you follow, for example
   "Abora OS Yarara 4.2 (Linux 6.x)". nixpkgs builds that text from a read-only option, so Abora cannot change it;
@@ -92,13 +106,12 @@ Release files, once published: `abora-<edition>-<stamp>-x86_64-v4.2.iso` for eac
 
 ---
 
-# Abora OS v4.1.1
+# Unreleased v4.1.1 work (included in v4.2)
 
-A small update to Horizon that fixes how `abora update` handles files.
+This update was planned but never tagged or published. Its updater work is included in v4.2 instead; there is
+no v4.1.1 release to install.
 
-Released: **<RELEASE DATE>** · Tag: `v4.1.1` · Channel: `stable`
-
-## Why this update
+## Why the work was needed
 
 Until now, `abora update` copied a fixed list of files, and that list came from the version you already had
 installed. If a new release added a file, it never reached your system. If a release removed or renamed a
@@ -111,23 +124,11 @@ files. 4.1.1 fixes the updater first so v4.2 can arrive safely.
   now installs everything the release needs, including files your old updater didn't know about. Nothing is
   downloaded twice.
 - **Old files are cleaned up.** Each update keeps a list of the files it installed in
-  `/etc/nixos/abora/.abora-installed-files`. The next update removes anything on that list that the new release
+  `/etc/nixos/abora/.abora-installed-files`. A later update removes anything on that list that the new release
   no longer ships.
 - **Your files are safe.** Only files on that list are ever removed. Files you created, `apps.nix`, `apps.list`
-  and anything outside `/etc/nixos/abora` are never touched. Your first update after 4.1.1 only writes the list
-  and removes nothing.
-
-## Updating
-
-```
-sudo abora update
-```
-
-- **On 4.1:** one update is enough.
-- **On 4.0:** run `sudo abora update` twice. The 4.0 updater can't switch to the newer updater mid-update, so
-  the first run installs 4.1.1's updater and the second run uses it.
-
-No reinstall is needed, and the ISOs are only refreshed with the new version number.
+  and anything outside `/etc/nixos/abora` are never touched. The first update using this code only writes the
+  list and removes nothing.
 
 ---
 
@@ -140,7 +141,7 @@ Abora OS v4.1 Horizon is the reliability-focused follow-up to Everest: a safer i
 
 Horizon builds on Everest 4.0 and the DENALI 3.14 foundation while expanding how Abora can be installed, configured, updated, and used.
 
-Released: **<RELEASE DATE>** · Tag: `v4.1` · Channel: `stable`
+Released: **2026-10-03** · Tag: `v4.1` · Channel: `stable`
 
 ---
 # Highlights

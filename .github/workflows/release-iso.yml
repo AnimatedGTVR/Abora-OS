@@ -44,6 +44,14 @@ jobs:
           echo "$HOME/.nix-profile/bin" >> "$GITHUB_PATH"
           "$HOME/.nix-profile/bin/nix" --version
 
+      - name: Mark the ISO as a stable release
+        # Release ISOs install onto the stable update channel (nix/profiles/live.nix reads RELEASE_STAGE).
+        # Staged, because a flake build only sees files Git knows about; it's gitignored, so no branch carries it.
+        run: |
+          set -euo pipefail
+          echo stable > RELEASE_STAGE
+          git add -f RELEASE_STAGE
+
       - name: Build Release Bundle
         id: build_iso
         continue-on-error: true
@@ -80,9 +88,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: abora-${{ steps.version.outputs.tag }}-release-${{ github.run_number }}
-          # The ISO itself is not attached here — the ISO workflow/hosting
-          # step publishes it separately. This keeps the ISO out of both the
-          # workflow artifact and the GitHub Release assets below.
+          # The ISO is not in this artifact (it is ~2 GB); it is attached to
+          # the draft GitHub Release below instead.
           path: |
             out/packages/anix-*-abora-${{ steps.version.outputs.tag }}.tar.gz
             out/release/SHA256SUMS-${{ steps.version.outputs.tag }}.txt
@@ -100,11 +107,14 @@ jobs:
           title="Abora OS v4.2 Solstice (${tag})"
           notes_file="out/release/RELEASE_NOTES-${tag}.md"
           shopt -s nullglob
-          # ISO is intentionally not attached to the GitHub Release — it is
-          # published separately by the ISO workflow/hosting step. Only the
-          # smaller release artifacts (ANIX package, checksums, manifest)
-          # go here.
+          # This build is the only one made with RELEASE_STAGE=stable, so its
+          # ISO is the release ISO (installs onto the stable channel) and is
+          # attached here; no other workflow publishes it. GitHub's per-file
+          # limit is 2 GiB.
+          iso=(out/iso/abora-*-x86_64-"$tag".iso)
+          [ "${#iso[@]}" -eq 1 ] || { echo "expected one release ISO, found ${#iso[@]}" >&2; exit 1; }
           assets=(
+            "${iso[0]}"
             out/packages/anix-*-abora-"$tag".tar.gz
             out/release/SHA256SUMS-"$tag".txt
             out/release/RELEASE_MANIFEST-"$tag".txt
