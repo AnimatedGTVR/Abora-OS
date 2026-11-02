@@ -123,9 +123,11 @@ pub mod tests {
         }
         fn capture(&mut self, argv: &[&str]) -> Result<String, String> {
             let line = argv.join(" ");
+            // The longest matching prefix wins, so a scope-specific answer beats a general one.
             self.answers
                 .iter()
-                .find(|(prefix, _)| line.starts_with(*prefix))
+                .filter(|(prefix, _)| line.starts_with(*prefix))
+                .max_by_key(|(prefix, _)| prefix.len())
                 .map(|(_, answer)| answer.clone())
                 .unwrap_or_else(|| Err(format!("unexpected: {line}")))
         }
