@@ -131,7 +131,7 @@ printf '#!/usr/bin/env bash\n[[ -n "${FAKE_AS_ROOT:-}" ]] && [[ " $* " == *" rev
 # anix puts system directories first in PATH, so the fake sudo runs the fake git by its full path.
 printf '#!/usr/bin/env bash\necho "sudo $*" >> "%s/sudo.log"\n[[ "$1" == -n ]] && shift\n[[ "$1" == git ]] && { shift; FAKE_AS_ROOT=1 exec "%s/git" "$@"; }\nexec "$@"\n' "$tmp_ok" "$tmp_rootrepo_bin" > "$tmp_rootrepo_bin/sudo"
 chmod +x "$tmp_rootrepo_bin/git" "$tmp_rootrepo_bin/sudo"
-rootrepo_status="$(PATH="$tmp_rootrepo_bin:$PATH" ANIX_SYSTEM_CONFIG="$tmp_rootrepo_cfg" ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
+rootrepo_status="$(ANIX_SUDO_BIN="$tmp_rootrepo_bin/sudo" ANIX_SYSTEM_CONFIG="$tmp_rootrepo_cfg" ABORA_UI_LIB="$tmp_empty/missing-ui.sh" \
   scripts/anix.sh status 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
 if grep -qE 'git_repo[[:space:]]+yes' <<<"$rootrepo_status" && grep -q '^sudo -n git' "$tmp_ok/sudo.log"; then
   pass "runtime: anix status sees a root-owned config repo via sudo -n"

@@ -445,11 +445,12 @@ config_is_git_repo() {
     git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 && return 0
     is_yes "${ANIX_NO_SUDO:-}" && return 1
     [[ "$(id -u)" -eq 0 ]] && return 1
-    command -v sudo >/dev/null 2>&1 || return 1
+    local sudo_bin="${ANIX_SUDO_BIN:-sudo}"  # tests point this at a fake; PATH can't, line 8 puts /usr/bin first
+    command -v "$sudo_bin" >/dev/null 2>&1 || return 1
     if [[ "${1:-}" == privileged ]]; then
-        sudo git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1
+        "$sudo_bin" git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1
     else
-        sudo -n git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1
+        "$sudo_bin" -n git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1
     fi
 }
 
