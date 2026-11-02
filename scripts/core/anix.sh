@@ -437,13 +437,20 @@ valid_timezone() {
 }
 
 config_is_git_repo() {
-    # This is a read-only status probe. Do not call run_as_root here: on a
-    # machine without sudo that helper intentionally exits, which made
-    # `anix status` disappear whenever the config directory existed but was
-    # not a Git repository. A protected repository is simply not observable
-    # to this unprivileged status check.
-    git_available_for_config \
-        && git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1
+    # Never run_as_root here: on a machine without sudo it exits, which made `anix status` disappear. Git
+    # refuses a root-owned /etc/nixos for an ordinary user, though, so ask again as root: without a prompt
+    # (sudo -n) for status and checks, or, with `privileged`, prompting, for snapshot operations that need
+    # root anyway (otherwise a save offered to "initialize" an existing repo).
+    git_available_for_config || return 1
+    git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 && return 0
+    is_yes "${ANIX_NO_SUDO:-}" && return 1
+    [[ "$(id -u)" -eq 0 ]] && return 1
+    command -v sudo >/dev/null 2>&1 || return 1
+    if [[ "${1:-}" == privileged ]]; then
+        sudo git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1
+    else
+        sudo -n git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1
+    fi
 }
 
 config_is_dirty() {
@@ -472,15 +479,16 @@ warn_possible_secrets() {
 
     local matches=""
     matches="$(
-        # abora/ is Abora's own files, rewritten by every update: its scripts hold lines like
-        # `local password="$1"`, which cancelled the pre-update snapshot on a v4.1 -> 4.2 upgrade test.
+        # $config_dir/abora is Abora's own tree, rewritten by every update: its scripts hold lines like
+        # `local password="$1"`, which cancelled the pre-update snapshot on a v4.1 -> 4.2 upgrade test. Only
+        # that tree is skipped (--exclude-dir would also skip a user's own hosts/x/abora).
         grep -RInE \
             --exclude-dir=.git \
             --exclude-dir=.anix \
-            --exclude-dir=abora \
             --exclude='*.lock' \
             '(api[_-]?key|token|secret|password|passwd)[[:space:]]*[:=]' \
-            "$config_dir" 2>/dev/null | head -n 8 || true
+            "$config_dir" 2>/dev/null \
+            | grep -vF -- "${config_dir%/}/abora/" | head -n 8 || true
     )"
 
     [[ -n "$matches" ]] || return 0
@@ -496,7 +504,7 @@ warn_possible_secrets() {
 ensure_config_git_repo() {
     require_command git
     [[ -d "$config_dir" ]] || run_as_root mkdir -p "$config_dir"
-    if config_is_git_repo; then
+    if config_is_git_repo privileged; then
         return 0
     fi
     abora_warn "${config_dir} is not a Git repo yet."
@@ -546,7 +554,7 @@ do_save() {
 maybe_snapshot_dirty_config() {
     local message="$1"
 
-    if ! config_is_git_repo; then
+    if ! config_is_git_repo privileged; then
         [[ -d "$config_dir" ]] || return 0
         abora_warn "No local snapshot history exists for ${config_dir}."
         if confirm "Create a snapshot before switching?" "yes"; then

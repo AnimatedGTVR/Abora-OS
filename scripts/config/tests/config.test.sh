@@ -85,6 +85,20 @@ else
 fi
 rm -f "$tmp_config/anix.nix"
 
+# A wallpaper file named with sed replacement characters must reach anix.nix unchanged.
+tmp_wall_dir="$(mktemp -d)"
+: > "$tmp_wall_dir/sea&sky|1.jpg"
+printf '{ ... }:\n{\n  anix.wallpaper = "titlis-alps.jpg";\n}\n' > "$tmp_config/anix.nix"
+if ABORA_NO_SUDO=1 ABORA_NO_ABT=1 ABORA_WALLPAPER_DIR="$tmp_wall_dir" \
+  ABORA_SYSTEM_CONFIG="$tmp_config" \
+  scripts/abora-config.sh set wallpaper 'sea&sky|1.jpg' >/dev/null 2>&1 \
+  && grep -qF 'anix.wallpaper = "sea&sky|1.jpg";' "$tmp_config/anix.nix"; then
+  pass "runtime: abora config set wallpaper keeps & and | in anix.nix"
+else
+  fail "runtime: abora config set wallpaper keeps & and | in anix.nix"
+fi
+rm -f "$tmp_config/anix.nix"; rm -rf "$tmp_wall_dir"
+
 if ABORA_NO_SUDO=1 \
   ABORA_SYSTEM_CONFIG="$tmp_config" \
   scripts/abora-config.sh set hostname new-hostname >/dev/null 2>&1 \

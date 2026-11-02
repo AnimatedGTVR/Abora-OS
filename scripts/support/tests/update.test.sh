@@ -21,6 +21,23 @@ else
   fail "runtime: updater command-name collision would recurse into the shell wrapper"
 fi
 
+# The updater stages only what the flake reads, so a freshly initialized /etc/nixos can't push private files
+# into the Nix store (CodeRabbit on #54).
+tmp_stage="$(mktemp -d)"
+testlib_cleanup_paths+=("$tmp_stage")
+git -C "$tmp_stage" init -q
+mkdir -p "$tmp_stage/abora" "$tmp_stage/hosts"
+: > "$tmp_stage/flake.nix"; : > "$tmp_stage/configuration.nix"; : > "$tmp_stage/hosts/laptop.nix"
+: > "$tmp_stage/abora/installed-base.nix"; : > "$tmp_stage/abora/theme.conf"; : > "$tmp_stage/wifi-password.key"
+eval "$(sed -n '/^stage_flake_inputs() {/,/^}/p' scripts/support/abora-update.sh)"
+config_dir="$tmp_stage" stage_flake_inputs
+_staged="$(git -C "$tmp_stage" diff --cached --name-only | sort | tr '\n' ' ')"
+if [[ "$_staged" == "abora/installed-base.nix abora/theme.conf configuration.nix flake.nix hosts/laptop.nix " ]]; then
+  pass "runtime: the updater stages the flake's files, not private ones"
+else
+  fail "runtime: the updater stages the flake's files, not private ones (staged: $_staged)"
+fi
+
 # The flake writer test below creates this and later updater tests reuse it.
 tmp_update_flake="$(mktemp -d)"
 testlib_cleanup_paths+=("$tmp_update_flake")

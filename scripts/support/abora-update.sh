@@ -203,6 +203,18 @@ on_update_exit() {
 
 trap 'on_update_exit "$?"' EXIT
 
+# Stages what the system flake reads, and nothing else: `git add -A` in a freshly initialized /etc/nixos would
+# also stage private files (keys, notes), and the flake would copy them into the world-readable Nix store.
+# One path per call: `git add` stages nothing at all when any one pathspec doesn't match.
+stage_flake_inputs() {
+    git -C "$config_dir" rev-parse --git-dir >/dev/null 2>&1 || return 0
+    local path
+    for path in flake.nix flake.lock abora; do
+        [[ -e "$config_dir/$path" ]] && git -C "$config_dir" add -- "$path" 2>/dev/null
+    done
+    git -C "$config_dir" add -- ':(glob)**/*.nix' 2>/dev/null || true
+}
+
 # ── Channel helpers ───────────────────────────────────────────────────────────
 
 channel_file() {
@@ -2075,9 +2087,7 @@ ensure_flake_layout || {
 # In a Git repo Nix only sees tracked files, and the steps above may have just written flake.nix. Found on a
 # v4.1 VM upgrading to 4.2: v4.1's pre-update snapshot runs `git init` and can then cancel (its secret scan
 # flags installer.sh), leaving an empty repo, and `nix flake update` failed with "flake.nix ... is not tracked".
-if git -C "$config_dir" rev-parse --git-dir >/dev/null 2>&1; then
-    git -C "$config_dir" add -A 2>/dev/null || true
-fi
+stage_flake_inputs
 
 abora_wu_run "Updating flake inputs" "/tmp/abora-update-flake.log" -- \
     nix --extra-experimental-features "nix-command flakes" flake update --flake "$config_dir" || {
@@ -2085,9 +2095,7 @@ abora_wu_run "Updating flake inputs" "/tmp/abora-update-flake.log" -- \
     exit 1
 }
 
-if git -C "$config_dir" rev-parse --git-dir >/dev/null 2>&1; then
-    git -C "$config_dir" add -A 2>/dev/null || true
-fi
+stage_flake_inputs
 
 show_update_space_status /nix/store
 

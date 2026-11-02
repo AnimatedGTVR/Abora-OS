@@ -724,8 +724,13 @@ sync_anix_override() {
     case "$key" in desktop|wallpaper) ;; *) return 0 ;; esac
     [[ -f "$anix_module" ]] || return 0
     grep -Eq "^[[:space:]]*anix\.${key}[[:space:]]*=[[:space:]]*\"" "$anix_module" || return 0
+    # Wallpaper file names may contain sed replacement characters (& or |); escape them like
+    # write_string_option does, or sed would mangle the value or fail after abora-local.nix changed.
+    local escaped="${value//\\/\\\\}"
+    escaped="${escaped//&/\\&}"
+    escaped="${escaped//|/\\|}"
     run_as_root sed -i -E \
-        "s|^([[:space:]]*anix\.${key}[[:space:]]*=[[:space:]]*)\"[^\"]*\";|\1\"${value}\";|" "$anix_module"
+        "s|^([[:space:]]*anix\.${key}[[:space:]]*=[[:space:]]*)\"[^\"]*\";|\1\"${escaped}\";|" "$anix_module"
 }
 
 # ── Apply ─────────────────────────────────────────────────────────────────────
