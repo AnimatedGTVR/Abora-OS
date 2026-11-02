@@ -93,7 +93,15 @@ Release files, once published: the universal `abora-<stamp>-x86_64-v4.2.iso`, wi
 
 - 4.1 systems need the one-time command above for their first update to 4.2; a plain `abora update` stops safely
   before changing anything.
-- The install matrix (every edition, UEFI and BIOS, GPU choices) has not been run on 4.2 yet.
+- Tested in virtual machines only. Every desktop was installed and booted (BIOS; COSMIC and GNOME on UEFI too),
+  and the update from 4.1, rollbacks, `anix doctor` repairs and failed-install handling were run. Not tested on
+  real hardware: the NVIDIA, AMD and Intel driver choices (each builds and switches, but no real card was used)
+  and VirtualBox. Reports from real machines are welcome.
+- NVIDIA systems (`nvidia` or `nvidia-open`) run the long-term Linux 6.18 kernel; every other system runs the newest
+  kernel (7.3). NVIDIA's current driver does not build against Linux 7.3 yet.
+- Installing Abora twice on one computer, sharing its EFI partition, breaks the first install's boot entry: both
+  use the same bootloader folder. Dual-booting with another operating system was not tested.
+- Updating straight from 4.0 was not tested (a fresh 4.0 install no longer builds with current nixpkgs).
 - ABT can't protect a first install: there's no earlier generation to go back to.
 - The description line under a boot-menu entry (and `bootctl`) still names the NixOS release you follow, for example
   "Abora OS Yarara 4.2 (Linux 6.x)". nixpkgs builds that text from a read-only option, so Abora cannot change it;
