@@ -279,7 +279,7 @@ def _():
 
 @check("runtime: doctor flags abora.gpu set for a different vendor (row 9 wrong-gpu, no GPU needed)")
 def _():
-    # The VM's virtio GPU isn't a vendor the doctor knows, so `abora-break wrong-gpu` can't be seen there.
+    # The VM's virtio GPU isn't a vendor the doctor knows, so the wrong-gpu fault can't be seen there.
     # An Intel machine set to amdgpu must fail; set to intel with i915 loaded it is fine.
     doctor = load("abora-doctor")
     with tempfile.TemporaryDirectory() as tmp:
