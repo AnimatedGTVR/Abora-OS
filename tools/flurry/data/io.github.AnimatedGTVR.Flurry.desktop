@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Flurry
+GenericName=Software
+Comment=Install apps from nixpkgs, Flathub and Snap
+Exec=flurry
+Icon=io.github.AnimatedGTVR.Flurry
+Terminal=false
+Categories=System;PackageManager;GTK;
+Keywords=software;apps;store;shop;install;nix;nixpkgs;lix;flatpak;flathub;snap;
+StartupNotify=true
+DBusActivatable=false

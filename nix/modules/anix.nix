@@ -78,6 +78,17 @@ in
       description = "Enable nix-command and flakes.";
     };
 
+    nixImplementation = lib.mkOption {
+      type = lib.types.nullOr (lib.types.enum [ "nix" "lix" ]);
+      default = null;
+      example = "lix";
+      description = ''
+        Which Nix implementation runs the daemon and the `nix` command: "nix" (CppNix) or "lix"
+        (the Lix fork). Both build from the same nixpkgs. null keeps the NixOS default.
+        Command: anix set nix lix
+      '';
+    };
+
     shell = lib.mkOption {
       type = lib.types.nullOr (lib.types.enum [ "bash" "zsh" "fish" ]);
       default = null;
@@ -350,6 +361,9 @@ in
     })
     (lib.mkIf (cfg.fonts != [ ]) {
       fonts.packages = cfg.fonts;
+    })
+    (lib.mkIf (cfg.nixImplementation == "lix") {
+      nix.package = lib.mkDefault pkgs.lix;
     })
     (lib.mkIf (cfg.shell != null) {
       programs.${cfg.shell}.enable = true;

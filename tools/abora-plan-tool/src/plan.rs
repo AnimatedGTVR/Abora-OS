@@ -13,6 +13,7 @@ const SET_KEYS: &[&str] = &[
     "desktop",
     "wallpaper",
     "shell",
+    "nix",
     "gc.days",
     "garbageCollect.dates",
     "gc.dates",
