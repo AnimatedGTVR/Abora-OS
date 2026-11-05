@@ -473,7 +473,6 @@ in
   # and any normal definition would drop a mkDefault list entirely.
   boot.kernelParams = [
     "quiet"
-    "splash"
     "udev.log_level=3"
     "systemd.show_status=auto"
   ];
@@ -505,8 +504,9 @@ in
   boot.kernelModules = [];
   boot.loader.efi.canTouchEfiVariables = lib.mkDefault false;
   boot.loader.limine.style.wallpapers = [ limineWallpaperFile ];
+  # The animated boot splash is off (v4.3); the theme stays built because the GDM login logo reads from it.
   boot.plymouth = {
-    enable = lib.mkDefault true;
+    enable = lib.mkDefault false;
     theme = "abora";
     themePackages = [ aboraPlymouthTheme ];
   };

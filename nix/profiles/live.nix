@@ -449,8 +449,9 @@ in
     "rd.systemd.show_status=true"
     "vt.global_cursor_default=1"
   ];
+  # No boot animation (v4.3); the installer's own text splash is what shows.
   boot.plymouth = {
-    enable = true;
+    enable = false;
     theme = "abora";
     themePackages = [ aboraPlymouthTheme ];
   };
