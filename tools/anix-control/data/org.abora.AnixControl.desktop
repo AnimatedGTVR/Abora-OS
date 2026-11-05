@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Anix Control
+Comment=Edit your ANIX system config without the terminal
+Exec=anix-control
+Icon=preferences-system
+Terminal=false
+Categories=System;Settings;GTK;
+Keywords=anix;nixos;settings;config;
