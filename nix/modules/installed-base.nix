@@ -127,6 +127,10 @@ let
     then ./abora-update else null;
   planToolDir =
     if builtins.pathExists ./plan-tool then ./plan-tool else null;
+  flurryDir =
+    if builtins.pathExists ./flurry && builtins.pathExists ./pkgs/flurry.nix then ./flurry else null;
+  anixControlDir =
+    if builtins.pathExists ./anix-control && builtins.pathExists ./pkgs/anix-control.nix then ./anix-control else null;
   grabDir =
     if builtins.pathExists ./grab && builtins.pathExists ./pkgs/abora-grab.nix then ./grab else null;
   version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile versionFile);
@@ -443,6 +447,12 @@ in
         toolSrc = grabDir;
       };
     }
+    // lib.optionalAttrs (flurryDir != null) {
+      flurry = final.callPackage ./pkgs/flurry.nix { toolSrc = flurryDir; };
+    }
+    // lib.optionalAttrs (anixControlDir != null) {
+      anix-control = final.callPackage ./pkgs/anix-control.nix { toolSrc = anixControlDir; };
+    }
     // lib.optionalAttrs (planToolDir != null) {
       abora-plan-tool = final.callPackage ./pkgs/abora-plan-tool.nix {
         toolSrc = planToolDir;
@@ -694,7 +704,6 @@ in
     qt6Packages.qt6ct
   ] ++ lib.optionals (graphical && !minimal) [
     aboraWelcomeDesktopPkg
-    aboraConfigDesktopPkg
     papirus-icon-theme
   ] ++ lib.optional (needsFallbackTerminal && !minimal) kdePackages.konsole
     ++ lib.optional (needsFallbackTerminal && minimal) xterm
@@ -705,6 +714,8 @@ in
     ++ lib.optional (pkgs ? abora-grab) pkgs.abora-grab
     ++ lib.optional (graphical && !minimal && welcomeGuiScript != null) aboraWelcomeGui
     ++ lib.optional (graphical && !minimal && configGuiScript != null) aboraConfigGui
+    ++ lib.optional (graphical && !minimal && pkgs ? flurry) pkgs.flurry
+    ++ lib.optional (graphical && !minimal && pkgs ? anix-control) pkgs.anix-control
     ++ lib.optional (gamingWelcomeGuiScript != null) aboraGamingWelcomeGui
     ++ lib.optional config.abora.gaming.enable aboraGamingWelcomeDesktopPkg
     ++ lib.optional (config.abora.labs.enable && labsScript != null) aboraLabs
@@ -1131,6 +1142,12 @@ in
     }
     // lib.optionalAttrs (grabDir != null) {
       "abora/grab".source = grabDir;
+    }
+    // lib.optionalAttrs (flurryDir != null) {
+      "abora/flurry".source = flurryDir;
+    }
+    // lib.optionalAttrs (anixControlDir != null) {
+      "abora/anix-control".source = anixControlDir;
     }
     // lib.optionalAttrs (planToolDir != null) {
       "abora/plan-tool".source = planToolDir;

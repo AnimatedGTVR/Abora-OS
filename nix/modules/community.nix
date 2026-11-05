@@ -42,12 +42,12 @@ in {
     };
     reminders = lib.mkOption {
       type = lib.types.bool;
-      default = true;
-      description = "Enable optional per-user survey reminders on installed systems.";
+      default = false;
+      description = "Enable optional per-user survey reminders on installed systems (off by default).";
     };
   };
   config = {
-    environment.systemPackages = [ survey learn surveyDesktop learnDesktop ];
+    environment.systemPackages = [ survey learn ];  # commands only; no menu entries
     environment.etc = {
       "abora/community.py".source = source;
       "abora/community.nix".source = ./community.nix;

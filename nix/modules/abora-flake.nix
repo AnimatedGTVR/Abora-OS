@@ -22,6 +22,8 @@ let
     "nix/pkgs:pkgs"
     "tools/abora-plan-tool:plan-tool"
     "tools/abora-grab:grab"
+    "tools/flurry:flurry"
+    "tools/anix-control:anix-control"
     "tools/abora-update:abora-update"
     "assets/wallpapers/collection:wallpapers"
     "assets/wallpaper-themes:themes"

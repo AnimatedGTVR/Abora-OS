@@ -1,4 +1,4 @@
-{ lib, config, ... }:
+{ lib, config, pkgs, ... }:
 let
   common = import ./common.nix { inherit config; };
 in
@@ -68,6 +68,11 @@ in
       [org.gnome.Terminal.Legacy.Settings]
       theme-variant='light'
     '';
+    # Apps nobody asked for; each is one click away in Flurry.
+    environment.gnome.excludePackages = with pkgs; [
+      epiphany gnome-software gnome-tour gnome-user-docs yelp gnome-contacts gnome-maps gnome-weather
+      gnome-music gnome-connections gnome-tecla simple-scan
+    ];
     services.displayManager.autoLogin = common.autologin;
     services.displayManager.defaultSession = "gnome";
     services.gnome.gnome-keyring.enable = true;

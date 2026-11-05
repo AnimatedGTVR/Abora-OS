@@ -1656,6 +1656,12 @@ install_abora_files() {
         copy_upstream_file "$upstream_dir/nix/pkgs/abora-grab.nix" "$abora_dir/pkgs/abora-grab.nix"
         copy_upstream_dir "$upstream_dir/tools/abora-grab" "$abora_dir/grab"
     fi
+    for tool_name in flurry anix-control; do
+        if [[ -f "$upstream_dir/nix/pkgs/${tool_name}.nix" && -d "$upstream_dir/tools/${tool_name}" ]]; then
+            copy_upstream_file "$upstream_dir/nix/pkgs/${tool_name}.nix" "$abora_dir/pkgs/${tool_name}.nix"
+            copy_upstream_dir "$upstream_dir/tools/${tool_name}" "$abora_dir/${tool_name}"
+        fi
+    done
     if [[ -d "$upstream_dir/tools/abora-plan-tool" ]]; then
         copy_upstream_dir "$upstream_dir/tools/abora-plan-tool" "$abora_dir/plan-tool"
     fi

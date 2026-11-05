@@ -1,4 +1,4 @@
-{ lib, config, ... }:
+{ lib, config, pkgs, ... }:
 let
   common = import ./common.nix { inherit config; };
 in
@@ -11,5 +11,6 @@ in
     };
     services.displayManager.sddm.enable = true;
     services.desktopManager.plasma6.enable = true;
+    environment.plasma6.excludePackages = with pkgs.kdePackages; [ elisa khelpcenter krdp ];
   };
 }

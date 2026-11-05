@@ -1009,6 +1009,10 @@ do_set() {
         shell)
             case "$value" in bash|zsh|fish) ;; *) abora_error "Shell must be bash, zsh, or fish."; exit 1 ;; esac
             ;;
+        nix|nixImplementation)
+            key="nixImplementation"
+            case "$value" in nix|lix) ;; *) abora_error "nix must be 'nix' or 'lix'."; exit 1 ;; esac
+            ;;
         gc.days)
             key="garbageCollect.options"
             value="--delete-older-than ${value}"
@@ -1018,7 +1022,7 @@ do_set() {
             ;;
         *)
             abora_error "Unknown key: ${key}"
-            printf '  %bSettable keys:%b hostname timezone keyboard keyboard.xkb desktop wallpaper shell gc.days gc.dates\n\n' "$ABORA_DIM" "$ABORA_NC"
+            printf '  %bSettable keys:%b hostname timezone keyboard keyboard.xkb desktop wallpaper shell nix gc.days gc.dates\n\n' "$ABORA_DIM" "$ABORA_NC"
             exit 1
             ;;
     esac

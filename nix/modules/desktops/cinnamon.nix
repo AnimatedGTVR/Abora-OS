@@ -1,4 +1,4 @@
-{ lib, config, ... }:
+{ lib, config, pkgs, ... }:
 let
   common = import ./common.nix { inherit config; };
 in
@@ -8,6 +8,7 @@ in
       desktopManager.cinnamon.enable = true;
       displayManager.lightdm.enable = true;
     };
+    environment.cinnamon.excludePackages = with pkgs; [ onboard gucharmap ];
     services.displayManager = {
       defaultSession = "cinnamon";
       autoLogin = common.autologin;

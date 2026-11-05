@@ -2791,6 +2791,11 @@ write_branding_assets() {
     if [[ -f /etc/abora/pkgs/abora-grab.nix ]]; then
         cp /etc/abora/pkgs/abora-grab.nix "${root}/etc/nixos/abora/pkgs/abora-grab.nix"
     fi
+    for tool_pkg in flurry anix-control; do
+        if [[ -f "/etc/abora/pkgs/${tool_pkg}.nix" ]]; then
+            cp "/etc/abora/pkgs/${tool_pkg}.nix" "${root}/etc/nixos/abora/pkgs/${tool_pkg}.nix"
+        fi
+    done
     cp_required /etc/abora/target-flake.lock "${root}/etc/nixos/abora/target-flake.lock"
     if [[ -f /etc/abora/nixos-stable ]]; then
         cp /etc/abora/nixos-stable "${root}/etc/nixos/abora/nixos-stable"
@@ -2825,6 +2830,12 @@ write_branding_assets() {
         mkdir -p "${root}/etc/nixos/abora/grab"
         cp -a /etc/abora/grab/. "${root}/etc/nixos/abora/grab/"
     fi
+    for tool_dir in flurry anix-control; do
+        if [[ -e "/etc/abora/${tool_dir}" ]]; then
+            mkdir -p "${root}/etc/nixos/abora/${tool_dir}"
+            cp -a "/etc/abora/${tool_dir}/." "${root}/etc/nixos/abora/${tool_dir}/"
+        fi
+    done
 
     if [[ -d /etc/abora/docs ]]; then
         mkdir -p "${root}/etc/nixos/abora/docs"

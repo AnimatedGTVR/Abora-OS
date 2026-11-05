@@ -460,6 +460,8 @@ in
     abora-update
     abora-plan-tool
     abora-grab
+    flurry
+    anix-control
     abora-installer
     aboraApps
     aboraCustomPackages
@@ -724,9 +726,13 @@ in
       "abora/pkgs/abora-update.nix".source = ../pkgs/abora-update.nix;
       "abora/pkgs/abora-plan-tool.nix".source = ../pkgs/abora-plan-tool.nix;
       "abora/pkgs/abora-grab.nix".source = ../pkgs/abora-grab.nix;
+      "abora/pkgs/flurry.nix".source = ../pkgs/flurry.nix;
+      "abora/pkgs/anix-control.nix".source = ../pkgs/anix-control.nix;
       "abora/abora-update".source = ../../tools/abora-update;
       "abora/plan-tool".source = ../../tools/abora-plan-tool;
       "abora/grab".source = ../../tools/abora-grab;
+      "abora/flurry".source = ../../tools/flurry;
+      "abora/anix-control".source = ../../tools/anix-control;
       "abora/docs".source = ../../docs;
       "abora/anix-languages".source = ../../assets/anix-languages;
       "anix/languages".source = ../../assets/anix-languages;
