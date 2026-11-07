@@ -1,0 +1,3 @@
+<!-- Placeholder: the C# plan tool was replaced by the Rust one in this directory (src/) in Abora 4.2.
+     The updaters installed on 4.0 and 4.1 refuse a release without this path (scripts/release/legacy-required-paths.txt). -->
+<Project />

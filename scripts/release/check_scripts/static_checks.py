@@ -340,14 +340,51 @@ CHECKS: tuple[Check, ...] = (
     ),
     # 4.0/4.1 updaters refuse a release without the old resolver's files, and a
     # rolled-back older installed-base.nix may still call its .nix: the
-    # placeholder forwards to abora-update (same CLI) instead of failing.
+    # placeholder forwards to abora-update-core (same CLI) instead of failing.
+    # The plan tool's C# paths stay as placeholders for the same reason: without
+    # them the 4.1 updater rejects the checkout and 4.1 systems can't upgrade.
     Check(
         'runtime: the removed C# tools leave only legacy placeholders behind',
-        grep('-Fq', 'exec abora-update "$@"', 'nix/pkgs/abora-update-resolver.nix'),
+        grep('-Fq', 'exec abora-update-core "$@"', 'nix/pkgs/abora-update-resolver.nix'),
         not_(grep('-q', 'buildDotnetModule', 'nix/pkgs/abora-update-resolver.nix', 'nix/pkgs/abora-plan-tool.nix')),
         not_(grep('-q', 'abora-update-resolver', 'flake.nix', 'nix/profiles/live.nix', 'nix/modules/installed-base.nix')),
-        not_(test('-e', 'tools/abora-plan-tool/AboraPlanTool.csproj')),
-        not_(test('-e', 'nix/pkgs/abora-plan-tool-deps.json')),
+        grep('-q', 'Placeholder', 'tools/abora-plan-tool/AboraPlanTool.csproj', 'tools/abora-plan-tool/Program.cs'),
+        grep('-Fqx', '[]', 'nix/pkgs/abora-plan-tool-deps.json'),
+    ),
+    # Release ISOs must install onto the stable channel and nightly ones onto edge. Only the tag release
+    # build writes RELEASE_STAGE; it must never be committed, or every ISO from that branch becomes "stable".
+    Check(
+        'static: release ISOs install onto stable, every other ISO onto edge',
+        grep('-Fq', 'echo stable > RELEASE_STAGE', '.github/workflows/release-iso.yml'),
+        grep('-Fq', 'iso=(out/iso/abora-*-x86_64-"$tag".iso)', '.github/workflows/release-iso.yml'),
+        not_(grep('-q', 'RELEASE_STAGE', '.github/workflows/build-iso.yml')),
+        grep('-Fq', 'ABORA_RELEASE_STAGE          = releaseStage;', 'nix/profiles/live.nix'),
+        grep('-Fq', 'ABORA_RELEASE_STAGE=${releaseStage}', 'nix/profiles/live.nix'),
+        grep('-Fq', 'stable|final|release) abora_release_channel=stable ;;', 'scripts/install/abora-installer.sh'),
+        grep('-qx', '/RELEASE_STAGE', '.gitignore'),
+    ),
+    # 4.2 ships one ISO and the installer asks for the desktop; its welcome screen still said "installs the
+    # COSMIC edition" (seen on the 2026-11-01 ISO).
+    Check(
+        'static: the installer welcome screen does not describe an edition',
+        not_(grep('-q', 'installs the ${desktop_label} edition', 'scripts/install/abora-installer.sh')),
+    ),
+    # The live system's /etc/abora themes and wallpapers are symlinks into /etc/static; copied as symlinks,
+    # the installed flake turns them into store-path loops (found on a 4.2 test install).
+    Check(
+        'static: the installer copies themes and wallpapers as real files',
+        grep('-Fq', 'cp -RL /etc/abora/themes/.', 'scripts/install/abora-installer.sh'),
+        grep('-Fq', 'cp -RL /etc/abora/wallpapers/.', 'scripts/install/abora-installer.sh'),
+        not_(grep('-Eq', 'cp -a /etc/abora/(themes|wallpapers)', 'scripts/install/abora-installer.sh')),
+    ),
+    # testing/abora-break deliberately breaks systems. It is a test-harness tool that runs from the
+    # developer's machine, so nothing that builds the ISO, the installer or an installed system may
+    # mention it.
+    Check(
+        'static: the system-breaking test tool never ships',
+        not_(grep('-rqE', '--exclude-dir=check_scripts', '--exclude-dir=target', 'abora-break|testing/abora',
+                  'flake.nix', 'nix', 'scripts', 'tools', 'vendor', 'assets')),
+        grep('-q', 'systemd-detect-virt --vm', 'testing/abora-break/src/main.rs'),
     ),
     Check(
         'runtime: the startup sound is gone (removed in 4.2): no ringtone command, no login sound, no sound files',
@@ -373,8 +410,8 @@ CHECKS: tuple[Check, ...] = (
         grep('-q', '/etc/abora/desktops', 'scripts/abora-installer.sh'),
         grep('-q', '/etc/abora/wallpapers', 'scripts/abora-installer.sh'),
         grep('-q', '/etc/abora/themes', 'scripts/abora-installer.sh'),
-        grep('-q', 'cp -a /etc/abora/wallpapers/.', 'scripts/abora-installer.sh'),
-        grep('-q', 'cp -a /etc/abora/themes/.', 'scripts/abora-installer.sh'),
+        grep('-Fq', 'cp -RL /etc/abora/wallpapers/.', 'scripts/abora-installer.sh'),
+        grep('-Fq', 'cp -RL /etc/abora/themes/.', 'scripts/abora-installer.sh'),
         grep('-q', '../../assets/wallpapers/collection', 'nix/modules/abora-options.nix'),
         grep('-q', '../../assets/wallpapers/collection', 'nix/modules/installed-base.nix'),
         grep('-q', '../../assets/wallpaper-themes', 'nix/modules/installed-base.nix'),

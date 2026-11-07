@@ -9,6 +9,35 @@ set -euo pipefail
 # shellcheck source=../../release/bash-testlib.sh
 source "$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../release" && pwd)/bash-testlib.sh"
 
+# The public updater command is a shell wrapper. Its internal Vanta resolver
+# must have a different executable name or resolve_resolver_bin() discovers
+# the wrapper itself and recursively invokes it with `resolve-ref` arguments.
+if grep -q 'writeShellScriptBin "abora-update"' nix/modules/installed-base.nix \
+  && grep -q 'makeBinaryWrapper .*"$out/bin/abora-update-core"' nix/pkgs/abora-update.nix \
+  && grep -q 'command -v abora-update-core' scripts/support/abora-update.sh \
+  && ! grep -q 'command -v abora-update 2>/dev/null' scripts/support/abora-update.sh; then
+  pass "runtime: public updater and internal resolver have distinct command names"
+else
+  fail "runtime: updater command-name collision would recurse into the shell wrapper"
+fi
+
+# The updater stages only what the flake reads, so a freshly initialized /etc/nixos can't push private files
+# into the Nix store (CodeRabbit on #54).
+tmp_stage="$(mktemp -d)"
+testlib_cleanup_paths+=("$tmp_stage")
+git -C "$tmp_stage" init -q
+mkdir -p "$tmp_stage/abora" "$tmp_stage/hosts"
+: > "$tmp_stage/flake.nix"; : > "$tmp_stage/configuration.nix"; : > "$tmp_stage/hosts/laptop.nix"
+: > "$tmp_stage/abora/installed-base.nix"; : > "$tmp_stage/abora/theme.conf"; : > "$tmp_stage/wifi-password.key"
+eval "$(sed -n '/^stage_flake_inputs() {/,/^}/p' scripts/support/abora-update.sh)"
+config_dir="$tmp_stage" stage_flake_inputs
+_staged="$(git -C "$tmp_stage" diff --cached --name-only | sort | tr '\n' ' ')"
+if [[ "$_staged" == "abora/installed-base.nix abora/theme.conf configuration.nix flake.nix hosts/laptop.nix " ]]; then
+  pass "runtime: the updater stages the flake's files, not private ones"
+else
+  fail "runtime: the updater stages the flake's files, not private ones (staged: $_staged)"
+fi
+
 # The flake writer test below creates this and later updater tests reuse it.
 tmp_update_flake="$(mktemp -d)"
 testlib_cleanup_paths+=("$tmp_update_flake")
@@ -574,10 +603,12 @@ fi
 # (and says so), `channel set` refuses them, and the list shows only Stable and Edge.
 tmp_chan="$(mktemp -d)"
 mkdir -p "$tmp_chan/abora"
-for old in demo dev; do
+for old in demo dev unstable; do
   printf '%s\n' "$old" > "$tmp_chan/abora/channel"
   _chan_show="$(ABORA_SYSTEM_CONFIG="$tmp_chan" ABORA_UI_LIB="$repo_dir/scripts/abora-ui.sh" scripts/abora-update.sh channel 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
-  if grep -q 'Channel    edge' <<<"$_chan_show" && grep -q "the '$old' update channel is now 'edge'" <<<"$_chan_show"; then
+  # ...and the new name is saved, so the notice isn't repeated every update.
+  if grep -q 'Channel    edge' <<<"$_chan_show" && grep -q "the '$old' update channel is now 'edge'" <<<"$_chan_show" \
+    && [[ "$(cat "$tmp_chan/abora/channel")" == edge ]]; then
     pass "runtime: a system saved on the '$old' channel migrates to Edge and is told so"
   else
     fail "runtime: a system saved on the '$old' channel migrates to Edge and is told so"

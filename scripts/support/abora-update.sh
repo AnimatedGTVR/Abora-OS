@@ -131,7 +131,7 @@ git_fetch_timeout="${ABORA_GIT_FETCH_TIMEOUT:-300}"
 build_timeout="${ABORA_BUILD_TIMEOUT:-3600}"
 switch_timeout="${ABORA_SWITCH_TIMEOUT:-1800}"
 # The channel/version decision logic in resolve_update_ref/
-# guard_against_accidental_downgrade below is delegated to abora-update, the
+# guard_against_accidental_downgrade below is delegated to abora-update-core, the
 # Vanta core of the updater (tools/abora-update), which more of this script
 # moves into over time. It only decides: this script still owns every bit of
 # I/O (git ls-remote, reading VERSION, printing colored UI text). The C#
@@ -145,7 +145,7 @@ resolve_resolver_bin() {
         return 0
     fi
 
-    if candidate="$(command -v abora-update 2>/dev/null)"; then
+    if candidate="$(command -v abora-update-core 2>/dev/null)"; then
         printf '%s\n' "$candidate"
         return 0
     fi
@@ -155,7 +155,7 @@ resolve_resolver_bin() {
         return 0
     fi
 
-    printf '%s\n' abora-update
+    printf '%s\n' abora-update-core
 }
 
 resolver_bin="$(resolve_resolver_bin)"
@@ -203,6 +203,18 @@ on_update_exit() {
 
 trap 'on_update_exit "$?"' EXIT
 
+# Stages what the system flake reads, and nothing else: `git add -A` in a freshly initialized /etc/nixos would
+# also stage private files (keys, notes), and the flake would copy them into the world-readable Nix store.
+# One path per call: `git add` stages nothing at all when any one pathspec doesn't match.
+stage_flake_inputs() {
+    git -C "$config_dir" rev-parse --git-dir >/dev/null 2>&1 || return 0
+    local path
+    for path in flake.nix flake.lock abora; do
+        [[ -e "$config_dir/$path" ]] && git -C "$config_dir" add -- "$path" 2>/dev/null
+    done
+    git -C "$config_dir" add -- ':(glob)**/*.nix' 2>/dev/null || true
+}
+
 # ── Channel helpers ───────────────────────────────────────────────────────────
 
 channel_file() {
@@ -229,7 +241,14 @@ read_channel() {
     fi
     cf="$(channel_file)"
     if [[ -f "$cf" ]]; then
-        normalize_channel "$(tr -d '[:space:]' < "$cf")"
+        local saved
+        saved="$(tr -d '[:space:]' < "$cf")"
+        # Save the new name once (the updater runs as root), so the migration notice isn't repeated on every
+        # update. Seen after a v4.1 -> 4.2 upgrade, which kept "unstable" in the file.
+        case "$saved" in
+            demo|dev|unstable) [[ -w "$cf" ]] && printf 'edge\n' > "$cf" 2>/dev/null ;;
+        esac
+        normalize_channel "$saved"
     else
         printf 'stable'
     fi
@@ -2065,15 +2084,18 @@ ensure_flake_layout || {
     exit 1
 }
 
+# In a Git repo Nix only sees tracked files, and the steps above may have just written flake.nix. Found on a
+# v4.1 VM upgrading to 4.2: v4.1's pre-update snapshot runs `git init` and can then cancel (its secret scan
+# flags installer.sh), leaving an empty repo, and `nix flake update` failed with "flake.nix ... is not tracked".
+stage_flake_inputs
+
 abora_wu_run "Updating flake inputs" "/tmp/abora-update-flake.log" -- \
     nix --extra-experimental-features "nix-command flakes" flake update --flake "$config_dir" || {
     explain_update_failure "/tmp/abora-update-flake.log"
     exit 1
 }
 
-if git -C "$config_dir" rev-parse --git-dir >/dev/null 2>&1; then
-    git -C "$config_dir" add -A 2>/dev/null || true
-fi
+stage_flake_inputs
 
 show_update_space_status /nix/store
 

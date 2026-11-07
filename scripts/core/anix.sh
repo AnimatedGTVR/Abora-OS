@@ -422,11 +422,36 @@ git_available_for_config() {
     command -v git >/dev/null 2>&1 && [[ -d "$config_dir" ]]
 }
 
+# NixOS builds a system with any time.timeZone string, so a typo only shows up as the wrong clock.
+# Checks the name against the zoneinfo database when one is available, else just its shape.
+valid_timezone() {
+    local zone="$1" dir
+    [[ "$zone" == UTC ]] && return 0
+    [[ "$zone" =~ ^[A-Za-z_]+(/[A-Za-z0-9_+-]+)+$ ]] || return 1
+    for dir in "${TZDIR:-}" /etc/zoneinfo /usr/share/zoneinfo; do
+        [[ -n "$dir" && -d "$dir" ]] || continue
+        [[ -f "$dir/$zone" ]]
+        return
+    done
+    return 0
+}
+
 config_is_git_repo() {
-    git_available_for_config && {
-        git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
-            || run_as_root git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1
-    }
+    # Never run_as_root here: on a machine without sudo it exits, which made `anix status` disappear. Git
+    # refuses a root-owned /etc/nixos for an ordinary user, though, so ask again as root: without a prompt
+    # (sudo -n) for status and checks, or, with `privileged`, prompting, for snapshot operations that need
+    # root anyway (otherwise a save offered to "initialize" an existing repo).
+    git_available_for_config || return 1
+    git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 && return 0
+    is_yes "${ANIX_NO_SUDO:-}" && return 1
+    [[ "$(id -u)" -eq 0 ]] && return 1
+    local sudo_bin="${ANIX_SUDO_BIN:-sudo}"  # tests point this at a fake; PATH can't, line 8 puts /usr/bin first
+    command -v "$sudo_bin" >/dev/null 2>&1 || return 1
+    if [[ "${1:-}" == privileged ]]; then
+        "$sudo_bin" git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1
+    else
+        "$sudo_bin" -n git -C "$config_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1
+    fi
 }
 
 config_is_dirty() {
@@ -455,12 +480,16 @@ warn_possible_secrets() {
 
     local matches=""
     matches="$(
+        # $config_dir/abora is Abora's own tree, rewritten by every update: its scripts hold lines like
+        # `local password="$1"`, which cancelled the pre-update snapshot on a v4.1 -> 4.2 upgrade test. Only
+        # that tree is skipped (--exclude-dir would also skip a user's own hosts/x/abora).
         grep -RInE \
             --exclude-dir=.git \
             --exclude-dir=.anix \
             --exclude='*.lock' \
             '(api[_-]?key|token|secret|password|passwd)[[:space:]]*[:=]' \
-            "$config_dir" 2>/dev/null | head -n 8 || true
+            "$config_dir" 2>/dev/null \
+            | grep -vF -- "${config_dir%/}/abora/" | head -n 8 || true
     )"
 
     [[ -n "$matches" ]] || return 0
@@ -476,7 +505,7 @@ warn_possible_secrets() {
 ensure_config_git_repo() {
     require_command git
     [[ -d "$config_dir" ]] || run_as_root mkdir -p "$config_dir"
-    if config_is_git_repo; then
+    if config_is_git_repo privileged; then
         return 0
     fi
     abora_warn "${config_dir} is not a Git repo yet."
@@ -526,7 +555,7 @@ do_save() {
 maybe_snapshot_dirty_config() {
     local message="$1"
 
-    if ! config_is_git_repo; then
+    if ! config_is_git_repo privileged; then
         [[ -d "$config_dir" ]] || return 0
         abora_warn "No local snapshot history exists for ${config_dir}."
         if confirm "Create a snapshot before switching?" "yes"; then
@@ -961,7 +990,12 @@ do_set() {
                 exit 1
             fi
             ;;
-        timezone) ;;
+        timezone)
+            if ! valid_timezone "$value"; then
+                abora_error "Unknown timezone '${value}'. Use UTC or Region/City, for example Europe/Paris."
+                exit 1
+            fi
+            ;;
         keyboard|keyboard.console)
             key="keyboard.console"
             ;;
@@ -2823,7 +2857,8 @@ do_gc() {
             if ! confirm "Delete old Nix generations and garbage collect?" "no"; then
                 abora_warn "Garbage collection cancelled."
                 printf '\n'
-                return 0
+                # Non-zero, so a caller (anix doctor repair) doesn't report a cancelled run as done.
+                return 1
             fi
             run_as_root nix-collect-garbage -d
             ;;
