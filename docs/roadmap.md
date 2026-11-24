@@ -21,6 +21,9 @@ and the state of each item are in [next-release-plan.md](next-release-plan.md).
 v5.0 is a bigger v4.2: the same goals (a safer, simpler, more reliable Abora) carried further. Its main theme is
 **Shell as glue, not as the application**. This is a direction, not a committed feature list or date.
 
+The broader stability, release-candidate, package, desktop and Abora Server direction is being developed in the
+[v5.0 planning draft](v5.0-plan.md).
+
 Where Shell stands today (real files, symlinks not double-counted): 39 files, about 22,900 lines, of which about
 17,700 ship on the system and about 5,200 are tests. The biggest shipped scripts:
 
